@@ -1,0 +1,28 @@
+# Rust
+/target/
+Cargo.lock
+*.pdb
+**/*.rs.bk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.so
+*.dylib
+*.dll
+
+# Environment
+.env
+.env.local
+
+# Data directory (user content)
+/data/
+/data_dev/

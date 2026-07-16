@@ -1,0 +1,10 @@
+[package]
+name = "nexus-ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Placeholder for UI build tooling documentation
+# Actual UI is built with Vue/React and bundled into nexus-server
