@@ -1,12 +1,12 @@
 [package]
-name = "nexus-downloader"
+name = "downloader"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [dependencies]
-nexus-core = { path = "../nexus-core" }
+types = { path = "../types" }
 
 tokio.workspace = true
 serde.workspace = true

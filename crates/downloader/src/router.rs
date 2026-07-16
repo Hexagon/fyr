@@ -1,6 +1,6 @@
 //! File routing logic — routes downloaded files to appropriate directories
 
-use nexus_core::ContentType;
+use types::ContentType;
 use std::path::{Path, PathBuf};
 
 /// Routes files to the appropriate content directory based on type

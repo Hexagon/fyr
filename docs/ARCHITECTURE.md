@@ -13,7 +13,7 @@ Offline Nexus is a self-contained, distributed content platform designed for off
 └─────────────────────┼──────────────────────────────────────┘
                       │ HTTP (localhost:8080)
 ┌─────────────────────┼──────────────────────────────────────┐
-│  Nexus Server (nexus-server)                              │
+│  Nexus Server (server)                                │
 │  ┌─────────────────────────────────────────────────────┐  │
 │  │ Axum Web Server (tokio async runtime)              │  │
 │  │  • API Router (/api/*)                             │  │
@@ -24,7 +24,7 @@ Offline Nexus is a self-contained, distributed content platform designed for off
             │                              │
     ┌───────▼──────────┐      ┌────────────▼──────────┐
     │  Content Manager │      │  Download Manager    │
-    │ (nexus-core)     │      │ (nexus-downloader)   │
+    │ (types)      │      │ (downloader)    │
     │                  │      │                      │
     │ • Content Type   │      │ • Task Queue         │
     │ • Metadata       │      │ • Download Engine    │
@@ -51,8 +51,8 @@ Offline Nexus is a self-contained, distributed content platform designed for off
 
 ## Module Responsibilities
 
-### 1. nexus-core (Content Management)
-**Location**: `crates/nexus-core/`
+### 1. types (Content Management)
+**Location**: `crates/types/`
 
 Provides shared types and configuration:
 - **ContentType** enum: Maps, Books, POIs
@@ -68,8 +68,8 @@ Provides shared types and configuration:
 
 **Dependencies**: serde, uuid, tokio (async types)
 
-### 2. nexus-server (API & UI)
-**Location**: `crates/nexus-server/`
+### 2. server (API & UI)
+**Location**: `crates/server/`
 
 Axum-based web server serving:
 - JSON API endpoints (`/api/*`)
@@ -93,8 +93,8 @@ GET  /api/downloads             → List all tasks
 - `AppState` struct holds Config and DownloadManager
 - Shared via Axum State extension
 
-### 3. nexus-downloader (Content Ingestion)
-**Location**: `crates/nexus-downloader/`
+### 3. downloader (Content Ingestion)
+**Location**: `crates/downloader/`
 
 Handles content acquisition and organization:
 - **DownloadEngine**: HTTP/HTTPS downloads with resume support (TODO)
@@ -120,8 +120,8 @@ Extension → ContentType → Directory
 5. File moved to appropriate directory
 6. Task status updated (Completed or Failed)
 
-### 4. nexus-ui (Frontend)
-**Location**: `crates/nexus-ui/` + `static/` (future)
+### 4. ui (Frontend)
+**Location**: `crates/ui/` + `static/` (future)
 
 Browser-based SPA with components:
 - **Dashboard**: Content inventory (maps, books, POIs)
@@ -155,13 +155,13 @@ User opens http://localhost:8080
          ↓
 Browser requests GET /
          ↓
-nexus-server serves index.html (SPA)
+server serves index.html (SPA)
          ↓
 Vue/React app initializes
          ↓
 App requests GET /api/content/maps
          ↓
-nexus-server:
+server:
   1. Reads config.maps_dir()
   2. Walks directory with walkdir
   3. Collects metadata (filename, size, etc.)
@@ -177,7 +177,7 @@ User enters URL or uploads file
          ↓
 Browser POST /api/download { url: "..." }
          ↓
-nexus-server:handler:create_download()
+server:handler:create_download()
   1. Create DownloadTask (Queued status)
   2. Return task_id to client
          ↓

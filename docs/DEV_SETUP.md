@@ -15,7 +15,7 @@ This guide covers setting up the Offline Nexus development environment for contr
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/offline-nexus.git
+git clone https://github.com/Hexagon/offline-nexus.git
 cd offline-nexus
 ```
 
@@ -63,13 +63,13 @@ RUST_LOG=debug cargo run --bin nexus
 cargo test
 
 # Run specific crate tests
-cargo test -p nexus-downloader
+cargo test -p downloader
 
 # Run with output
 cargo test -- --nocapture
 
 # Run single test
-cargo test -p nexus-core validation::validate_file
+cargo test -p types validation::validate_file
 ```
 
 ### Building Release Binary
@@ -84,7 +84,7 @@ cargo build --release
 ```
 offline-nexus/
 ├── crates/
-│   ├── nexus-core/              # Shared types, config
+│   ├── types/                   # Shared types, config
 │   │   ├── src/
 │   │   │   ├── lib.rs           # Module exports
 │   │   │   ├── types.rs         # Core types (ContentType, DownloadTask)
@@ -92,14 +92,14 @@ offline-nexus/
 │   │   │   └── validation.rs    # File validation logic
 │   │   └── Cargo.toml
 │   │
-│   ├── nexus-server/            # Axum API server
+│   ├── server/                  # Axum API server
 │   │   ├── src/
 │   │   │   ├── main.rs          # Server entry point, router setup
 │   │   │   ├── handlers.rs      # HTTP request handlers
 │   │   │   └── state.rs         # Shared app state
 │   │   └── Cargo.toml
 │   │
-│   ├── nexus-downloader/        # Content ingestion
+│   ├── downloader/              # Content ingestion
 │   │   ├── src/
 │   │   │   ├── lib.rs           # Module exports
 │   │   │   ├── download.rs      # HTTP download engine
@@ -107,7 +107,7 @@ offline-nexus/
 │   │   │   └── manager.rs       # Download task queue
 │   │   └── Cargo.toml
 │   │
-│   └── nexus-ui/                # Frontend build coordination
+│   └── ui/                      # Frontend build coordination
 │       ├── src/
 │       │   └── lib.rs
 │       └── Cargo.toml
@@ -131,7 +131,7 @@ offline-nexus/
 
 ## Key Modules & Their Responsibilities
 
-### nexus-core
+### types
 **Purpose**: Shared types and configuration
 
 **Key Files**:
@@ -144,7 +144,7 @@ offline-nexus/
 - Changing download task structure
 - Updating validation rules
 
-### nexus-server
+### server
 **Purpose**: Axum web server and API endpoints
 
 **Key Files**:
@@ -157,7 +157,7 @@ offline-nexus/
 - Changing response formats
 - Modifying UI serving logic
 
-### nexus-downloader
+### downloader
 **Purpose**: Content download and file organization
 
 **Key Files**:
@@ -174,16 +174,16 @@ offline-nexus/
 
 ### Adding a New API Endpoint
 
-1. **Define types** in `nexus-core/src/types.rs` (if needed)
-2. **Create handler** in `nexus-server/src/handlers.rs`
-3. **Add route** to router in `nexus-server/src/main.rs`
+1. **Define types** in `types/src/types.rs` (if needed)
+2. **Create handler** in `server/src/handlers.rs`
+3. **Add route** to router in `server/src/main.rs`
 4. **Test locally**: `cargo run --bin nexus`
 5. **Update docs**: [API_REFERENCE.md](./docs/API_REFERENCE.md)
 
 **Example**: Adding `GET /api/content/maps/search`
 
 ```rust
-// 1. In nexus-server/src/handlers.rs
+// 1. In server/src/handlers.rs
 pub async fn search_maps(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
@@ -191,7 +191,7 @@ pub async fn search_maps(
     // Implementation
 }
 
-// 2. In nexus-server/src/main.rs
+// 2. In server/src/main.rs
 .route("/api/content/maps/search", get(handlers::search_maps))
 
 // 3. Test
@@ -200,10 +200,10 @@ curl "http://localhost:8080/api/content/maps/search?q=europe"
 
 ### Adding a New Content Type
 
-1. **Add to `ContentType` enum** in `nexus-core/src/types.rs`
-2. **Add file routing** in `nexus-downloader/src/router.rs`
-3. **Add validation** in `nexus-core/src/validation.rs`
-4. **Update tests**: `cargo test -p nexus-downloader`
+1. **Add to `ContentType` enum** in `types/src/types.rs`
+2. **Add file routing** in `downloader/src/router.rs`
+3. **Add validation** in `types/src/validation.rs`
+4. **Update tests**: `cargo test -p downloader`
 5. **Document** in [DATA_FORMATS.md](./docs/DATA_FORMATS.md)
 
 ### Adding Tests
@@ -265,7 +265,7 @@ Create `.vscode/launch.json`:
         "args": [
           "build",
           "--bin=nexus",
-          "--package=nexus-server"
+          "--package=server"
         ],
         "filter": {
           "name": "nexus",
@@ -375,7 +375,7 @@ chmod +x .git/hooks/pre-commit
 cargo tree
 
 # Tree for specific crate
-cargo tree -p nexus-server
+cargo tree -p server
 
 # Outdated dependencies
 cargo outdated

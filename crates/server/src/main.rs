@@ -7,8 +7,8 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use nexus_core::Config;
-use nexus_downloader::DownloadManager;
+use types::Config;
+use downloader::DownloadManager;
 use std::sync::Arc;
 use tracing::info;
 

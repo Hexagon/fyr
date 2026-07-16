@@ -1,6 +1,6 @@
 //! Download task manager
 
-use nexus_core::{DownloadTask, DownloadStatus, DownloadSource};
+use types::{DownloadTask, DownloadStatus, DownloadSource};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

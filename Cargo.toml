@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "crates/nexus-core",
-    "crates/nexus-server",
-    "crates/nexus-downloader",
-    "crates/nexus-ui",
+    "crates/types",
+    "crates/server",
+    "crates/downloader",
+    "crates/ui",
 ]
 resolver = "2"
 

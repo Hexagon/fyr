@@ -1,160 +1,278 @@
-# Offline Nexus — Off-Grid Content Platform
+# Offline Nexus
+## Offline Wikipedia • Survival Guides • Maps & POIs for Off-Grid Communities
 
-Welcome to **Offline Nexus**, a self-contained, single-binary Rust application for offline content distribution and consumption in off-grid environments.
+> A self-contained, single-binary platform for offline access to Wikipedia, survival manuals, emergency medical guides, mechanical handbooks, and detailed offline maps—deployable anywhere, no internet required.
 
-## Features
+<!-- TODO: Add logo here (200x200px SVG or PNG) -->
 
-- **Single Static Binary**: Minimal dependencies, cross-platform (Linux, macOS, Windows, ARM)
-- **Self-Contained Data Directory**: Organized storage for maps, books, and POIs
-- **Built-in Content Downloader**: HTTP downloads and local file imports with automatic routing
-- **Map Viewer**: Browse and interact with PMTiles map data
-- **Book Reader**: Read EPUB books with basic navigation
-- **POI Browser**: View point-of-interest data overlaid on maps
-- **Lightweight**: ~15-20 MB binary, runs on Raspberry Pi and minimal hardware
-- **No External Dependencies**: Data and UI bundled, no database required
+---
+
+## Perfect For
+
+- 🚨 **Disaster Response**: Access medical protocols, emergency procedures, building safely when networks fail
+- 🌍 **Remote Communities**: Villages, research stations, maritime vessels without reliable connectivity
+- 🧭 **Field Research**: Expeditions, NGO operations, development projects with offline data access
+- ⚙️ **Mechanical Repair**: Service technicians, farmers, maintenance workers needing technical references
+- 🏥 **Healthcare Workers**: Nurses, midwives, field clinics with limited internet
+- 📚 **Education**: Schools, libraries, homeschooling in off-grid areas
+- 🛡️ **Preparedness**: Emergency supplies, survival information, resilience planning
+
+---
+
+## What You Get
+
+- **Offline Wikipedia**: Full, simplified, or language-specific versions—searchable, no internet needed
+- **Survival & Reference Books**: Medical handbooks, agricultural guides, mechanical manuals, emergency procedures
+- **Interactive Offline Maps**: OpenStreetMap, satellite imagery, custom POI overlays (hospitals, water sources, etc.)
+- **Single 1.54 MB Binary**: No complex setup, runs on Linux, macOS, Windows, Raspberry Pi, any modern device
+- **Zero External Dependencies**: Works fully offline—no cloud, no database, no external services
+- **Browser-Based UI**: Works on any device with a web browser (phone, tablet, laptop)
+
+---
 
 ## Quick Start
 
 ### Prerequisites
-- Rust 1.70+ (for building) or download pre-compiled binary
+- Pre-compiled binary **OR** Rust 1.70+ (for building)
 
 ### Installation & Run
 
-**Option 1: From Source**
+**1️⃣ Download Binary (Recommended)**
 ```bash
-git clone https://github.com/yourusername/offline-nexus.git
+# macOS/Linux
+curl -Lo nexus https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-x86_64-linux
+chmod +x nexus
+
+# Raspberry Pi (ARM64)
+curl -Lo nexus https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-aarch64-linux
+chmod +x nexus
+
+# Run
+./nexus
+# → Access at http://localhost:8080
+```
+
+**2️⃣ Build from Source**
+```bash
+git clone https://github.com/Hexagon/offline-nexus.git
 cd offline-nexus
 cargo build --release
 ./target/release/nexus
 ```
 
-**Option 2: Pre-compiled Binary**
-- Download from [Releases](https://github.com/yourusername/offline-nexus/releases)
-- Run: `./nexus`
-
-**Option 3: Docker**
+**3️⃣ Docker**
 ```bash
-docker run -p 8080:8080 -v data:/data offline-nexus:latest
+docker run -p 8080:8080 -v data:/data \
+  ghcr.io/Hexagon/offline-nexus:latest
 ```
 
-### Access the UI
-Open your browser: **http://localhost:8080**
+---
 
-## Data Directory Structure
+## 📚 Adding Content
 
-```
-data/
-├── maps/              # PMTiles map files
-│   └── regions/       # Optional subdirectories
-├── books/             # EPUB, PDF, MOBI files
-│   └── fiction/       # Optional subdirectories
-├── poi/               # FlatGeoBuf, GeoJSON POI collections
-│   └── custom/        # Optional subdirectories
-└── inbox/             # Staging area for uploads
-```
+### Wikipedia (Easiest Start)
 
-## Supported Content Formats
+Download offline Wikipedia snapshots from [Kiwix](https://kiwix.org):
 
-| Type | Formats | Storage |
-|------|---------|---------|
-| **Maps** | PMTiles | `/data/maps/` |
-| **Books** | EPUB, PDF, MOBI | `/data/books/` |
-| **POIs** | FlatGeoBuf (.fgb), GeoJSON | `/data/poi/` |
-
-## Architecture Overview
-
-- **Backend**: Axum web framework + Tokio async runtime
-- **Frontend**: Browser-based UI (Vue/React) served from Rust backend
-- **Content Ingestion**: Downloader module with file routing and validation
-- **Deployment**: Single binary, Docker container, or pre-compiled images
-
-See [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for detailed system design.
-
-## API Endpoints
-
-### Status & Config
-- `GET /api/status` — Server status and content inventory
-- `GET /api/config` — Current configuration and directories
-
-### Content Listing
-- `GET /api/content/maps` — List available maps
-- `GET /api/content/books` — List available books
-- `GET /api/content/poi` — List available POI collections
-
-### Download Management
-- `POST /api/download` — Create new download task
-- `GET /api/download/:task_id/status` — Check download progress
-- `GET /api/downloads` — List all download tasks
-
-See [API_REFERENCE.md](./docs/API_REFERENCE.md) for full documentation.
-
-## Content Downloader
-
-The built-in downloader supports:
-- **HTTP/HTTPS URLs**: Download from remote servers
-- **Local File Drop**: Import files via UI upload
-- **Automatic Routing**: Files sorted by type (maps/, books/, poi/)
-- **Validation**: Format checking with helpful warnings
-- **Curated Defaults**: Pre-configured content sources (OSM, Gutenberg, etc.)
-
-See [CONTENT_DOWNLOADER.md](./docs/CONTENT_DOWNLOADER.md) for detailed usage.
-
-## Deployment Options
-
-### Single Binary (Recommended)
 ```bash
-# Build optimized release binary
-cargo build --release
-# Result: ~15-20 MB binary with no external dependencies
+# Get simplified Wikipedia (2 GB, sufficient for basics)
+wget https://library.kiwix.org/download/wikipedia_en_simple.zim
+
+# Place in data/books/
+mkdir -p data/books
+mv wikipedia_en_simple.zim data/books/
+
+# UI automatically detects it
 ```
 
-### Docker
+**See**: [WIKIPEDIA_SUPPORT.md](./docs/WIKIPEDIA_SUPPORT.md) for curated presets (medical, survival, engineering, education)
+
+### Offline Maps
+
+Add OpenStreetMap or satellite imagery:
+
 ```bash
-docker build -t offline-nexus .
-docker run -p 8080:8080 -v data:/data offline-nexus
+# Download optimized map (Europe, 2 GB)
+wget https://maps.protomaps.com/downloads/pmtiles/2024_01_v3_europe.pmtiles
+mv 2024_01_v3_europe.pmtiles data/maps/
 ```
 
-### Raspberry Pi / ARM64
-Pre-compiled ARM64 binaries available. Mount data volume for persistence:
+**See**: [PMTILES_GENERATION.md](./docs/PMTILES_GENERATION.md) for custom map creation
+
+### Books & Guides
+
+Copy EPUB, PDF, or text files:
+
 ```bash
-./nexus-arm64
-# Data automatically persists in ./data/
+cp survival-guide.epub data/books/
+cp medical-handbook.epub data/books/
+# Restart, and they appear in UI
 ```
 
-See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for detailed setup.
+---
 
-## Development
+## 🏥 Use Case Example: Rural Clinic
 
-### Local Setup
 ```bash
-# Install dependencies
-rustup update
+# 1. Start with Offline Nexus
+./nexus
 
-# Run in development mode
-cargo run --bin nexus
+# 2. Add medical Wikipedia
+# → Download from Kiwix (medical subset, 3 GB)
+# → Place in data/books/
 
-# Run tests
-cargo test
+# 3. Add emergency guides
+# → EPUB files: emergency protocols, drug database
+# → Place in data/books/
 
-# Build with optimizations
-cargo build --release
+# 4. Share on local network
+# → Doctor opens http://clinic-server:8080
+# → Access protocols, drug interactions, diagnoses
+
+# Zero internet needed ✓
+# Works on older devices ✓
+# Accessible to all staff ✓
 ```
 
-### Project Structure
+---
+
+## 📋 Content Types
+
+| Type | What Goes Here | Example |
+|------|---|---|
+| **Maps** | PMTiles, offline map files | OpenStreetMap, satellite imagery, hiking maps |
+| **Books** | EPUB, PDF, MOBI, ZIM | Wikipedia, medical handbooks, technical guides, survival manuals |
+| **POIs** | GeoJSON, FlatGeoBuf | Hospital locations, water sources, repair shops, research stations |
+
+---
+
+## 🚀 Deployment Options
+
+| Target | Command | Notes |
+|--------|---------|-------|
+| **Local Dev** | `./nexus` | Listens on http://127.0.0.1:8080 |
+| **Network** | `NEXUS_HOST=0.0.0.0 ./nexus` | Accessible from other devices on network |
+| **Raspberry Pi** | See [ARM deployment](./docs/DEVELOPER_DEPLOYMENT.md#deployment-raspberry-pi-arm64) | Battery-powered, silent, reliable |
+| **Docker** | `docker-compose up` | Easier scaling, isolation |
+| **Systemd** | See [Linux deployment](./docs/DEVELOPER_DEPLOYMENT.md#deployment-linux-server-systemd) | Production server, auto-restart |
+
+---
+
+### Quick Data Setup
+
+### Quick Data Setup
+
+```bash
+# Binary auto-creates ./data/ with structure:
+# data/
+# ├── maps/       # PMTiles, map files
+# ├── books/      # EPUB, PDF, Wikipedia ZIM files
+# ├── poi/        # GeoJSON, FlatGeoBuf files
+# └── inbox/      # Upload staging
+
+# Just drop files in directories and restart:
+cp my-map.pmtiles data/maps/
+cp my-book.epub data/books/
+./nexus  # Restarts and detects new content
+```
+
+---
+
+## 📖 Documentation
+
+### For End Users
+- [WIKIPEDIA_SUPPORT.md](./docs/WIKIPEDIA_SUPPORT.md) — Wikipedia setup, curated presets (medical, survival, engineering)
+- [PMTILES_GENERATION.md](./docs/PMTILES_GENERATION.md) — Create custom offline maps
+- [DEPLOYMENT.md](./docs/DEPLOYMENT.md) — Run on various hardware
+
+### For Developers
+- [DEVELOPER_DEPLOYMENT.md](./docs/DEVELOPER_DEPLOYMENT.md) — Systemd, Docker, Raspberry Pi, monitoring
+- [DEV_SETUP.md](./docs/DEV_SETUP.md) — Development environment, testing, debugging
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — System design, modules, data flow
+- [API_REFERENCE.md](./docs/API_REFERENCE.md) — HTTP API endpoints, examples
+
+---
+
+## 💻 Under the Hood
+
+- **Language**: Rust (fast, memory-safe, minimal dependencies)
+- **Binary Size**: 1.54 MB (optimized, includes full server + API)
+- **Framework**: Axum web framework + Tokio async runtime
+- **Database**: None—files are the database
+- **Frontend**: Browser-based UI (Vue/React, roadmap)
+- **Deployment**: Single static binary, Docker, or systemd service
+
+---
+
+### Quick Data Setup
+
+```bash
+# Binary auto-creates ./data/ with structure:
+# data/
+# ├── maps/       # PMTiles, map files
+# ├── books/      # EPUB, PDF, Wikipedia ZIM files
+# ├── poi/        # GeoJSON, FlatGeoBuf files
+# └── inbox/      # Upload staging
+
+# Just drop files in directories and restart:
+cp my-map.pmtiles data/maps/
+cp my-book.epub data/books/
+./nexus  # Restarts and detects new content
+```
+
+---
+
+## 📖 Documentation
+
+### For End Users
+- [WIKIPEDIA_SUPPORT.md](./docs/WIKIPEDIA_SUPPORT.md) — Wikipedia setup, curated presets (medical, survival, engineering)
+- [PMTILES_GENERATION.md](./docs/PMTILES_GENERATION.md) — Create custom offline maps
+- [DEPLOYMENT.md](./docs/DEPLOYMENT.md) — Run on various hardware
+
+### For Developers
+- [DEVELOPER_DEPLOYMENT.md](./docs/DEVELOPER_DEPLOYMENT.md) — Systemd, Docker, Raspberry Pi, monitoring
+- [DEV_SETUP.md](./docs/DEV_SETUP.md) — Development environment, testing, debugging
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — System design, modules, data flow
+- [API_REFERENCE.md](./docs/API_REFERENCE.md) — HTTP API endpoints, examples
+
+---
+
+## 💻 Under the Hood
+
+- **Language**: Rust (fast, memory-safe, minimal dependencies)
+- **Binary Size**: 1.54 MB (optimized, includes full server + API)
+- **Framework**: Axum web framework + Tokio async runtime
+- **Database**: None—files are the database
+- **Frontend**: Browser-based UI (Vue/React, roadmap)
+- **Deployment**: Single static binary, Docker, or systemd service
+
+---
+
+## 📂 Project Structure
+
 ```
 offline-nexus/
 ├── crates/
-│   ├── nexus-core/       # Shared types and configuration
-│   ├── nexus-server/     # Axum API server
-│   ├── nexus-downloader/ # Content ingestion
-│   └── nexus-ui/         # Frontend build docs
-├── docs/                 # Documentation
-└── Dockerfile
+│   ├── types/        # Shared types, config, validation
+│   ├── server/       # Axum API server + router
+│   ├── downloader/   # Content download engine, file routing
+│   └── ui/           # Frontend build coordination
+├── docs/
+│   ├── WIKIPEDIA_SUPPORT.md
+│   ├── PMTILES_GENERATION.md
+│   ├── DEVELOPER_DEPLOYMENT.md
+│   ├── ARCHITECTURE.md
+│   ├── API_REFERENCE.md
+│   ├── DEV_SETUP.md
+│   └── DATA_FORMATS.md
+├── Cargo.toml        # Workspace manifest
+├── Dockerfile        # Multi-stage build
+└── README.md         # This file
 ```
 
-See [DEV_SETUP.md](./docs/DEV_SETUP.md) for detailed developer guide.
+---
 
-## Roadmap
+## 🛣️ Roadmap
 
 ### v0.1.0 (Current)
 - ✅ Basic content serving (maps, books, POIs)

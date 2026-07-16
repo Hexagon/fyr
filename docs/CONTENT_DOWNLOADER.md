@@ -139,7 +139,7 @@ pub enum DownloadStatus {
 
 ### HTTP Downloads
 
-**Implementation**: `nexus-downloader/src/download.rs:DownloadEngine`
+**Implementation**: `downloader/src/download.rs:DownloadEngine`
 
 **Features**:
 - Async I/O with Tokio
@@ -162,7 +162,7 @@ loop {
 
 ### Local File Uploads
 
-**Implementation**: `nexus-server/src/handlers.rs` (TODO)
+**Implementation**: `server/src/handlers.rs` (TODO)
 
 **Features**:
 - Drag-and-drop in browser UI
@@ -181,7 +181,7 @@ loop {
 
 ### Routing Logic
 
-**Implementation**: `nexus-downloader/src/router.rs:ContentRouter`
+**Implementation**: `downloader/src/router.rs:ContentRouter`
 
 **Algorithm**:
 ```
@@ -226,7 +226,7 @@ Output: data/books/scifi/foundation.epub
 
 ### Validation Flow
 
-See `nexus-core/src/validation.rs`
+See `types/src/validation.rs`
 
 ```
 File to Ingest
@@ -390,7 +390,7 @@ data/
 
 **Unit Tests**:
 ```bash
-cargo test -p nexus-downloader
+cargo test -p downloader
 # Tests ContentRouter, file routing logic
 ```
 

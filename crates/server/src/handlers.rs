@@ -7,7 +7,7 @@ use axum::{
     response::Html,
     Json,
 };
-use nexus_core::{ContentMetadata, ContentType, DownloadSource};
+use types::{ContentMetadata, ContentType, DownloadSource};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use walkdir::WalkDir;
@@ -119,7 +119,7 @@ pub async fn create_download(
 pub async fn get_download_status(
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<String>,
-) -> Result<Json<nexus_core::DownloadTask>, StatusCode> {
+) -> Result<Json<types::DownloadTask>, StatusCode> {
     state
         .download_manager
         .get_task(&task_id)
@@ -129,7 +129,7 @@ pub async fn get_download_status(
 }
 
 /// GET /api/downloads — List all download tasks
-pub async fn list_downloads(State(state): State<Arc<AppState>>) -> Json<Vec<nexus_core::DownloadTask>> {
+pub async fn list_downloads(State(state): State<Arc<AppState>>) -> Json<Vec<types::DownloadTask>> {
     let tasks = state.download_manager.list_tasks().await;
     Json(tasks)
 }

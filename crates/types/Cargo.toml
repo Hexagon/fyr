@@ -1,5 +1,5 @@
 [package]
-name = "nexus-core"
+name = "types"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

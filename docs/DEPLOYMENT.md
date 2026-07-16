@@ -12,7 +12,7 @@ Offline Nexus is designed for minimal-effort deployment across multiple environm
 ### Build from Source
 
 ```bash
-git clone https://github.com/yourusername/offline-nexus.git
+git clone https://github.com/Hexagon/offline-nexus.git
 cd offline-nexus
 cargo build --release
 ```
@@ -137,21 +137,21 @@ Pre-compiled binaries available for all major platforms:
 
 ### Linux x86_64
 ```bash
-curl -LO https://github.com/yourusername/offline-nexus/releases/download/v0.1.0/nexus-x86_64-linux
+curl -LO https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-x86_64-linux
 chmod +x nexus-x86_64-linux
 ./nexus-x86_64-linux
 ```
 
 ### Linux ARM64 (Raspberry Pi)
 ```bash
-curl -LO https://github.com/yourusername/offline-nexus/releases/download/v0.1.0/nexus-aarch64-linux
+curl -LO https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-aarch64-linux
 chmod +x nexus-aarch64-linux
 ./nexus-aarch64-linux
 ```
 
 ### macOS
 ```bash
-curl -LO https://github.com/yourusername/offline-nexus/releases/download/v0.1.0/nexus-x86_64-macos
+curl -LO https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-x86_64-macos
 chmod +x nexus-x86_64-macos
 ./nexus-x86_64-macos
 ```
@@ -173,7 +173,7 @@ Download `nexus-x86_64-windows.exe` from releases, then:
 
 1. **Download binary**:
    ```bash
-   wget https://github.com/yourusername/offline-nexus/releases/download/v0.1.0/nexus-aarch64-linux
+   wget https://github.com/Hexagon/offline-nexus/releases/download/v0.1.0/nexus-aarch64-linux
    chmod +x nexus-aarch64-linux
    ```
 
@@ -487,7 +487,7 @@ cargo build --release
 
 ```bash
 # Download new version
-wget https://github.com/yourusername/offline-nexus/releases/download/v0.2.0/nexus-aarch64-linux
+wget https://github.com/Hexagon/offline-nexus/releases/download/v0.2.0/nexus-aarch64-linux
 
 # Stop old version
 killall nexus-aarch64-linux

@@ -1,7 +1,7 @@
 //! Shared application state
 
-use nexus_core::Config;
-use nexus_downloader::DownloadManager;
+use types::Config;
+use downloader::DownloadManager;
 use std::sync::Arc;
 
 #[derive(Clone)]

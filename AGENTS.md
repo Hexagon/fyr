@@ -8,8 +8,8 @@ This document serves as the central hub for coordinating development, documentat
 
 Each crate is maintained by specific agent tasks. Documentation must stay synchronized with code.
 
-### Core Module: `nexus-core`
-**Path**: `crates/nexus-core/src/`
+### Core Module: `types`
+**Path**: `crates/types/src/`
 
 **Responsibility**: Shared types, configuration, and validation logic
 
@@ -31,8 +31,8 @@ Each crate is maintained by specific agent tasks. Documentation must stay synchr
 
 ---
 
-### Server Module: `nexus-server`
-**Path**: `crates/nexus-server/src/`
+### Server Module: `server`
+**Path**: `crates/server/src/`
 
 **Responsibility**: Axum API endpoints, request handlers, static file serving
 
@@ -60,8 +60,8 @@ Each crate is maintained by specific agent tasks. Documentation must stay synchr
 
 ---
 
-### Downloader Module: `nexus-downloader`
-**Path**: `crates/nexus-downloader/src/`
+### Downloader Module: `downloader`
+**Path**: `crates/downloader/src/`
 
 **Responsibility**: Download engine, file routing, and download task management
 
@@ -84,8 +84,8 @@ Each crate is maintained by specific agent tasks. Documentation must stay synchr
 
 ---
 
-### UI Module: `nexus-ui`
-**Path**: `crates/nexus-ui/` + `static/` (future)
+### UI Module: `ui`
+**Path**: `crates/ui/` + `static/` (future)
 
 **Responsibility**: Frontend build coordination, Vue/React SPA
 
@@ -161,7 +161,7 @@ strip = true
 ## Testing Strategy
 
 **Implement**:
-- ✅ Router tests (nexus-downloader) — `cargo test`
+- ✅ Router tests (downloader) — `cargo test`
 - ⚠️ Integration tests (API endpoints)
 - ⚠️ End-to-end tests (downloader + server)
 
@@ -192,18 +192,18 @@ strip = true
 ## Development Workflow
 
 ### Adding a New Endpoint
-1. Define types in `nexus-core/src/types.rs`
-2. Implement handler in `nexus-server/src/handlers.rs`
-3. Add route to router in `nexus-server/src/main.rs`
+1. Define types in `types/src/types.rs`
+2. Implement handler in `server/src/handlers.rs`
+3. Add route to router in `server/src/main.rs`
 4. Document in [API_REFERENCE.md](./docs/API_REFERENCE.md)
 5. Test with `cargo test`
 
 ### Adding a New Content Type
-1. Add to `ContentType` enum in `nexus-core/src/types.rs`
-2. Add routing logic in `nexus-downloader/src/router.rs`
-3. Implement validation in `nexus-core/src/validation.rs`
+1. Add to `ContentType` enum in `types/src/types.rs`
+2. Add routing logic in `downloader/src/router.rs`
+3. Implement validation in `types/src/validation.rs`
 4. Update [DATA_FORMATS.md](./docs/DATA_FORMATS.md)
-5. Test routing: `cargo test -p nexus-downloader`
+5. Test routing: `cargo test -p downloader`
 
 ### Adding Documentation
 1. Create `.md` file in `docs/` directory
@@ -256,7 +256,7 @@ Before each release:
 Use these tasks to delegate work:
 
 ```
-@core-agent — Maintain nexus-core types, config, validation
+@core-agent — Maintain types config, validation
 @server-agent — Maintain API endpoints and request handlers
 @downloader-agent — Implement download engine and file routing
 @ui-agent — Build Vue/React frontend

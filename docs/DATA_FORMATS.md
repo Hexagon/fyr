@@ -33,7 +33,7 @@ Metadata
 - File very small (< 1 KB) → Likely invalid
 - Read error → Log error, mark as incomplete
 
-**Implementation**: See `nexus-core/src/validation.rs:validate_pmtiles()`
+**Implementation**: See `types/src/validation.rs:validate_pmtiles()`
 
 ### Serving
 - **Storage**: `data/maps/`
@@ -124,7 +124,7 @@ book.epub
 - **Client Viewer**: EPUB.js (EPUB), PDF.js (PDF), calibre (MOBI)
 
 ### Implementation
-See `nexus-core/src/validation.rs:validate_book()`
+See `types/src/validation.rs:validate_book()`
 
 ### Example
 ```bash
@@ -162,7 +162,7 @@ Feature Data (columns)
 - Feature count verification
 - Geometry validity (basic)
 
-**Implementation**: See `nexus-core/src/validation.rs:validate_poi()`
+**Implementation**: See `types/src/validation.rs:validate_poi()`
 
 ### GeoJSON
 **Geographic JSON Format** — Human-readable, web-friendly
