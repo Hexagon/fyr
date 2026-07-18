@@ -7,6 +7,7 @@ This file coordinates code ownership, documentation rules, and delivery expectat
 Authoritative documentation is limited to these files:
 
 - [README.md](README.md)
+- [INSTALL.md](INSTALL.md)
 - [AGENTS.md](AGENTS.md)
 - [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 - [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
@@ -75,7 +76,8 @@ When adding or changing behavior:
 2. Update user-facing behavior in [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md).
 3. Update technical behavior in [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md).
 4. If onboarding/quickstart changes, update [README.md](README.md).
-5. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
+5. If installation paths, platform setup, or deployment bootstrap steps change, update [INSTALL.md](INSTALL.md).
+6. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
 
 ## Docker and Platform Expectations
 

@@ -24,6 +24,8 @@ Open http://127.0.0.1:8080.
 
 ## Install and Run
 
+For full installation paths (development from source, Docker on existing systems, and Raspberry Pi OS from scratch with Docker), see [INSTALL.md](INSTALL.md).
+
 ### Docker (Production)
 
 ```bash
@@ -82,6 +84,7 @@ cd ../../docs/build && npm run verify:kiwix
 
 ## Documentation
 
+- Installation guide: [INSTALL.md](INSTALL.md)
 - User guide: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 - Developer guide: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
 - Project governance and module map: [AGENTS.md](AGENTS.md)
