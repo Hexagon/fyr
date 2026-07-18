@@ -1,6 +1,17 @@
 # Multi-stage Dockerfile for Fyr
 # Builds a minimal, efficient container image
 
+# Stage 0: Frontend builder
+FROM node:24-bookworm AS frontend-builder
+
+WORKDIR /build/crates/ui/frontend
+
+COPY crates/ui/frontend/package.json crates/ui/frontend/package-lock.json ./
+RUN npm ci
+
+COPY crates/ui/frontend ./
+RUN npm run build
+
 # Stage 1: Builder
 FROM rust:bookworm AS builder
 
@@ -23,6 +34,7 @@ RUN cargo build --release --locked -p server --bin fyr
 # Copy the real project contents after dependencies are cached.
 COPY crates crates
 COPY public public
+COPY --from=frontend-builder /build/public/static /build/public/static
 
 RUN cargo build --release --locked -p server --bin fyr
 

@@ -8,7 +8,7 @@ It runs as a local web server and works without internet once content is present
 ## Features
 
 - Offline maps with PMTiles
-- Library with EPUB, Markdown, and ZIM reading
+- Library with EPUB, PDF, Markdown, and ZIM reading
 - Embedded Kiwix web reader for large ZIM archives over HTTP range requests
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files

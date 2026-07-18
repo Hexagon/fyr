@@ -94,6 +94,7 @@ docker run --rm -p 8080:8080 \
 Container expectations:
 
 - App static assets live under `/app/public`.
+- Docker image builds frontend assets during image build and bundles generated files under `/app/public/static`.
 - Writable content directory is mounted to `/data`.
 - Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
 - Healthcheck uses `GET /api/status`.

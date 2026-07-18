@@ -39,7 +39,7 @@ Then open `http://127.0.0.1:8080`.
 - Home: system status, location, sunrise/sunset, and storage overview.
 - Content Manager: add URL downloads, import local files, and inspect content inventory.
 - Maps: map selection and viewer controls.
-- Books: browse books, read EPUB, launch ZIM reader flow.
+- Books: browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - Assistant: browse local `.gguf` models and chat offline.
 
 Header behavior:
@@ -122,6 +122,10 @@ Licensing note for embedded reader:
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
 - In Docker setups with persistent `DATA_DIR`, Fyr refreshes `user-manual.md` and `developer-manual.md` automatically at startup.
+
+## 5b. PDF Reading
+- Select a `.pdf` file in Books to open it inline in the built-in reader panel.
+- If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically:
