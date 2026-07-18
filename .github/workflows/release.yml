@@ -59,7 +59,7 @@ jobs:
       - name: Setup Node (frontend)
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: crates/ui/frontend/package-lock.json
 
@@ -74,7 +74,7 @@ jobs:
       - name: Setup Node (docs)
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: docs/build/package-lock.json
 

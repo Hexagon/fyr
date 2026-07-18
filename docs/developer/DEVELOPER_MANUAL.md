@@ -43,8 +43,8 @@ Extending model support:
 - npm 9+
 
 CI-pinned versions for parity:
-- Rust stable (Docker build uses `rust:stable`)
-- Node.js 20
+- Rust stable (Docker build uses `rust:bookworm`)
+- Node.js 24
 
 ### Build frontend
 1. `cd crates/ui/frontend`

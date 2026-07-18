@@ -2,7 +2,7 @@
 # Builds a minimal, efficient container image
 
 # Stage 1: Builder
-FROM rust:stable AS builder
+FROM rust:bookworm AS builder
 
 WORKDIR /build
 
