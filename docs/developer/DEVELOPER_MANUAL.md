@@ -200,7 +200,7 @@ PR flow:
 
 GitHub workflows:
 - `.github/workflows/release-dev.yml`
-  - Trigger: push to `dev` (or manual dispatch).
+  - Trigger: merged PR into `dev` (or manual dispatch).
   - Runs full preflight (tests/check/build/docs/compliance).
   - Publishes Docker multi-arch dev images:
     - `hexagon/fyr:dev`
