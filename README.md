@@ -29,6 +29,7 @@ cargo test --workspace --all-targets
 cargo check -p server
 cd crates/ui/frontend && npm ci && npm run build
 cd ../../docs/build && npm ci && npm run build
+cd ../../docs/build && npm run verify:kiwix
 ```
 
 ## Documentation
@@ -40,3 +41,12 @@ cd ../../docs/build && npm ci && npm run build
 ## License
 
 This repository is licensed under MIT. See [LICENSE](LICENSE).
+
+## Third-Party Licensing
+
+- Fyr project code is licensed under MIT.
+- This repository also distributes an embedded Kiwix web bundle under `public/kiwix-static/`.
+- The Kiwix bundle keeps its upstream copyleft licenses and notices:
+	- GPLv3 text: `public/kiwix-static/LICENSE-GPLv3.txt`
+	- AGPLv3 text (for included replay worker artifact): `public/kiwix-static/LICENSE-AGPLv3.txt`
+	- Bundle notice/provenance summary: `public/kiwix-static/THIRD_PARTY_NOTICES.txt`

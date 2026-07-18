@@ -67,3 +67,6 @@ jobs:
 
       - name: Build Documentation
         run: npm run build
+
+      - name: Verify Kiwix Compliance
+        run: npm run verify:kiwix

@@ -48,13 +48,15 @@
           </p>
         </div>
 
-        <div class="chat-history">
-          <div v-for="message in messages" :key="message.id" class="bubble" :class="message.role">
+        <div ref="chatHistoryRef" class="chat-history">
+          <div v-for="message in messages" :key="message.id" class="bubble" :class="[message.role, { streaming: message.streaming }]">
             <div
               v-if="message.role === 'assistant'"
               class="bubble-content markdown-content"
-              v-html="renderMarkdown(message.text)"
-            ></div>
+            >
+              <div v-html="renderMarkdown(message.text)"></div>
+              <p v-if="message.streaming" class="streaming-indicator">Generating…</p>
+            </div>
             <div v-else class="bubble-content plain-content">{{ message.text }}</div>
           </div>
           <p v-if="!messages.length" class="empty-state">Select a model and start chatting offline.</p>
@@ -96,7 +98,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { apiService } from '../services/api'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -113,6 +115,8 @@ const maxTokens = ref(512)
 const loadingModel = ref(false)
 const streaming = ref(false)
 const modelImportSource = ref('inbox')
+const chatHistoryRef = ref(null)
+const activeAssistantMessage = ref(null)
 let eventSource = null
 
 const canSend = computed(() => {
@@ -137,6 +141,14 @@ const formatBytes = (bytes) => {
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+const scrollChatHistoryToBottom = async () => {
+  await nextTick()
+  const element = chatHistoryRef.value
+  if (element) {
+    element.scrollTop = element.scrollHeight
+  }
 }
 
 const openImportDialog = () => {
@@ -213,9 +225,11 @@ const sendPrompt = () => {
   const assistantMessage = {
     id: crypto.randomUUID(),
     role: 'assistant',
-    text: ''
+    text: '',
+    streaming: true
   }
   messages.value.push(assistantMessage)
+  activeAssistantMessage.value = assistantMessage
 
   streaming.value = true
   eventSource = apiService.streamInference(
@@ -228,14 +242,27 @@ const sendPrompt = () => {
     {
       onToken: (token) => {
         assistantMessage.text += token
+        scrollChatHistoryToBottom()
+      },
+      onDone: () => {
+        assistantMessage.streaming = false
+        activeAssistantMessage.value = null
+        streaming.value = false
+        eventSource = null
+        scrollChatHistoryToBottom()
       },
       onError: () => {
+        assistantMessage.streaming = false
+        activeAssistantMessage.value = null
         streaming.value = false
+        eventSource = null
+        scrollChatHistoryToBottom()
       }
     }
   )
 
   prompt.value = ''
+  scrollChatHistoryToBottom()
 }
 
 const regenerate = () => {
@@ -249,6 +276,10 @@ const stopGeneration = () => {
   if (eventSource) {
     eventSource.close()
     eventSource = null
+  }
+  if (activeAssistantMessage.value) {
+    activeAssistantMessage.value.streaming = false
+    activeAssistantMessage.value = null
   }
   streaming.value = false
 }
@@ -433,6 +464,13 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.chat-history :deep(.streaming-indicator) {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: #9ebf9f;
+  opacity: 0.9;
 }
 
 .bubble {

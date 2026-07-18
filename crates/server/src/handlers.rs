@@ -445,13 +445,15 @@ pub async fn ai_infer_stream(
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
-    let stream = ReceiverStream::new(rx).map(|token| {
+    let token_stream = ReceiverStream::new(rx).map(|token| {
         Ok::<Event, Infallible>(
             Event::default()
                 .event("token")
                 .data(token),
         )
     });
+    let done_stream = tokio_stream::iter(vec![Ok::<Event, Infallible>(Event::default().event("done"))]);
+    let stream = token_stream.chain(done_stream);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

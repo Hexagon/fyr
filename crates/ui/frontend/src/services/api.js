@@ -167,6 +167,10 @@ export const apiService = {
     source.addEventListener('token', (event) => {
       handlers.onToken?.(event.data)
     })
+    source.addEventListener('done', () => {
+      handlers.onDone?.()
+      source.close()
+    })
     source.onerror = (error) => {
       handlers.onError?.(error)
       source.close()

@@ -148,6 +148,15 @@ Kiwix integration notes:
 - Server exposes `Accept-Ranges: bytes` and CORS exposed headers (`content-length`, `content-range`, `accept-ranges`) for reader compatibility.
 - ZIM content is read client-side via Kiwix HTTP range requests; no server-side ZIM content parsing endpoints are exposed.
 
+Kiwix licensing and distribution notes:
+- Fyr source code remains MIT-licensed at repository root.
+- Embedded Kiwix assets under `public/kiwix-static/` are third-party code and retain their upstream licenses.
+- Distribute these files with releases that include the embedded reader:
+  - `public/kiwix-static/LICENSE-GPLv3.txt`
+  - `public/kiwix-static/LICENSE-AGPLv3.txt`
+  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+- Keep bundle provenance current (upstream project reference, observed version markers, and local patch notes).
+
 Download lifecycle notes:
 - Download tasks are persisted to `DATA_DIR/download_tasks.json` using atomic write/rename.
 - Persisted tasks are loaded on startup and immediately available through `GET /api/downloads`.
@@ -204,3 +213,33 @@ Run from repository root unless noted:
 2. `cargo check -p server`
 3. `cd crates/ui/frontend && npm ci && npm run build`
 4. `cd docs/build && npm ci && npm run build`
+5. Verify embedded reader license artifacts are present in release payloads:
+  - `public/kiwix-static/LICENSE-GPLv3.txt`
+  - `public/kiwix-static/LICENSE-AGPLv3.txt`
+  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+6. `cd docs/build && npm run verify:kiwix`
+
+## 10. Kiwix Update Procedure (Required)
+Use this procedure whenever `public/kiwix-static/` is refreshed from a new Kiwix release.
+
+1. Fetch upstream release source/archive from `https://github.com/kiwix/kiwix-js`.
+2. Update `public/kiwix-static/` with the required runtime subset for Fyr embedded reader.
+3. Keep license artifacts in place:
+  - `public/kiwix-static/LICENSE-GPLv3.txt`
+  - `public/kiwix-static/LICENSE-AGPLv3.txt`
+  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+4. Update provenance metadata in `public/kiwix-static/KIWIX_SOURCE_MANIFEST.json`:
+  - `upstream_release_tag`
+  - `upstream_archive_url`
+  - `source_code_url`
+  - `bundle_runtime_markers`
+  - `last_reviewed_utc`
+5. If any local edits are applied to bundled Kiwix files, summarize changed paths/rationale in `THIRD_PARTY_NOTICES.txt` and in release notes.
+6. Run compliance verification:
+
+```bash
+cd docs/build
+npm run verify:kiwix
+```
+
+7. Run standard validation sequence and ensure release payload includes the full `public/kiwix-static/` compliance artifacts.

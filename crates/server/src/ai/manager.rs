@@ -250,6 +250,8 @@ impl ModelManager {
                     let mut sampler = LogitsProcessor::new(seed, Some(temperature), None);
                     let mut input_ids = token_ids.clone();
                     let mut index_pos = 0usize;
+                    let mut generated_text = String::new();
+                    let mut emitted_len = 0usize;
 
                     for _ in 0..max_tokens {
                         let input = match Tensor::new(input_ids.as_slice(), &device)
@@ -287,7 +289,6 @@ impl ModelManager {
                             break;
                         }
 
-                        token_ids.push(next_token);
                         let fragment = match tokenizer.decode(&[next_token], true) {
                             Ok(text) => text,
                             Err(error) => {
@@ -296,8 +297,26 @@ impl ModelManager {
                             }
                         };
 
-                        if !fragment.is_empty() && tx.blocking_send(fragment).is_err() {
-                            return;
+                        token_ids.push(next_token);
+                        generated_text.push_str(&fragment);
+
+                        if let Some(stop_at) = first_role_marker_index(&generated_text) {
+                            let visible_text = &generated_text[..stop_at];
+                            if visible_text.len() > emitted_len {
+                                let delta = &visible_text[emitted_len..];
+                                if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
+                                    return;
+                                }
+                            }
+                            break;
+                        }
+
+                        if generated_text.len() > emitted_len {
+                            let delta = &generated_text[emitted_len..];
+                            if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
+                                return;
+                            }
+                            emitted_len = generated_text.len();
                         }
 
                         index_pos = token_ids.len() - 1;
@@ -339,4 +358,30 @@ fn format_chat_prompt(prompt: &str) -> String {
         system = CHAT_SYSTEM_PROMPT,
         prompt = prompt.trim()
     )
+}
+
+fn first_role_marker_index(text: &str) -> Option<usize> {
+    const ROLE_MARKERS: [&str; 8] = [
+        "ASSISTENT:",
+        "ANVÄNDARE:",
+        "ASSISTANT:",
+        "USER:",
+        "\nASSISTENT:",
+        "\nANVÄNDARE:",
+        "\nASSISTANT:",
+        "\nUSER:",
+    ];
+
+    ROLE_MARKERS
+        .iter()
+        .filter_map(|marker| {
+            text.match_indices(marker).find_map(|(index, _)| {
+                if index == 0 || text.as_bytes().get(index.saturating_sub(1)) == Some(&b'\n') {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+        })
+        .min()
 }

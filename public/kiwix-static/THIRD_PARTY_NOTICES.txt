@@ -1,0 +1,20 @@
+Fyr Embedded Kiwix Bundle - Third-Party Notices
+
+This directory contains a bundled copy of Kiwix JS assets used for embedded ZIM reading in Fyr.
+
+Component: Kiwix JS web bundle
+Upstream project: https://github.com/kiwix/kiwix-js
+Observed bundle version marker: appVersion=4.3.15 (see www/js/init.js and service-worker.js)
+License: GNU General Public License v3.0 (GPL-3.0)
+License text: LICENSE-GPLv3.txt
+Source/provenance manifest: KIWIX_SOURCE_MANIFEST.json
+
+Component: replayWorker.js (Webrecorder project artifact)
+Source marker: replayWorker.js file header
+License: GNU Affero General Public License v3.0 (AGPL-3.0)
+License text: LICENSE-AGPLv3.txt
+
+Project-level licensing note:
+- Fyr project code is MIT licensed (see repository root LICENSE).
+- Embedded third-party components in this directory keep their original licenses.
+- If this bundle is modified, keep provenance and corresponding source references updated in release notes/docs.

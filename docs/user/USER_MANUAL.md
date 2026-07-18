@@ -97,6 +97,14 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - Book archives are served at `/docs/books/<filename>.zim` with byte-range support.
 - Capabilities endpoint: `/api/reader/kiwix/capabilities`.
 
+Licensing note for embedded reader:
+- Fyr core project code is MIT-licensed.
+- The embedded Kiwix bundle under `public/kiwix-static/` is a third-party component with its own copyleft licenses.
+- License texts are distributed in:
+  - `public/kiwix-static/LICENSE-GPLv3.txt`
+  - `public/kiwix-static/LICENSE-AGPLv3.txt`
+  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
