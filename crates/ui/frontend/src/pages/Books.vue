@@ -53,7 +53,19 @@
           <div v-else-if="isMarkdownSelected" class="markdown-reader">
             <article class="markdown-content" v-html="markdownHtml"></article>
           </div>
-          <div v-else-if="selectedBook.filename.endsWith('.zim')" class="zim-reader">
+          <div v-else-if="isPdfSelected" class="pdf-reader">
+            <iframe
+              class="pdf-reader-frame"
+              :src="selectedPdfUrl"
+              title="PDF reader"
+              loading="lazy"
+            ></iframe>
+            <p class="hint-text pdf-hint">
+              If inline PDF rendering is unavailable in this browser,
+              <a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer">open it in a new tab</a>.
+            </p>
+          </div>
+          <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
             <p v-if="zimReaderStatus !== 'idle'" class="status-state">{{ zimReaderStatus }}</p>
             <iframe
               ref="zimIframeRef"
@@ -68,7 +80,7 @@
             <p v-if="readerError" class="error-state">{{ readerError }}</p>
           </div>
           <div v-else class="book-info-empty">
-            Select an EPUB, Markdown file, or ZIM in the list to read it here.
+            Select an EPUB, Markdown file, PDF, or ZIM in the list to read it here.
           </div>
         </div>
 
@@ -108,12 +120,20 @@ const lastInjectedZimUrl = ref('')
 
 const ZIM_LOCAL_READER_URL = zimReaderConfig.localUrl
 
+const hasExtension = (filename, extension) => {
+  return String(filename || '').toLowerCase().endsWith(extension)
+}
+
 const isEpubSelected = computed(() => {
-  return selectedBook.value?.filename.endsWith('.epub') && epubBook.value
+  return hasExtension(selectedBook.value?.filename, '.epub') && epubBook.value
 })
 
 const isMarkdownSelected = computed(() => {
-  return selectedBook.value?.filename.endsWith('.md')
+  return hasExtension(selectedBook.value?.filename, '.md')
+})
+
+const isPdfSelected = computed(() => {
+  return hasExtension(selectedBook.value?.filename, '.pdf')
 })
 
 const filteredBooks = computed(() => {
@@ -123,8 +143,13 @@ const filteredBooks = computed(() => {
 })
 
 const selectedZimUrl = computed(() => {
-  if (!selectedBook.value?.filename?.endsWith('.zim')) return ''
+  if (!hasExtension(selectedBook.value?.filename, '.zim')) return ''
   return `/docs/books/${encodeURIComponent(selectedBook.value.filename)}`
+})
+
+const selectedPdfUrl = computed(() => {
+  if (!hasExtension(selectedBook.value?.filename, '.pdf')) return ''
+  return `/data/books/${encodeURIComponent(selectedBook.value.filename)}`
 })
 
 const formatBytes = (bytes) => {
@@ -153,24 +178,24 @@ const selectBook = (book) => {
   epubRendition.value = null
   markdownHtml.value = ''
 
-  if (book.filename.endsWith('.zim')) {
+  if (hasExtension(book.filename, '.zim')) {
     zimReaderStatus.value = 'loading'
     pendingZimInjection.value = true
     openSelectedZimInReader()
   }
 
-  if (book.filename.endsWith('.epub')) {
+  if (hasExtension(book.filename, '.epub')) {
     loadEpub(book)
   }
 
-  if (book.filename.endsWith('.md')) {
+  if (hasExtension(book.filename, '.md')) {
     loadMarkdown(book)
   }
 }
 
 const loadEpub = async (book) => {
   try {
-    const url = `/data/books/${book.filename}`
+    const url = `/data/books/${encodeURIComponent(book.filename)}`
     const bookObj = new EPub(url)
 
     await bookObj.ready
@@ -299,7 +324,7 @@ const buildZimReaderUrl = () => {
 }
 
 const openSelectedZimInReader = async () => {
-  if (!selectedBook.value?.filename?.endsWith('.zim')) return
+  if (!hasExtension(selectedBook.value?.filename, '.zim')) return
 
   const localAvailable = await ensureLocalZimReaderAvailable()
   if (!localAvailable) {
@@ -362,7 +387,7 @@ const injectSelectedZimArchive = async (attempt = 0) => {
 
 const onZimFrameLoad = () => {
   applyEmbeddedKiwixStyles()
-  if (selectedBook.value?.filename?.endsWith('.zim')) {
+  if (hasExtension(selectedBook.value?.filename, '.zim')) {
     if (lastInjectedZimUrl.value !== selectedZimUrl.value) {
       pendingZimInjection.value = true
     }
@@ -636,6 +661,28 @@ onMounted(async () => {
   color: #2a5bd7;
 }
 
+.pdf-reader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pdf-reader-frame {
+  width: 100%;
+  min-height: calc(100vh - 320px);
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.pdf-hint {
+  margin: 0;
+}
+
+.pdf-hint a {
+  color: #dbe2ff;
+}
+
 .zim-reader {
   display: flex;
   flex-direction: column;
@@ -687,6 +734,7 @@ onMounted(async () => {
 
   #book-viewer,
   .markdown-reader,
+  .pdf-reader-frame,
   .zim-reader-frame,
   .book-content,
   .empty-view {
