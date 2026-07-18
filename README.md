@@ -72,16 +72,6 @@ cargo build --release -p server --bin fyr
 	- `developer-manual.md`
 - Other files under `DATA_DIR` are preserved as user-managed content.
 
-## Validation Checks
-
-```bash
-cargo test --workspace --all-targets
-cargo check -p server
-cd crates/ui/frontend && npm ci && npm run build
-cd ../../docs/build && npm ci && npm run build
-cd ../../docs/build && npm run verify:kiwix
-```
-
 ## Documentation
 
 - Installation guide: [INSTALL.md](INSTALL.md)
