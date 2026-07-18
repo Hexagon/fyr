@@ -91,7 +91,7 @@
 
           <div v-if="downloads.length" class="download-list">
             <div v-for="dl in downloads" :key="dl.id" class="download-item">
-              <p class="download-name">{{ dl.source?.url || dl.source }}</p>
+              <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
               <p class="download-status">
                 <span class="badge" :class="dl.status">{{ dl.status }}</span>
               </p>
@@ -267,22 +267,63 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 
-const importLocalModel = async (file) => {
-  if (!file.name.toLowerCase().endsWith('.gguf')) {
-    downloadError.value = 'Local upload is currently available for GGUF models only.'
-    downloadStatus.value = null
-    return
-  }
-
+const importLocalFile = async (file) => {
   downloading.value = true
   downloadError.value = null
   downloadStatus.value = `Uploading ${file.name}...`
 
   try {
-    const uploadResponse = await apiService.uploadModel(file)
-    await apiService.importModel(uploadResponse.data.filename, 'inbox')
-    downloadStatus.value = `Imported ${uploadResponse.data.filename} into model library.`
-    activeCategory.value = 'models'
+    const uploadResponse = await apiService.uploadFile(file)
+    const uploadedFilename = uploadResponse.data?.filename
+
+    if (!uploadedFilename) {
+      throw new Error('Upload did not return a filename.')
+    }
+
+    downloadStatus.value = `Queued import for ${uploadedFilename}...`
+
+    const importResponse = await apiService.createImportDownload(uploadedFilename)
+    const taskId = importResponse.data?.task_id
+
+    if (!taskId) {
+      throw new Error('Import task could not be created.')
+    }
+
+    let completed = false
+    for (let i = 0; i < 120; i += 1) {
+      const statusResponse = await apiService.getDownloadStatus(taskId)
+      const task = statusResponse.data
+      const status = String(task?.status || '').toLowerCase()
+
+      if (status === 'completed') {
+        const typeToCategory = {
+          map: 'maps',
+          book: 'books',
+          poi: 'poi',
+          model: 'models',
+          misc: 'misc'
+        }
+        const nextCategory = typeToCategory[String(task?.content_type || '').toLowerCase()]
+        if (nextCategory) {
+          activeCategory.value = nextCategory
+        }
+        downloadStatus.value = `Imported ${uploadedFilename} successfully.`
+        completed = true
+        break
+      }
+
+      if (status === 'failed' || status === 'cancelled') {
+        throw new Error(task?.error || `Import ended with status: ${status}`)
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+
+    if (!completed) {
+      throw new Error('Import timed out while waiting for task completion.')
+    }
+
+    await loadDownloads()
     await loadContent()
   } catch (err) {
     downloadError.value = apiService.handleError(err)
@@ -296,7 +337,7 @@ const onFilePicked = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
 
-  await importLocalModel(file)
+  await importLocalFile(file)
   if (event.target) {
     event.target.value = ''
   }
@@ -307,7 +348,15 @@ const onDrop = async (event) => {
   const file = event.dataTransfer?.files?.[0]
   if (!file) return
 
-  await importLocalModel(file)
+  await importLocalFile(file)
+}
+
+const describeDownloadSource = (source) => {
+  if (!source) return 'Unknown source'
+  if (source.url) return source.url
+  if (source.path) return source.path
+  if (typeof source === 'string') return source
+  return 'Unknown source'
 }
 
 const loadContent = async () => {

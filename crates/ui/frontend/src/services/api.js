@@ -89,7 +89,6 @@ export const apiService = {
 
   // Status & Config
   getStatus: () => api.get('/status'),
-  getConfig: () => api.get('/config'),
   getSettings: () => api.get('/settings'),
   updateSettings: (settings) => api.put('/settings', settings),
   getStorage: () => api.get('/storage'),
@@ -149,9 +148,40 @@ export const apiService = {
 
     return { data: payload }
   },
+  uploadFile: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/import/upload', {
+      method: 'POST',
+      body: formData,
+      cache: 'no-store'
+    })
+
+    let payload = null
+    const responseType = response.headers.get('content-type') || ''
+
+    if (responseType.includes('application/json')) {
+      payload = await response.json()
+    } else {
+      const text = await response.text()
+      payload = text ? { message: text } : null
+    }
+
+    if (!response.ok) {
+      throw {
+        response: {
+          status: response.status,
+          data: payload
+        }
+      }
+    }
+
+    return { data: payload }
+  },
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
+  createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),
   loadModel: (filename) => api.post(`/models/${encodeURIComponent(filename)}/load`),
-  unloadModel: (filename) => api.delete(`/models/${encodeURIComponent(filename)}/load`),
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
@@ -187,6 +217,9 @@ export const apiService = {
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
+    if (error?.message && !error?.response && !error?.code) {
+      return error.message
+    }
     if (error.code === 'ECONNABORTED') {
       return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check server responsiveness.`
     }

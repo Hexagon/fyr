@@ -67,10 +67,12 @@ cargo build --release -p server --bin fyr
 ## Docker Data Behavior
 
 - Mount `DATA_DIR` (default `/data`) as a persistent volume to keep user content across upgrades.
+- Use either Docker named volumes (`-v fyr-data:/data`) or host folder bind-mounts (`-v /path/to/fyr-data:/data`).
 - On startup, Fyr automatically refreshes the two system-managed manuals in `DATA_DIR/books/`:
 	- `user-manual.md`
 	- `developer-manual.md`
 - Other files under `DATA_DIR` are preserved as user-managed content.
+- Reusing the same mount path/volume across reinstalls keeps your data.
 
 ## Documentation
 

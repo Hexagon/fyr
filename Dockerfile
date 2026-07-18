@@ -6,11 +6,25 @@ FROM rust:bookworm AS builder
 
 WORKDIR /build
 
-# Copy entire project
-COPY . .
+# Copy workspace manifests first so dependency compilation can be cached.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/types/Cargo.toml crates/types/Cargo.toml
+COPY crates/downloader/Cargo.toml crates/downloader/Cargo.toml
+COPY crates/server/Cargo.toml crates/server/Cargo.toml
+COPY crates/ui/Cargo.toml crates/ui/Cargo.toml
 
-# Build release binary
-RUN cargo build --release -p server --bin fyr
+# Prime Cargo's dependency layer with minimal crate sources.
+RUN mkdir -p crates/types/src crates/downloader/src crates/server/src crates/ui/src \
+  && touch crates/types/src/lib.rs crates/downloader/src/lib.rs crates/ui/src/lib.rs \
+  && printf 'fn main() {}\n' > crates/server/src/main.rs
+
+RUN cargo build --release --locked -p server --bin fyr
+
+# Copy the real project contents after dependencies are cached.
+COPY crates crates
+COPY public public
+
+RUN cargo build --release --locked -p server --bin fyr
 
 # Stage 2: Runtime (minimal base image)
 FROM debian:bookworm-slim

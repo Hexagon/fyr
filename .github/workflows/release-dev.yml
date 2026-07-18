@@ -93,6 +93,8 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=fyr-docker
+          cache-to: type=gha,mode=max,scope=fyr-docker
           tags: |
             hexagon/fyr:dev
             hexagon/fyr:dev-${{ github.sha }}

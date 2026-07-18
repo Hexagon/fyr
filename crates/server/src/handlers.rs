@@ -8,7 +8,7 @@ use crate::AppState;
 use axum::{
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
-    response::{sse::{Event, KeepAlive, Sse}, Html},
+    response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse, Response},
     Json,
 };
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
@@ -88,6 +88,14 @@ pub struct CreateDownloadRequest {
 #[derive(Serialize)]
 pub struct CreateDownloadResponse {
     pub task_id: String,
+}
+
+#[derive(Serialize)]
+pub struct UploadFileResponse {
+    pub filename: String,
+    pub stored_in: String,
+    pub size_bytes: u64,
+    pub detected_type: Option<ContentType>,
 }
 
 #[derive(Serialize)]
@@ -376,6 +384,102 @@ pub async fn ai_upload_model(
     Err(StatusCode::BAD_REQUEST)
 }
 
+/// POST /api/import/upload — Upload a supported content file into inbox before import
+pub async fn upload_file_to_import(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<UploadFileResponse>), StatusCode> {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|error| {
+            warn!("Invalid multipart payload while uploading import file: {}", error);
+            StatusCode::BAD_REQUEST
+        })?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+
+        let raw_name = field.file_name().ok_or(StatusCode::BAD_REQUEST)?;
+        let filename = sanitize_upload_filename(raw_name).ok_or(StatusCode::BAD_REQUEST)?;
+        let detected_type = detect_content_type(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+        let target_path = state.config.inbox_dir().join(&filename);
+        if tokio::fs::try_exists(&target_path)
+            .await
+            .map_err(|error| {
+                error!("Failed to check existing upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+        {
+            tokio::fs::remove_file(&target_path)
+                .await
+                .map_err(|error| {
+                    error!("Failed to remove existing upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+        }
+
+        let mut file = tokio::fs::File::create(&target_path)
+            .await
+            .map_err(|error| {
+                error!("Failed to create upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        let mut size_bytes = 0u64;
+        let mut magic = Vec::with_capacity(8);
+
+        while let Some(chunk) = field.chunk().await.map_err(|error| {
+            warn!("Failed to read upload stream chunk: {}", error);
+            StatusCode::BAD_REQUEST
+        })? {
+            let needed = 8usize.saturating_sub(magic.len());
+            if needed > 0 {
+                magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
+            }
+
+            file.write_all(&chunk)
+                .await
+                .map_err(|error| {
+                    error!("Failed to write upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            size_bytes += chunk.len() as u64;
+        }
+
+        if size_bytes == 0 {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
+        if !validate_upload_magic(&filename, detected_type, &magic) {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        }
+
+        file.flush()
+            .await
+            .map_err(|error| {
+                error!("Failed to flush upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(UploadFileResponse {
+                filename,
+                stored_in: target_path.display().to_string(),
+                size_bytes,
+                detected_type: Some(detected_type),
+            }),
+        ));
+    }
+
+    Err(StatusCode::BAD_REQUEST)
+}
+
 /// POST /api/models/import — Import a model from inbox/misc into models with GGUF validation
 pub async fn ai_import_model(
     State(state): State<Arc<AppState>>,
@@ -472,6 +576,36 @@ pub async fn create_download(
     )
 }
 
+/// POST /api/import/download/:filename — Create local import task from inbox
+pub async fn create_import_download(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<(StatusCode, Json<CreateDownloadResponse>), StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let source_path = state.config.inbox_dir().join(&sanitized);
+
+    let exists = tokio::fs::try_exists(&source_path)
+        .await
+        .map_err(|error| {
+            error!("Failed to verify import source {}: {}", source_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let task_id = state
+        .download_manager
+        .create_task(DownloadSource::LocalFile { path: source_path })
+        .await;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateDownloadResponse { task_id }),
+    ))
+}
+
 /// GET /api/download/:task_id/status — Get download task status
 pub async fn get_download_status(
     State(state): State<Arc<AppState>>,
@@ -548,32 +682,23 @@ pub async fn kiwix_reader_capabilities() -> Json<KiwixReaderCapabilitiesResponse
 
 /// GET / — Fallback handler for SPA (serves index.html)
 /// This enables client-side routing in Vue
-pub async fn serve_index() -> Html<String> {
-    // Read and serve the built index.html file
-    let index_path = if FsPath::new("public/static/index.html").exists() {
-        "public/static/index.html"
-    } else {
-        "static/index.html"
-    };
-    match std::fs::read_to_string(index_path) {
-        Ok(content) => Html(content),
-        Err(_) => {
-            // Fallback HTML if static/index.html doesn't exist
-            Html(
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Fyr - Off-Grid Content Platform</title>
-    <script type="module" src="/static/js/index.js"></script>
-    <link rel="stylesheet" href="/static/css/index.css">
-</head>
-<body>
-    <div id="app"></div>
-</body>
-</html>"#.to_string()
+pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
+    let index_path = state.static_dir.join("index.html");
+
+    match tokio::fs::read_to_string(&index_path).await {
+        Ok(content) => Html(content).into_response(),
+        Err(err) => {
+            error!(
+                "Failed to read SPA index at {}: {}",
+                index_path.display(),
+                err
+            );
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("Fyr static frontend is unavailable: index.html not found.".to_string()),
             )
+                .into_response()
         }
     }
 }
@@ -714,4 +839,33 @@ fn sanitize_upload_filename(filename: &str) -> Option<String> {
     }
 
     Some(candidate.to_string())
+}
+
+fn detect_content_type(filename: &str) -> Option<ContentType> {
+    let extension = FsPath::new(filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+    ContentType::from_extension(extension)
+}
+
+fn validate_upload_magic(filename: &str, content_type: ContentType, magic: &[u8]) -> bool {
+    match content_type {
+        ContentType::Model => magic.len() >= 4 && &magic[0..4] == b"GGUF",
+        ContentType::Map => magic.len() >= 7 && &magic[0..7] == b"PMTiles",
+        ContentType::Book => {
+            let ext = FsPath::new(filename)
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+
+            if ext == "epub" {
+                magic.len() >= 4 && magic[0..4] == [0x50, 0x4B, 0x03, 0x04]
+            } else {
+                true
+            }
+        }
+        ContentType::Poi | ContentType::Misc => true,
+    }
 }

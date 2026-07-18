@@ -37,7 +37,7 @@ Then open `http://127.0.0.1:8080`.
 
 ## 3. Main Pages
 - Home: system status, location, sunrise/sunset, and storage overview.
-- Content Manager: add downloads, upload `.gguf` models, and inspect content inventory.
+- Content Manager: add URL downloads, import local files, and inspect content inventory.
 - Maps: map selection and viewer controls.
 - Books: browse books, read EPUB, launch ZIM reader flow.
 - Assistant: browse local `.gguf` models and chat offline.
@@ -68,7 +68,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
 | `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, installer packages such as `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
-| `inbox/` | temporary `.gguf` during import | Staging area used by model upload flow |
+| `inbox/` | temporary files during upload/import | Staging area used by import workflows before auto-routing |
 
 ### Books
 - Put local book files in `public/data/books/`.
@@ -98,6 +98,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
+- Use **Import File** in Content Manager (or drag/drop) to upload local files and enqueue a local import task.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
 - Active tasks persist across restarts and are restored automatically.

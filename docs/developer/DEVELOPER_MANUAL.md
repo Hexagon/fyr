@@ -114,6 +114,8 @@ Core endpoints:
 - `DELETE /api/download/:task_id`
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+- `POST /api/import/upload`
+- `POST /api/import/download/:filename`
 
 AI assistant endpoints:
 - `GET /api/models`
@@ -129,6 +131,12 @@ Model upload/import flow:
 - The server sanitizes the filename, validates the `.gguf` extension and `GGUF` magic bytes, and writes the file into `DATA_DIR/inbox`.
 - Frontend then calls `POST /api/models/import` with source `inbox` so `ModelManager` can move the file into `DATA_DIR/models`.
 - Assistant and Content Manager now share this same upload-plus-import flow instead of relying on placeholder status text or manual pre-placement.
+
+Generic local import flow:
+- Content Manager uploads supported files as multipart form data to `POST /api/import/upload`.
+- Server writes uploaded files to `DATA_DIR/inbox` and returns detected content type metadata.
+- Frontend then calls `POST /api/import/download/:filename` to enqueue a `DownloadSource::LocalFile` task.
+- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads.
 
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
@@ -161,8 +169,9 @@ Kiwix licensing and distribution notes:
 Download lifecycle notes:
 - Download tasks are persisted to `DATA_DIR/download_tasks.json` using atomic write/rename.
 - Persisted tasks are loaded on startup and immediately available through `GET /api/downloads`.
-- URL downloads run in background workers with bounded retry attempts for transient network/server failures.
+- URL downloads and local file imports both run in background workers with bounded retry/copy status updates.
 - Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
+- Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h).
 
 ## 5. Platform Support Guidance
 

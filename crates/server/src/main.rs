@@ -51,10 +51,14 @@ async fn main() -> anyhow::Result<()> {
     let bind_host = config.server.host.clone();
     let bind_port = config.server.port;
     let config = Arc::new(config);
+    let static_path: PathBuf = first_existing_path("public/static", "static");
+
+    info!("Resolved static directory: {}", static_path.display());
 
     // Create shared application state
     let app_state = AppState {
         config: config.clone(),
+        static_dir: static_path,
         download_manager: Arc::new(DownloadManager::new(config.data_dir.clone())),
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager: Arc::new(SettingsManager::new(config.data_dir.clone())),
@@ -85,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
 fn create_router(state: AppState) -> Router {
     let data_path: PathBuf = state.config.data_dir.clone();
     let books_path: PathBuf = state.config.books_dir();
-    let static_path: PathBuf = first_existing_path("public/static", "static");
+    let static_path: PathBuf = state.static_dir.clone();
     let kiwix_path: PathBuf = first_existing_path("public/kiwix-static", "kiwix-static");
     let assets_path: PathBuf = first_existing_path("public/assets", "assets");
     let cors = CorsLayer::new()
@@ -127,6 +131,11 @@ fn create_router(state: AppState) -> Router {
         .route("/api/models/:filename/load", delete(handlers::ai_unload_model))
         .route("/api/models/:filename/health", get(handlers::ai_model_health))
         .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
+        .route(
+            "/api/import/upload",
+            post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
+        )
+        .route("/api/import/download/:filename", post(handlers::create_import_download))
         .route("/api/download", post(handlers::create_download))
         .route("/api/download/:task_id", delete(handlers::cancel_download))
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
@@ -143,7 +152,7 @@ fn create_router(state: AppState) -> Router {
         .nest_service("/assets", ServeDir::new(assets_path))
         // Static file serving and SPA fallback
         .nest_service("/static", ServeDir::new(static_path.clone()))
-        .fallback_service(ServeDir::new(static_path).fallback(get(handlers::serve_index)))
+        .fallback(get(handlers::serve_index))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
@@ -157,11 +166,20 @@ fn create_router(state: AppState) -> Router {
 }
 
 fn first_existing_path(primary: &str, fallback: &str) -> PathBuf {
-    if Path::new(primary).exists() {
-        PathBuf::from(primary)
-    } else {
-        PathBuf::from(fallback)
+    let candidates = [
+        PathBuf::from("/app").join(primary),
+        PathBuf::from(primary),
+        PathBuf::from("/app").join(fallback),
+        PathBuf::from(fallback),
+    ];
+
+    for candidate in candidates {
+        if Path::new(&candidate).exists() {
+            return candidate;
+        }
     }
+
+    PathBuf::from(primary)
 }
 
 fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
@@ -197,13 +215,25 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
         }
 
         let target_path = books_dir.join(manual_name);
-        fs::copy(&source_path, &target_path).with_context(|| {
-            format!(
-                "Failed to sync managed manual {} -> {}",
-                source_path.display(),
-                target_path.display()
-            )
-        })?;
+        if let Err(error) = fs::copy(&source_path, &target_path) {
+            if is_file_lock_error(&error) {
+                warn!(
+                    "Skipping managed manual sync for {} -> {} because the target file is locked: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    error
+                );
+                continue;
+            }
+
+            return Err(error).with_context(|| {
+                format!(
+                    "Failed to sync managed manual {} -> {}",
+                    source_path.display(),
+                    target_path.display()
+                )
+            });
+        }
 
         info!(
             "Synchronized managed manual {} to {}",
@@ -213,4 +243,8 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn is_file_lock_error(error: &std::io::Error) -> bool {
+    matches!(error.raw_os_error(), Some(32) | Some(33))
 }

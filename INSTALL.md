@@ -86,6 +86,46 @@ Open: http://127.0.0.1:8080
 - Keep `-v fyr-data:/data` to persist maps, books, models, and downloads.
 - `hexagon/fyr:dev` is for testing and validation; use `hexagon/fyr:latest` for production.
 
+### Persist Data Across Reinstalls and Upgrades
+
+Fyr keeps user data only in `DATA_DIR` (`/data` in Docker examples). Reuse the same mount target on every run to keep data between container replacements.
+
+Named volume (recommended):
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -v fyr-data:/data \
+  hexagon/fyr:latest
+```
+
+Host folder bind-mount (direct host access):
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -v /path/to/fyr-data:/data \
+  hexagon/fyr:latest
+```
+
+Windows PowerShell bind-mount example:
+
+```powershell
+docker run --rm -p 8080:8080 `
+  -e FYR_HOST=0.0.0.0 `
+  -e DATA_DIR=/data `
+  -v C:\fyr-data:/data `
+  hexagon/fyr:latest
+```
+
+Reinstall or upgrade while preserving data:
+
+1. Stop and remove the old container.
+2. Start a new image tag with the same `-v ...:/data` mount.
+3. Keep `DATA_DIR=/data` unless you intentionally change the container path.
+
 ## Option C: Raspberry Pi OS From Scratch (with Docker)
 
 Use this path for clean Raspberry Pi deployments.
