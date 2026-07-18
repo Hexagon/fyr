@@ -9,6 +9,8 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use types::Config;
 
+const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, a concise offline help assistant. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
+
 #[derive(Clone)]
 pub struct ModelManager {
     config: Arc<Config>,
@@ -216,7 +218,8 @@ impl ModelManager {
                         let _ = tx.blocking_send(message);
                     };
 
-                    let encoding = match tokenizer.encode(prompt.clone(), true) {
+                    let formatted_prompt = format_chat_prompt(&prompt);
+                    let encoding = match tokenizer.encode(formatted_prompt, true) {
                         Ok(encoding) => encoding,
                         Err(error) => {
                             send_error(
@@ -265,6 +268,11 @@ impl ModelManager {
                                 send_error(format!("Inference failed: {error}"), &tx);
                                 return;
                             }
+                        };
+
+                        let logits = match logits.squeeze(0) {
+                            Ok(logits) => logits,
+                            Err(_) => logits,
                         };
 
                         let next_token = match sampler.sample(&logits) {
@@ -323,4 +331,12 @@ fn user_facing_model_error(error: &ModelError) -> String {
     }
 
     message
+}
+
+fn format_chat_prompt(prompt: &str) -> String {
+    format!(
+        "<|im_start|>system\n{system}\n<|im_end|>\n<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
+        system = CHAT_SYSTEM_PROMPT,
+        prompt = prompt.trim()
+    )
 }

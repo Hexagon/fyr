@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
+use anyhow::Context;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::cors::CorsLayer;
@@ -24,7 +25,6 @@ mod ai;
 mod handlers;
 mod state;
 mod settings;
-mod zim_reader;
 
 pub use state::AppState;
 
@@ -40,6 +40,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize configuration
     let config = Config::default();
     config.initialize_directories()?;
+    config.validate_writable()?;
 
     info!("Data directory: {}", config.data_dir.display());
     info!("Server will run on: {}:{}", config.server.host, config.server.port);
@@ -50,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     // Create shared application state
     let app_state = AppState {
         config: config.clone(),
-        download_manager: Arc::new(DownloadManager::new()),
+        download_manager: Arc::new(DownloadManager::new(config.data_dir.clone())),
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager: Arc::new(SettingsManager::new(config.data_dir.clone())),
     };
@@ -59,7 +60,15 @@ async fn main() -> anyhow::Result<()> {
     let app = create_router(app_state);
 
     // Run server
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", bind_host, bind_port)).await?;
+    let bind_addr = format!("{}:{}", bind_host, bind_port);
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to bind server to {}. Check FYR_HOST/FYR_PORT and ensure the port is free.",
+                bind_addr
+            )
+        })?;
 
     info!("Server listening on http://{}:{}", bind_host, bind_port);
 
@@ -115,13 +124,11 @@ fn create_router(state: AppState) -> Router {
         .route("/api/models/:filename/health", get(handlers::ai_model_health))
         .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
         .route("/api/download", post(handlers::create_download))
+        .route("/api/download/:task_id", delete(handlers::cancel_download))
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
         .route("/api/kiwix/status", get(handlers::kiwix_status))
         .route("/api/reader/kiwix/capabilities", get(handlers::kiwix_reader_capabilities))
-        .route("/api/zim/:filename/meta", get(handlers::zim_meta))
-        .route("/api/zim/:filename/main", get(handlers::zim_main_content))
-        .route("/api/zim/:filename/content/*path", get(handlers::zim_content_by_path))
         // Data file serving (for PMTiles, etc.) - use configured data directory
         .nest_service("/data", ServeDir::new(data_path))
         // Book-serving alias for URL-based reader integrations

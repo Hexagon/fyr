@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub enum ContentType {
     /// Map tiles in PMTiles format
     Map,
-    /// Books in EPUB, MOBI, PDF, or ZIM format
+    /// Books in EPUB, MOBI, PDF, Markdown, or ZIM format
     Book,
     /// Point of Interest data in FlatGeoBuf or GeoJSON format
     Poi,
@@ -33,10 +33,10 @@ impl ContentType {
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext.to_lowercase().as_str() {
             "pmtiles" => Some(ContentType::Map),
-            "epub" | "pdf" | "mobi" | "zim" => Some(ContentType::Book),
+            "epub" | "pdf" | "mobi" | "md" | "zim" => Some(ContentType::Book),
             "fgb" | "geojson" | "json" => Some(ContentType::Poi),
             "gguf" => Some(ContentType::Model),
-            "txt" | "md" | "csv" | "zip" | "7z" | "log" => Some(ContentType::Misc),
+            "txt" | "csv" | "zip" | "7z" | "log" | "exe" | "msi" | "msp" | "dmg" | "pkg" | "deb" | "rpm" | "appimage" | "apk" => Some(ContentType::Misc),
             _ => None,
         }
     }

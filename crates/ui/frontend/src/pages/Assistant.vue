@@ -13,6 +13,7 @@
           <button class="btn btn-primary" @click="openImportDialog">
             Import Model
           </button>
+          <p class="hint-text">Supported model format: .gguf. Import writes to /data/inbox, then moves the model into /data/models.</p>
           <input
             ref="modelFileInput"
             class="hidden-input"
@@ -49,7 +50,12 @@
 
         <div class="chat-history">
           <div v-for="message in messages" :key="message.id" class="bubble" :class="message.role">
-            {{ message.text }}
+            <div
+              v-if="message.role === 'assistant'"
+              class="bubble-content markdown-content"
+              v-html="renderMarkdown(message.text)"
+            ></div>
+            <div v-else class="bubble-content plain-content">{{ message.text }}</div>
           </div>
           <p v-if="!messages.length" class="empty-state">Select a model and start chatting offline.</p>
         </div>
@@ -92,6 +98,8 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiService } from '../services/api'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const sidebarCollapsed = ref(false)
 const modelFileInput = ref(null)
@@ -245,6 +253,13 @@ const stopGeneration = () => {
   streaming.value = false
 }
 
+const renderMarkdown = (text) => {
+  const rendered = marked.parse(text || '')
+  return DOMPurify.sanitize(rendered, {
+    USE_PROFILES: { html: true }
+  })
+}
+
 const loadModels = async () => {
   try {
     const response = await apiService.listAiModels()
@@ -329,6 +344,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.hint-text {
+  margin: 0;
+  color: #b0b0b0;
+  font-size: 0.82rem;
 }
 
 .hidden-input {
@@ -419,6 +440,64 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   padding: 0.65rem 0.8rem;
   line-height: 1.4;
+}
+
+.bubble-content {
+  overflow-wrap: anywhere;
+}
+
+.plain-content {
+  white-space: pre-wrap;
+}
+
+.markdown-content :deep(p),
+.markdown-content :deep(ul),
+.markdown-content :deep(ol),
+.markdown-content :deep(blockquote),
+.markdown-content :deep(pre) {
+  margin: 0 0 0.75rem;
+}
+
+.markdown-content :deep(p:last-child),
+.markdown-content :deep(ul:last-child),
+.markdown-content :deep(ol:last-child),
+.markdown-content :deep(blockquote:last-child),
+.markdown-content :deep(pre:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4) {
+  margin: 0 0 0.6rem;
+  line-height: 1.2;
+}
+
+.markdown-content :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.95em;
+}
+
+.markdown-content :deep(pre) {
+  overflow: auto;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.markdown-content :deep(pre code) {
+  white-space: pre;
+}
+
+.markdown-content :deep(a) {
+  color: #9ec3ff;
+}
+
+.markdown-content :deep(blockquote) {
+  padding-left: 0.75rem;
+  border-left: 3px solid rgba(255, 255, 255, 0.25);
+  color: #d0d8d0;
 }
 
 .bubble.user {

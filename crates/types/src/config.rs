@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +69,19 @@ impl Config {
         std::fs::create_dir_all(self.inbox_dir())?;
         std::fs::create_dir_all(self.models_dir())?;
         std::fs::create_dir_all(self.misc_dir())?;
+        Ok(())
+    }
+
+    /// Verify that runtime data paths are writable.
+    pub fn validate_writable(&self) -> Result<()> {
+        let probe = self.data_dir.join(".fyr-write-test");
+
+        std::fs::write(&probe, b"fyr")
+            .with_context(|| format!("Data directory is not writable: {}", self.data_dir.display()))?;
+
+        std::fs::remove_file(&probe)
+            .with_context(|| format!("Failed to clean write probe file: {}", probe.display()))?;
+
         Ok(())
     }
 }

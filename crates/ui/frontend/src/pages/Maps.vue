@@ -9,7 +9,9 @@
         </button>
         <div v-if="showSelector" class="overlay-content">
           <h3>Available Maps</h3>
-          <div v-if="maps.length" class="maps-list">
+          <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
+          <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
+          <div v-else-if="maps.length" class="maps-list">
             <button
               v-for="map in maps"
               :key="map.filename"
@@ -127,8 +129,10 @@
       </div>
 
       <div v-if="!selectedMap" class="empty-view">
-        <p>👈 Select a map to view</p>
+        <p>{{ mapsLoading ? 'Loading maps...' : '👈 Select a map to view' }}</p>
       </div>
+
+      <div v-if="mapError" class="map-error-banner">{{ mapError }}</div>
 
       <p class="map-note" v-if="selectedMap">
         {{ renderMode === 'vector'
@@ -150,6 +154,9 @@ import { PMTiles, Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const maps = ref([])
+const mapsLoading = ref(false)
+const mapsError = ref(null)
+const mapError = ref(null)
 const selectedMap = ref(null)
 const showSelector = ref(true)
 const showLayers = ref(true)
@@ -247,11 +254,16 @@ const toggleLayer = (groupName) => {
 }
 
 const loadMaps = async () => {
+  mapsLoading.value = true
+  mapsError.value = null
   try {
     const response = await apiService.getMaps()
     maps.value = response.data || []
   } catch (err) {
     console.error('Error loading maps:', err)
+    mapsError.value = apiService.handleError(err)
+  } finally {
+    mapsLoading.value = false
   }
 }
 
@@ -807,6 +819,7 @@ const addVectorLayers = (availableLayers) => {
 }
 
 const initializeMap = async () => {
+  mapError.value = null
   try {
     if (mapInstance) {
       mapInstance.remove()
@@ -871,21 +884,25 @@ const initializeMap = async () => {
 
         if (!loaded) {
           renderMode.value = 'unknown'
+          mapError.value = 'Unable to render the selected PMTiles archive.'
           console.warn(`Unable to load PMTiles source as either vector or raster for ${filename}`)
         }
 
         updateLocationMarker(locationState.location)
       } catch (error) {
         renderMode.value = 'unknown'
+        mapError.value = 'Failed to load map data.'
         console.error('Map load error:', error.message)
       }
     })
 
     mapInstance.on('error', (event) => {
+      mapError.value = 'Map renderer reported an error.'
       console.error('Map error:', event?.error || event)
     })
   } catch (error) {
     renderMode.value = 'unknown'
+    mapError.value = 'Map initialization failed.'
     console.error('Error initializing map:', error)
   }
 }
@@ -1144,6 +1161,25 @@ onBeforeUnmount(() => {
   text-decoration: none;
 }
 
+.status-state,
+.error-state {
+  padding: 0.7rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.status-state {
+  background: rgba(102, 126, 234, 0.18);
+  border: 1px solid rgba(142, 162, 255, 0.4);
+  color: #dbe2ff;
+}
+
+.error-state {
+  background: rgba(164, 45, 45, 0.22);
+  border: 1px solid rgba(220, 112, 112, 0.5);
+  color: #ffd3d3;
+}
+
 .empty-view {
   position: absolute;
   inset: 0;
@@ -1169,6 +1205,20 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   padding: 0.45rem 0.6rem;
   font-size: 0.8rem;
+}
+
+.map-error-banner {
+  position: absolute;
+  top: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  background: rgba(136, 28, 28, 0.9);
+  border: 1px solid rgba(248, 150, 150, 0.8);
+  color: #ffe6e6;
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 @media (max-width: 1024px) {

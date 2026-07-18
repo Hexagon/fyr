@@ -1,10 +1,11 @@
 use super::error::ModelError;
 use super::types::ModelMetadata;
 use candle_core::quantized::gguf_file;
+use candle_core::quantized::tokenizer::TokenizerFromGguf;
 use candle_transformers::models::quantized_qwen2;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenizers::Tokenizer;
 
@@ -118,18 +119,9 @@ fn load_quantized_qwen2_runtime(
     content: gguf_file::Content,
     filename: &str,
 ) -> Result<ModelRuntime, ModelError> {
-    let Some(tokenizer_path) = resolve_tokenizer_path(path) else {
-        return Ok(ModelRuntime::ValidationOnly {
-            reason: Some(format!(
-                "Tokenizer file missing for {filename}. Add {filename}.tokenizer.json or tokenizer.json next to the model to enable inference."
-            )),
-        });
-    };
-
-    let tokenizer = Tokenizer::from_file(&tokenizer_path)
+    let tokenizer = Tokenizer::from_gguf(&content)
         .map_err(|e| ModelError::InferenceFailed(format!(
-            "failed to load tokenizer {} ({e})",
-            tokenizer_path.display()
+            "failed to build tokenizer from GGUF metadata for {filename}: {e}"
         )))?;
 
     let device = candle_core::Device::Cpu;
@@ -143,17 +135,6 @@ fn load_quantized_qwen2_runtime(
         tokenizer: Arc::new(tokenizer.clone()),
         eos_token_ids: eos_token_ids(&tokenizer),
     })
-}
-
-fn resolve_tokenizer_path(path: &Path) -> Option<PathBuf> {
-    let stem = path.file_stem()?.to_str()?;
-    let parent = path.parent()?;
-    let candidates = [
-        parent.join(format!("{stem}.tokenizer.json")),
-        parent.join("tokenizer.json"),
-    ];
-
-    candidates.into_iter().find(|candidate| candidate.exists())
 }
 
 fn eos_token_ids(tokenizer: &Tokenizer) -> Vec<u32> {

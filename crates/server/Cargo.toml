@@ -29,7 +29,6 @@ candle-transformers.workspace = true
 tokenizers = "0.22"
 
 chrono = { version = "0.4", features = ["serde"] }
-zim = "0.4"
 
 [[bin]]
 name = "fyr"

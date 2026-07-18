@@ -30,12 +30,29 @@ impl SettingsManager {
     }
 
     pub fn current(&self) -> AppSettings {
-        self.settings.read().unwrap().clone()
+        match self.settings.read() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => {
+                warn!("Settings lock was poisoned while reading; returning last known value");
+                poisoned.into_inner().clone()
+            }
+        }
     }
 
     pub fn replace(&self, next: AppSettings) -> Result<AppSettings> {
         self.persist(&next)?;
-        *self.settings.write().unwrap() = next.clone();
+
+        match self.settings.write() {
+            Ok(mut guard) => {
+                *guard = next.clone();
+            }
+            Err(poisoned) => {
+                warn!("Settings lock was poisoned while writing; forcing update");
+                let mut guard = poisoned.into_inner();
+                *guard = next.clone();
+            }
+        }
+
         Ok(next)
     }
 

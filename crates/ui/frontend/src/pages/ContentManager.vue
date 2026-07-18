@@ -15,6 +15,7 @@
             :key="entry.key"
             class="folder-item"
             :class="{ active: activeCategory === entry.key }"
+            :title="entry.hint"
             @click="activeCategory = entry.key"
           >
             <span>{{ entry.icon }} {{ entry.label }}</span>
@@ -57,10 +58,13 @@
           @drop.prevent="onDrop"
         >
           Drop files here to import into {{ currentFolderLabel }}
+          <br />
+          <small>Supported in this folder: {{ currentFolderHint }}</small>
         </div>
 
         <div class="file-table-wrap">
-          <table class="file-table" v-if="visibleFiles.length">
+          <p v-if="contentError" class="error-text">{{ contentError }}</p>
+          <table class="file-table" v-else-if="visibleFiles.length">
             <thead>
               <tr>
                 <th>Name</th>
@@ -95,11 +99,24 @@
                 {{ Math.round((dl.bytes_downloaded / dl.total_bytes) * 100) }}%
                 ({{ formatBytes(dl.bytes_downloaded) }} / {{ formatBytes(dl.total_bytes) }})
               </p>
+              <button
+                v-if="isDownloadCancellable(dl.status)"
+                class="btn btn-secondary btn-inline"
+                @click="cancelDownload(dl.id)"
+              >
+                Cancel
+              </button>
+              <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
             </div>
           </div>
-          <p v-else class="empty-state">No active downloads</p>
+          <p v-else-if="!downloadsLoading" class="empty-state">No active downloads</p>
+          <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
+          <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
 
           <div class="download-create">
+            <p class="status-text">
+              URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+            </p>
             <input
               type="text"
               v-model="downloadUrl"
@@ -146,20 +163,28 @@ const models = ref([])
 const misc = ref([])
 const downloads = ref([])
 const loading = ref(true)
+const contentError = ref(null)
+const downloadsError = ref(null)
+const downloadsLoading = ref(false)
 
 let downloadRefreshTimer = null
 
 const folderEntries = computed(() => [
-  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length },
-  { key: 'books', label: 'Books', icon: '📚', count: books.value.length },
-  { key: 'poi', label: 'POI', icon: '📍', count: pois.value.length },
-  { key: 'models', label: 'Models', icon: '🤖', count: models.value.length },
-  { key: 'misc', label: 'Misc', icon: '📦', count: misc.value.length }
+  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles files.' },
+  { key: 'books', label: 'Books', icon: '📚', count: books.value.length, hint: 'Books accepts .epub, .pdf, .mobi, .md, and .zim files.' },
+  { key: 'poi', label: 'POI', icon: '📍', count: pois.value.length, hint: 'POI accepts .geojson, .json, and .fgb files.' },
+  { key: 'models', label: 'Models', icon: '🤖', count: models.value.length, hint: 'Models accepts .gguf files (import flow).' },
+  { key: 'misc', label: 'Misc', icon: '📦', count: misc.value.length, hint: 'Misc stores general files such as .txt, .csv, .zip, .7z, .log, and installer packages.' }
 ])
 
 const currentFolderLabel = computed(() => {
   const item = folderEntries.value.find(entry => entry.key === activeCategory.value)
   return item?.label || activeCategory.value
+})
+
+const currentFolderHint = computed(() => {
+  const item = folderEntries.value.find(entry => entry.key === activeCategory.value)
+  return item?.hint || 'No folder hint available.'
 })
 
 const filesByCategory = computed(() => ({
@@ -225,6 +250,19 @@ const handleDownload = async () => {
   }
 }
 
+const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
+
+const cancelDownload = async (taskId) => {
+  try {
+    await apiService.cancelDownload(taskId)
+    downloadStatus.value = `Cancelled download: ${taskId}`
+    downloadError.value = null
+    await loadDownloads()
+  } catch (err) {
+    downloadError.value = apiService.handleError(err)
+  }
+}
+
 const openFilePicker = () => {
   fileInput.value?.click()
 }
@@ -273,6 +311,7 @@ const onDrop = async (event) => {
 }
 
 const loadContent = async () => {
+  contentError.value = null
   try {
     const [mapsRes, booksRes, poisRes, modelsRes, miscRes] = await Promise.all([
       apiService.getMaps(),
@@ -289,29 +328,50 @@ const loadContent = async () => {
     misc.value = miscRes.data || []
   } catch (err) {
     console.error('Error loading content:', err)
+    contentError.value = apiService.handleError(err)
   }
 }
 
 const loadDownloads = async () => {
+  downloadsLoading.value = true
+  downloadsError.value = null
   try {
     const response = await apiService.listDownloads()
     downloads.value = response.data || []
   } catch (err) {
     console.error('Error loading downloads:', err)
+    downloadsError.value = apiService.handleError(err)
+  } finally {
+    downloadsLoading.value = false
   }
+}
+
+const hasLiveDownloads = () => {
+  return downloads.value.some((item) => isDownloadCancellable(item.status))
+}
+
+const scheduleDownloadRefresh = () => {
+  if (downloadRefreshTimer) {
+    clearTimeout(downloadRefreshTimer)
+  }
+
+  const delayMs = hasLiveDownloads() ? 2000 : 8000
+  downloadRefreshTimer = setTimeout(async () => {
+    await loadDownloads()
+    scheduleDownloadRefresh()
+  }, delayMs)
 }
 
 onMounted(async () => {
   loading.value = true
   await Promise.all([loadContent(), loadDownloads()])
   loading.value = false
-
-  downloadRefreshTimer = setInterval(loadDownloads, 2000)
+  scheduleDownloadRefresh()
 })
 
 onUnmounted(() => {
   if (downloadRefreshTimer) {
-    clearInterval(downloadRefreshTimer)
+    clearTimeout(downloadRefreshTimer)
     downloadRefreshTimer = null
   }
 })
@@ -573,6 +633,11 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.5rem;
+}
+
+.download-create .status-text {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .btn {

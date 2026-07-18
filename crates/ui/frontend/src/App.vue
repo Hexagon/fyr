@@ -7,8 +7,8 @@
           <h1>Fyr</h1>
         </div>
         <div class="navbar-context">
-          <p class="context-kicker">{{ pageTitle }}</p>
-          <h2>{{ headerSummary }}</h2>
+          <p class="context-kicker">{{ headerSummary }}</p>
+          <h2>{{ pageTitle }}</h2>
         </div>
       </div>
       <div class="navbar-center">
@@ -59,7 +59,7 @@ const clock = computed(() => getLocationClock(now.value, locationState.location)
 const currentTime = computed(() => clock.value.timeText)
 const currentWeekday = computed(() => formatClockDatePart('weekday', clock.value.dateText))
 const currentDate = computed(() => formatClockDatePart('date', clock.value.dateText))
-const headerSummary = computed(() => `${pageTitle.value} - ${pageHeaderLabel.value}`)
+const headerSummary = computed(() => `${pageHeaderLabel.value}`)
 
 const formatClockDatePart = (kind, fullText) => {
   const parts = String(fullText || '').split(',').map(part => part.trim()).filter(Boolean)
@@ -111,6 +111,7 @@ onBeforeUnmount(() => {
 
 .navbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 1.25rem;
@@ -125,18 +126,21 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 1.25rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .navbar-center {
   flex: 1;
   display: flex;
   justify-content: center;
+  min-width: 0;
 }
 
 .navbar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .navbar-brand h1 {
@@ -154,6 +158,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .context-kicker {
@@ -178,10 +183,13 @@ onBeforeUnmount(() => {
 
 .navbar-menu {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   list-style: none;
   gap: 2rem;
   margin: 0;
   padding: 0;
+  min-width: 0;
 }
 
 .clock-panel {
@@ -194,6 +202,7 @@ onBeforeUnmount(() => {
   border-radius: 0.6rem;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 100%;
 }
 
 .clock-time {
@@ -214,6 +223,7 @@ onBeforeUnmount(() => {
   padding: 0.5rem 1rem;
   border-radius: 4px;
   transition: background 0.3s;
+  white-space: nowrap;
 }
 
 .navbar-menu a:hover {
@@ -256,6 +266,12 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
+  }
+
+  .navbar-left,
+  .navbar-center,
+  .navbar-right {
+    min-width: 0;
   }
 
   .navbar-left,

@@ -75,7 +75,7 @@ When adding or changing behavior:
 2. Update user-facing behavior in [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md).
 3. Update technical behavior in [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md).
 4. If onboarding/quickstart changes, update [README.md](README.md).
-5. Run validation (`cargo check` and frontend build/tests when relevant).
+5. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
 
 ## Docker and Platform Expectations
 
@@ -85,8 +85,15 @@ When adding or changing behavior:
 
 ## Release Checklist
 
-- `cargo test`
+- `cargo test --workspace --all-targets`
 - `cargo check -p server`
 - `cd crates/ui/frontend && npm run build`
-- manual docs reviewed and EPUB generation tested
+- `cd docs/build && npm run build`
+- manual docs reviewed
 - docker build succeeds
+
+## Build Environment
+
+- Rust: use stable toolchain (Docker currently pins `rust:1.75`).
+- Node.js: CI workflows use Node `20`.
+- Prefer matching CI toolchain versions locally when troubleshooting build drift.

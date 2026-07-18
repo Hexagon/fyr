@@ -5,9 +5,16 @@ It runs as a local web server and works without internet once content is present
 
 ![Fyr Hero](./public/assets/fyr-hero.png)
 
-## Quick Start
+## Features
 
-### Run Local Binary
+- Offline maps with PMTiles
+- Library with EPUB, Markdown, and ZIM reading
+- Embedded Kiwix web reader for large ZIM archives over HTTP range requests
+- Local AI assistant for GGUF models
+- Download queue and local content management for maps, books, models, POI, and misc files
+
+## One-Minute Start
+
 ```bash
 cargo build --release -p server --bin fyr
 ./target/release/fyr
@@ -15,66 +22,20 @@ cargo build --release -p server --bin fyr
 
 Open http://127.0.0.1:8080.
 
-## Features
+## Validation Checks
 
-### Offline AI Assistant
-Fyr supports local GGUF models for offline assistant workflows.
-Inference runs locally without internet access when a model is loaded.
-
-Quickstart:
-1. Place `.gguf` files in `public/data/models/` (or your `DATA_DIR/models/`).
-2. Open the Assistant tab.
-3. Load a model and start chatting.
-
-### Run Docker Image
 ```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
+cargo test --workspace --all-targets
+cargo check -p server
+cd crates/ui/frontend && npm ci && npm run build
+cd ../../docs/build && npm ci && npm run build
 ```
-
-## Data Layout
-
-Fyr now uses a public-first layout:
-
-- `public/static/` - built SPA assets
-- `public/kiwix-static/` - embedded Kiwix reader assets
-- `public/assets/` - static project assets
-- `public/data/` - default content storage
-
-Content subfolders:
-
-- `public/data/maps/`
-- `public/data/books/`
-- `public/data/poi/`
-- `public/data/inbox/`
-- `public/data/models/`
-- `public/data/misc/`
-
-Environment overrides:
-
-- `DATA_DIR` (default: `./public/data`)
-- `FYR_HOST` (default: `127.0.0.1`)
-- `FYR_PORT` (default: `8080`)
 
 ## Documentation
 
-Canonical docs are intentionally limited to:
-
-- [README.md](README.md)
-- [AGENTS.md](AGENTS.md)
-- [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
-- [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
-
-Other files under [docs/](docs/) are retained only as migration stubs.
-
-## Platform Support Notes
-
-- `x86_64` and `aarch64` are primary runtime targets.
-- Raspberry Pi (64-bit OS) is supported via native ARM64 builds or multi-arch Docker images.
-- For network deployments, set `FYR_HOST=0.0.0.0`.
+- User guide: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
+- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- Project governance and module map: [AGENTS.md](AGENTS.md)
 
 ## License
 

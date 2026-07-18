@@ -42,9 +42,13 @@ Extending model support:
 - Node.js 18+
 - npm 9+
 
+CI-pinned versions for parity:
+- Rust stable (Docker build currently uses `rust:1.75`)
+- Node.js 20
+
 ### Build frontend
 1. `cd crates/ui/frontend`
-2. `npm install`
+2. `npm ci` (or `npm install` for local iteration)
 3. `npm run build`
 
 ### Build backend
@@ -92,6 +96,8 @@ Container expectations:
 - App static assets live under `/app/public`.
 - Writable content directory is mounted to `/data`.
 - Healthcheck uses `GET /api/status`.
+- Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
+- Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
 
 ## 4. Active API Surface (Current)
 Core endpoints:
@@ -104,6 +110,7 @@ Core endpoints:
 - `GET /api/content/models`
 - `GET /api/content/misc`
 - `POST /api/download`
+- `DELETE /api/download/:task_id`
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
 
@@ -124,15 +131,12 @@ Model upload/import flow:
 
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
-- The runtime currently requires a tokenizer sidecar in `DATA_DIR/models`: either `tokenizer.json` or `<model-name>.tokenizer.json`.
-- If the tokenizer is missing, the model can still be loaded for validation and health checks, but `infer_stream` returns a clear inference error instead of a placeholder response.
+- The runtime currently requires tokenizer metadata embedded in the GGUF file.
+- If tokenizer metadata is missing, model loading fails with a clear validation error.
 
 Kiwix and ZIM endpoints:
 - `GET /api/kiwix/status`
 - `GET /api/reader/kiwix/capabilities`
-- `GET /api/zim/:filename/meta`
-- `GET /api/zim/:filename/main`
-- `GET /api/zim/:filename/content/*path`
 
 Static content aliases:
 - `GET /data/*path` (full data directory)
@@ -142,6 +146,13 @@ Kiwix integration notes:
 - Frontend opens `.zim` with one click from Books and injects the selected URL into the embedded reader.
 - Capabilities endpoint now reports `supports_direct_http_zim=true` and `zim_base_url=/docs/books`.
 - Server exposes `Accept-Ranges: bytes` and CORS exposed headers (`content-length`, `content-range`, `accept-ranges`) for reader compatibility.
+- ZIM content is read client-side via Kiwix HTTP range requests; no server-side ZIM content parsing endpoints are exposed.
+
+Download lifecycle notes:
+- Download tasks are persisted to `DATA_DIR/download_tasks.json` using atomic write/rename.
+- Persisted tasks are loaded on startup and immediately available through `GET /api/downloads`.
+- URL downloads run in background workers with bounded retry attempts for transient network/server failures.
+- Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
 
 ## 5. Platform Support Guidance
 
@@ -172,18 +183,24 @@ docker buildx build \
 3. Update docs in the same change set as endpoint or behavior changes.
 4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
 
-## 7. Building Documentation EPUBs
+## 7. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`
 - Outputs:
-  - `public/data/books/user-manual.epub`
-  - `public/data/books/developer-manual.epub`
+  - `public/data/books/user-manual.md`
+  - `public/data/books/developer-manual.md`
 
 Run:
 1. `cd docs/build`
-2. `npm install`
-3. `node build-manuals.js`
+2. `npm run build`
 
 ## 8. Current Known Gaps
-- Server-side ZIM reader compatibility for very large archives still needs improvement.
-- Download engine progression and resumable downloads are not fully implemented.
-- CI checks for markdown/manual consistency are not yet added.
+- Download resume/range continuation is not yet implemented for interrupted transfers.
+- CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
+
+## 9. Recommended Validation Sequence
+Run from repository root unless noted:
+
+1. `cargo test --workspace --all-targets`
+2. `cargo check -p server`
+3. `cd crates/ui/frontend && npm ci && npm run build`
+4. `cd docs/build && npm ci && npm run build`

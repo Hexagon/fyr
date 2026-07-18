@@ -1,13 +1,40 @@
 import axios from 'axios'
 
 const API_BASE = '/api'
+const REQUEST_TIMEOUT_MS = 15000
+const MAX_RETRIES = 2
+const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
 
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: REQUEST_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json'
   }
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config || {}
+    const method = String(config.method || 'get').toLowerCase()
+    const isRetryableMethod = RETRYABLE_METHODS.has(method)
+    const isNetworkError = !error.response
+    const isRetriableStatus = error.response?.status >= 500
+
+    if (isRetryableMethod && (isNetworkError || isRetriableStatus)) {
+      config.__retryCount = config.__retryCount || 0
+      if (config.__retryCount < MAX_RETRIES) {
+        config.__retryCount += 1
+        const backoffMs = 500 * config.__retryCount
+        await new Promise((resolve) => setTimeout(resolve, backoffMs))
+        return api(config)
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 // Data transformation mapping (API returns different property names)
 const mapContentItem = (item) => ({
@@ -149,14 +176,30 @@ export const apiService = {
 
   // Download Management
   createDownload: (url) => api.post('/download', { url }),
+  cancelDownload: (taskId) => api.delete(`/download/${taskId}`),
   getDownloadStatus: (taskId) => api.get(`/download/${taskId}/status`),
   listDownloads: () => api.get('/downloads'),
 
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
+    if (error.code === 'ECONNABORTED') {
+      return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check server responsiveness.`
+    }
+    if (!error.response) {
+      return 'Network error. Server may be offline or unreachable.'
+    }
     if (error.response) {
-      return error.response.data?.message || `Error ${error.response.status}`
+      if (error.response.status >= 500) {
+        return `Server error (${error.response.status}). Please try again.`
+      }
+      if (error.response.status === 404) {
+        return 'Requested resource was not found.'
+      }
+      if (error.response.status === 400) {
+        return error.response.data?.message || 'Invalid request.'
+      }
+      return error.response.data?.message || `Request failed (${error.response.status}).`
     }
     return error.message || 'Unknown error'
   }

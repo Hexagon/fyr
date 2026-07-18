@@ -22,7 +22,11 @@
           />
         </div>
 
-        <div v-if="!sidebarCollapsed && filteredBooks.length" class="books-list">
+        <p v-if="!sidebarCollapsed" class="hint-text">Supported book formats: .epub, .pdf, .mobi, .md, .zim</p>
+
+        <p v-if="!sidebarCollapsed && booksLoading" class="status-state">Loading books...</p>
+        <p v-else-if="!sidebarCollapsed && booksError" class="error-state">{{ booksError }}</p>
+        <div v-else-if="!sidebarCollapsed && filteredBooks.length" class="books-list">
           <button
             v-for="book in filteredBooks"
             :key="book.filename"
@@ -46,7 +50,11 @@
       <div class="book-viewer">
         <div v-if="selectedBook" class="book-content">
           <div v-if="isEpubSelected && epubBook" id="book-viewer" class="book-reader"></div>
+          <div v-else-if="isMarkdownSelected" class="markdown-reader">
+            <article class="markdown-content" v-html="markdownHtml"></article>
+          </div>
           <div v-else-if="selectedBook.filename.endsWith('.zim')" class="zim-reader">
+            <p v-if="zimReaderStatus !== 'idle'" class="status-state">{{ zimReaderStatus }}</p>
             <iframe
               ref="zimIframeRef"
               :key="zimIframeKey"
@@ -57,9 +65,10 @@
               @load="onZimFrameLoad"
               @error="onZimFrameError"
             ></iframe>
+            <p v-if="readerError" class="error-state">{{ readerError }}</p>
           </div>
           <div v-else class="book-info-empty">
-            Select an EPUB or ZIM in the list to read it here.
+            Select an EPUB, Markdown file, or ZIM in the list to read it here.
           </div>
         </div>
 
@@ -75,13 +84,19 @@
 import { ref, computed, onMounted } from 'vue'
 import { apiService } from '../services/api'
 import EPub from 'epubjs'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const books = ref([])
+const booksLoading = ref(false)
+const booksError = ref(null)
+const readerError = ref(null)
 const selectedBook = ref(null)
 const sidebarCollapsed = ref(false)
 const searchQuery = ref('')
 const epubBook = ref(null)
 const epubRendition = ref(null)
+const markdownHtml = ref('')
 const zimReaderStatus = ref('idle')
 const zimIframeKey = ref(0)
 const zimIframeRef = ref(null)
@@ -95,6 +110,10 @@ const ZIM_LOCAL_READER_URL = zimReaderConfig.localUrl
 
 const isEpubSelected = computed(() => {
   return selectedBook.value?.filename.endsWith('.epub') && epubBook.value
+})
+
+const isMarkdownSelected = computed(() => {
+  return selectedBook.value?.filename.endsWith('.md')
 })
 
 const filteredBooks = computed(() => {
@@ -128,9 +147,11 @@ const toggleSidebar = () => {
 }
 
 const selectBook = (book) => {
+  readerError.value = null
   selectedBook.value = book
   epubBook.value = null
   epubRendition.value = null
+  markdownHtml.value = ''
 
   if (book.filename.endsWith('.zim')) {
     zimReaderStatus.value = 'loading'
@@ -140,6 +161,10 @@ const selectBook = (book) => {
 
   if (book.filename.endsWith('.epub')) {
     loadEpub(book)
+  }
+
+  if (book.filename.endsWith('.md')) {
+    loadMarkdown(book)
   }
 }
 
@@ -179,8 +204,33 @@ const loadEpub = async (book) => {
     rendition.themes.select('default')
   } catch (err) {
     console.error('Error loading EPUB:', err)
+    readerError.value = apiService.handleError(err)
     epubBook.value = null
     epubRendition.value = null
+  }
+}
+
+const loadMarkdown = async (book) => {
+  try {
+    const url = `/data/books/${encodeURIComponent(book.filename)}`
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store'
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch markdown file (${response.status})`)
+    }
+
+    const markdown = await response.text()
+    const rendered = marked.parse(markdown)
+    markdownHtml.value = DOMPurify.sanitize(rendered, {
+      USE_PROFILES: { html: true }
+    })
+  } catch (err) {
+    console.error('Error loading Markdown:', err)
+    readerError.value = err?.message || 'Failed to load markdown file.'
+    markdownHtml.value = ''
   }
 }
 
@@ -306,6 +356,7 @@ const injectSelectedZimArchive = async (attempt = 0) => {
   } catch (error) {
     console.error('Failed to inject remote ZIM URL:', error)
     zimReaderStatus.value = `failed to open ${selectedBook.value.filename}`
+    readerError.value = 'Failed to open ZIM archive in embedded reader.'
   }
 }
 
@@ -324,14 +375,20 @@ const onZimFrameLoad = () => {
 
 const onZimFrameError = () => {
   zimReaderStatus.value = 'reader failed to load (check /kiwix assets)'
+  readerError.value = 'Embedded reader failed to load. Verify /kiwix assets are available.'
 }
 
 const loadBooks = async () => {
+  booksLoading.value = true
+  booksError.value = null
   try {
     const response = await apiService.getBooks()
     books.value = response.data || []
   } catch (err) {
     console.error('Error loading books:', err)
+    booksError.value = apiService.handleError(err)
+  } finally {
+    booksLoading.value = false
   }
 }
 
@@ -490,6 +547,31 @@ onMounted(async () => {
   text-decoration: underline;
 }
 
+.status-state,
+.error-state {
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+.hint-text {
+  margin: 0 0 0.75rem;
+  color: #a8a8a8;
+  font-size: 0.82rem;
+}
+
+.status-state {
+  background: rgba(102, 126, 234, 0.18);
+  border: 1px solid rgba(142, 162, 255, 0.45);
+  color: #dbe2ff;
+}
+
+.error-state {
+  background: rgba(164, 45, 45, 0.22);
+  border: 1px solid rgba(220, 112, 112, 0.5);
+  color: #ffd3d3;
+}
+
 .book-content {
   display: flex;
   flex-direction: column;
@@ -503,6 +585,55 @@ onMounted(async () => {
   border-radius: 4px;
   color: #a8a8a8;
   padding: 1rem;
+}
+
+.markdown-reader {
+  width: 100%;
+  min-height: calc(100vh - 320px);
+  background: #ffffff;
+  border: 1px solid #cfcfcf;
+  border-radius: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.markdown-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  color: #111111;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3) {
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content :deep(p),
+.markdown-content :deep(li) {
+  margin-bottom: 0.6rem;
+}
+
+.markdown-content :deep(pre) {
+  background: #f3f3f3;
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 0.9rem;
+  overflow-x: auto;
+}
+
+.markdown-content :deep(code) {
+  font-family: Consolas, Monaco, monospace;
+  background: #f3f3f3;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.markdown-content :deep(a) {
+  color: #2a5bd7;
 }
 
 .zim-reader {
@@ -555,6 +686,7 @@ onMounted(async () => {
   }
 
   #book-viewer,
+  .markdown-reader,
   .zim-reader-frame,
   .book-content,
   .empty-view {

@@ -4,12 +4,11 @@ use crate::ai::types::{
     ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse, ModelHealthResponse,
     UploadModelResponse,
 };
-use crate::zim_reader;
 use crate::AppState;
 use axum::{
     extract::{Multipart, Path, Query, State},
-    http::{header, HeaderValue, StatusCode},
-    response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse, Response},
+    http::StatusCode,
+    response::{sse::{Event, KeepAlive, Sse}, Html},
     Json,
 };
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
@@ -21,7 +20,7 @@ use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use walkdir::WalkDir;
-use tracing::warn;
+use tracing::{error, warn};
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -110,16 +109,6 @@ pub struct KiwixReaderCapabilitiesResponse {
 #[derive(Serialize)]
 pub struct ErrorMessageResponse {
     pub message: String,
-}
-
-#[derive(Serialize)]
-pub struct ZimMetaResponse {
-    pub filename: String,
-    pub article_count: u32,
-    pub cluster_count: u32,
-    pub version_major: u16,
-    pub version_minor: u16,
-    pub main_page_index: Option<u32>,
 }
 
 /// GET /api/status — Server status and content inventory
@@ -277,7 +266,10 @@ pub async fn ai_list_models(State(state): State<Arc<AppState>>) -> Result<Json<V
         .model_manager
         .list_models()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|error| {
+            error!("Failed to list models: {}", error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     Ok(Json(models))
 }
 
@@ -289,7 +281,10 @@ pub async fn ai_upload_model(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .map_err(|error| {
+            warn!("Invalid multipart payload while uploading model: {}", error);
+            StatusCode::BAD_REQUEST
+        })?
     {
         if field.name() != Some("file") {
             continue;
@@ -305,22 +300,34 @@ pub async fn ai_upload_model(
         let target_path = state.config.inbox_dir().join(&filename);
         if tokio::fs::try_exists(&target_path)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .map_err(|error| {
+                error!("Failed to check existing upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
         {
             tokio::fs::remove_file(&target_path)
                 .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                .map_err(|error| {
+                    error!("Failed to remove existing upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
         }
 
         let mut file = tokio::fs::File::create(&target_path)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|error| {
+                error!("Failed to create upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         let mut size_bytes = 0u64;
         let mut magic = Vec::with_capacity(4);
         let mut magic_checked = false;
 
-        while let Some(chunk) = field.chunk().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+        while let Some(chunk) = field.chunk().await.map_err(|error| {
+            warn!("Failed to read upload stream chunk: {}", error);
+            StatusCode::BAD_REQUEST
+        })? {
             if !magic_checked {
                 let needed = 4usize.saturating_sub(magic.len());
                 if needed > 0 {
@@ -337,7 +344,10 @@ pub async fn ai_upload_model(
 
             file.write_all(&chunk)
                 .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                .map_err(|error| {
+                    error!("Failed to write upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
             size_bytes += chunk.len() as u64;
         }
 
@@ -348,7 +358,10 @@ pub async fn ai_upload_model(
 
         file.flush()
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|error| {
+                error!("Failed to flush upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -476,6 +489,27 @@ pub async fn list_downloads(State(state): State<Arc<AppState>>) -> Json<Vec<type
     Json(tasks)
 }
 
+/// DELETE /api/download/:task_id — Cancel a download task
+pub async fn cancel_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let cancelled = state
+        .download_manager
+        .cancel_task(&task_id)
+        .await
+        .map_err(|error| {
+            error!("Failed to cancel download task {}: {}", task_id, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if cancelled {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
 /// GET /api/kiwix/status — Local Kiwix reader availability
 pub async fn kiwix_status() -> Json<KiwixStatusResponse> {
     let source_path = if FsPath::new("public/kiwix-static/www/index.html").exists() {
@@ -508,46 +542,6 @@ pub async fn kiwix_reader_capabilities() -> Json<KiwixReaderCapabilitiesResponse
         supports_direct_http_zim: true,
         supports_http_range: true,
     })
-}
-
-/// GET /api/zim/:filename/meta — Read archive metadata through custom Rust reader
-pub async fn zim_meta(
-    State(state): State<Arc<AppState>>,
-    Path(filename): Path<String>,
-) -> Result<Json<ZimMetaResponse>, StatusCode> {
-    let meta = zim_reader::read_archive_meta(&state.config, &filename)
-        .map_err(map_zim_reader_error)?;
-
-    Ok(Json(ZimMetaResponse {
-        filename: meta.filename,
-        article_count: meta.article_count,
-        cluster_count: meta.cluster_count,
-        version_major: meta.version_major,
-        version_minor: meta.version_minor,
-        main_page_index: meta.main_page_index,
-    }))
-}
-
-/// GET /api/zim/:filename/main — Read archive main page content through custom Rust reader
-pub async fn zim_main_content(
-    State(state): State<Arc<AppState>>,
-    Path(filename): Path<String>,
-) -> Result<Response, StatusCode> {
-    let resolved = zim_reader::read_main_page(&state.config, &filename)
-        .map_err(map_zim_reader_error)?;
-
-    content_response(resolved.content_type, resolved.content)
-}
-
-/// GET /api/zim/:filename/content/*path — Read specific content path through custom Rust reader
-pub async fn zim_content_by_path(
-    State(state): State<Arc<AppState>>,
-    Path((filename, path)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
-    let resolved = zim_reader::read_content_by_path(&state.config, &filename, &path)
-        .map_err(map_zim_reader_error)?;
-
-    content_response(resolved.content_type, resolved.content)
 }
 
 /// GET / — Fallback handler for SPA (serves index.html)
@@ -666,23 +660,6 @@ fn format_bytes(bytes: u64) -> String {
     }
 
     format!("{:.2} {}", size, sizes[index])
-}
-
-fn content_response(content_type: String, body: Vec<u8>) -> Result<Response, StatusCode> {
-    let header_value = HeaderValue::from_str(&content_type).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(([(header::CONTENT_TYPE, header_value)], body).into_response())
-}
-
-fn map_zim_reader_error(error: zim_reader::ZimReaderError) -> StatusCode {
-    match error {
-        zim_reader::ZimReaderError::InvalidFilename => StatusCode::BAD_REQUEST,
-        zim_reader::ZimReaderError::ArchiveNotFound => StatusCode::NOT_FOUND,
-        zim_reader::ZimReaderError::EntryNotFound => StatusCode::NOT_FOUND,
-        zim_reader::ZimReaderError::MainPageUnavailable => StatusCode::UNPROCESSABLE_ENTITY,
-        zim_reader::ZimReaderError::ArchiveUnsupported => StatusCode::UNPROCESSABLE_ENTITY,
-        zim_reader::ZimReaderError::ReadFailure(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
 }
 
 fn map_model_error_to_status(error: &crate::ai::error::ModelError) -> StatusCode {

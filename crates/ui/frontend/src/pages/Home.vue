@@ -46,13 +46,13 @@
       <div class="stat-card">
         <h3>📚 Books</h3>
         <p class="stat-number">{{ status.content_count?.books || 0 }}</p>
-        <p class="small">EPUB & PDF files</p>
+        <p class="small">EPUB, PDF, MOBI, Markdown, and ZIM</p>
       </div>
 
       <div class="stat-card">
         <h3>📍 POIs</h3>
         <p class="stat-number">{{ status.content_count?.poi || 0 }}</p>
-        <p class="small">Point collections</p>
+        <p class="small">GeoJSON, JSON, and FlatGeoBuf</p>
       </div>
 
       <div class="stat-card">
@@ -64,7 +64,7 @@
       <div class="stat-card">
         <h3>📦 Misc</h3>
         <p class="stat-number">{{ status.content_count?.misc || 0 }}</p>
-        <p class="small">Generic local files</p>
+        <p class="small">General files and installers (TXT, CSV, ZIP, 7Z, EXE, MSI)</p>
       </div>
     </div>
 
