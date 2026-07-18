@@ -22,6 +22,46 @@ cargo build --release -p server --bin fyr
 
 Open http://127.0.0.1:8080.
 
+## Install and Run
+
+### Docker (Production)
+
+```bash
+docker run --rm -p 8080:8080 \
+	-e FYR_HOST=0.0.0.0 \
+	-e DATA_DIR=/data \
+	-v fyr-data:/data \
+	hexagon/fyr:latest
+```
+
+Open http://127.0.0.1:8080.
+
+### Docker (Dev Release)
+
+```bash
+docker run --rm -p 8080:8080 \
+	-e FYR_HOST=0.0.0.0 \
+	-e DATA_DIR=/data \
+	-v fyr-data:/data \
+	hexagon/fyr:dev
+```
+
+Note: `hexagon/fyr:dev` is a pre-release tag for testing and validation. Use `hexagon/fyr:latest` for production workloads.
+
+### Manual Build and Run
+
+```bash
+cargo build --release -p server --bin fyr
+./target/release/fyr
+```
+
+On Windows PowerShell:
+
+```powershell
+cargo build --release -p server --bin fyr
+.\target\release\fyr.exe
+```
+
 ## Docker Data Behavior
 
 - Mount `DATA_DIR` (default `/data`) as a persistent volume to keep user content across upgrades.

@@ -11,7 +11,9 @@ It runs as a local server and is accessed from a browser.
 3. Open `http://127.0.0.1:8080`.
 
 ### Docker
-Run Fyr in a container using the standard image name:
+Run Fyr in a container using either production or dev image tags.
+
+Production release:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -19,6 +21,16 @@ docker run --rm -p 8080:8080 \
   -e DATA_DIR=/data \
   -v fyr-data:/data \
   hexagon/fyr:latest
+```
+
+Dev release:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -v fyr-data:/data \
+  hexagon/fyr:dev
 ```
 
 Then open `http://127.0.0.1:8080`.
