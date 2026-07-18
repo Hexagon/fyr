@@ -22,6 +22,14 @@ cargo build --release -p server --bin fyr
 
 Open http://127.0.0.1:8080.
 
+## Docker Data Behavior
+
+- Mount `DATA_DIR` (default `/data`) as a persistent volume to keep user content across upgrades.
+- On startup, Fyr automatically refreshes the two system-managed manuals in `DATA_DIR/books/`:
+	- `user-manual.md`
+	- `developer-manual.md`
+- Other files under `DATA_DIR` are preserved as user-managed content.
+
 ## Validation Checks
 
 ```bash

@@ -95,6 +95,7 @@ Container expectations:
 
 - App static assets live under `/app/public`.
 - Writable content directory is mounted to `/data`.
+- Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
 - Healthcheck uses `GET /api/status`.
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
@@ -186,27 +187,74 @@ docker buildx build \
 - For native releases, cross-compile with explicit Rust targets.
 - Keep ARM runtime memory/storage constraints in mind for large map/ZIM archives.
 
-## 6. Documentation Rules
+## 6. Release Process (dev/main)
+
+Branch model:
+- `dev` is the integration branch and produces dev releases.
+- `main` is the stable branch and produces stable releases only.
+
+PR flow:
+1. Merge feature branches into `dev`.
+2. Validate and promote with a PR from `dev` to `main`.
+3. Tag the `main` commit as `vX.Y.Z` for stable release.
+
+GitHub workflows:
+- `.github/workflows/release-dev.yml`
+  - Trigger: push to `dev` (or manual dispatch).
+  - Runs full preflight (tests/check/build/docs/compliance).
+  - Publishes Docker multi-arch dev images:
+    - `hexagon/fyr:dev`
+    - `hexagon/fyr:dev-<git-sha>`
+- `.github/workflows/release.yml`
+  - Trigger: push tag `v*.*.*` (or manual dispatch with `version`).
+  - Verifies the release commit is reachable from `main`.
+  - Runs full preflight and publishes Docker multi-arch stable images:
+    - `hexagon/fyr:vX.Y.Z`
+    - `hexagon/fyr:latest`
+  - Creates a GitHub release with auto-generated notes.
+
+Required repository secrets:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Operator release commands:
+1. Prepare `dev` and ensure CI/workflows are green.
+2. Merge promotion PR `dev -> main`.
+3. Create and push stable tag:
+
+```bash
+git checkout main
+git pull
+git tag v0.4.1
+git push origin v0.4.1
+```
+
+4. Confirm workflow `Stable Release` completed and images were published.
+
+## 7. Documentation Rules
 1. Keep implementation details in developer docs, not user docs.
 2. Keep transient delivery/status reports out of permanent docs.
 3. Update docs in the same change set as endpoint or behavior changes.
 4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
 
-## 7. Building Documentation Artifacts
+## 8. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`
 - Outputs:
   - `public/data/books/user-manual.md`
   - `public/data/books/developer-manual.md`
 
+Runtime note:
+- These two files are treated as system-managed docs and are synchronized into `DATA_DIR/books/` at server startup.
+
 Run:
 1. `cd docs/build`
 2. `npm run build`
 
-## 8. Current Known Gaps
+## 9. Current Known Gaps
 - Download resume/range continuation is not yet implemented for interrupted transfers.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
-## 9. Recommended Validation Sequence
+## 10. Recommended Validation Sequence
 Run from repository root unless noted:
 
 1. `cargo test --workspace --all-targets`
@@ -219,7 +267,7 @@ Run from repository root unless noted:
   - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
 6. `cd docs/build && npm run verify:kiwix`
 
-## 10. Kiwix Update Procedure (Required)
+## 11. Kiwix Update Procedure (Required)
 Use this procedure whenever `public/kiwix-static/` is refreshed from a new Kiwix release.
 
 1. Fetch upstream release source/archive from `https://github.com/kiwix/kiwix-js`.

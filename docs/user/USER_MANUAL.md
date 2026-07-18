@@ -108,6 +108,7 @@ Licensing note for embedded reader:
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
+- In Docker setups with persistent `DATA_DIR`, Fyr refreshes `user-manual.md` and `developer-manual.md` automatically at startup.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically:

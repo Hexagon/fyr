@@ -1,0 +1,90 @@
+name: Dev Release
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    name: Dev Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo Test (workspace)
+        run: cargo test --workspace --all-targets
+
+      - name: Cargo Check (server)
+        run: cargo check -p server
+
+      - name: Setup Node (frontend)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: crates/ui/frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: crates/ui/frontend
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: crates/ui/frontend
+        run: npm run build
+
+      - name: Setup Node (docs)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docs/build/package-lock.json
+
+      - name: Install Docs Dependencies
+        working-directory: docs/build
+        run: npm ci
+
+      - name: Build Docs
+        working-directory: docs/build
+        run: npm run build
+
+      - name: Verify Kiwix Compliance
+        working-directory: docs/build
+        run: npm run verify:kiwix
+
+  publish-dev-image:
+    name: Publish Dev Docker Image
+    runs-on: ubuntu-latest
+    needs: preflight
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Multi-Arch Dev Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            hexagon/fyr:dev
+            hexagon/fyr:dev-${{ github.sha }}

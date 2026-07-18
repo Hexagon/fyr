@@ -16,9 +16,10 @@ use tower_http::cors::CorsLayer;
 use types::Config;
 use downloader::DownloadManager;
 use ai::ModelManager;
+use std::fs;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
-use tracing::info;
+use tracing::{info, warn};
 use settings::SettingsManager;
 
 mod ai;
@@ -27,6 +28,8 @@ mod state;
 mod settings;
 
 pub use state::AppState;
+
+const MANAGED_MANUALS: [&str; 2] = ["user-manual.md", "developer-manual.md"];
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -41,6 +44,7 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::default();
     config.initialize_directories()?;
     config.validate_writable()?;
+    sync_managed_manuals(&config)?;
 
     info!("Data directory: {}", config.data_dir.display());
     info!("Server will run on: {}:{}", config.server.host, config.server.port);
@@ -158,4 +162,55 @@ fn first_existing_path(primary: &str, fallback: &str) -> PathBuf {
     } else {
         PathBuf::from(fallback)
     }
+}
+
+fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
+    let source_root = [
+        PathBuf::from("/app/public/data/books"),
+        PathBuf::from("public/data/books"),
+        PathBuf::from("./public/data/books"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.exists());
+
+    let Some(source_root) = source_root else {
+        warn!("Skipping managed manual sync: source books directory not found");
+        return Ok(());
+    };
+
+    let books_dir = config.books_dir();
+    fs::create_dir_all(&books_dir).with_context(|| {
+        format!(
+            "Failed to create books directory for manual sync: {}",
+            books_dir.display()
+        )
+    })?;
+
+    for manual_name in MANAGED_MANUALS {
+        let source_path = source_root.join(manual_name);
+        if !source_path.exists() {
+            warn!(
+                "Skipping managed manual sync for {}: source file missing",
+                source_path.display()
+            );
+            continue;
+        }
+
+        let target_path = books_dir.join(manual_name);
+        fs::copy(&source_path, &target_path).with_context(|| {
+            format!(
+                "Failed to sync managed manual {} -> {}",
+                source_path.display(),
+                target_path.display()
+            )
+        })?;
+
+        info!(
+            "Synchronized managed manual {} to {}",
+            source_path.display(),
+            target_path.display()
+        );
+    }
+
+    Ok(())
 }
