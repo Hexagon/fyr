@@ -94,6 +94,6 @@ When adding or changing behavior:
 
 ## Build Environment
 
-- Rust: use stable toolchain (Docker currently pins `rust:1.75`).
+- Rust: use stable toolchain (Docker uses `rust:stable`).
 - Node.js: CI workflows use Node `20`.
 - Prefer matching CI toolchain versions locally when troubleshooting build drift.

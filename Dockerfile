@@ -2,7 +2,7 @@
 # Builds a minimal, efficient container image
 
 # Stage 1: Builder
-FROM rust:1.75 as builder
+FROM rust:stable AS builder
 
 WORKDIR /build
 
