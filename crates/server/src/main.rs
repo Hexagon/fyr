@@ -4,6 +4,7 @@
 //! Supports maps (PMTiles), books (EPUB), and POIs (FlatGeoBuf/GeoJSON).
 
 use axum::{
+    extract::DefaultBodyLimit,
     http::{header, HeaderValue, Method},
     routing::{delete, get, post},
     Router,
@@ -104,6 +105,10 @@ fn create_router(state: AppState) -> Router {
         .route("/api/content/models", get(handlers::list_models))
         .route("/api/content/misc", get(handlers::list_misc))
         .route("/api/models", get(handlers::ai_list_models))
+        .route(
+            "/api/models/upload",
+            post(handlers::ai_upload_model).layer(DefaultBodyLimit::disable()),
+        )
         .route("/api/models/import", post(handlers::ai_import_model))
         .route("/api/models/:filename/load", post(handlers::ai_load_model))
         .route("/api/models/:filename/load", delete(handlers::ai_unload_model))

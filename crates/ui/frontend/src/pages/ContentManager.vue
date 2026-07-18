@@ -229,19 +229,47 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 
-const onFilePicked = (event) => {
+const importLocalModel = async (file) => {
+  if (!file.name.toLowerCase().endsWith('.gguf')) {
+    downloadError.value = 'Local upload is currently available for GGUF models only.'
+    downloadStatus.value = null
+    return
+  }
+
+  downloading.value = true
+  downloadError.value = null
+  downloadStatus.value = `Uploading ${file.name}...`
+
+  try {
+    const uploadResponse = await apiService.uploadModel(file)
+    await apiService.importModel(uploadResponse.data.filename, 'inbox')
+    downloadStatus.value = `Imported ${uploadResponse.data.filename} into model library.`
+    activeCategory.value = 'models'
+    await loadContent()
+  } catch (err) {
+    downloadError.value = apiService.handleError(err)
+    downloadStatus.value = null
+  } finally {
+    downloading.value = false
+  }
+}
+
+const onFilePicked = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
 
-  downloadStatus.value = `Selected ${file.name}. Backend import pipeline wiring is next.`
+  await importLocalModel(file)
+  if (event.target) {
+    event.target.value = ''
+  }
 }
 
-const onDrop = (event) => {
+const onDrop = async (event) => {
   dragActive.value = false
   const file = event.dataTransfer?.files?.[0]
   if (!file) return
 
-  downloadStatus.value = `Dropped ${file.name} into ${currentFolderLabel.value}. Backend import wiring is next.`
+  await importLocalModel(file)
 }
 
 const loadContent = async () => {

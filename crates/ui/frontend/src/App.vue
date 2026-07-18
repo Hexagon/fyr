@@ -1,11 +1,17 @@
 <template>
   <div class="app-container">
     <nav class="navbar">
-      <div class="navbar-brand">
-        <img src="/assets/fyr-icon.svg" alt="Fyr" class="brand-icon" />
-        <h1>Fyr</h1>
+      <div class="navbar-left">
+        <div class="navbar-brand">
+          <img src="/assets/fyr-icon.svg" alt="Fyr" class="brand-icon" />
+          <h1>Fyr</h1>
+        </div>
+        <div class="navbar-context">
+          <p class="context-kicker">{{ pageTitle }}</p>
+          <h2>{{ headerSummary }}</h2>
+        </div>
       </div>
-      <div class="navbar-right">
+      <div class="navbar-center">
         <ul class="navbar-menu">
           <li><router-link to="/" :class="{ active: $route.name === 'Home' }">Overview</router-link></li>
           <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }">Maps</router-link></li>
@@ -14,25 +20,17 @@
           <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }">Assistant</router-link></li>
           <li><router-link to="/settings" :class="{ active: $route.name === 'Settings' }">Settings</router-link></li>
         </ul>
-        <span class="offline-pill">Offline Mode: Active</span>
+      </div>
+      <div class="navbar-right">
         <div class="clock-panel">
           <span class="clock-time">{{ currentTime }}</span>
+          <span class="clock-day">{{ currentWeekday }}</span>
           <span class="clock-date">{{ currentDate }}</span>
-          <span class="clock-location">{{ locationSummary }}</span>
-          <span v-if="clock.sunriseText || clock.sunsetText" class="clock-sun">
-            <template v-if="clock.sunriseText">↑ {{ clock.sunriseText }}</template>
-            <template v-if="clock.sunriseText && clock.sunsetText"> · </template>
-            <template v-if="clock.sunsetText">↓ {{ clock.sunsetText }}</template>
-          </span>
         </div>
       </div>
     </nav>
 
     <main class="page-content">
-      <section class="page-header">
-        <h2>{{ pageTitle }}</h2>
-        <p>{{ pageSubtitle }}</p>
-      </section>
       <router-view />
     </main>
 
@@ -56,20 +54,26 @@ let timer = null
 
 const pageTitle = computed(() => route.meta?.title || 'Fyr')
 const pageSubtitle = computed(() => route.meta?.subtitle || 'Offline-first content platform')
+const pageHeaderLabel = computed(() => route.meta?.headerLabel || pageSubtitle.value)
 const clock = computed(() => getLocationClock(now.value, locationState.location))
 const currentTime = computed(() => clock.value.timeText)
-const currentDate = computed(() => clock.value.dateText)
-const locationSummary = computed(() => {
-  const location = locationState.location
-  if (!location) return 'System time'
+const currentWeekday = computed(() => formatClockDatePart('weekday', clock.value.dateText))
+const currentDate = computed(() => formatClockDatePart('date', clock.value.dateText))
+const headerSummary = computed(() => `${pageTitle.value} - ${pageHeaderLabel.value}`)
 
-  const parts = [
-    location.label?.trim(),
-    `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
-  ].filter(Boolean)
+const formatClockDatePart = (kind, fullText) => {
+  const parts = String(fullText || '').split(',').map(part => part.trim()).filter(Boolean)
 
-  return parts.join(' · ')
-})
+  if (!parts.length) {
+    return ''
+  }
+
+  if (parts.length === 1) {
+    return kind === 'weekday' ? parts[0] : ''
+  }
+
+  return kind === 'weekday' ? parts[0] : parts.slice(1).join(', ')
+}
 
 onMounted(async () => {
   await loadAppSettings().catch(() => {})
@@ -109,17 +113,30 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1.25rem;
   background: linear-gradient(135deg, var(--navbar-gradient-1) 0%, var(--navbar-gradient-2) 100%);
   color: white;
   padding: 1rem 2rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.navbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .navbar-brand h1 {
@@ -133,6 +150,27 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
+.navbar-context {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.context-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.navbar-context h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .brand-icon {
   width: 1.5rem;
   height: 1.5rem;
@@ -143,24 +181,15 @@ onBeforeUnmount(() => {
   list-style: none;
   gap: 2rem;
   margin: 0;
-}
-
-.offline-pill {
-  border: 1px solid #5da86c;
-  color: #bdf9c6;
-  background: rgba(33, 80, 45, 0.45);
-  border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
+  padding: 0;
 }
 
 .clock-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  min-width: 9rem;
+  align-items: flex-end;
+  gap: 0.15rem;
+  min-width: 8rem;
   padding: 0.4rem 0.7rem;
   border-radius: 0.6rem;
   background: rgba(255, 255, 255, 0.08);
@@ -168,19 +197,14 @@ onBeforeUnmount(() => {
 }
 
 .clock-time {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
-.clock-date,
-.clock-location {
+.clock-day,
+.clock-date {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.78);
-}
-
-.clock-sun {
-  font-size: 0.72rem;
-  color: rgba(255, 231, 160, 0.95);
 }
 
 .navbar-menu a {
@@ -209,21 +233,6 @@ onBeforeUnmount(() => {
   background: var(--bg-primary);
 }
 
-.page-header {
-  margin-bottom: 1.25rem;
-}
-
-.page-header h2 {
-  margin: 0;
-  font-size: 1.75rem;
-  color: #f0f0f0;
-}
-
-.page-header p {
-  margin: 0.35rem 0 0;
-  color: #b8b8b8;
-}
-
 .app-footer {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
@@ -246,16 +255,28 @@ onBeforeUnmount(() => {
   .navbar {
     flex-direction: column;
     gap: 1rem;
+    align-items: stretch;
   }
 
+  .navbar-left,
+  .navbar-center,
   .navbar-right {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .navbar-center {
+    justify-content: flex-start;
   }
 
   .navbar-menu {
     flex-wrap: wrap;
     gap: 1rem;
     justify-content: center;
+  }
+
+  .clock-panel {
+    align-items: flex-start;
   }
 
   .page-content {

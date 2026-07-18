@@ -1,15 +1,40 @@
 <template>
   <div class="home-page">
-    <div class="welcome-section">
-      <h2>Welcome to Fyr</h2>
-      <p>Off-grid content platform for offline access to Wikipedia, guides, maps, and POIs</p>
-    </div>
-
     <div class="stats-grid" v-if="status">
       <div class="stat-card">
-        <h3>📊 Server Status</h3>
+        <h3>📊 System Status</h3>
         <p class="status-badge" :class="status.status">{{ status.status }}</p>
         <p class="small">Version: {{ status.version }}</p>
+        <dl class="status-details">
+          <div>
+            <dt>Time source</dt>
+            <dd>{{ timeSourceText }}</dd>
+          </div>
+          <div>
+            <dt>Clock</dt>
+            <dd>{{ clock.timeText }}</dd>
+          </div>
+          <div>
+            <dt>Date</dt>
+            <dd>{{ clock.dateText }}</dd>
+          </div>
+          <div>
+            <dt>Location</dt>
+            <dd>{{ locationLabel }}</dd>
+          </div>
+          <div v-if="locationState.location">
+            <dt>Coordinates</dt>
+            <dd>{{ locationCoordinates }}</dd>
+          </div>
+          <div>
+            <dt>Sun</dt>
+            <dd>{{ sunSummary }}</dd>
+          </div>
+          <div>
+            <dt>Mode</dt>
+            <dd>Offline active</dd>
+          </div>
+        </dl>
       </div>
 
       <div class="stat-card">
@@ -99,13 +124,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { apiService } from '../services/api'
+import { useLocationState } from '../services/location'
+import { getLocationClock } from '../services/locationClock'
 
 const status = ref(null)
 const storage = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const locationState = useLocationState()
+
+const clock = computed(() => getLocationClock(new Date(), locationState.location))
+const timeSourceText = computed(() => clock.value.mode === 'location' ? 'Saved location' : 'System time')
+const locationLabel = computed(() => locationState.location?.label?.trim() || 'No saved location')
+const locationCoordinates = computed(() => {
+  if (!locationState.location) return 'Unavailable'
+
+  return `${locationState.location.latitude.toFixed(4)}, ${locationState.location.longitude.toFixed(4)}`
+})
+const sunSummary = computed(() => {
+  if (!clock.value.sunriseText && !clock.value.sunsetText) {
+    return 'Unavailable'
+  }
+
+  const parts = []
+  if (clock.value.sunriseText) parts.push(`↑ ${clock.value.sunriseText}`)
+  if (clock.value.sunsetText) parts.push(`↓ ${clock.value.sunsetText}`)
+  return parts.join(' · ')
+})
 
 onMounted(async () => {
   try {
@@ -127,18 +174,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 2rem;
-}
-
-.welcome-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.welcome-section h2 {
-  margin-bottom: 0.5rem;
 }
 
 .stats-grid {
@@ -171,7 +206,36 @@ onMounted(async () => {
 .small {
   font-size: 0.85rem;
   color: #999;
+  margin: 0.35rem 0 0;
+}
+
+.status-details {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+}
+
+.status-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.status-details dt,
+.status-details dd {
   margin: 0;
+  font-size: 0.84rem;
+}
+
+.status-details dt {
+  color: #8d8d8d;
+}
+
+.status-details dd {
+  color: #d9d9d9;
+  text-align: right;
 }
 
 .status-badge {

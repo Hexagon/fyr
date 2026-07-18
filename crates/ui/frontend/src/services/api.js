@@ -91,6 +91,37 @@ export const apiService = {
 
   // AI model registry
   listAiModels: () => api.get('/models'),
+  uploadModel: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/models/upload', {
+      method: 'POST',
+      body: formData,
+      cache: 'no-store'
+    })
+
+    let payload = null
+    const responseType = response.headers.get('content-type') || ''
+
+    if (responseType.includes('application/json')) {
+      payload = await response.json()
+    } else {
+      const text = await response.text()
+      payload = text ? { message: text } : null
+    }
+
+    if (!response.ok) {
+      throw {
+        response: {
+          status: response.status,
+          data: payload
+        }
+      }
+    }
+
+    return { data: payload }
+  },
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
   loadModel: (filename) => api.post(`/models/${encodeURIComponent(filename)}/load`),
   unloadModel: (filename) => api.delete(`/models/${encodeURIComponent(filename)}/load`),

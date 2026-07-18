@@ -1,6 +1,8 @@
 use super::error::ModelError;
-use super::loader::{LoadedModel, ModelLoader};
+use super::loader::{LoadedModel, ModelLoader, ModelRuntime};
 use super::types::{ModelHealthResponse, ModelLoadState, ModelRegistryEntry};
+use candle_core::Tensor;
+use candle_transformers::generation::LogitsProcessor;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -55,7 +57,10 @@ impl ModelManager {
                 .to_string();
             let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
 
-            let loaded_flag = loaded.contains_key(&filename);
+            let loaded_flag = loaded
+                .get(&filename)
+                .map(|model| model.supports_inference())
+                .unwrap_or(false);
             let (state, error) = states
                 .get(&filename)
                 .cloned()
@@ -130,19 +135,24 @@ impl ModelManager {
 
         match loaded {
             Ok(model) => {
+                let supports_inference = model.supports_inference();
+                let validation_reason = model.validation_reason();
                 {
                     let mut loaded_models = self.loaded.write().await;
                     loaded_models.insert(filename.to_string(), model);
                 }
                 let mut states = self.states.write().await;
-                states.insert(filename.to_string(), (ModelLoadState::Ready, None));
+                states.insert(filename.to_string(), (ModelLoadState::Ready, validation_reason));
+                if !supports_inference {
+                    return Ok(());
+                }
                 Ok(())
             }
             Err(err) => {
                 let mut states = self.states.write().await;
                 states.insert(
                     filename.to_string(),
-                    (ModelLoadState::Error, Some(err.to_string())),
+                    (ModelLoadState::Error, Some(user_facing_model_error(&err))),
                 );
                 Err(err)
             }
@@ -168,7 +178,7 @@ impl ModelManager {
 
         ModelHealthResponse {
             filename: filename.to_string(),
-            loaded: loaded_model.is_some(),
+            loaded: loaded_model.map(|model| model.supports_inference()).unwrap_or(false),
             state,
             architecture: loaded_model.and_then(|m| m.metadata.architecture.clone()),
             has_tokenizer_metadata: loaded_model
@@ -190,50 +200,127 @@ impl ModelManager {
             return Err(ModelError::NotLoaded(filename.to_string()));
         };
 
-        let model_name = model.metadata.filename.clone();
+        let runtime = model.runtime.clone();
         drop(loaded);
 
         let (tx, rx) = mpsc::channel::<String>(32);
 
-        tokio::spawn(async move {
-            let intro = format!(
-                "[offline:{} temp={:.1}] ",
-                model_name,
-                temperature
-            );
+        match runtime {
+            ModelRuntime::QuantizedQwen2 {
+                model,
+                tokenizer,
+                eos_token_ids,
+            } => {
+                tokio::task::spawn_blocking(move || {
+                    let send_error = |message: String, tx: &mpsc::Sender<String>| {
+                        let _ = tx.blocking_send(message);
+                    };
 
-            let mut words: Vec<String> = prompt
-                .split_whitespace()
-                .map(|w| w.to_string())
-                .collect();
+                    let encoding = match tokenizer.encode(prompt.clone(), true) {
+                        Ok(encoding) => encoding,
+                        Err(error) => {
+                            send_error(
+                                format!("Tokenizer error: {error}"),
+                                &tx,
+                            );
+                            return;
+                        }
+                    };
 
-            if words.is_empty() {
-                words.push("(empty)".to_string());
+                    let mut token_ids = encoding.get_ids().to_vec();
+                    if token_ids.is_empty() {
+                        send_error("Tokenizer produced no input tokens.".to_string(), &tx);
+                        return;
+                    }
+
+                    let mut model = match model.lock() {
+                        Ok(model) => model,
+                        Err(_) => {
+                            send_error("Model lock poisoned during inference.".to_string(), &tx);
+                            return;
+                        }
+                    };
+
+                    model.clear_kv_cache();
+                    let device = candle_core::Device::Cpu;
+                    let seed = 42;
+                    let mut sampler = LogitsProcessor::new(seed, Some(temperature), None);
+                    let mut input_ids = token_ids.clone();
+                    let mut index_pos = 0usize;
+
+                    for _ in 0..max_tokens {
+                        let input = match Tensor::new(input_ids.as_slice(), &device)
+                            .and_then(|tensor| tensor.unsqueeze(0))
+                        {
+                            Ok(tensor) => tensor,
+                            Err(error) => {
+                                send_error(format!("Tensor setup failed: {error}"), &tx);
+                                return;
+                            }
+                        };
+
+                        let logits = match model.forward(&input, index_pos) {
+                            Ok(logits) => logits,
+                            Err(error) => {
+                                send_error(format!("Inference failed: {error}"), &tx);
+                                return;
+                            }
+                        };
+
+                        let next_token = match sampler.sample(&logits) {
+                            Ok(token) => token,
+                            Err(error) => {
+                                send_error(format!("Sampling failed: {error}"), &tx);
+                                return;
+                            }
+                        };
+
+                        if eos_token_ids.contains(&next_token) {
+                            break;
+                        }
+
+                        token_ids.push(next_token);
+                        let fragment = match tokenizer.decode(&[next_token], true) {
+                            Ok(text) => text,
+                            Err(error) => {
+                                send_error(format!("Decode failed: {error}"), &tx);
+                                return;
+                            }
+                        };
+
+                        if !fragment.is_empty() && tx.blocking_send(fragment).is_err() {
+                            return;
+                        }
+
+                        index_pos = token_ids.len() - 1;
+                        input_ids.clear();
+                        input_ids.push(next_token);
+                    }
+                });
             }
-
-            let mut generated = Vec::new();
-            generated.push("Local".to_string());
-            generated.push("response:".to_string());
-            generated.extend(words);
-
-            let mut count = 0usize;
-            if tx.send(intro).await.is_err() {
-                return;
+            ModelRuntime::ValidationOnly { reason } => {
+                return Err(ModelError::InferenceFailed(
+                    reason.unwrap_or_else(|| {
+                        "Inference is not implemented for this loaded model.".to_string()
+                    }),
+                ));
             }
-
-            for token in generated {
-                if count >= max_tokens {
-                    break;
-                }
-                let payload = format!("{} ", token);
-                if tx.send(payload).await.is_err() {
-                    break;
-                }
-                count += 1;
-                tokio::time::sleep(std::time::Duration::from_millis(18)).await;
-            }
-        });
+        }
 
         Ok(rx)
     }
+}
+
+fn user_facing_model_error(error: &ModelError) -> String {
+    let message = error.to_string();
+
+    if message.contains("unknown dtype") {
+        return "Unsupported GGUF tensor format in this model. It likely needs a newer runtime than the current Candle backend.".to_string();
+    }
+
+    if let Some(first_line) = message.lines().next() {
+        return first_line.trim().to_string();
+    }
+
+    message
 }

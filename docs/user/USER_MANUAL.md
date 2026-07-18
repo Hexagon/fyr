@@ -24,15 +24,20 @@ docker run --rm -p 8080:8080 \
 Then open `http://127.0.0.1:8080`.
 
 ## 3. Main Pages
-- Home: system status and storage overview.
-- Content Manager: add downloads and inspect content inventory.
+- Home: system status, location, sunrise/sunset, and storage overview.
+- Content Manager: add downloads, upload `.gguf` models, and inspect content inventory.
 - Maps: map selection and viewer controls.
 - Books: browse books, read EPUB, launch ZIM reader flow.
 - Assistant: browse local `.gguf` models and chat offline.
 
+Header behavior:
+- The top header shows the current page context together with the clock, weekday, and date.
+- Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
+
 ## 3a. Using the AI Assistant
 - Open the Assistant tab from the top navigation.
-- Import models by placing `.gguf` files in `public/data/inbox/` or `public/data/misc/`, then using the assistant import action.
+- Use **Import Model** to upload a local `.gguf` file. Fyr stores it in `public/data/inbox/` and imports it into the model library automatically.
+- For actual text generation, place a matching `tokenizer.json` next to the model file, or a `<model-name>.tokenizer.json` sidecar in `public/data/models/`.
 - Select a model and press **Load Model**.
 - Enter a prompt and send it to start token streaming.
 
@@ -53,6 +58,11 @@ Place `.pmtiles` files in `public/data/maps/`.
 
 ### POI
 Place `.geojson` or `.fgb` files in `public/data/poi/`.
+
+### Models
+- Open either **Assistant** or **Content Manager**.
+- Upload a local `.gguf` file.
+- Fyr validates the GGUF header, stores the file in `public/data/inbox/`, and imports it into `public/data/models/`.
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it directly in the embedded reader.
@@ -100,7 +110,12 @@ Environment overrides:
 ### Assistant model import fails
 - Confirm the model file extension is `.gguf`.
 - Ensure the source file starts with GGUF magic bytes.
-- Ensure you import from supported source folders (`inbox` or `misc`).
+- Retry the upload if the browser was interrupted before the file finished transferring.
+
+### Assistant inference fails after load
+- Confirm the model architecture is currently supported by Fyr inference.
+- For `qwen2` models, add a matching `tokenizer.json` beside the `.gguf` file.
+- If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.
 
 ### Assistant load fails or runs slowly
 - Check model health in the assistant status line.

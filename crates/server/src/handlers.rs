@@ -2,11 +2,12 @@
 
 use crate::ai::types::{
     ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse, ModelHealthResponse,
+    UploadModelResponse,
 };
 use crate::zim_reader;
 use crate::AppState;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::{header, HeaderValue, StatusCode},
     response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse, Response},
     Json,
@@ -16,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::path::Path as FsPath;
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use walkdir::WalkDir;
@@ -103,6 +105,11 @@ pub struct KiwixReaderCapabilitiesResponse {
     pub zim_base_url: String,
     pub supports_direct_http_zim: bool,
     pub supports_http_range: bool,
+}
+
+#[derive(Serialize)]
+pub struct ErrorMessageResponse {
+    pub message: String,
 }
 
 #[derive(Serialize)]
@@ -274,16 +281,98 @@ pub async fn ai_list_models(State(state): State<Arc<AppState>>) -> Result<Json<V
     Ok(Json(models))
 }
 
+/// POST /api/models/upload — Upload a GGUF model into inbox before import
+pub async fn ai_upload_model(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<UploadModelResponse>), StatusCode> {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+
+        let raw_name = field.file_name().ok_or(StatusCode::BAD_REQUEST)?;
+        let filename = sanitize_upload_filename(raw_name).ok_or(StatusCode::BAD_REQUEST)?;
+
+        if !filename.to_ascii_lowercase().ends_with(".gguf") {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
+        let target_path = state.config.inbox_dir().join(&filename);
+        if tokio::fs::try_exists(&target_path)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        {
+            tokio::fs::remove_file(&target_path)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
+
+        let mut file = tokio::fs::File::create(&target_path)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let mut size_bytes = 0u64;
+        let mut magic = Vec::with_capacity(4);
+        let mut magic_checked = false;
+
+        while let Some(chunk) = field.chunk().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+            if !magic_checked {
+                let needed = 4usize.saturating_sub(magic.len());
+                if needed > 0 {
+                    magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
+                }
+                if magic.len() == 4 {
+                    magic_checked = true;
+                    if magic.as_slice() != b"GGUF" {
+                        let _ = tokio::fs::remove_file(&target_path).await;
+                        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+                    }
+                }
+            }
+
+            file.write_all(&chunk)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            size_bytes += chunk.len() as u64;
+        }
+
+        if magic.len() < 4 {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        }
+
+        file.flush()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(UploadModelResponse {
+                filename,
+                stored_in: target_path.display().to_string(),
+                size_bytes,
+            }),
+        ));
+    }
+
+    Err(StatusCode::BAD_REQUEST)
+}
+
 /// POST /api/models/import — Import a model from inbox/misc into models with GGUF validation
 pub async fn ai_import_model(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ImportModelRequest>,
-) -> Result<Json<ImportModelResponse>, StatusCode> {
+) -> Result<Json<ImportModelResponse>, (StatusCode, Json<ErrorMessageResponse>)> {
     let imported_path = state
         .model_manager
         .import_model(&req.filename, &req.source)
         .await
-        .map_err(map_model_error_to_status)?;
+        .map_err(model_error_response)?;
 
     Ok(Json(ImportModelResponse {
         filename: req.filename,
@@ -295,12 +384,12 @@ pub async fn ai_import_model(
 pub async fn ai_load_model(
     State(state): State<Arc<AppState>>,
     Path(filename): Path<String>,
-) -> Result<Json<LoadModelResponse>, StatusCode> {
+) -> Result<Json<LoadModelResponse>, (StatusCode, Json<ErrorMessageResponse>)> {
     state
         .model_manager
         .load_model(&filename)
         .await
-        .map_err(map_model_error_to_status)?;
+        .map_err(model_error_response)?;
 
     Ok(Json(LoadModelResponse {
         filename,
@@ -341,7 +430,7 @@ pub async fn ai_infer_stream(
         .model_manager
         .infer_stream(&filename, query.prompt, temperature, max_tokens)
         .await
-        .map_err(map_model_error_to_status)?;
+        .map_err(|error| map_model_error_to_status(&error))?;
 
     let stream = ReceiverStream::new(rx).map(|token| {
         Ok::<Event, Infallible>(
@@ -596,7 +685,7 @@ fn map_zim_reader_error(error: zim_reader::ZimReaderError) -> StatusCode {
     }
 }
 
-fn map_model_error_to_status(error: crate::ai::error::ModelError) -> StatusCode {
+fn map_model_error_to_status(error: &crate::ai::error::ModelError) -> StatusCode {
     use crate::ai::error::ModelError;
     match error {
         ModelError::NotFound(_) => StatusCode::NOT_FOUND,
@@ -609,4 +698,41 @@ fn map_model_error_to_status(error: crate::ai::error::ModelError) -> StatusCode 
         ModelError::InferenceFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
         ModelError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
+}
+
+fn model_error_response(error: crate::ai::error::ModelError) -> (StatusCode, Json<ErrorMessageResponse>) {
+    let status = map_model_error_to_status(&error);
+    (
+        status,
+        Json(ErrorMessageResponse {
+            message: user_facing_model_error(&error),
+        }),
+    )
+}
+
+fn user_facing_model_error(error: &crate::ai::error::ModelError) -> String {
+    let message = error.to_string();
+
+    if message.contains("unknown dtype") {
+        return "Unsupported GGUF tensor format in this model. It likely needs a newer runtime than the current Candle backend.".to_string();
+    }
+
+    if let Some(first_line) = message.lines().next() {
+        return first_line.trim().to_string();
+    }
+
+    message
+}
+
+fn sanitize_upload_filename(filename: &str) -> Option<String> {
+    let candidate = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|value| value.to_str())?
+        .trim();
+
+    if candidate.is_empty() {
+        return None;
+    }
+
+    Some(candidate.to_string())
 }

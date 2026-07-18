@@ -16,7 +16,8 @@ const routes = [
     component: Home,
     meta: {
       title: 'Overview',
-      subtitle: 'System status and offline storage overview'
+      subtitle: 'System status and offline storage overview',
+      headerLabel: 'System status'
     }
   },
   {
@@ -25,7 +26,8 @@ const routes = [
     component: Maps,
     meta: {
       title: 'Maps',
-      subtitle: 'Browse offline maps and interactive data layers'
+      subtitle: 'Browse offline maps and interactive data layers',
+      headerLabel: 'Interactive layers'
     }
   },
   {
@@ -34,7 +36,8 @@ const routes = [
     component: Books,
     meta: {
       title: 'Library',
-      subtitle: 'Browse and read your offline books collection'
+      subtitle: 'Browse and read your offline books collection',
+      headerLabel: 'Offline reading'
     }
   },
   {
@@ -43,7 +46,8 @@ const routes = [
     component: ContentManager,
     meta: {
       title: 'Content Manager',
-      subtitle: 'Manage local files, imports, and downloads'
+      subtitle: 'Manage local files, imports, and downloads',
+      headerLabel: 'Files and imports'
     }
   },
   {
@@ -52,7 +56,8 @@ const routes = [
     component: Assistant,
     meta: {
       title: 'Assistant',
-      subtitle: 'Offline AI assistant powered by local GGUF models'
+      subtitle: 'Offline AI assistant powered by local GGUF models',
+      headerLabel: 'Local GGUF chat'
     }
   },
   {
@@ -61,7 +66,8 @@ const routes = [
     component: Settings,
     meta: {
       title: 'Settings',
-      subtitle: 'Configure location and other application-wide preferences'
+      subtitle: 'Configure location and other application-wide preferences',
+      headerLabel: 'Location and preferences'
     }
   }
 ]

@@ -10,7 +10,7 @@ types = { path = "../types" }
 downloader = { path = "../downloader" }
 
 tokio.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["multipart"] }
 serde.workspace = true
 serde_json.workspace = true
 tower.workspace = true
@@ -26,6 +26,7 @@ tokio-stream.workspace = true
 candle-core.workspace = true
 candle-nn.workspace = true
 candle-transformers.workspace = true
+tokenizers = "0.22"
 
 chrono = { version = "0.4", features = ["serde"] }
 zim = "0.4"

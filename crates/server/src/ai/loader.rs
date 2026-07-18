@@ -1,15 +1,40 @@
 use super::error::ModelError;
 use super::types::ModelMetadata;
 use candle_core::quantized::gguf_file;
-use candle_transformers::quantized_var_builder::VarBuilder;
+use candle_transformers::models::quantized_qwen2;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use tokenizers::Tokenizer;
 
 #[derive(Clone)]
 pub struct LoadedModel {
     pub metadata: ModelMetadata,
-    pub _weights: VarBuilder,
+    pub runtime: ModelRuntime,
+}
+
+#[derive(Clone)]
+pub enum ModelRuntime {
+    ValidationOnly { reason: Option<String> },
+    QuantizedQwen2 {
+        model: Arc<Mutex<quantized_qwen2::ModelWeights>>,
+        tokenizer: Arc<Tokenizer>,
+        eos_token_ids: Vec<u32>,
+    },
+}
+
+impl LoadedModel {
+    pub fn supports_inference(&self) -> bool {
+        matches!(self.runtime, ModelRuntime::QuantizedQwen2 { .. })
+    }
+
+    pub fn validation_reason(&self) -> Option<String> {
+        match &self.runtime {
+            ModelRuntime::ValidationOnly { reason } => reason.clone(),
+            ModelRuntime::QuantizedQwen2 { .. } => None,
+        }
+    }
 }
 
 pub struct ModelLoader;
@@ -58,10 +83,7 @@ impl ModelLoader {
         let size_bytes = std::fs::metadata(path)
             .map_err(|e| ModelError::ImportFailed(e.to_string()))?
             .len();
-
-        let device = candle_core::Device::Cpu;
-        let weights = VarBuilder::from_gguf(path, &device)
-            .map_err(|e| ModelError::GgufParse(e.to_string()))?;
+        let tensor_count = content.tensor_infos.len();
 
         let filename = path
             .file_name()
@@ -69,17 +91,74 @@ impl ModelLoader {
             .unwrap_or("unknown.gguf")
             .to_string();
 
+        let runtime = match architecture.as_deref() {
+            Some("qwen2") => load_quantized_qwen2_runtime(path, content, &filename)?,
+            _ => ModelRuntime::ValidationOnly {
+                reason: Some("Inference is not implemented for this model architecture in Fyr yet.".to_string()),
+            },
+        };
+
         let metadata = ModelMetadata {
             filename,
             size_bytes,
             architecture,
-            tensor_count: content.tensor_infos.len(),
+            tensor_count,
             has_tokenizer_metadata,
         };
 
         Ok(LoadedModel {
             metadata,
-            _weights: weights,
+            runtime,
         })
     }
+}
+
+fn load_quantized_qwen2_runtime(
+    path: &Path,
+    content: gguf_file::Content,
+    filename: &str,
+) -> Result<ModelRuntime, ModelError> {
+    let Some(tokenizer_path) = resolve_tokenizer_path(path) else {
+        return Ok(ModelRuntime::ValidationOnly {
+            reason: Some(format!(
+                "Tokenizer file missing for {filename}. Add {filename}.tokenizer.json or tokenizer.json next to the model to enable inference."
+            )),
+        });
+    };
+
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        .map_err(|e| ModelError::InferenceFailed(format!(
+            "failed to load tokenizer {} ({e})",
+            tokenizer_path.display()
+        )))?;
+
+    let device = candle_core::Device::Cpu;
+    let mut file = File::open(path)
+        .map_err(|e| ModelError::ImportFailed(format!("{} ({})", path.display(), e)))?;
+    let model = quantized_qwen2::ModelWeights::from_gguf(content, &mut file, &device)
+        .map_err(|e| ModelError::GgufParse(e.to_string()))?;
+
+    Ok(ModelRuntime::QuantizedQwen2 {
+        model: Arc::new(Mutex::new(model)),
+        tokenizer: Arc::new(tokenizer.clone()),
+        eos_token_ids: eos_token_ids(&tokenizer),
+    })
+}
+
+fn resolve_tokenizer_path(path: &Path) -> Option<PathBuf> {
+    let stem = path.file_stem()?.to_str()?;
+    let parent = path.parent()?;
+    let candidates = [
+        parent.join(format!("{stem}.tokenizer.json")),
+        parent.join("tokenizer.json"),
+    ];
+
+    candidates.into_iter().find(|candidate| candidate.exists())
+}
+
+fn eos_token_ids(tokenizer: &Tokenizer) -> Vec<u32> {
+    ["<|im_end|>", "<|endoftext|>", "</s>", "<|eot_id|>"]
+        .into_iter()
+        .filter_map(|token| tokenizer.token_to_id(token))
+        .collect()
 }

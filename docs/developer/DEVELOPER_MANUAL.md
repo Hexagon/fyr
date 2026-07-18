@@ -109,11 +109,23 @@ Core endpoints:
 
 AI assistant endpoints:
 - `GET /api/models`
+- `POST /api/models/upload`
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
 - `GET /api/models/:filename/health`
 - `GET /api/models/:filename/infer/stream`
+
+Model upload/import flow:
+- Frontend uploads `.gguf` files as multipart form data to `POST /api/models/upload`.
+- The server sanitizes the filename, validates the `.gguf` extension and `GGUF` magic bytes, and writes the file into `DATA_DIR/inbox`.
+- Frontend then calls `POST /api/models/import` with source `inbox` so `ModelManager` can move the file into `DATA_DIR/models`.
+- Assistant and Content Manager now share this same upload-plus-import flow instead of relying on placeholder status text or manual pre-placement.
+
+Current inference path:
+- Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
+- The runtime currently requires a tokenizer sidecar in `DATA_DIR/models`: either `tokenizer.json` or `<model-name>.tokenizer.json`.
+- If the tokenizer is missing, the model can still be loaded for validation and health checks, but `infer_stream` returns a clear inference error instead of a placeholder response.
 
 Kiwix and ZIM endpoints:
 - `GET /api/kiwix/status`

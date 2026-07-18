@@ -1,13 +1,5 @@
 <template>
   <div class="settings-page">
-    <section class="panel hero">
-      <div>
-        <p class="eyebrow">Application Settings</p>
-        <h2>Location and shared module state</h2>
-        <p class="lead">Set a default place for the app. This will later drive time, sunrise, sunset, and map start position.</p>
-      </div>
-    </section>
-
     <section class="panel">
       <div class="panel-header">
         <h3>Location</h3>

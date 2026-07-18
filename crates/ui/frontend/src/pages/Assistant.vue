@@ -114,8 +114,8 @@ const canSend = computed(() => {
 const modelStatusText = computed(() => {
   if (!selectedModel.value) return 'No model selected'
   if (!modelHealth.value) return `Model selected: ${selectedModel.value.filename}`
-  if (modelHealth.value.loaded) return `Model loaded: ${selectedModel.value.filename}`
   if (modelHealth.value.error) return `Health check: ${modelHealth.value.error}`
+  if (modelHealth.value.loaded) return `Model loaded for validation: ${selectedModel.value.filename}`
   return `Model selected: ${selectedModel.value.filename}`
 })
 
@@ -140,11 +140,12 @@ const onModelFilePicked = async (event) => {
   if (!file) return
 
   try {
-    await apiService.importModel(file.name, modelImportSource.value)
+    const uploadResponse = await apiService.uploadModel(file)
+    await apiService.importModel(uploadResponse.data.filename, modelImportSource.value)
     messages.value.push({
       id: crypto.randomUUID(),
       role: 'assistant',
-      text: `Imported ${file.name} to /data/models.`
+      text: `Imported ${uploadResponse.data.filename} to /data/models.`
     })
     await loadModels()
   } catch (error) {
@@ -154,6 +155,10 @@ const onModelFilePicked = async (event) => {
       role: 'assistant',
       text: `Health check: import failed for ${file.name}. ${detail}`
     })
+  } finally {
+    if (event.target) {
+      event.target.value = ''
+    }
   }
 }
 
@@ -169,10 +174,13 @@ const loadSelectedModel = async () => {
   try {
     await apiService.loadModel(selectedModel.value.filename)
     await loadHealth(selectedModel.value.filename)
+    const statusDetail = modelHealth.value?.loaded
+      ? `Model loaded for inference: ${selectedModel.value.filename}`
+      : `Model validated: ${selectedModel.value.filename}. ${modelHealth.value?.error || 'Inference is not available yet for this runtime.'}`
     messages.value.push({
       id: crypto.randomUUID(),
       role: 'assistant',
-      text: `Model loaded: ${selectedModel.value.filename}`
+      text: statusDetail
     })
   } catch (error) {
     const detail = apiService.handleError(error)

@@ -35,10 +35,7 @@ docs/build/node_modules/
 .env.local
 
 # Data directory (user content) - ignore all content files
-/public/data/maps/
-/public/data/books/*
-/public/data/poi/
-/public/data/inbox/
+/public/data/*
 
 # EXCEPT: Include generated documentation manuals
 !/public/data/books/user-manual.epub

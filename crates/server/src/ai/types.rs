@@ -39,6 +39,13 @@ pub struct ImportModelResponse {
     pub imported_to: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct UploadModelResponse {
+    pub filename: String,
+    pub stored_in: String,
+    pub size_bytes: u64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct InferStreamQuery {
     pub prompt: String,
