@@ -36,6 +36,9 @@ COPY crates crates
 COPY public public
 COPY --from=frontend-builder /build/public/static /build/public/static
 
+# Ensure Cargo sees copied sources as newer than the priming stub files.
+RUN find crates -type f -exec touch {} +
+
 RUN cargo build --release --locked -p server --bin fyr
 
 # Stage 2: Runtime (minimal base image)
