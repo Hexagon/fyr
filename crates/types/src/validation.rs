@@ -1,6 +1,8 @@
 //! File validation logic for content ingestion
 
 use crate::types::{ContentType, ValidationResult};
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 
 /// Validate a file and detect its content type
@@ -28,6 +30,8 @@ pub fn validate_file(path: &Path) -> ValidationResult {
         Some(ContentType::Map) => validate_pmtiles(path, &mut result),
         Some(ContentType::Book) => validate_book(path, &mut result),
         Some(ContentType::Poi) => validate_poi(path, &mut result),
+        Some(ContentType::Model) => validate_model(path, &mut result),
+        Some(ContentType::Misc) => validate_misc(path, &mut result),
         None => {
             result.warnings.push("Unable to determine file type. Content type validation skipped.".to_string());
         }
@@ -114,5 +118,58 @@ fn validate_poi(path: &Path, result: &mut ValidationResult) {
         _ => {
             result.warnings.push("Unknown POI format".to_string());
         }
+    }
+}
+
+/// Validate GGUF model file format
+fn validate_model(path: &Path, result: &mut ValidationResult) {
+    if !path.exists() {
+        result.errors.push("File does not exist".to_string());
+        result.valid = false;
+        return;
+    }
+
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) => {
+            result.errors.push(format!("Could not open model file: {}", e));
+            result.valid = false;
+            return;
+        }
+    };
+
+    let mut magic = [0u8; 4];
+    if let Err(e) = file.read_exact(&mut magic) {
+        result
+            .errors
+            .push(format!("Could not read GGUF magic bytes: {}", e));
+        result.valid = false;
+        return;
+    }
+
+    if magic == *b"GGUF" {
+        result
+            .warnings
+            .push("GGUF header detected; model file looks valid".to_string());
+    } else {
+        result
+            .errors
+            .push("Model file is not a valid GGUF archive (missing GGUF magic bytes)".to_string());
+        result.valid = false;
+    }
+}
+
+/// Validate generic files with a basic existence/readability check
+fn validate_misc(path: &Path, result: &mut ValidationResult) {
+    if !path.exists() {
+        result.errors.push("File does not exist".to_string());
+        result.valid = false;
+        return;
+    }
+
+    if let Err(e) = std::fs::metadata(path) {
+        result
+            .warnings
+            .push(format!("Could not inspect misc file metadata: {}", e));
     }
 }

@@ -1,4 +1,4 @@
-//! Configuration management for Offline Nexus
+//! Configuration management for Fyr
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -50,6 +50,16 @@ impl Config {
         self.data_dir.join("inbox")
     }
 
+    /// Get path to local model directory
+    pub fn models_dir(&self) -> PathBuf {
+        self.data_dir.join("models")
+    }
+
+    /// Get path to generic misc directory
+    pub fn misc_dir(&self) -> PathBuf {
+        self.data_dir.join("misc")
+    }
+
     /// Initialize data directory structure
     pub fn initialize_directories(&self) -> Result<()> {
         std::fs::create_dir_all(&self.data_dir)?;
@@ -57,13 +67,41 @@ impl Config {
         std::fs::create_dir_all(self.books_dir())?;
         std::fs::create_dir_all(self.poi_dir())?;
         std::fs::create_dir_all(self.inbox_dir())?;
+        std::fs::create_dir_all(self.models_dir())?;
+        std::fs::create_dir_all(self.misc_dir())?;
         Ok(())
     }
 }
 
 impl Default for Config {
     fn default() -> Self {
-        let data_dir = PathBuf::from("./data");
-        Self::default_with_data_dir(data_dir)
+        let data_dir = std::env::var("DATA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                let public_data = PathBuf::from("./public/data");
+                let legacy_data = PathBuf::from("./data");
+                if public_data.exists() {
+                    public_data
+                } else if legacy_data.exists() {
+                    legacy_data
+                } else {
+                    PathBuf::from("./public/data")
+                }
+            });
+
+        let host = std::env::var("FYR_HOST")
+            .or_else(|_| std::env::var("HOST"))
+            .unwrap_or_else(|_| "127.0.0.1".to_string());
+
+        let port = std::env::var("FYR_PORT")
+            .or_else(|_| std::env::var("PORT"))
+            .ok()
+            .and_then(|raw| raw.parse::<u16>().ok())
+            .unwrap_or(8080);
+
+        let mut config = Self::default_with_data_dir(data_dir);
+        config.server.host = host;
+        config.server.port = port;
+        config
     }
 }

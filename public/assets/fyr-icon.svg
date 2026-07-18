@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E212B" />
+      <stop offset="100%" stop-color="#0F1115" />
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF8C00" />
+      <stop offset="100%" stop-color="#E53935" />
+    </linearGradient>
+  </defs>
+  
+  <!-- App Icon Background -->
+  <rect width="200" height="200" rx="44" fill="url(#bg)" />
+
+  <!-- Shift icon composition down for better optical centering -->
+  <g transform="translate(0,12)">
+    <!-- Signal Waves (Offline Connectivity) -->
+    <circle cx="100" cy="75" r="45" fill="none" stroke="#FF8C00" stroke-width="2" opacity="0.3" stroke-dasharray="4 4"/>
+    <circle cx="100" cy="75" r="70" fill="none" stroke="#FF8C00" stroke-width="1.5" opacity="0.15" stroke-dasharray="6 6"/>
+
+    <!-- Lighthouse Base (Rugged/Solid) -->
+    <path d="M75 160 L125 160 L115 85 L85 85 Z" fill="#2B303A" stroke="#4A5568" stroke-width="2"/>
+
+    <!-- Base Stripes -->
+    <path d="M81 105 L119 105 L121 120 L79 120 Z" fill="#E2E8F0" />
+    <path d="M77 135 L123 135 L125 150 L75 150 Z" fill="#E2E8F0" />
+
+    <!-- Beacon Core -->
+    <rect x="88" y="65" width="24" height="20" fill="#A0AEC0" />
+    <circle cx="100" cy="75" r="10" fill="url(#glow)" />
+
+    <!-- Lighthouse Roof -->
+    <path d="M80 65 L120 65 L100 45 Z" fill="#E53935" />
+
+    <!-- Radiating Light Beams -->
+    <path d="M100 75 L30 45 L30 105 Z" fill="url(#glow)" opacity="0.2" />
+    <path d="M100 75 L170 45 L170 105 Z" fill="url(#glow)" opacity="0.2" />
+  </g>
+</svg>

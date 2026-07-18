@@ -15,14 +15,31 @@ Cargo.lock
 # Build artifacts
 dist/
 build/
+static/
+/public/static/
 *.so
 *.dylib
 *.dll
+
+# Keep documentation build helpers under version control
+!/docs/build/
+!/docs/build/**
+
+# JavaScript dependencies (root helper scripts + frontend)
+node_modules/
+crates/ui/frontend/node_modules/
+docs/build/node_modules/
 
 # Environment
 .env
 .env.local
 
-# Data directory (user content)
-/data/
-/data_dev/
+# Data directory (user content) - ignore all content files
+/public/data/maps/
+/public/data/books/*
+/public/data/poi/
+/public/data/inbox/
+
+# EXCEPT: Include generated documentation manuals
+!/public/data/books/user-manual.epub
+!/public/data/books/developer-manual.epub

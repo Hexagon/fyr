@@ -1,18 +1,22 @@
-//! Core types and data structures for Offline Nexus
+//! Core types and data structures for Fyr
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Content types supported by Offline Nexus
+/// Content types supported by Fyr
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ContentType {
     /// Map tiles in PMTiles format
     Map,
-    /// Books in EPUB, MOBI, or PDF format
+    /// Books in EPUB, MOBI, PDF, or ZIM format
     Book,
     /// Point of Interest data in FlatGeoBuf or GeoJSON format
     Poi,
+    /// Local GGUF model files for the offline assistant
+    Model,
+    /// Generic files that do not belong to a specialized category
+    Misc,
 }
 
 impl ContentType {
@@ -21,14 +25,18 @@ impl ContentType {
             ContentType::Map => "maps",
             ContentType::Book => "books",
             ContentType::Poi => "poi",
+            ContentType::Model => "models",
+            ContentType::Misc => "misc",
         }
     }
 
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext.to_lowercase().as_str() {
             "pmtiles" => Some(ContentType::Map),
-            "epub" | "pdf" | "mobi" => Some(ContentType::Book),
+            "epub" | "pdf" | "mobi" | "zim" => Some(ContentType::Book),
             "fgb" | "geojson" | "json" => Some(ContentType::Poi),
+            "gguf" => Some(ContentType::Model),
+            "txt" | "md" | "csv" | "zip" | "7z" | "log" => Some(ContentType::Misc),
             _ => None,
         }
     }

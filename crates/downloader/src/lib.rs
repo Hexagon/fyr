@@ -1,4 +1,4 @@
-//! Nexus Downloader — Content ingestion and file routing
+//! Fyr Downloader — Content ingestion and file routing
 //!
 //! Handles:
 //! - HTTP/HTTPS downloads

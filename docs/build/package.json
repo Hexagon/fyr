@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "build:manuals": "node build-manuals.js",
+    "build": "node build-manuals.js"
+  },
+  "dependencies": {
+    "archiver": "^8.0.0"
+  }
+}
