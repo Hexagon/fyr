@@ -8,7 +8,7 @@ It runs as a local server and is accessed from a browser.
 ### Binary
 1. Build or download the `fyr` binary.
 2. Run `./target/release/fyr` (or `fyr.exe` on Windows).
-3. Open `http://127.0.0.1:8080`.
+3. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
 
 ### Docker
 Run Fyr in a container using either production or dev image tags.
@@ -33,7 +33,7 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:dev
 ```
 
-Then open `http://127.0.0.1:8080`.
+Then open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
 ## 3. Main Pages
 - Home: system status, location, sunrise/sunset, and storage overview.
@@ -129,6 +129,8 @@ Environment overrides:
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+
+`FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
 
 ## 7. Platform Notes
 - Intel/AMD (`x86_64`) and ARM64 (`aarch64`) are both supported.

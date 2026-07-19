@@ -47,12 +47,12 @@ Windows PowerShell:
 .\target\release\fyr.exe
 ```
 
-4. Open: http://127.0.0.1:8080
+4. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if you are connecting to Fyr from another device.
 
 ### Optional Runtime Overrides
 
 - `DATA_DIR` (default `./public/data`)
-- `FYR_HOST` (default `127.0.0.1`)
+- `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for Docker/LAN access)
 - `FYR_PORT` (default `8080`)
 
 ## Option B: Docker on an Existing System
@@ -79,7 +79,7 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:dev
 ```
 
-Open: http://127.0.0.1:8080
+Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
 ### Notes
 
