@@ -3,8 +3,6 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local web server and works without internet once content is present.
 
-![Fyr Hero](./public/assets/fyr-hero.png)
-
 ## Features
 
 - Offline maps with PMTiles
@@ -15,71 +13,34 @@ It runs as a local web server and works without internet once content is present
 
 ## One-Minute Start
 
-```bash
-cargo build --release -p server --bin fyr
-./target/release/fyr
-```
-
-Open http://127.0.0.1:8080.
-
-## Install and Run
-
-For full installation paths (development from source, Docker on existing systems, and Raspberry Pi OS from scratch with Docker), see [INSTALL.md](INSTALL.md).
-
-### Docker (Production)
-
-```bash
-docker run --rm -p 8080:8080 \
-	-e FYR_HOST=0.0.0.0 \
-	-e DATA_DIR=/data \
-	-v fyr-data:/data \
-	hexagon/fyr:latest
-```
-
-Open http://127.0.0.1:8080.
-
-### Docker (Dev Release)
-
-```bash
-docker run --rm -p 8080:8080 \
-	-e FYR_HOST=0.0.0.0 \
-	-e DATA_DIR=/data \
-	-v fyr-data:/data \
-	hexagon/fyr:dev
-```
-
-Note: `hexagon/fyr:dev` is a pre-release tag for testing and validation. Use `hexagon/fyr:latest` for production workloads.
-
-### Manual Build and Run
+If you have Rust installed and need a quick local launch, you can build Fyr from source:
 
 ```bash
 cargo build --release -p server --bin fyr
 ./target/release/fyr
 ```
 
-On Windows PowerShell:
+Open `http://localhost:8080` on the same machine.
 
-```powershell
-cargo build --release -p server --bin fyr
-.\target\release\fyr.exe
-```
+## Installation & Deployment
 
-## Docker Data Behavior
+For comprehensive installation paths, please refer to [INSTALL.md](/INSTALL.md). It serves as the single source of truth for deployment and includes step-by-step guides for:
 
-- Mount `DATA_DIR` (default `/data`) as a persistent volume to keep user content across upgrades.
-- Use either Docker named volumes (`-v fyr-data:/data`) or host folder bind-mounts (`-v /path/to/fyr-data:/data`).
-- On startup, Fyr automatically refreshes the two system-managed manuals in `DATA_DIR/books/`:
-	- `user-manual.md`
-	- `developer-manual.md`
-- Other files under `DATA_DIR` are preserved as user-managed content.
-- Reusing the same mount path/volume across reinstalls keeps your data.
+* Building from source for development workflows.
+* Running with Docker (both Production and Dev releases) on an existing system.
+* Installing and running Fyr on a clean Raspberry Pi OS setup.
+
+## Data Management
+
+Fyr stores all user content in a persistent data directory (defaulting to `./public/data` locally or `/data` in Docker).
+
+To learn how to persist data across reinstalls, refer to the volume mounting instructions in [INSTALL.md](/INSTALL.md). For a detailed breakdown of folder structures, supported file types, and how Fyr handles automatic system-manual refreshes on startup, see the Data Storage Layout section in the [User Manual](/docs/user/USER_MANUAL.md).
 
 ## Documentation
 
 - Installation guide: [INSTALL.md](INSTALL.md)
-- User guide: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
-- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
-- Project governance and module map: [AGENTS.md](AGENTS.md)
+- User guide: [docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
+- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
 
 ## License
 

@@ -23,6 +23,7 @@ COPY crates/types/Cargo.toml crates/types/Cargo.toml
 COPY crates/downloader/Cargo.toml crates/downloader/Cargo.toml
 COPY crates/server/Cargo.toml crates/server/Cargo.toml
 COPY crates/ui/Cargo.toml crates/ui/Cargo.toml
+COPY vendor/zim vendor/zim
 
 # Prime Cargo's dependency layer with minimal crate sources.
 RUN mkdir -p crates/types/src crates/downloader/src crates/server/src crates/ui/src \

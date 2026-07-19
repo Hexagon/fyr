@@ -5,44 +5,20 @@ Fyr is an offline-first content platform for maps, books, and knowledge archives
 It runs as a local server and is accessed from a browser.
 
 ## 2. Start Fyr
-### Binary
-1. Build or download the `fyr` binary.
-2. Run `./target/release/fyr` (or `fyr.exe` on Windows).
-3. Open `http://127.0.0.1:8080`.
+For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—please refer to the authoritative [INSTALL.md](/INSTALL.md).
 
-### Docker
-Run Fyr in a container using either production or dev image tags.
+Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
 
-Production release:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-```
-
-Dev release:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:dev
-```
-
-Then open `http://127.0.0.1:8080`.
+---
 
 ## 3. Main Pages
-- Home: system status, location, sunrise/sunset, and storage overview.
-- Content Manager: add URL downloads, import local files, and inspect content inventory.
-- Maps: map selection and viewer controls.
-- Books: browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
-- Assistant: browse local `.gguf` models and chat offline.
+- **Home:** system status, location, sunrise/sunset, and storage overview.
+- **Content Manager:** add URL downloads, import local files, and inspect content inventory.
+- **Maps:** map selection and viewer controls.
+- **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
+- **Assistant:** browse local `.gguf` models and chat offline.
 
-Header behavior:
+### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.
 - Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
 
@@ -53,21 +29,21 @@ Header behavior:
 - Select a model and press **Load Model**.
 - Enter a prompt and send it to start token streaming.
 
-Model choice notes:
-- Larger models and higher quantization levels use more memory.
-- If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
+> **Model choice notes:**
+> * Larger models and higher quantization levels use more memory.
+> * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
 
 ## 4. Add Content
 ### Data directories and supported file types
 All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 | Folder | Supported file types | Typical use |
-|---|---|---|
+| --- | --- | --- |
 | `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives |
 | `maps/` | `.pmtiles` | Offline map tiles |
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
-| `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, installer packages such as `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
+| `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
 | `inbox/` | temporary files during upload/import | Staging area used by import workflows before auto-routing |
 
 ### Books
@@ -110,14 +86,14 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
-- In Docker setups with persistent `DATA_DIR`, Fyr refreshes `user-manual.md` and `developer-manual.md` automatically at startup.
 
 ## 5b. PDF Reading
 - Select a `.pdf` file in Books to open it inline in the built-in reader panel.
 - If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
 
 ## 6. Data Storage Layout
-`public/data/` is created automatically:
+`public/data/` is created automatically and contains the following directories:
+
 - `public/data/maps/`
 - `public/data/books/`
 - `public/data/poi/`
@@ -125,10 +101,23 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - `public/data/models/`
 - `public/data/misc/`
 
-Environment overrides:
+
+### System-Managed Manuals Sync
+
+On startup, Fyr automatically refreshes the two system-managed manuals in `DATA_DIR/books/`:
+
+* `user-manual.md`
+* `developer-manual.md`
+
+Other files under `DATA_DIR` are preserved as user-managed content.
+
+### Environment overrides
+
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+
+`FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
 
 ## 7. Platform Notes
 - Intel/AMD (`x86_64`) and ARM64 (`aarch64`) are both supported.
@@ -137,7 +126,7 @@ Environment overrides:
 
 ## 8. Common Troubleshooting
 ### Server does not start
-- Check if port `8080` is already in use.
+- Check if port `8080` is already in use. Change `FYR_PORT` and host port mapping (for Docker) if the port is in use.
 - Stop old `fyr` processes and retry.
 - If startup reports bind failure details, verify `FYR_HOST` and `FYR_PORT` values.
 - If startup reports write permission issues, ensure `DATA_DIR` points to a writable folder.
@@ -146,6 +135,7 @@ Environment overrides:
 - Verify file extension is supported.
 - Verify file is in the correct `data/` subfolder.
 - Refresh browser after server restart.
+- Missing content after a restart generally means you need to confirm the `/data` volume is mounted.
 
 ### Download is stuck or failed
 - Open Content Manager and inspect the download status/error line.
