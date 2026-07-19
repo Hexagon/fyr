@@ -58,11 +58,13 @@ CI-pinned versions for parity:
 ### Dev mode
 - Frontend: `npm run dev`
 - Backend: `cargo run -p server`
+- The Vite dev server proxies `/api`, `/data`, and `/docs` to the backend. Override the backend target with `FYR_DEV_PROXY_TARGET` when the server runs somewhere other than the local default.
 
 ### Runtime environment overrides
 - `DATA_DIR` (default `./public/data`)
 - `FYR_HOST` (default `127.0.0.1`)
 - `FYR_PORT` (default `8080`)
+- `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
 ## 3. Docker
 

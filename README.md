@@ -20,7 +20,7 @@ cargo build --release -p server --bin fyr
 ./target/release/fyr
 ```
 
-Open http://127.0.0.1:8080.
+Open http://localhost:8080 on the same machine, or `http://<host-or-device-ip>:8080` when Fyr is published from Docker or another host.
 
 ## Install and Run
 
@@ -36,7 +36,7 @@ docker run --rm -p 8080:8080 \
 	hexagon/fyr:latest
 ```
 
-Open http://127.0.0.1:8080.
+Open http://localhost:8080 on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
 ### Docker (Dev Release)
 
@@ -63,6 +63,8 @@ On Windows PowerShell:
 cargo build --release -p server --bin fyr
 .\target\release\fyr.exe
 ```
+
+`FYR_HOST` controls the bind address. Keep the default `127.0.0.1` for local-only access, or set `FYR_HOST=0.0.0.0` when Fyr runs in Docker or should be reachable from other devices. In a browser, use the machine or device address that publishes port `8080`; do not use the container bind address itself.
 
 ## Docker Data Behavior
 

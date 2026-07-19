@@ -214,6 +214,11 @@ const formatBytes = (bytes) => {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
+const buildMapDataUrl = (filename) => {
+  const encodedFilename = encodeURIComponent(String(filename || ''))
+  return new URL(`/data/maps/${encodedFilename}`, window.location.origin).toString()
+}
+
 const selectMap = (map) => {
   selectedMap.value = map
 }
@@ -268,7 +273,7 @@ const loadMaps = async () => {
 }
 
 const getMapDiagnostics = async (filename) => {
-  const rawUrl = `http://127.0.0.1:8080/data/maps/${filename}`
+  const rawUrl = buildMapDataUrl(filename)
   const pmtilesArchive = new PMTiles(rawUrl)
   const header = await pmtilesArchive.getHeader()
   const metadata = await pmtilesArchive.getMetadata()
@@ -854,7 +859,7 @@ const initializeMap = async () => {
     mapInstance.on('load', async () => {
       try {
         const filename = selectedMap.value.filename
-        const pmtilesUrl = `pmtiles://http://127.0.0.1:8080/data/maps/${filename}`
+        const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
 
         let header = null
         let vectorLayers = []
