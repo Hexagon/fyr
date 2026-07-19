@@ -1,10 +1,10 @@
 # Fyr Installation Guide
 
-This guide serves as the authoritative reference for deploying Fyr and provides three distinct installation paths:
+This guide is the authoritative reference for deploying Fyr. Choose one of three installation paths:
 
-* Option A: build from source for development workflows.
-* Option B: run with Docker on an existing system.
-* Option C: install Raspberry Pi OS from scratch, then run Fyr with Docker.
+* **Option A** — build from source (development workflows).
+* **Option B** — run with Docker on an existing system.
+* **Option C** — install Raspberry Pi OS from scratch, then run Fyr with Docker.
 
 If you only need a quick local launch, see the One-Minute Start in [README.md](README.md).
 
@@ -49,13 +49,28 @@ Windows PowerShell:
 .\target\release\fyr.exe
 ```
 
-4. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if you are connecting to Fyr from another device.
+4. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
 ### Optional Runtime Overrides
 
 * `DATA_DIR` (default `./public/data`)
-* `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for Docker/LAN access)
+* `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for LAN access)
 * `FYR_PORT` (default `8080`)
+
+### Upgrading (Option A)
+
+Pull the latest changes and rebuild:
+
+```bash
+git pull
+cd crates/ui/frontend
+npm ci
+npm run build
+cd ../../..
+cargo build --release -p server --bin fyr
+```
+
+Restart the binary. Your data directory is separate from the build output, so no data is affected.
 
 ---
 
@@ -63,39 +78,9 @@ Windows PowerShell:
 
 Use this path for a fast, repeatable deployment on Linux, macOS, or Windows.
 
-### Production Image
+Fyr stores all user data in `DATA_DIR` (`/data` in Docker examples). Always mount a persistent volume or bind-mount so data survives container replacement.
 
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-
-```
-
-### Dev Image
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:dev
-```
-
-Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
-
-### Notes
-
-* Keep `-v fyr-data:/data` to persist maps, books, models, and downloads.
-* `hexagon/fyr:dev` is for testing and validation; use `hexagon/fyr:latest` for production.
-
-### Persist Data Across Reinstalls and Upgrades
-
-Fyr keeps user data only in `DATA_DIR` (`/data` in Docker examples). Reuse the same mount target on every run to keep data between container replacements.
-
-Named volume (recommended):
+### Run (named volume — recommended)
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -105,7 +90,7 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:latest
 ```
 
-Host folder bind-mount (direct host access):
+### Run (host folder bind-mount)
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -115,7 +100,7 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:latest
 ```
 
-Windows PowerShell bind-mount example:
+Windows PowerShell bind-mount:
 
 ```powershell
 docker run --rm -p 8080:8080 `
@@ -125,11 +110,28 @@ docker run --rm -p 8080:8080 `
   hexagon/fyr:latest
 ```
 
-Reinstall or upgrade while preserving data:
+Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
-1. Stop and remove the old container.
-2. Start a new image tag with the same `-v ...:/data` mount.
-3. Keep `DATA_DIR=/data` unless you intentionally change the container path.
+### Dev Image
+
+Use `hexagon/fyr:dev` for testing pre-release builds. Replace `:latest` with `:dev` in any command above. Do not use the dev image for production deployments.
+
+### Upgrading (Option B)
+
+1. Pull the new image:
+
+```bash
+docker pull hexagon/fyr:latest
+```
+
+2. Stop and remove the running container:
+
+```bash
+docker stop <container-id-or-name>
+docker rm <container-id-or-name>
+```
+
+3. Start a new container with the same `-v` mount and environment variables. Your data volume is untouched.
 
 ---
 
@@ -163,7 +165,7 @@ newgrp docker
 docker --version
 ```
 
-### 3) Run Fyr in Docker on Raspberry Pi
+### 3) Run Fyr
 
 Fyr images support `linux/arm64`, which matches Raspberry Pi 64-bit OS.
 
@@ -175,9 +177,7 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:latest
 ```
 
-Open from another device on the same network:
-
-* `http://<raspberry-pi-ip>:8080`
+Open from another device on the same network: `http://<raspberry-pi-ip>:8080`
 
 ### 4) Optional: Start Automatically on Boot
 
@@ -189,25 +189,42 @@ docker run -d --restart unless-stopped --name fyr \
   -v fyr-data:/data \
   hexagon/fyr:latest
 ```
+
+### Upgrading (Option C)
+
+1. Pull the new image:
+
+```bash
+docker pull hexagon/fyr:latest
+```
+
+2. If running with `--restart unless-stopped`, stop and remove the named container:
+
+```bash
+docker stop fyr
+docker rm fyr
+```
+
+3. Re-run the same `docker run` command from step 3 or 4 above. The `fyr-data` volume is preserved.
+
 ---
 
 ## Quick Verification Checklist
 
-* `docker ps` (if running in Docker) shows Fyr container as running.
+* `docker ps` (if running in Docker) shows the Fyr container as running.
 * Browser can open `/api/status` on your target host and port.
 * `DATA_DIR` location is writable.
-* Port `8080` is not blocked by firewall or already occupied.
+* Port `8080` is not blocked by a firewall or already in use.
 
 ---
 
 ## Troubleshooting
 
-For common startup issues, write permission errors, missing content after a restart, or port conflicts, please refer to the consolidated **Troubleshooting** section in the [User Manual](https://www.google.com/search?q=docs/user/USER_MANUAL.md)[cite: 4].
+For common startup issues, write permission errors, missing content after a restart, or port conflicts, see the **Troubleshooting** section in the [User Manual](docs/user/USER_MANUAL.md).
 
 ---
 
 ## Related Documentation
 
-* User manual: [docs/user/USER_MANUAL.md](https://www.google.com/search?q=docs/user/USER_MANUAL.md)
-
-* Developer manual: [docs/developer/DEVELOPER_MANUAL.md](https://www.google.com/search?q=docs/developer/DEVELOPER_MANUAL.md)
+* User manual: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
+* Developer manual: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
