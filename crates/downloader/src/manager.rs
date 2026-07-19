@@ -182,6 +182,30 @@ impl DownloadManager {
         Ok(true)
     }
 
+    /// Dismiss (remove) a terminal task from the task list.
+    ///
+    /// Only tasks in `Completed`, `Failed`, or `Cancelled` state can be dismissed.
+    /// Returns `true` if the task was removed, `false` if the task was not found or
+    /// is still active.
+    pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        let snapshot = {
+            let mut tasks = self.tasks.write().await;
+            let Some(task) = tasks.get(task_id) else {
+                return Ok(false);
+            };
+
+            if !matches!(task.status, DownloadStatus::Completed | DownloadStatus::Failed | DownloadStatus::Cancelled) {
+                return Ok(false);
+            }
+
+            tasks.remove(task_id);
+            tasks.clone()
+        };
+
+        self.persist_tasks(&snapshot)?;
+        Ok(true)
+    }
+
     /// List all tasks
     pub async fn list_tasks(&self) -> Vec<DownloadTask> {
         let tasks = self.tasks.read().await;
@@ -1039,6 +1063,43 @@ mod tests {
                 | DownloadStatus::Cancelled
                 | DownloadStatus::Failed
         ));
+    }
+
+    #[tokio::test]
+    async fn dismiss_removes_terminal_task() {
+        let data_dir = test_data_dir();
+        let manager = DownloadManager::new(&data_dir);
+
+        let task_id = manager
+            .create_task(DownloadSource::LocalFile {
+                path: data_dir.join("local.dat"),
+            })
+            .await;
+
+        // Cancel it first to put it in a terminal state
+        manager.cancel_task(&task_id).await.expect("cancel task");
+
+        // Dismissing a terminal task should succeed and remove it
+        let dismissed = manager.dismiss_task(&task_id).await.expect("dismiss task");
+        assert!(dismissed);
+        assert!(manager.get_task(&task_id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dismiss_active_task_returns_false() {
+        let data_dir = test_data_dir();
+        let manager = DownloadManager::new(&data_dir);
+
+        let task_id = manager
+            .create_task(DownloadSource::LocalFile {
+                path: data_dir.join("active.dat"),
+            })
+            .await;
+
+        // Task is Queued — dismiss should return false without removing it
+        let dismissed = manager.dismiss_task(&task_id).await.expect("dismiss attempt");
+        assert!(!dismissed);
+        assert!(manager.get_task(&task_id).await.is_some());
     }
 
     #[test]

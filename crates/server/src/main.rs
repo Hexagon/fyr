@@ -137,6 +137,7 @@ fn create_router(state: AppState) -> Router {
         .route("/api/import/download/:filename", post(handlers::create_import_download))
         .route("/api/download", post(handlers::create_download))
         .route("/api/download/:task_id", delete(handlers::cancel_download))
+        .route("/api/download/:task_id/dismiss", delete(handlers::dismiss_download))
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
         .route("/api/reader/capabilities", get(handlers::reader_capabilities))

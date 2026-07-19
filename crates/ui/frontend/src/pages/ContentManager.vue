@@ -45,7 +45,9 @@
               class="hidden-input"
               @change="onFilePicked"
             />
-            <button class="btn btn-primary" @click="openFilePicker">Import File</button>
+            <button class="btn btn-primary" :disabled="uploading" @click="openFilePicker">
+              {{ uploading ? 'Uploading...' : 'Import File' }}
+            </button>
           </div>
         </div>
 
@@ -85,37 +87,51 @@
 
         <div class="downloads-panel">
           <div class="download-header">
-            <h3>Active Downloads</h3>
-            <span class="pill">{{ downloads.length }}</span>
+            <h3>Downloads</h3>
+            <span class="pill" :title="`${liveDownloadCount} active`">
+              {{ liveDownloadCount > 0 ? `${liveDownloadCount} active` : downloads.length || 'none' }}
+            </span>
           </div>
 
           <div v-if="downloads.length" class="download-list">
-            <div v-for="dl in downloads" :key="dl.id" class="download-item">
-              <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
-              <p class="download-status">
+            <div v-for="dl in sortedDownloads" :key="dl.id" class="download-item">
+              <div class="download-item-header">
+                <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
                 <span class="badge" :class="dl.status">{{ dl.status }}</span>
-              </p>
+              </div>
+              <div v-if="dl.total_bytes" class="progress-bar-track">
+                <div class="progress-bar-fill" :style="{ width: progressPercent(dl) + '%' }"></div>
+              </div>
               <p class="download-progress" v-if="dl.total_bytes">
-                {{ Math.round((dl.bytes_downloaded / dl.total_bytes) * 100) }}%
+                {{ progressPercent(dl) }}%
                 ({{ formatBytes(dl.bytes_downloaded) }} / {{ formatBytes(dl.total_bytes) }})
               </p>
-              <button
-                v-if="isDownloadCancellable(dl.status)"
-                class="btn btn-secondary btn-inline"
-                @click="cancelDownload(dl.id)"
-              >
-                Cancel
-              </button>
               <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+              <div class="download-item-actions">
+                <button
+                  v-if="isDownloadCancellable(dl.status)"
+                  class="btn btn-secondary btn-inline"
+                  @click="cancelDownload(dl.id)"
+                >
+                  Cancel
+                </button>
+                <button
+                  v-if="isDismissable(dl.status)"
+                  class="btn btn-secondary btn-inline"
+                  @click="dismissDownloadTask(dl.id)"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
-          <p v-else-if="!downloadsLoading" class="empty-state">No active downloads</p>
+          <p v-else-if="!downloadsLoading" class="empty-state">No downloads</p>
           <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
           <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
 
           <div class="download-create">
             <p class="status-text">
-              URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+              Files are auto-routed by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
             </p>
             <input
               type="text"
@@ -123,8 +139,8 @@
               placeholder="Enter URL (https://example.com/file.pmtiles)"
               @keyup.enter="handleDownload"
             />
-            <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || downloading">
-              {{ downloading ? 'Downloading...' : 'Download URL' }}
+            <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || downloadingUrl">
+              {{ downloadingUrl ? 'Queuing...' : 'Download URL' }}
             </button>
           </div>
 
@@ -152,9 +168,13 @@ const sortBy = ref('name')
 const sortDir = ref('asc')
 
 const downloadUrl = ref('')
-const downloading = ref(false)
+const downloadingUrl = ref(false)
+const uploading = ref(false)
 const downloadStatus = ref(null)
 const downloadError = ref(null)
+
+// Task IDs created from local file imports that are still in-flight
+const pendingUploadIds = ref(new Set())
 
 const maps = ref([])
 const books = ref([])
@@ -216,6 +236,21 @@ const visibleFiles = computed(() => {
   return sortDir.value === 'asc' ? sorted : sorted.reverse()
 })
 
+// Active (live) download count
+const liveDownloadCount = computed(() =>
+  downloads.value.filter(d => isDownloadCancellable(d.status)).length
+)
+
+// Sort: active first, then by most recent (updated_at desc)
+const sortedDownloads = computed(() => {
+  return [...downloads.value].sort((a, b) => {
+    const aLive = isDownloadCancellable(a.status) ? 0 : 1
+    const bLive = isDownloadCancellable(b.status) ? 0 : 1
+    if (aLive !== bLive) return aLive - bLive
+    return (b.updated_at || '').localeCompare(a.updated_at || '')
+  })
+})
+
 const formatBytes = (bytes) => {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -231,35 +266,54 @@ const formatDate = (value) => {
   return d.toLocaleString()
 }
 
+const progressPercent = (dl) => {
+  if (!dl.total_bytes) return 0
+  return Math.min(100, Math.round((dl.bytes_downloaded / dl.total_bytes) * 100))
+}
+
 const handleDownload = async () => {
   if (!downloadUrl.value) return
 
-  downloading.value = true
-  downloadStatus.value = 'Starting download...'
+  downloadingUrl.value = true
+  downloadStatus.value = 'Queuing download...'
   downloadError.value = null
 
   try {
     const response = await apiService.createDownload(downloadUrl.value)
     downloadStatus.value = `Download queued: ${response.data.task_id}`
     downloadUrl.value = ''
-    setTimeout(loadDownloads, 500)
+    await loadDownloads()
+    scheduleDownloadRefresh()
   } catch (err) {
     downloadError.value = apiService.handleError(err)
+    downloadStatus.value = null
   } finally {
-    downloading.value = false
+    downloadingUrl.value = false
   }
 }
 
 const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
 
+const isDismissable = (status) => ['completed', 'failed', 'cancelled'].includes(String(status || '').toLowerCase())
+
 const cancelDownload = async (taskId) => {
   try {
     await apiService.cancelDownload(taskId)
-    downloadStatus.value = `Cancelled download: ${taskId}`
+    downloadStatus.value = null
     downloadError.value = null
     await loadDownloads()
   } catch (err) {
-    downloadError.value = apiService.handleError(err)
+    downloadsError.value = apiService.handleError(err)
+  }
+}
+
+const dismissDownloadTask = async (taskId) => {
+  try {
+    await apiService.dismissDownload(taskId)
+    downloadsError.value = null
+    await loadDownloads()
+  } catch (err) {
+    downloadsError.value = apiService.handleError(err)
   }
 }
 
@@ -268,7 +322,7 @@ const openFilePicker = () => {
 }
 
 const importLocalFile = async (file) => {
-  downloading.value = true
+  uploading.value = true
   downloadError.value = null
   downloadStatus.value = `Uploading ${file.name}...`
 
@@ -280,8 +334,6 @@ const importLocalFile = async (file) => {
       throw new Error('Upload did not return a filename.')
     }
 
-    downloadStatus.value = `Queued import for ${uploadedFilename}...`
-
     const importResponse = await apiService.createImportDownload(uploadedFilename)
     const taskId = importResponse.data?.task_id
 
@@ -289,47 +341,17 @@ const importLocalFile = async (file) => {
       throw new Error('Import task could not be created.')
     }
 
-    let completed = false
-    for (let i = 0; i < 120; i += 1) {
-      const statusResponse = await apiService.getDownloadStatus(taskId)
-      const task = statusResponse.data
-      const status = String(task?.status || '').toLowerCase()
-
-      if (status === 'completed') {
-        const typeToCategory = {
-          map: 'maps',
-          book: 'books',
-          poi: 'poi',
-          model: 'models',
-          misc: 'misc'
-        }
-        const nextCategory = typeToCategory[String(task?.content_type || '').toLowerCase()]
-        if (nextCategory) {
-          activeCategory.value = nextCategory
-        }
-        downloadStatus.value = `Imported ${uploadedFilename} successfully.`
-        completed = true
-        break
-      }
-
-      if (status === 'failed' || status === 'cancelled') {
-        throw new Error(task?.error || `Import ended with status: ${status}`)
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-
-    if (!completed) {
-      throw new Error('Import timed out while waiting for task completion.')
-    }
+    // Track this task ID — loadDownloads will detect when it completes
+    pendingUploadIds.value = new Set([...pendingUploadIds.value, taskId])
+    downloadStatus.value = `Importing ${uploadedFilename}… (see Downloads below)`
 
     await loadDownloads()
-    await loadContent()
+    scheduleDownloadRefresh()
   } catch (err) {
     downloadError.value = apiService.handleError(err)
     downloadStatus.value = null
   } finally {
-    downloading.value = false
+    uploading.value = false
   }
 }
 
@@ -359,6 +381,14 @@ const describeDownloadSource = (source) => {
   return 'Unknown source'
 }
 
+const typeToCategory = {
+  map: 'maps',
+  book: 'books',
+  poi: 'poi',
+  model: 'models',
+  misc: 'misc'
+}
+
 const loadContent = async () => {
   contentError.value = null
   try {
@@ -386,7 +416,34 @@ const loadDownloads = async () => {
   downloadsError.value = null
   try {
     const response = await apiService.listDownloads()
-    downloads.value = response.data || []
+    const fresh = response.data || []
+
+    // Detect tracked upload tasks that have just reached a terminal state
+    if (pendingUploadIds.value.size > 0) {
+      const justFinished = fresh.filter(d =>
+        pendingUploadIds.value.has(d.id) && isDismissable(d.status)
+      )
+      if (justFinished.length > 0) {
+        const nextPending = new Set(pendingUploadIds.value)
+        for (const task of justFinished) {
+          nextPending.delete(task.id)
+          if (String(task.status || '').toLowerCase() === 'completed') {
+            const nextCategory = typeToCategory[String(task.content_type || '').toLowerCase()]
+            if (nextCategory) {
+              activeCategory.value = nextCategory
+            }
+          }
+        }
+        pendingUploadIds.value = nextPending
+        // Reload the file list to reflect newly imported content
+        await loadContent()
+        if (justFinished.some(t => String(t.status || '').toLowerCase() === 'completed')) {
+          downloadStatus.value = 'Import completed.'
+        }
+      }
+    }
+
+    downloads.value = fresh
   } catch (err) {
     console.error('Error loading downloads:', err)
     downloadsError.value = apiService.handleError(err)
@@ -396,7 +453,8 @@ const loadDownloads = async () => {
 }
 
 const hasLiveDownloads = () => {
-  return downloads.value.some((item) => isDownloadCancellable(item.status))
+  return pendingUploadIds.value.size > 0 ||
+    downloads.value.some((item) => isDownloadCancellable(item.status))
 }
 
 const scheduleDownloadRefresh = () => {
@@ -404,7 +462,7 @@ const scheduleDownloadRefresh = () => {
     clearTimeout(downloadRefreshTimer)
   }
 
-  const delayMs = hasLiveDownloads() ? 2000 : 8000
+  const delayMs = hasLiveDownloads() ? 2000 : 10000
   downloadRefreshTimer = setTimeout(async () => {
     await loadDownloads()
     scheduleDownloadRefresh()
@@ -632,8 +690,21 @@ onUnmounted(() => {
   padding: 0.55rem;
 }
 
+.download-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.download-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
 .download-name,
-.download-status,
 .download-progress {
   margin: 0;
   font-size: 0.85rem;
@@ -641,10 +712,27 @@ onUnmounted(() => {
 
 .download-name {
   word-break: break-all;
+  flex: 1;
+}
+
+.progress-bar-track {
+  height: 4px;
+  background: #2e2e2e;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0.35rem 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #5cadc4;
+  border-radius: 2px;
+  transition: width 0.4s ease;
 }
 
 .badge {
   display: inline-block;
+  flex-shrink: 0;
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
   font-size: 0.75rem;
@@ -697,6 +785,11 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background: #6291ff;
   color: #fff;
@@ -705,6 +798,11 @@ onUnmounted(() => {
 .btn-secondary {
   background: #414141;
   color: #f0f0f0;
+}
+
+.btn-inline {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.8rem;
 }
 
 .status-text {
@@ -740,3 +838,4 @@ onUnmounted(() => {
   }
 }
 </style>
+

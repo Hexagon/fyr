@@ -738,6 +738,27 @@ pub async fn cancel_download(
     }
 }
 
+/// DELETE /api/download/:task_id/dismiss — Dismiss (remove) a terminal download task
+pub async fn dismiss_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let dismissed = state
+        .download_manager
+        .dismiss_task(&task_id)
+        .await
+        .map_err(|error| {
+            error!("Failed to dismiss download task {}: {}", task_id, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if dismissed {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
 /// GET /api/reader/capabilities — Unified reader capabilities
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {
