@@ -11,7 +11,9 @@ It runs as a local server and is accessed from a browser.
 3. Open `http://127.0.0.1:8080`.
 
 ### Docker
-Run Fyr in a container using the standard image name:
+Run Fyr in a container using either production or dev image tags.
+
+Production release:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -21,13 +23,23 @@ docker run --rm -p 8080:8080 \
   hexagon/fyr:latest
 ```
 
+Dev release:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -v fyr-data:/data \
+  hexagon/fyr:dev
+```
+
 Then open `http://127.0.0.1:8080`.
 
 ## 3. Main Pages
 - Home: system status, location, sunrise/sunset, and storage overview.
-- Content Manager: add downloads, upload `.gguf` models, and inspect content inventory.
+- Content Manager: add URL downloads, import local files, and inspect content inventory.
 - Maps: map selection and viewer controls.
-- Books: browse books, read EPUB, launch ZIM reader flow.
+- Books: browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - Assistant: browse local `.gguf` models and chat offline.
 
 Header behavior:
@@ -56,14 +68,12 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
 | `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, installer packages such as `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
-| `inbox/` | temporary `.gguf` during import | Staging area used by model upload flow |
+| `inbox/` | temporary files during upload/import | Staging area used by import workflows before auto-routing |
 
 ### Books
 - Put local book files in `public/data/books/`.
 - URL downloads with supported book extensions are routed to `books/` automatically.
-- For ZIM archives, use Kiwix's library and download index:
-  - `https://library.kiwix.org`
-  - `https://download.kiwix.org/zim/`
+- For ZIM archives, use trusted OpenZIM-compatible sources.
 
 ### Maps
 - Put `.pmtiles` files in `public/data/maps/`.
@@ -86,29 +96,25 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
+- Use **Import File** in Content Manager (or drag/drop) to upload local files and enqueue a local import task.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
 - Active tasks persist across restarts and are restored automatically.
 - You can cancel queued or in-progress downloads from the downloads panel.
 
 ## 5. ZIM Reading
-- Select a `.zim` file in Books and Fyr opens it directly in the embedded reader.
-- Kiwix web bundle is served from `/kiwix/www/index.html`.
-- Book archives are served at `/docs/books/<filename>.zim` with byte-range support.
-- Capabilities endpoint: `/api/reader/kiwix/capabilities`.
-
-Licensing note for embedded reader:
-- Fyr core project code is MIT-licensed.
-- The embedded Kiwix bundle under `public/kiwix-static/` is a third-party component with its own copyleft licenses.
-- License texts are distributed in:
-  - `public/kiwix-static/LICENSE-GPLv3.txt`
-  - `public/kiwix-static/LICENSE-AGPLv3.txt`
-  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+- Select a `.zim` file in Books and Fyr opens it using the native reader module.
+- Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
+- Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
 - In Docker setups with persistent `DATA_DIR`, Fyr refreshes `user-manual.md` and `developer-manual.md` automatically at startup.
+
+## 5b. PDF Reading
+- Select a `.pdf` file in Books to open it inline in the built-in reader panel.
+- If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically:
@@ -146,9 +152,9 @@ Environment overrides:
 - Cancel the task and retry the URL.
 - For repeated failures, verify the source URL is reachable and supports direct file transfer.
 
-### Kiwix view not loading
-- Confirm `public/kiwix-static/www/index.html` exists.
-- Check `/api/kiwix/status`.
+### ZIM view not loading
+- Confirm the selected `.zim` file exists under `public/data/books/` (or your configured `DATA_DIR/books/`).
+- Check the server status and retry opening the archive.
 
 ### Assistant model import fails
 - Confirm the model file extension is `.gguf`.

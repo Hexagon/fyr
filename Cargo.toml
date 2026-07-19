@@ -34,3 +34,6 @@ tokio-stream = "0.1"
 candle-core = "0.11"
 candle-nn = "0.11"
 candle-transformers = "0.11"
+
+[patch.crates-io]
+zim = { path = "vendor/zim" }

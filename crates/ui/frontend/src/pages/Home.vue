@@ -40,76 +40,59 @@
       <div class="stat-card">
         <h3>🗺️ Maps</h3>
         <p class="stat-number">{{ status.content_count?.maps || 0 }}</p>
+        <p class="stat-meta">{{ categoryStorageSummary('maps') }}</p>
         <p class="small">PMTiles files available</p>
       </div>
 
       <div class="stat-card">
         <h3>📚 Books</h3>
         <p class="stat-number">{{ status.content_count?.books || 0 }}</p>
+        <p class="stat-meta">{{ categoryStorageSummary('books') }}</p>
         <p class="small">EPUB, PDF, MOBI, Markdown, and ZIM</p>
       </div>
 
       <div class="stat-card">
         <h3>📍 POIs</h3>
         <p class="stat-number">{{ status.content_count?.poi || 0 }}</p>
+        <p class="stat-meta">{{ categoryStorageSummary('poi') }}</p>
         <p class="small">GeoJSON, JSON, and FlatGeoBuf</p>
       </div>
 
       <div class="stat-card">
         <h3>🤖 Models</h3>
         <p class="stat-number">{{ status.content_count?.models || 0 }}</p>
+        <p class="stat-meta">{{ categoryStorageSummary('models') }}</p>
         <p class="small">GGUF files available</p>
       </div>
 
       <div class="stat-card">
         <h3>📦 Misc</h3>
         <p class="stat-number">{{ status.content_count?.misc || 0 }}</p>
+        <p class="stat-meta">{{ categoryStorageSummary('misc') }}</p>
         <p class="small">General files and installers (TXT, CSV, ZIP, 7Z, EXE, MSI)</p>
       </div>
     </div>
 
-    <div class="info-section">
-      <h3>Data Directory</h3>
-      <p v-if="status">Location: <code>{{ status.data_dir }}</code></p>
-      <p class="info-text">
-        All content is stored locally. No internet connection required after initial setup.
-      </p>
-    </div>
-
     <div v-if="storage" class="storage-section">
       <h3>📦 Storage Usage</h3>
-      <div class="storage-info">
-        <div class="total-storage">
-          <p class="storage-label">Total Used:</p>
+      <p class="storage-path">
+        Data Directory: <code>{{ storage.data_dir }}</code>
+      </p>
+      <div class="storage-info compact">
+        <div class="total-storage compact-item">
+          <p class="storage-label">Used</p>
           <p class="storage-value">{{ storage.total_human }}</p>
           <p class="storage-detail">{{ storage.total_bytes.toLocaleString() }} bytes</p>
         </div>
-        <div class="storage-breakdown">
-          <div v-if="storage.by_category.maps" class="storage-item">
-            <span class="storage-category">🗺️ Maps:</span>
-            <span class="storage-amount">{{ storage.by_category.maps.human }}</span>
-            <span class="storage-files">({{ storage.by_category.maps.files }} files)</span>
-          </div>
-          <div v-if="storage.by_category.books" class="storage-item">
-            <span class="storage-category">📚 Books:</span>
-            <span class="storage-amount">{{ storage.by_category.books.human }}</span>
-            <span class="storage-files">({{ storage.by_category.books.files }} files)</span>
-          </div>
-          <div v-if="storage.by_category.poi" class="storage-item">
-            <span class="storage-category">📍 POIs:</span>
-            <span class="storage-amount">{{ storage.by_category.poi.human }}</span>
-            <span class="storage-files">({{ storage.by_category.poi.files }} files)</span>
-          </div>
-          <div v-if="storage.by_category.models" class="storage-item">
-            <span class="storage-category">🤖 Models:</span>
-            <span class="storage-amount">{{ storage.by_category.models.human }}</span>
-            <span class="storage-files">({{ storage.by_category.models.files }} files)</span>
-          </div>
-          <div v-if="storage.by_category.misc" class="storage-item">
-            <span class="storage-category">📦 Misc:</span>
-            <span class="storage-amount">{{ storage.by_category.misc.human }}</span>
-            <span class="storage-files">({{ storage.by_category.misc.files }} files)</span>
-          </div>
+        <div class="total-storage compact-item">
+          <p class="storage-label">Free</p>
+          <p class="storage-value">{{ freeSpaceLabel }}</p>
+          <p class="storage-detail" v-if="storage.free_bytes !== null && storage.free_bytes !== undefined">{{ storage.free_bytes.toLocaleString() }} bytes</p>
+        </div>
+        <div class="total-storage compact-item" v-if="storage.capacity_human">
+          <p class="storage-label">Capacity</p>
+          <p class="storage-value">{{ storage.capacity_human }}</p>
+          <p class="storage-detail" v-if="storage.capacity_bytes !== null && storage.capacity_bytes !== undefined">{{ storage.capacity_bytes.toLocaleString() }} bytes</p>
         </div>
       </div>
     </div>
@@ -153,6 +136,18 @@ const sunSummary = computed(() => {
   if (clock.value.sunsetText) parts.push(`↓ ${clock.value.sunsetText}`)
   return parts.join(' · ')
 })
+const freeSpaceLabel = computed(() => storage.value?.free_human || 'Unavailable')
+
+const categoryStorageSummary = (category) => {
+  const categoryInfo = storage.value?.by_category?.[category]
+  if (!categoryInfo) {
+    return 'Storage pending'
+  }
+
+  const fileCount = typeof categoryInfo.files === 'number' ? categoryInfo.files : 0
+  const fileLabel = fileCount === 1 ? 'file' : 'files'
+  return `${categoryInfo.human} • ${fileCount} ${fileLabel}`
+}
 
 onMounted(async () => {
   try {
@@ -203,6 +198,12 @@ onMounted(async () => {
   margin: 0.5rem 0;
 }
 
+.stat-meta {
+  color: #8db2ff;
+  font-size: 0.88rem;
+  margin: 0.2rem 0 0.35rem;
+}
+
 .small {
   font-size: 0.85rem;
   color: #999;
@@ -251,36 +252,6 @@ onMounted(async () => {
   color: #90ee90;
 }
 
-.info-section {
-  background: #2a2a2a;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border-left: 4px solid #667eea;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-
-.info-section h3 {
-  color: #e0e0e0;
-}
-
-.info-section p {
-  color: #b0b0b0;
-}
-
-.info-section code {
-  background: #1a1a1a;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
-  font-family: monospace;
-  color: #90ee90;
-  border: 1px solid #3a3a3a;
-}
-
-.info-text {
-  margin-top: 0.5rem;
-  color: #b0b0b0;
-}
-
 .loading, .error-message {
   padding: 2rem;
   text-align: center;
@@ -297,7 +268,7 @@ onMounted(async () => {
 
 .storage-section {
   background: #2a2a2a;
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
   border-left: 4px solid #667eea;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -305,30 +276,52 @@ onMounted(async () => {
 
 .storage-section h3 {
   color: #e0e0e0;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.storage-path {
+  margin: 0 0 0.75rem;
+  color: #a5a5a5;
+  font-size: 0.82rem;
+}
+
+.storage-path code {
+  background: #1a1a1a;
+  padding: 0.2rem 0.35rem;
+  border-radius: 3px;
+  font-family: monospace;
+  color: #90ee90;
+  border: 1px solid #3a3a3a;
 }
 
 .storage-info {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
 }
 
 .total-storage {
   background: #1a1a1a;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 6px;
   border: 1px solid #3a3a3a;
 }
 
+.compact-item {
+  min-height: 0;
+}
+
 .storage-label {
   color: #808080;
-  font-size: 0.9rem;
-  margin: 0 0 0.5rem 0;
+  font-size: 0.8rem;
+  margin: 0 0 0.35rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .storage-value {
-  font-size: 1.8rem;
+  font-size: 1.15rem;
   font-weight: bold;
   color: #667eea;
   margin: 0;
@@ -336,42 +329,7 @@ onMounted(async () => {
 
 .storage-detail {
   color: #808080;
-  font-size: 0.85rem;
-  margin: 0.5rem 0 0 0;
-}
-
-.storage-breakdown {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.storage-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: #1a1a1a;
-  padding: 0.75rem;
-  border-radius: 6px;
-  border: 1px solid #3a3a3a;
-}
-
-.storage-category {
-  color: #b0b0b0;
-  font-weight: 500;
-  min-width: 80px;
-}
-
-.storage-amount {
-  color: #667eea;
-  font-weight: 600;
-  margin-left: auto;
-}
-
-.storage-files {
-  color: #808080;
-  font-size: 0.85rem;
-  min-width: 100px;
-  text-align: right;
+  font-size: 0.75rem;
+  margin: 0.3rem 0 0 0;
 }
 </style>

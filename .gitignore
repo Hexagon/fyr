@@ -1,6 +1,5 @@
 # Rust
 /target/
-Cargo.lock
 *.pdb
 **/*.rs.bk
 
@@ -40,3 +39,5 @@ docs/build/node_modules/
 # EXCEPT: Include generated documentation manuals
 !/public/data/books/user-manual.epub
 !/public/data/books/developer-manual.epub
+
+server-run.log

@@ -43,8 +43,8 @@ Extending model support:
 - npm 9+
 
 CI-pinned versions for parity:
-- Rust stable (Docker build currently uses `rust:1.75`)
-- Node.js 20
+- Rust stable (Docker build uses `rust:bookworm`)
+- Node.js 24
 
 ### Build frontend
 1. `cd crates/ui/frontend`
@@ -94,6 +94,7 @@ docker run --rm -p 8080:8080 \
 Container expectations:
 
 - App static assets live under `/app/public`.
+- Docker image builds frontend assets during image build and bundles generated files under `/app/public/static`.
 - Writable content directory is mounted to `/data`.
 - Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
 - Healthcheck uses `GET /api/status`.
@@ -114,6 +115,8 @@ Core endpoints:
 - `DELETE /api/download/:task_id`
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+- `POST /api/import/upload`
+- `POST /api/import/download/:filename`
 
 AI assistant endpoints:
 - `GET /api/models`
@@ -130,39 +133,45 @@ Model upload/import flow:
 - Frontend then calls `POST /api/models/import` with source `inbox` so `ModelManager` can move the file into `DATA_DIR/models`.
 - Assistant and Content Manager now share this same upload-plus-import flow instead of relying on placeholder status text or manual pre-placement.
 
+Generic local import flow:
+- Content Manager uploads supported files as multipart form data to `POST /api/import/upload`.
+- Server writes uploaded files to `DATA_DIR/inbox` and returns detected content type metadata.
+- Frontend then calls `POST /api/import/download/:filename` to enqueue a `DownloadSource::LocalFile` task.
+- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads.
+
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
 - The runtime currently requires tokenizer metadata embedded in the GGUF file.
 - If tokenizer metadata is missing, model loading fails with a clear validation error.
 
-Kiwix and ZIM endpoints:
-- `GET /api/kiwix/status`
-- `GET /api/reader/kiwix/capabilities`
+Reader and ZIM endpoints:
+- `GET /api/reader/capabilities`
+- `GET /api/reader/open/:filename`
+- `GET /api/reader/zim/:filename/meta`
+- `GET /api/reader/zim/:filename/capabilities`
+- `GET /api/reader/zim/:filename/native/article`
+- `GET /api/reader/zim/:filename/native/content/*path`
 
 Static content aliases:
 - `GET /data/*path` (full data directory)
-- `GET /docs/books/*path` (book-only alias used by embedded reader)
+- `GET /docs/books/*path` (book-only alias used by reader integrations)
 
-Kiwix integration notes:
-- Frontend opens `.zim` with one click from Books and injects the selected URL into the embedded reader.
-- Capabilities endpoint now reports `supports_direct_http_zim=true` and `zim_base_url=/docs/books`.
-- Server exposes `Accept-Ranges: bytes` and CORS exposed headers (`content-length`, `content-range`, `accept-ranges`) for reader compatibility.
-- ZIM content is read client-side via Kiwix HTTP range requests; no server-side ZIM content parsing endpoints are exposed.
+Native ZIM integration notes:
+- Frontend opens `.zim` through the unified reader module and fetches metadata/capabilities from native server endpoints.
+- Server-side article resolution uses the Rust `zim` crate and returns article payloads through `/api/reader/zim/:filename/native/article`.
+- Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`.
+- Native mode is always active for `.zim` archives. The `FYR_ZIM_NATIVE_EXPERIMENTAL` toggle has been removed.
 
-Kiwix licensing and distribution notes:
+Licensing and distribution notes:
 - Fyr source code remains MIT-licensed at repository root.
-- Embedded Kiwix assets under `public/kiwix-static/` are third-party code and retain their upstream licenses.
-- Distribute these files with releases that include the embedded reader:
-  - `public/kiwix-static/LICENSE-GPLv3.txt`
-  - `public/kiwix-static/LICENSE-AGPLv3.txt`
-  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
-- Keep bundle provenance current (upstream project reference, observed version markers, and local patch notes).
+- Native ZIM support is implemented directly in server code using Rust dependencies in `crates/server/Cargo.toml`.
 
 Download lifecycle notes:
 - Download tasks are persisted to `DATA_DIR/download_tasks.json` using atomic write/rename.
 - Persisted tasks are loaded on startup and immediately available through `GET /api/downloads`.
-- URL downloads run in background workers with bounded retry attempts for transient network/server failures.
+- URL downloads and local file imports both run in background workers with bounded retry/copy status updates.
 - Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
+- Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h).
 
 ## 5. Platform Support Guidance
 
@@ -200,8 +209,8 @@ PR flow:
 
 GitHub workflows:
 - `.github/workflows/release-dev.yml`
-  - Trigger: push to `dev` (or manual dispatch).
-  - Runs full preflight (tests/check/build/docs/compliance).
+  - Trigger: merged PR into `dev` (or manual dispatch).
+  - Runs full preflight (tests/check/build/docs).
   - Publishes Docker multi-arch dev images:
     - `hexagon/fyr:dev`
     - `hexagon/fyr:dev-<git-sha>`
@@ -261,33 +270,13 @@ Run from repository root unless noted:
 2. `cargo check -p server`
 3. `cd crates/ui/frontend && npm ci && npm run build`
 4. `cd docs/build && npm ci && npm run build`
-5. Verify embedded reader license artifacts are present in release payloads:
-  - `public/kiwix-static/LICENSE-GPLv3.txt`
-  - `public/kiwix-static/LICENSE-AGPLv3.txt`
-  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
-6. `cd docs/build && npm run verify:kiwix`
+5. Validate native ZIM flow by opening a `.zim` file in Books and confirming article payload retrieval.
 
-## 11. Kiwix Update Procedure (Required)
-Use this procedure whenever `public/kiwix-static/` is refreshed from a new Kiwix release.
-
-1. Fetch upstream release source/archive from `https://github.com/kiwix/kiwix-js`.
-2. Update `public/kiwix-static/` with the required runtime subset for Fyr embedded reader.
-3. Keep license artifacts in place:
-  - `public/kiwix-static/LICENSE-GPLv3.txt`
-  - `public/kiwix-static/LICENSE-AGPLv3.txt`
-  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
-4. Update provenance metadata in `public/kiwix-static/KIWIX_SOURCE_MANIFEST.json`:
-  - `upstream_release_tag`
-  - `upstream_archive_url`
-  - `source_code_url`
-  - `bundle_runtime_markers`
-  - `last_reviewed_utc`
-5. If any local edits are applied to bundled Kiwix files, summarize changed paths/rationale in `THIRD_PARTY_NOTICES.txt` and in release notes.
-6. Run compliance verification:
-
-```bash
-cd docs/build
-npm run verify:kiwix
-```
-
-7. Run standard validation sequence and ensure release payload includes the full `public/kiwix-static/` compliance artifacts.
+## 11. Native ZIM Reader Notes
+1. Keep server-side reader contracts stable:
+  - `/api/reader/zim/:filename/meta`
+  - `/api/reader/zim/:filename/capabilities`
+  - `/api/reader/zim/:filename/native/article`
+  - `/api/reader/zim/:filename/native/content/*path`
+2. Maintain clean-room implementation boundaries (no third-party reader bundle code).
+3. Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.

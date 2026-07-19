@@ -6,21 +6,24 @@ use crate::ai::types::{
 };
 use crate::AppState;
 use axum::{
+    body::Body,
     extract::{Multipart, Path, Query, State},
-    http::StatusCode,
-    response::{sse::{Event, KeepAlive, Sse}, Html},
+    http::{header, HeaderValue, StatusCode},
+    response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse, Response},
     Json,
 };
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::path::Path as FsPath;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use walkdir::WalkDir;
 use tracing::{error, warn};
+use zim::{DirectoryEntry, MimeType, Namespace, Target, Zim};
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -44,6 +47,10 @@ pub struct StorageResponse {
     pub data_dir: String,
     pub total_bytes: u64,
     pub total_human: String,
+    pub free_bytes: Option<u64>,
+    pub free_human: Option<String>,
+    pub capacity_bytes: Option<u64>,
+    pub capacity_human: Option<String>,
     pub by_category: std::collections::HashMap<String, StorageCategoryInfo>,
 }
 
@@ -91,24 +98,99 @@ pub struct CreateDownloadResponse {
 }
 
 #[derive(Serialize)]
-pub struct KiwixStatusResponse {
-    pub available: bool,
-    pub local_url: String,
-    pub source_path: String,
-}
-
-#[derive(Serialize)]
-pub struct KiwixReaderCapabilitiesResponse {
-    pub available: bool,
-    pub local_url: String,
-    pub zim_base_url: String,
-    pub supports_direct_http_zim: bool,
-    pub supports_http_range: bool,
+pub struct UploadFileResponse {
+    pub filename: String,
+    pub stored_in: String,
+    pub size_bytes: u64,
+    pub detected_type: Option<ContentType>,
 }
 
 #[derive(Serialize)]
 pub struct ErrorMessageResponse {
     pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct ReaderFormatCapabilities {
+    pub format: String,
+    pub supported: bool,
+    pub supports_search: bool,
+    pub supports_navigation: bool,
+    pub supports_inline_render: bool,
+}
+
+#[derive(Serialize)]
+pub struct ReaderCapabilitiesResponse {
+    pub module: String,
+    pub version: String,
+    pub formats: Vec<ReaderFormatCapabilities>,
+    pub legacy_bridge_available: bool,
+    pub legacy_bridge_url: String,
+}
+
+#[derive(Serialize)]
+pub struct ZimArchiveMetaResponse {
+    pub filename: String,
+    pub size_bytes: u64,
+    pub content_url: String,
+    pub source_path: String,
+}
+
+#[derive(Serialize)]
+pub struct ZimReaderCapabilitiesResponse {
+    pub filename: String,
+    pub mode: String,
+    pub supports_native_render: bool,
+    pub supports_search: bool,
+    pub legacy_bridge_available: bool,
+    pub legacy_bridge_url: String,
+    pub archive_url: String,
+}
+
+#[derive(Deserialize)]
+pub struct ZimNativeArticleQuery {
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ZimNativeSearchQuery {
+    pub q: String,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct ZimNativeSearchItem {
+    pub path: String,
+    pub title: String,
+}
+
+#[derive(Serialize)]
+pub struct ZimNativeSearchResponse {
+    pub filename: String,
+    pub query: String,
+    pub results: Vec<ZimNativeSearchItem>,
+}
+
+#[derive(Serialize)]
+pub struct ZimNativeArticleResponse {
+    pub filename: String,
+    pub path: String,
+    pub title: String,
+    pub mime_type: String,
+    pub content: String,
+}
+
+#[derive(Serialize)]
+pub struct ReaderOpenResponse {
+    pub filename: String,
+    pub format: String,
+    pub content_url: String,
+    pub meta_url: Option<String>,
+    pub supports_search: bool,
+    pub supports_navigation: bool,
+    pub supports_inline_render: bool,
 }
 
 /// GET /api/status — Server status and content inventory
@@ -175,6 +257,8 @@ pub async fn update_settings(
 pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResponse> {
     let mut by_category = std::collections::HashMap::new();
 
+    let data_dir_info = get_dir_size(state.config.data_dir.clone());
+
     let maps_info = get_dir_size(state.config.maps_dir());
     by_category.insert(
         "maps".to_string(),
@@ -225,12 +309,28 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
         },
     );
 
-    let total_bytes = maps_info.0 + books_info.0 + poi_info.0 + models_info.0 + misc_info.0;
+    let (free_bytes, capacity_bytes) = match get_disk_space(&state.config.data_dir) {
+        Ok((free, total)) => (Some(free), Some(total)),
+        Err(error) => {
+            warn!(
+                "Failed to read disk space for data directory {}: {}",
+                state.config.data_dir.display(),
+                error
+            );
+            (None, None)
+        }
+    };
+
+    let total_bytes = data_dir_info.0;
 
     Json(StorageResponse {
         data_dir: state.config.data_dir.display().to_string(),
         total_bytes,
         total_human: format_bytes(total_bytes),
+        free_bytes,
+        free_human: free_bytes.map(format_bytes),
+        capacity_bytes,
+        capacity_human: capacity_bytes.map(format_bytes),
         by_category,
     })
 }
@@ -376,6 +476,102 @@ pub async fn ai_upload_model(
     Err(StatusCode::BAD_REQUEST)
 }
 
+/// POST /api/import/upload — Upload a supported content file into inbox before import
+pub async fn upload_file_to_import(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<UploadFileResponse>), StatusCode> {
+    while let Some(mut field) = multipart
+        .next_field()
+        .await
+        .map_err(|error| {
+            warn!("Invalid multipart payload while uploading import file: {}", error);
+            StatusCode::BAD_REQUEST
+        })?
+    {
+        if field.name() != Some("file") {
+            continue;
+        }
+
+        let raw_name = field.file_name().ok_or(StatusCode::BAD_REQUEST)?;
+        let filename = sanitize_upload_filename(raw_name).ok_or(StatusCode::BAD_REQUEST)?;
+        let detected_type = detect_content_type(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+        let target_path = state.config.inbox_dir().join(&filename);
+        if tokio::fs::try_exists(&target_path)
+            .await
+            .map_err(|error| {
+                error!("Failed to check existing upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+        {
+            tokio::fs::remove_file(&target_path)
+                .await
+                .map_err(|error| {
+                    error!("Failed to remove existing upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+        }
+
+        let mut file = tokio::fs::File::create(&target_path)
+            .await
+            .map_err(|error| {
+                error!("Failed to create upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        let mut size_bytes = 0u64;
+        let mut magic = Vec::with_capacity(8);
+
+        while let Some(chunk) = field.chunk().await.map_err(|error| {
+            warn!("Failed to read upload stream chunk: {}", error);
+            StatusCode::BAD_REQUEST
+        })? {
+            let needed = 8usize.saturating_sub(magic.len());
+            if needed > 0 {
+                magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
+            }
+
+            file.write_all(&chunk)
+                .await
+                .map_err(|error| {
+                    error!("Failed to write upload target {}: {}", target_path.display(), error);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            size_bytes += chunk.len() as u64;
+        }
+
+        if size_bytes == 0 {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
+        if !validate_upload_magic(&filename, detected_type, &magic) {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        }
+
+        file.flush()
+            .await
+            .map_err(|error| {
+                error!("Failed to flush upload target {}: {}", target_path.display(), error);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(UploadFileResponse {
+                filename,
+                stored_in: target_path.display().to_string(),
+                size_bytes,
+                detected_type: Some(detected_type),
+            }),
+        ));
+    }
+
+    Err(StatusCode::BAD_REQUEST)
+}
+
 /// POST /api/models/import — Import a model from inbox/misc into models with GGUF validation
 pub async fn ai_import_model(
     State(state): State<Arc<AppState>>,
@@ -472,6 +668,36 @@ pub async fn create_download(
     )
 }
 
+/// POST /api/import/download/:filename — Create local import task from inbox
+pub async fn create_import_download(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<(StatusCode, Json<CreateDownloadResponse>), StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let source_path = state.config.inbox_dir().join(&sanitized);
+
+    let exists = tokio::fs::try_exists(&source_path)
+        .await
+        .map_err(|error| {
+            error!("Failed to verify import source {}: {}", source_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let task_id = state
+        .download_manager
+        .create_task(DownloadSource::LocalFile { path: source_path })
+        .await;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateDownloadResponse { task_id }),
+    ))
+}
+
 /// GET /api/download/:task_id/status — Get download task status
 pub async fn get_download_status(
     State(state): State<Arc<AppState>>,
@@ -512,68 +738,357 @@ pub async fn cancel_download(
     }
 }
 
-/// GET /api/kiwix/status — Local Kiwix reader availability
-pub async fn kiwix_status() -> Json<KiwixStatusResponse> {
-    let source_path = if FsPath::new("public/kiwix-static/www/index.html").exists() {
-        "public/kiwix-static/www/index.html"
-    } else {
-        "kiwix-static/www/index.html"
-    };
-    let available = std::path::Path::new(source_path).exists();
-
-    Json(KiwixStatusResponse {
-        available,
-        local_url: "/kiwix/www/index.html".to_string(),
-        source_path: source_path.to_string(),
+/// GET /api/reader/capabilities — Unified reader capabilities
+pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
+    Json(ReaderCapabilitiesResponse {
+        module: "fyr-unified-reader".to_string(),
+        version: "0.1".to_string(),
+        formats: vec![
+            ReaderFormatCapabilities {
+                format: "zim".to_string(),
+                supported: true,
+                supports_search: true,
+                supports_navigation: true,
+                supports_inline_render: true,
+            },
+            ReaderFormatCapabilities {
+                format: "epub".to_string(),
+                supported: true,
+                supports_search: false,
+                supports_navigation: true,
+                supports_inline_render: true,
+            },
+            ReaderFormatCapabilities {
+                format: "md".to_string(),
+                supported: true,
+                supports_search: false,
+                supports_navigation: true,
+                supports_inline_render: true,
+            },
+        ],
+        legacy_bridge_available: false,
+        legacy_bridge_url: String::new(),
     })
 }
 
-/// GET /api/reader/kiwix/capabilities — Reader capabilities and local URLs
-pub async fn kiwix_reader_capabilities() -> Json<KiwixReaderCapabilitiesResponse> {
-    let source_path = if FsPath::new("public/kiwix-static/www/index.html").exists() {
-        "public/kiwix-static/www/index.html"
-    } else {
-        "kiwix-static/www/index.html"
-    };
-    let available = std::path::Path::new(source_path).exists();
+/// GET /api/reader/open/:filename — Resolve unified reader descriptor for a book file
+pub async fn reader_open(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<ReaderOpenResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let format = reader_format_from_filename(&sanitized).ok_or(StatusCode::BAD_REQUEST)?;
 
-    Json(KiwixReaderCapabilitiesResponse {
-        available,
-        local_url: "/kiwix/www/index.html".to_string(),
-        zim_base_url: "/docs/books".to_string(),
-        supports_direct_http_zim: true,
-        supports_http_range: true,
-    })
+    let source_path = state.config.books_dir().join(&sanitized);
+    let exists = tokio::fs::try_exists(&source_path)
+        .await
+        .map_err(|error| {
+            error!(
+                "Failed to check reader source {}: {}",
+                source_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let (supports_search, supports_navigation, supports_inline_render) = match format {
+        "zim" => (true, true, false),
+        "epub" => (false, true, true),
+        "md" => (false, true, true),
+        "pdf" => (false, true, true),
+        _ => (false, false, false),
+    };
+
+    let encoded = sanitized.clone();
+    let content_url = format!("/docs/books/{}", encoded);
+    let meta_url = if format == "zim" {
+        Some(format!("/api/reader/zim/{}/meta", encoded))
+    } else {
+        None
+    };
+
+    Ok(Json(ReaderOpenResponse {
+        filename: sanitized,
+        format: format.to_string(),
+        content_url,
+        meta_url,
+        supports_search,
+        supports_navigation,
+        supports_inline_render,
+    }))
+}
+
+/// GET /api/reader/zim/:filename/meta — ZIM archive metadata for custom reader bootstrap
+pub async fn reader_zim_meta(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<ZimArchiveMetaResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    if !sanitized.to_lowercase().ends_with(".zim") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let source_path = state.config.books_dir().join(&sanitized);
+    let metadata = tokio::fs::metadata(&source_path)
+        .await
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                StatusCode::NOT_FOUND
+            } else {
+                error!(
+                    "Failed to read archive metadata {}: {}",
+                    source_path.display(),
+                    error
+                );
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        })?;
+
+    Ok(Json(ZimArchiveMetaResponse {
+        filename: sanitized.clone(),
+        size_bytes: metadata.len(),
+        content_url: format!("/docs/books/{}", sanitized),
+        source_path: source_path.display().to_string(),
+    }))
+}
+
+/// GET /api/reader/zim/:filename/capabilities — ZIM adapter mode and feature availability
+pub async fn reader_zim_capabilities(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<ZimReaderCapabilitiesResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    if !sanitized.to_lowercase().ends_with(".zim") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let source_path = state.config.books_dir().join(&sanitized);
+    let exists = tokio::fs::try_exists(&source_path)
+        .await
+        .map_err(|error| {
+            error!(
+                "Failed to check ZIM archive existence {}: {}",
+                source_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let (supports_native_render, mode) = match probe_zim_archive(&source_path) {
+        Ok(()) => (true, "native"),
+        Err(reason) => {
+            warn!(
+                "Native ZIM unavailable for {} because archive open failed: {}",
+                source_path.display(),
+                reason
+            );
+            (false, "native-unavailable")
+        }
+    };
+
+    Ok(Json(ZimReaderCapabilitiesResponse {
+        filename: sanitized.clone(),
+        mode: mode.to_string(),
+        supports_native_render,
+        supports_search: supports_native_render,
+        legacy_bridge_available: false,
+        legacy_bridge_url: String::new(),
+        archive_url: format!("/docs/books/{}", sanitized),
+    }))
+}
+
+/// GET /api/reader/zim/:filename/native/article?path=... — Resolve and render a native ZIM article payload
+pub async fn reader_zim_native_article(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Query(query): Query<ZimNativeArticleQuery>,
+) -> Result<Json<ZimNativeArticleResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    if !sanitized.to_lowercase().ends_with(".zim") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let source_path = state.config.books_dir().join(&sanitized);
+    let zim = open_zim_archive(&source_path)?;
+
+    let requested_path = query
+        .path
+        .as_deref()
+        .map(normalize_zim_url)
+        .filter(|value| !value.is_empty());
+
+    let entry = if let Some(path) = requested_path {
+        find_entry_by_path_flexible(&zim, &path).ok_or(StatusCode::NOT_FOUND)?
+    } else {
+        resolve_main_entry(&zim).ok_or(StatusCode::NOT_FOUND)?
+    };
+
+    let (path, title, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+    let content = String::from_utf8_lossy(&bytes).into_owned();
+
+    Ok(Json(ZimNativeArticleResponse {
+        filename: sanitized,
+        path,
+        title,
+        mime_type,
+        content,
+    }))
+}
+
+/// GET /api/reader/zim/:filename/native/content/*path — Serve a native resource blob by ZIM path
+pub async fn reader_zim_native_content(
+    State(state): State<Arc<AppState>>,
+    Path((filename, path)): Path<(String, String)>,
+) -> Result<Response, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    if !sanitized.to_lowercase().ends_with(".zim") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let normalized_path = normalize_zim_url(&path);
+    if normalized_path.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let source_path = state.config.books_dir().join(&sanitized);
+    let zim = open_zim_archive(&source_path)?;
+    let mut entry = content_path_lookup_variants(&normalized_path)
+        .into_iter()
+        .find_map(|candidate| find_any_entry_by_path(&zim, &candidate))
+        ;
+
+    if entry.is_none() && normalized_path.starts_with("_assets_/") {
+        if let Some(filename_only) = normalized_path.rsplit('/').next() {
+            entry = find_any_entry_by_basename(&zim, filename_only);
+        }
+    }
+
+    let entry = entry.ok_or(StatusCode::NOT_FOUND)?;
+    let (_, _, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+
+    let header_value = HeaderValue::from_str(&mime_type)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+
+    let mut response = Response::new(Body::from(bytes));
+    *response.status_mut() = StatusCode::OK;
+    response.headers_mut().insert(header::CONTENT_TYPE, header_value);
+    Ok(response)
+}
+
+/// GET /api/reader/zim/:filename/native/search?q=...&limit=... — Search article titles/paths
+pub async fn reader_zim_native_search(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Query(query): Query<ZimNativeSearchQuery>,
+) -> Result<Json<ZimNativeSearchResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    if !sanitized.to_lowercase().ends_with(".zim") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let needle = query.q.trim();
+    if needle.is_empty() {
+        return Ok(Json(ZimNativeSearchResponse {
+            filename: sanitized,
+            query: String::new(),
+            results: Vec::new(),
+        }));
+    }
+
+    let source_path = state.config.books_dir().join(&sanitized);
+    let zim = open_zim_archive(&source_path)?;
+    let needle_lower = needle.to_ascii_lowercase();
+    let limit = query.limit.unwrap_or(20).clamp(1, 100);
+
+    let mut results: Vec<ZimNativeSearchItem> = Vec::new();
+    let mut seen_paths = std::collections::HashSet::new();
+    for entry in zim.iterate_by_urls() {
+        if !is_searchable_article_entry(&entry) {
+            continue;
+        }
+
+        let path = normalize_zim_url(&entry.url);
+        if path.is_empty() || path.starts_with("_assets_/") {
+            continue;
+        }
+
+        let title = if entry.title.is_empty() {
+            entry
+                .url
+                .replace('_', " ")
+        } else {
+            entry.title.clone()
+        };
+
+        let title_norm = title.to_ascii_lowercase();
+        let path_norm = path.to_ascii_lowercase();
+        if !title_norm.contains(&needle_lower) && !path_norm.contains(&needle_lower) {
+            continue;
+        }
+
+        let resolved = match resolve_redirect(&zim, entry, 0) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+
+        let resolved_path = normalize_zim_url(&resolved.url);
+        if resolved_path.is_empty() || resolved_path.starts_with("_assets_/") {
+            continue;
+        }
+
+        if !seen_paths.insert(resolved_path.clone()) {
+            continue;
+        }
+
+        let resolved_title = if resolved.title.is_empty() {
+            resolved_path.replace('_', " ")
+        } else {
+            resolved.title.clone()
+        };
+
+        results.push(ZimNativeSearchItem {
+            path: resolved_path,
+            title: resolved_title,
+        });
+        if results.len() >= limit {
+            break;
+        }
+    }
+
+    Ok(Json(ZimNativeSearchResponse {
+        filename: sanitized,
+        query: needle.to_string(),
+        results,
+    }))
 }
 
 /// GET / — Fallback handler for SPA (serves index.html)
 /// This enables client-side routing in Vue
-pub async fn serve_index() -> Html<String> {
-    // Read and serve the built index.html file
-    let index_path = if FsPath::new("public/static/index.html").exists() {
-        "public/static/index.html"
-    } else {
-        "static/index.html"
-    };
-    match std::fs::read_to_string(index_path) {
-        Ok(content) => Html(content),
-        Err(_) => {
-            // Fallback HTML if static/index.html doesn't exist
-            Html(
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Fyr - Off-Grid Content Platform</title>
-    <script type="module" src="/static/js/index.js"></script>
-    <link rel="stylesheet" href="/static/css/index.css">
-</head>
-<body>
-    <div id="app"></div>
-</body>
-</html>"#.to_string()
+pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
+    let index_path = state.static_dir.join("index.html");
+
+    match tokio::fs::read_to_string(&index_path).await {
+        Ok(content) => Html(content).into_response(),
+        Err(err) => {
+            error!(
+                "Failed to read SPA index at {}: {}",
+                index_path.display(),
+                err
+            );
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html("Fyr static frontend is unavailable: index.html not found.".to_string()),
             )
+                .into_response()
         }
     }
 }
@@ -651,6 +1166,12 @@ fn get_dir_size(dir: std::path::PathBuf) -> (u64, usize) {
     (total_size, file_count)
 }
 
+fn get_disk_space(path: &FsPath) -> std::io::Result<(u64, u64)> {
+    let free = fs2::available_space(path)?;
+    let total = fs2::total_space(path)?;
+    Ok((free, total))
+}
+
 fn format_bytes(bytes: u64) -> String {
     let sizes = ["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
@@ -714,4 +1235,343 @@ fn sanitize_upload_filename(filename: &str) -> Option<String> {
     }
 
     Some(candidate.to_string())
+}
+
+fn detect_content_type(filename: &str) -> Option<ContentType> {
+    let extension = FsPath::new(filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+    ContentType::from_extension(extension)
+}
+
+fn reader_format_from_filename(filename: &str) -> Option<&'static str> {
+    let extension = FsPath::new(filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match extension.as_str() {
+        "zim" => Some("zim"),
+        "epub" => Some("epub"),
+        "md" => Some("md"),
+        "pdf" => Some("pdf"),
+        _ => None,
+    }
+}
+
+fn open_zim_archive(path: &std::path::Path) -> Result<Zim, StatusCode> {
+    match std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path))) {
+        Ok(Ok(zim)) => Ok(zim),
+        Ok(Err(error)) => {
+            error!("Failed to open ZIM archive {}: {}", path.display(), error);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+        Err(_) => {
+            error!(
+                "ZIM parser panicked while opening archive {}",
+                path.display()
+            );
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+fn probe_zim_archive(path: &std::path::Path) -> Result<(), String> {
+    match std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path))) {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(error)) => Err(error.to_string()),
+        Err(_) => Err("zim parser panic".to_string()),
+    }
+}
+
+fn resolve_main_entry(zim: &Zim) -> Option<DirectoryEntry> {
+    if let Some(main_page_idx) = zim.header.main_page {
+        if let Ok(entry) = zim.get_by_url_index(main_page_idx) {
+            return resolve_redirect(zim, entry, 0).ok();
+        }
+    }
+
+    zim
+        .iterate_by_urls()
+        .find(|entry| matches!(entry.namespace, Namespace::Articles))
+        .and_then(|entry| resolve_redirect(zim, entry, 0).ok())
+}
+
+fn find_entry_by_path_flexible(zim: &Zim, path: &str) -> Option<DirectoryEntry> {
+    let normalized = normalize_zim_url(path);
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let variants = path_lookup_variants(&normalized);
+
+    let direct = zim.iterate_by_urls().find(|entry| {
+        let entry_url = normalize_zim_url(&entry.url);
+        let entry_title = normalize_zim_url(&entry.title);
+        variants.iter().any(|candidate| entry_url == *candidate || entry_title == *candidate)
+    })?;
+
+    resolve_redirect(zim, direct, 0).ok()
+}
+
+fn path_lookup_variants(path: &str) -> Vec<String> {
+    let trimmed = normalize_zim_url(path);
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let mut variants = vec![trimmed.clone()];
+
+    let spaces = trimmed.replace('_', " ");
+    if spaces != trimmed {
+        variants.push(spaces);
+    }
+
+    let underscores = trimmed.replace(' ', "_");
+    if underscores != trimmed {
+        variants.push(underscores);
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
+}
+
+fn content_path_lookup_variants(path: &str) -> Vec<String> {
+    let normalized = normalize_zim_url(path);
+    if normalized.is_empty() {
+        return Vec::new();
+    }
+
+    let mut variants = path_lookup_variants(&normalized);
+
+    if normalized.starts_with("_assets_/") {
+        let parts: Vec<&str> = normalized.split('/').collect();
+        if parts.len() > 2 {
+            let without_hash = format!("_assets_/{}", parts[2..].join("/"));
+            variants.push(without_hash);
+
+            if let Some(last) = parts.last() {
+                variants.push(format!("I/{}", last));
+            }
+        }
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
+}
+
+fn find_any_entry_by_path(zim: &Zim, path: &str) -> Option<DirectoryEntry> {
+    let normalized = normalize_zim_url(path);
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let direct = zim.iterate_by_urls().find(|entry| {
+        normalize_zim_url(&entry.url) == normalized || normalize_zim_url(&entry.title) == normalized
+    })?;
+
+    resolve_redirect(zim, direct, 0).ok()
+}
+
+fn find_any_entry_by_basename(zim: &Zim, filename: &str) -> Option<DirectoryEntry> {
+    let needle = normalize_zim_url(filename);
+    if needle.is_empty() {
+        return None;
+    }
+
+    let direct = zim.iterate_by_urls().find(|entry| {
+        let url = normalize_zim_url(&entry.url);
+        let title = normalize_zim_url(&entry.title);
+        url.rsplit('/').next().is_some_and(|name| name == needle)
+            || title.rsplit('/').next().is_some_and(|name| name == needle)
+    })?;
+
+    resolve_redirect(zim, direct, 0).ok()
+}
+
+fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
+    if matches!(entry.namespace, Namespace::Articles) {
+        return true;
+    }
+
+    matches!(
+        &entry.mime_type,
+        MimeType::Type(value)
+            if value.starts_with("text/html") || value.starts_with("application/xhtml+xml")
+    )
+}
+
+fn resolve_redirect(zim: &Zim, mut entry: DirectoryEntry, mut depth: usize) -> zim::Result<DirectoryEntry> {
+    while depth < 8 {
+        match entry.target {
+            Some(Target::Redirect(index)) => {
+                entry = zim.get_by_url_index(index)?;
+                depth += 1;
+            }
+            _ => return Ok(entry),
+        }
+    }
+
+    Ok(entry)
+}
+
+fn resolve_entry_bytes(
+    zim: &Zim,
+    entry: &DirectoryEntry,
+) -> Result<(String, String, String, Vec<u8>), StatusCode> {
+    let (cluster_idx, blob_idx) = match entry.target {
+        Some(Target::Cluster(cluster_idx, blob_idx)) => (cluster_idx, blob_idx),
+        _ => return Err(StatusCode::NOT_FOUND),
+    };
+
+    let cluster = zim.get_cluster(cluster_idx).map_err(|error| {
+        error!(
+            "Failed to resolve ZIM cluster {} for {}: {}",
+            cluster_idx,
+            entry.url,
+            error
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let blob = cluster.get_blob(blob_idx).map_err(|error| {
+        error!(
+            "Failed to resolve ZIM blob {}:{} for {}: {}",
+            cluster_idx,
+            blob_idx,
+            entry.url,
+            error
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let mime_type = match &entry.mime_type {
+        MimeType::Type(value) => value.clone(),
+        MimeType::Redirect => "text/plain; charset=utf-8".to_string(),
+        MimeType::LinkTarget => "application/octet-stream".to_string(),
+        MimeType::DeletedEntry => "application/octet-stream".to_string(),
+    };
+
+    let title = if entry.title.is_empty() {
+        entry.url.clone()
+    } else {
+        entry.title.clone()
+    };
+
+    Ok((
+        normalize_zim_url(&entry.url),
+        title,
+        mime_type,
+        blob.as_ref().to_vec(),
+    ))
+}
+
+fn normalize_zim_url(value: &str) -> String {
+    let raw = value
+        .trim()
+        .split('#')
+        .next()
+        .unwrap_or_default()
+        .split('?')
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches('/');
+
+    let mut out = raw.to_string();
+    for _ in 0..3 {
+        let decoded = decode_percent_once(&out);
+        if decoded == out {
+            break;
+        }
+        out = decoded;
+    }
+
+    out
+}
+
+fn decode_percent_once(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = bytes[i + 1];
+            let lo = bytes[i + 2];
+            if let (Some(hi), Some(lo)) = (hex_nibble(hi), hex_nibble(lo)) {
+                out.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+
+        out.push(bytes[i]);
+        i += 1;
+    }
+
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_nibble(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{reader_format_from_filename, sanitize_upload_filename};
+
+    #[test]
+    fn detects_supported_reader_formats() {
+        assert_eq!(reader_format_from_filename("archive.zim"), Some("zim"));
+        assert_eq!(reader_format_from_filename("novel.epub"), Some("epub"));
+        assert_eq!(reader_format_from_filename("guide.md"), Some("md"));
+        assert_eq!(reader_format_from_filename("paper.pdf"), Some("pdf"));
+    }
+
+    #[test]
+    fn rejects_unsupported_reader_formats() {
+        assert_eq!(reader_format_from_filename("model.gguf"), None);
+        assert_eq!(reader_format_from_filename("notes.txt"), None);
+        assert_eq!(reader_format_from_filename("no_extension"), None);
+    }
+
+    #[test]
+    fn sanitizes_filename_to_leaf_component() {
+        assert_eq!(
+            sanitize_upload_filename("nested/path/atlas.zim"),
+            Some("atlas.zim".to_string())
+        );
+        assert_eq!(sanitize_upload_filename("  "), None);
+    }
+
+}
+
+fn validate_upload_magic(filename: &str, content_type: ContentType, magic: &[u8]) -> bool {
+    match content_type {
+        ContentType::Model => magic.len() >= 4 && &magic[0..4] == b"GGUF",
+        ContentType::Map => magic.len() >= 7 && &magic[0..7] == b"PMTiles",
+        ContentType::Book => {
+            let ext = FsPath::new(filename)
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+
+            if ext == "epub" {
+                magic.len() >= 4 && magic[0..4] == [0x50, 0x4B, 0x03, 0x04]
+            } else {
+                true
+            }
+        }
+        ContentType::Poi | ContentType::Misc => true,
+    }
 }

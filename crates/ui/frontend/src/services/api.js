@@ -47,49 +47,83 @@ const mapContentItem = (item) => ({
 
 const mapContentArray = (items) => (items && items.length > 0 ? items.map(mapContentItem) : [])
 
-export const apiService = {
-  getZimReaderConfig: () => ({
-    localUrl: '/kiwix/www/index.html'
-  }),
-
-  getKiwixStatus: async () => {
-    const response = await api.get('/kiwix/status')
-    return response.data || { available: false, local_url: '/kiwix/www/index.html' }
-  },
-
-  getKiwixReaderCapabilities: async () => {
-    const response = await api.get('/reader/kiwix/capabilities')
-    return response.data || {
-      available: false,
-      local_url: '/kiwix/www/index.html',
-      zim_base_url: '/data/books',
-      supports_direct_http_zim: false,
-      supports_http_range: false
-    }
-  },
-
-  checkLocalZimReader: async () => {
+const decodePathSegmentSafe = (segment) => {
+  let value = String(segment || '')
+  for (let i = 0; i < 3; i += 1) {
     try {
-      const status = await apiService.getKiwixStatus()
-      if (status.available) return true
-    } catch (error) {
-      console.warn('Kiwix status endpoint unavailable, falling back to direct check:', error)
-    }
-
-    try {
-      const response = await fetch('/kiwix/www/index.html', {
-        method: 'GET',
-        cache: 'no-store'
-      })
-      return response.ok
+      const decoded = decodeURIComponent(value)
+      if (decoded === value) break
+      value = decoded
     } catch {
-      return false
+      break
     }
+  }
+  return value
+}
+
+const encodePathPreservingSlashes = (path) => {
+  return String(path || '')
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((segment) => encodeURIComponent(decodePathSegmentSafe(segment)))
+    .join('/')
+}
+
+export const apiService = {
+  getReaderCapabilities: async () => {
+    const response = await api.get('/reader/capabilities')
+    return response.data || {
+      module: 'fyr-unified-reader',
+      version: '0.1',
+      formats: [],
+      legacy_bridge_available: false,
+      legacy_bridge_url: ''
+    }
+  },
+
+  getReaderOpenDescriptor: async (filename) => {
+    const response = await api.get(`/reader/open/${encodeURIComponent(filename)}`)
+    return response.data
+  },
+
+  getZimArchiveMeta: async (filename) => {
+    const response = await api.get(`/reader/zim/${encodeURIComponent(filename)}/meta`)
+    return response.data
+  },
+
+  getZimReaderCapabilities: async (filename) => {
+    const response = await api.get(`/reader/zim/${encodeURIComponent(filename)}/capabilities`)
+    return response.data
+  },
+
+  getZimNativeArticle: async (filename, path = null) => {
+    const params = new URLSearchParams()
+    if (path) {
+      params.set('path', path)
+    }
+
+    const query = params.toString()
+    const suffix = query ? `?${query}` : ''
+    const response = await api.get(`/reader/zim/${encodeURIComponent(filename)}/native/article${suffix}`)
+    return response.data
+  },
+
+  getZimNativeSearch: async (filename, q, limit = 20) => {
+    const params = new URLSearchParams()
+    params.set('q', String(q || ''))
+    params.set('limit', String(limit))
+    const suffix = params.toString()
+    const response = await api.get(`/reader/zim/${encodeURIComponent(filename)}/native/search?${suffix}`)
+    return response.data
+  },
+
+  getZimNativeContentUrl: (filename, path) => {
+    const normalizedPath = encodePathPreservingSlashes(path)
+    return `/api/reader/zim/${encodeURIComponent(filename)}/native/content/${normalizedPath}`
   },
 
   // Status & Config
   getStatus: () => api.get('/status'),
-  getConfig: () => api.get('/config'),
   getSettings: () => api.get('/settings'),
   updateSettings: (settings) => api.put('/settings', settings),
   getStorage: () => api.get('/storage'),
@@ -149,9 +183,40 @@ export const apiService = {
 
     return { data: payload }
   },
+  uploadFile: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/import/upload', {
+      method: 'POST',
+      body: formData,
+      cache: 'no-store'
+    })
+
+    let payload = null
+    const responseType = response.headers.get('content-type') || ''
+
+    if (responseType.includes('application/json')) {
+      payload = await response.json()
+    } else {
+      const text = await response.text()
+      payload = text ? { message: text } : null
+    }
+
+    if (!response.ok) {
+      throw {
+        response: {
+          status: response.status,
+          data: payload
+        }
+      }
+    }
+
+    return { data: payload }
+  },
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
+  createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),
   loadModel: (filename) => api.post(`/models/${encodeURIComponent(filename)}/load`),
-  unloadModel: (filename) => api.delete(`/models/${encodeURIComponent(filename)}/load`),
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
@@ -187,6 +252,9 @@ export const apiService = {
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
+    if (error?.message && !error?.response && !error?.code) {
+      return error.message
+    }
     if (error.code === 'ECONNABORTED') {
       return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check server responsiveness.`
     }

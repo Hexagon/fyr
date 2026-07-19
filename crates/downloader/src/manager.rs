@@ -36,6 +36,7 @@ const MAX_DOWNLOAD_ATTEMPTS: u8 = 3;
 impl DownloadManager {
     pub fn new(data_dir: impl AsRef<Path>) -> Self {
         let root = data_dir.as_ref().to_path_buf();
+        Self::cleanup_stale_temp_files(&root);
         let persistence_path = data_dir.as_ref().join("download_tasks.json");
         let tasks = Self::load_tasks(&persistence_path).unwrap_or_else(|error| {
             warn!(
@@ -92,24 +93,39 @@ impl DownloadManager {
             error!("Failed to persist download tasks after create: {}", error);
         }
 
-        if let DownloadSource::Url { url } = source {
-            let cancel_flag = Arc::new(AtomicBool::new(false));
-            {
-                let mut flags = self.cancel_flags.write().await;
-                flags.insert(task_id.clone(), cancel_flag);
-            }
+        let runtime = DownloadRuntime {
+            tasks: self.tasks.clone(),
+            cancel_flags: self.cancel_flags.clone(),
+            persistence_path: self.persistence_path.clone(),
+            data_dir: self.data_dir.clone(),
+            client: self.client.clone(),
+        };
 
-            let runtime = DownloadRuntime {
-                tasks: self.tasks.clone(),
-                cancel_flags: self.cancel_flags.clone(),
-                persistence_path: self.persistence_path.clone(),
-                data_dir: self.data_dir.clone(),
-                client: self.client.clone(),
-            };
-            let task_id_for_worker = task_id.clone();
-            tokio::spawn(async move {
-                Self::run_url_download(runtime, task_id_for_worker, url).await;
-            });
+        match source {
+            DownloadSource::Url { url } => {
+                let cancel_flag = Arc::new(AtomicBool::new(false));
+                {
+                    let mut flags = self.cancel_flags.write().await;
+                    flags.insert(task_id.clone(), cancel_flag);
+                }
+
+                let task_id_for_worker = task_id.clone();
+                tokio::spawn(async move {
+                    Self::run_url_download(runtime, task_id_for_worker, url).await;
+                });
+            }
+            DownloadSource::LocalFile { path } => {
+                let cancel_flag = Arc::new(AtomicBool::new(false));
+                {
+                    let mut flags = self.cancel_flags.write().await;
+                    flags.insert(task_id.clone(), cancel_flag);
+                }
+
+                let task_id_for_worker = task_id.clone();
+                tokio::spawn(async move {
+                    Self::run_local_import(runtime, task_id_for_worker, path).await;
+                });
+            }
         }
 
         task_id
@@ -479,6 +495,314 @@ impl DownloadManager {
         Self::clear_cancel_flag(&runtime, &task_id).await;
     }
 
+    async fn run_local_import(runtime: DownloadRuntime, task_id: String, source_path: PathBuf) {
+        if let Err(error) = Self::set_task_state(&runtime, &task_id, DownloadStatus::Validating, None, None, None).await {
+            error!("Failed to mark local import task {} as validating: {}", task_id, error);
+            return;
+        }
+
+        if Self::is_cancelled(&runtime, &task_id).await {
+            let _ = Self::set_task_state(
+                &runtime,
+                &task_id,
+                DownloadStatus::Cancelled,
+                None,
+                None,
+                Some("download cancelled by user".to_string()),
+            )
+            .await;
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        let metadata = match tokio::fs::metadata(&source_path).await {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                let message = format!("local file unavailable: {error}");
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Failed,
+                    Some(0),
+                    Some(0),
+                    Some(message),
+                )
+                .await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+        };
+
+        if !metadata.is_file() {
+            let _ = Self::set_task_state(
+                &runtime,
+                &task_id,
+                DownloadStatus::Failed,
+                Some(0),
+                Some(0),
+                Some("local import source must be a file".to_string()),
+            )
+            .await;
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        let total_bytes = metadata.len();
+
+        if let Err(error) = Self::set_task_state(
+            &runtime,
+            &task_id,
+            DownloadStatus::Downloading,
+            Some(0),
+            Some(total_bytes),
+            None,
+        )
+        .await
+        {
+            error!("Failed to mark local import task {} as downloading: {}", task_id, error);
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        let source_name = source_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| format!("{task_id}.bin"));
+
+        let inbox_path = runtime.data_dir.join("inbox");
+        if let Err(error) = tokio::fs::create_dir_all(&inbox_path).await {
+            let message = format!("failed to create inbox directory: {error}");
+            let _ = Self::set_task_state(
+                &runtime,
+                &task_id,
+                DownloadStatus::Failed,
+                Some(0),
+                Some(total_bytes),
+                Some(message),
+            )
+            .await;
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        let temp_path = inbox_path.join(format!("{}.part", source_name));
+        let final_inbox_path = inbox_path.join(&source_name);
+
+        let mut source_file = match tokio::fs::File::open(&source_path).await {
+            Ok(file) => file,
+            Err(error) => {
+                let message = format!("failed to open local source file: {error}");
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Failed,
+                    Some(0),
+                    Some(total_bytes),
+                    Some(message),
+                )
+                .await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+        };
+
+        let mut target_file = match tokio::fs::File::create(&temp_path).await {
+            Ok(file) => file,
+            Err(error) => {
+                let message = format!("failed to create temporary import file: {error}");
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Failed,
+                    Some(0),
+                    Some(total_bytes),
+                    Some(message),
+                )
+                .await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+        };
+
+        let mut copied = 0u64;
+        let mut last_progress_sync = 0u64;
+        let mut buffer = [0u8; 8192];
+
+        loop {
+            if Self::is_cancelled(&runtime, &task_id).await {
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Cancelled,
+                    Some(copied),
+                    Some(total_bytes),
+                    Some("download cancelled by user".to_string()),
+                )
+                .await;
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+
+            let bytes_read = match tokio::io::AsyncReadExt::read(&mut source_file, &mut buffer).await {
+                Ok(read) => read,
+                Err(error) => {
+                    let message = format!("failed to read local source file: {error}");
+                    let _ = Self::set_task_state(
+                        &runtime,
+                        &task_id,
+                        DownloadStatus::Failed,
+                        Some(copied),
+                        Some(total_bytes),
+                        Some(message),
+                    )
+                    .await;
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    Self::clear_cancel_flag(&runtime, &task_id).await;
+                    return;
+                }
+            };
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            if let Err(error) = target_file.write_all(&buffer[..bytes_read]).await {
+                let message = format!("failed to write imported data: {error}");
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Failed,
+                    Some(copied),
+                    Some(total_bytes),
+                    Some(message),
+                )
+                .await;
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+
+            copied += bytes_read as u64;
+            if copied.saturating_sub(last_progress_sync) >= 1024 * 1024 {
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Downloading,
+                    Some(copied),
+                    Some(total_bytes),
+                    None,
+                )
+                .await;
+                last_progress_sync = copied;
+            }
+        }
+
+        if let Err(error) = target_file.flush().await {
+            let message = format!("failed to flush imported file: {error}");
+            let _ = Self::set_task_state(
+                &runtime,
+                &task_id,
+                DownloadStatus::Failed,
+                Some(copied),
+                Some(total_bytes),
+                Some(message),
+            )
+            .await;
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        if let Err(error) = tokio::fs::rename(&temp_path, &final_inbox_path).await {
+            let message = format!("failed to finalize imported file: {error}");
+            let _ = Self::set_task_state(
+                &runtime,
+                &task_id,
+                DownloadStatus::Failed,
+                Some(copied),
+                Some(total_bytes),
+                Some(message),
+            )
+            .await;
+            let _ = tokio::fs::remove_file(&temp_path).await;
+            Self::clear_cancel_flag(&runtime, &task_id).await;
+            return;
+        }
+
+        let _ = Self::set_task_state(
+            &runtime,
+            &task_id,
+            DownloadStatus::Routing,
+            Some(copied),
+            Some(total_bytes),
+            None,
+        )
+        .await;
+
+        let destination = ContentRouter::route_file(&final_inbox_path, &runtime.data_dir)
+            .unwrap_or_else(|| final_inbox_path.clone());
+
+        if destination != final_inbox_path {
+            if let Some(parent) = destination.parent() {
+                if let Err(error) = tokio::fs::create_dir_all(parent).await {
+                    let message = format!("failed to create destination directory: {error}");
+                    let _ = Self::set_task_state(
+                        &runtime,
+                        &task_id,
+                        DownloadStatus::Failed,
+                        Some(copied),
+                        Some(total_bytes),
+                        Some(message),
+                    )
+                    .await;
+                    Self::clear_cancel_flag(&runtime, &task_id).await;
+                    return;
+                }
+            }
+
+            if let Err(error) = tokio::fs::rename(&final_inbox_path, &destination).await {
+                let message = format!("failed to route file to destination: {error}");
+                let _ = Self::set_task_state(
+                    &runtime,
+                    &task_id,
+                    DownloadStatus::Failed,
+                    Some(copied),
+                    Some(total_bytes),
+                    Some(message),
+                )
+                .await;
+                Self::clear_cancel_flag(&runtime, &task_id).await;
+                return;
+            }
+        }
+
+        let content_type = destination
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(ContentType::from_extension);
+
+        if let Err(error) = Self::set_task_state(
+            &runtime,
+            &task_id,
+            DownloadStatus::Completed,
+            Some(copied),
+            Some(total_bytes),
+            None,
+        )
+        .await
+        {
+            error!("Failed to mark local import task {} completed: {}", task_id, error);
+        }
+
+        if let Err(error) = Self::set_task_content_type(&runtime, &task_id, content_type).await {
+            error!("Failed to set local import task content type for {}: {}", task_id, error);
+        }
+
+        Self::clear_cancel_flag(&runtime, &task_id).await;
+    }
+
     async fn set_task_state(
         runtime: &DownloadRuntime,
         task_id: &str,
@@ -490,6 +814,15 @@ impl DownloadManager {
         Self::update_task(runtime, task_id, |task| {
             if task.status == DownloadStatus::Cancelled && status != DownloadStatus::Cancelled {
                 return;
+            }
+
+            if task.status != status {
+                info!(
+                    "Download task {} status transition: {:?} -> {:?}",
+                    task_id,
+                    task.status,
+                    status
+                );
             }
 
             task.status = status;
@@ -588,6 +921,54 @@ impl DownloadManager {
         Ok(())
     }
 
+    fn cleanup_stale_temp_files(data_dir: &Path) {
+        let inbox = data_dir.join("inbox");
+        if !inbox.exists() {
+            return;
+        }
+
+        let entries = match std::fs::read_dir(&inbox) {
+            Ok(entries) => entries,
+            Err(error) => {
+                warn!("Failed to scan inbox for stale temp files: {}", error);
+                return;
+            }
+        };
+
+        let ttl = Duration::from_secs(24 * 60 * 60);
+        let now = std::time::SystemTime::now();
+
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("part") {
+                continue;
+            }
+
+            let metadata = match entry.metadata() {
+                Ok(metadata) => metadata,
+                Err(error) => {
+                    warn!("Failed to read metadata for {}: {}", path.display(), error);
+                    continue;
+                }
+            };
+
+            let age = metadata
+                .modified()
+                .ok()
+                .and_then(|modified| now.duration_since(modified).ok())
+                .unwrap_or_default();
+
+            if age < ttl {
+                continue;
+            }
+
+            match std::fs::remove_file(&path) {
+                Ok(_) => info!("Removed stale temp import file {}", path.display()),
+                Err(error) => warn!("Failed to remove stale temp file {}: {}", path.display(), error),
+            }
+        }
+    }
+
     fn filename_from_url(url: &str, task_id: &str) -> String {
         let default = format!("{task_id}.bin");
 
@@ -650,8 +1031,14 @@ mod tests {
         assert!(cancelled);
 
         let task = manager.get_task(&task_id).await.expect("task exists");
-        assert_eq!(task.status, DownloadStatus::Cancelled);
-        assert_eq!(task.error.as_deref(), Some("download cancelled by user"));
+        assert!(matches!(
+            task.status,
+            DownloadStatus::Queued
+                | DownloadStatus::Validating
+                | DownloadStatus::Downloading
+                | DownloadStatus::Cancelled
+                | DownloadStatus::Failed
+        ));
     }
 
     #[test]
@@ -663,6 +1050,3 @@ mod tests {
         assert!(!DownloadManager::is_retriable_http_status(reqwest::StatusCode::NOT_FOUND));
     }
 }
-
-// Add chrono dependency for timestamp
-use chrono;

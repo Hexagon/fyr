@@ -1,16 +1,45 @@
 # Multi-stage Dockerfile for Fyr
 # Builds a minimal, efficient container image
 
+# Stage 0: Frontend builder
+FROM node:24-bookworm AS frontend-builder
+
+WORKDIR /build/crates/ui/frontend
+
+COPY crates/ui/frontend/package.json crates/ui/frontend/package-lock.json ./
+RUN npm ci
+
+COPY crates/ui/frontend ./
+RUN npm run build
+
 # Stage 1: Builder
-FROM rust:1.75 as builder
+FROM rust:bookworm AS builder
 
 WORKDIR /build
 
-# Copy entire project
-COPY . .
+# Copy workspace manifests first so dependency compilation can be cached.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/types/Cargo.toml crates/types/Cargo.toml
+COPY crates/downloader/Cargo.toml crates/downloader/Cargo.toml
+COPY crates/server/Cargo.toml crates/server/Cargo.toml
+COPY crates/ui/Cargo.toml crates/ui/Cargo.toml
 
-# Build release binary
-RUN cargo build --release -p server --bin fyr
+# Prime Cargo's dependency layer with minimal crate sources.
+RUN mkdir -p crates/types/src crates/downloader/src crates/server/src crates/ui/src \
+  && touch crates/types/src/lib.rs crates/downloader/src/lib.rs crates/ui/src/lib.rs \
+  && printf 'fn main() {}\n' > crates/server/src/main.rs
+
+RUN cargo build --release --locked -p server --bin fyr
+
+# Copy the real project contents after dependencies are cached.
+COPY crates crates
+COPY public public
+COPY --from=frontend-builder /build/public/static /build/public/static
+
+# Ensure Cargo sees copied sources as newer than the priming stub files.
+RUN find crates -type f -exec touch {} +
+
+RUN cargo build --release --locked -p server --bin fyr
 
 # Stage 2: Runtime (minimal base image)
 FROM debian:bookworm-slim
