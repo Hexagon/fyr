@@ -24,7 +24,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 
 ## 3a. Using the AI Assistant
 - Open the Assistant tab from the top navigation.
-- Use **Import Model** to upload a local `.gguf` file. Fyr stores it in `public/data/inbox/` and imports it into the model library automatically.
+- Use **Open Content Manager** from the Assistant sidebar to jump to the Models section for `.gguf` uploads.
 - For text generation, use GGUF files that include tokenizer metadata.
 - Select a model and press **Load Model**.
 - Enter a prompt and send it to start token streaming.
@@ -60,7 +60,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - If using `.json`, make sure it follows a valid geo dataset structure used by your workflow.
 
 ### Models
-- Open **Assistant** or **Content Manager** and upload a `.gguf` file.
+- Open **Content Manager** and upload a `.gguf` file in the Models section.
 - Fyr validates the GGUF header, stores the upload in `public/data/inbox/`, then imports it into `public/data/models/`.
 - Current inference runtime is implemented for GGUF models with `qwen2` architecture.
 - Other GGUF architectures can still be loaded for validation/health checks but may not support text generation yet.
@@ -72,11 +72,12 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
-- Use **Import File** in Content Manager (or drag/drop) to upload local files and enqueue a local import task.
+- Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
 - Active tasks persist across restarts and are restored automatically.
-- You can cancel queued or in-progress downloads from the downloads panel.
+- Content listings and download tasks refresh automatically as task state changes.
+- You can cancel queued or in-progress downloads from the download manager.
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.

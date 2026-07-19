@@ -10,17 +10,13 @@
         </div>
 
         <div v-if="!sidebarCollapsed" class="sidebar-content">
-          <button class="btn btn-primary" @click="openImportDialog">
-            Import Model
-          </button>
-          <p class="hint-text">Supported model format: .gguf. Import writes to /data/inbox, then moves the model into /data/models.</p>
-          <input
-            ref="modelFileInput"
-            class="hidden-input"
-            type="file"
-            accept=".gguf"
-            @change="onModelFilePicked"
-          />
+          <router-link
+            class="btn btn-primary import-link"
+            :to="{ name: 'ContentManager', query: { category: 'models' } }"
+          >
+            Open Content Manager
+          </router-link>
+          <p class="hint-text">Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.</p>
 
           <div class="model-list">
             <button
@@ -104,7 +100,6 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const sidebarCollapsed = ref(false)
-const modelFileInput = ref(null)
 const models = ref([])
 const selectedModel = ref(null)
 const modelHealth = ref(null)
@@ -114,7 +109,6 @@ const temperature = ref(0.7)
 const maxTokens = ref(512)
 const loadingModel = ref(false)
 const streaming = ref(false)
-const modelImportSource = ref('inbox')
 const chatHistoryRef = ref(null)
 const activeAssistantMessage = ref(null)
 let eventSource = null
@@ -148,37 +142,6 @@ const scrollChatHistoryToBottom = async () => {
   const element = chatHistoryRef.value
   if (element) {
     element.scrollTop = element.scrollHeight
-  }
-}
-
-const openImportDialog = () => {
-  modelFileInput.value?.click()
-}
-
-const onModelFilePicked = async (event) => {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  try {
-    const uploadResponse = await apiService.uploadModel(file)
-    await apiService.importModel(uploadResponse.data.filename, modelImportSource.value)
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: `Imported ${uploadResponse.data.filename} to /data/models.`
-    })
-    await loadModels()
-  } catch (error) {
-    const detail = apiService.handleError(error)
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: `Health check: import failed for ${file.name}. ${detail}`
-    })
-  } finally {
-    if (event.target) {
-      event.target.value = ''
-    }
   }
 }
 
@@ -383,8 +346,11 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
-.hidden-input {
-  display: none;
+.import-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .model-list {

@@ -185,7 +185,21 @@ impl DownloadManager {
     /// List all tasks
     pub async fn list_tasks(&self) -> Vec<DownloadTask> {
         let tasks = self.tasks.read().await;
-        tasks.values().cloned().collect()
+        let mut values: Vec<_> = tasks.values().cloned().collect();
+        values.sort_by(|left, right| {
+            let left_updated = chrono::DateTime::parse_from_rfc3339(&left.updated_at).ok();
+            let right_updated = chrono::DateTime::parse_from_rfc3339(&right.updated_at).ok();
+            let left_created = chrono::DateTime::parse_from_rfc3339(&left.created_at).ok();
+            let right_created = chrono::DateTime::parse_from_rfc3339(&right.created_at).ok();
+
+            right_updated
+                .cmp(&left_updated)
+                .then_with(|| right.updated_at.cmp(&left.updated_at))
+                .then_with(|| right_created.cmp(&left_created))
+                .then_with(|| right.created_at.cmp(&left.created_at))
+                .then_with(|| right.id.cmp(&left.id))
+        });
+        values
     }
 
     async fn run_url_download(runtime: DownloadRuntime, task_id: String, url: String) {
@@ -1048,5 +1062,54 @@ mod tests {
         assert!(DownloadManager::is_retriable_http_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
         assert!(!DownloadManager::is_retriable_http_status(reqwest::StatusCode::BAD_REQUEST));
         assert!(!DownloadManager::is_retriable_http_status(reqwest::StatusCode::NOT_FOUND));
+    }
+
+    #[tokio::test]
+    async fn list_tasks_returns_newest_updates_first() {
+        let data_dir = test_data_dir();
+        let manager = DownloadManager::new(&data_dir);
+
+        {
+            let mut tasks = manager.tasks.write().await;
+            tasks.insert(
+                "older".to_string(),
+                DownloadTask {
+                    id: "older".to_string(),
+                    source: DownloadSource::Url {
+                        url: "https://example.com/older.epub".to_string(),
+                    },
+                    status: DownloadStatus::Completed,
+                    progress: 100.0,
+                    bytes_downloaded: 10,
+                    total_bytes: Some(10),
+                    error: None,
+                    content_type: Some(ContentType::Book),
+                    created_at: "2026-07-19T21:00:00+00:00".to_string(),
+                    updated_at: "2026-07-19T21:01:00+00:00".to_string(),
+                },
+            );
+            tasks.insert(
+                "newer".to_string(),
+                DownloadTask {
+                    id: "newer".to_string(),
+                    source: DownloadSource::Url {
+                        url: "https://example.com/newer.epub".to_string(),
+                    },
+                    status: DownloadStatus::Downloading,
+                    progress: 50.0,
+                    bytes_downloaded: 5,
+                    total_bytes: Some(10),
+                    error: None,
+                    content_type: Some(ContentType::Book),
+                    created_at: "2026-07-19T22:00:00+00:00".to_string(),
+                    updated_at: "2026-07-19T22:05:00+00:00".to_string(),
+                },
+            );
+        }
+
+        let tasks = manager.list_tasks().await;
+        let ids: Vec<_> = tasks.into_iter().map(|task| task.id).collect();
+
+        assert_eq!(ids, vec!["newer".to_string(), "older".to_string()]);
     }
 }
