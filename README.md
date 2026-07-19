@@ -3,7 +3,7 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local web server and works without internet once content is present.
 
-![Fyr Hero](./public/assets/fyr-hero.png)
+![Fyr Icon](./public/assets/fyr-icon.svg)
 
 ## Features
 
