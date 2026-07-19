@@ -47,6 +47,10 @@ pub struct StorageResponse {
     pub data_dir: String,
     pub total_bytes: u64,
     pub total_human: String,
+    pub free_bytes: Option<u64>,
+    pub free_human: Option<String>,
+    pub capacity_bytes: Option<u64>,
+    pub capacity_human: Option<String>,
     pub by_category: std::collections::HashMap<String, StorageCategoryInfo>,
 }
 
@@ -253,6 +257,8 @@ pub async fn update_settings(
 pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResponse> {
     let mut by_category = std::collections::HashMap::new();
 
+    let data_dir_info = get_dir_size(state.config.data_dir.clone());
+
     let maps_info = get_dir_size(state.config.maps_dir());
     by_category.insert(
         "maps".to_string(),
@@ -303,12 +309,28 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
         },
     );
 
-    let total_bytes = maps_info.0 + books_info.0 + poi_info.0 + models_info.0 + misc_info.0;
+    let (free_bytes, capacity_bytes) = match get_disk_space(&state.config.data_dir) {
+        Ok((free, total)) => (Some(free), Some(total)),
+        Err(error) => {
+            warn!(
+                "Failed to read disk space for data directory {}: {}",
+                state.config.data_dir.display(),
+                error
+            );
+            (None, None)
+        }
+    };
+
+    let total_bytes = data_dir_info.0;
 
     Json(StorageResponse {
         data_dir: state.config.data_dir.display().to_string(),
         total_bytes,
         total_human: format_bytes(total_bytes),
+        free_bytes,
+        free_human: free_bytes.map(format_bytes),
+        capacity_bytes,
+        capacity_human: capacity_bytes.map(format_bytes),
         by_category,
     })
 }
@@ -1142,6 +1164,12 @@ fn get_dir_size(dir: std::path::PathBuf) -> (u64, usize) {
     }
 
     (total_size, file_count)
+}
+
+fn get_disk_space(path: &FsPath) -> std::io::Result<(u64, u64)> {
+    let free = fs2::available_space(path)?;
+    let total = fs2::total_space(path)?;
+    Ok((free, total))
 }
 
 fn format_bytes(bytes: u64) -> String {
