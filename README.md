@@ -15,73 +15,34 @@ It runs as a local web server and works without internet once content is present
 
 ## One-Minute Start
 
-```bash
-cargo build --release -p server --bin fyr
-./target/release/fyr
-```
-
-Open http://localhost:8080 on the same machine, or `http://<host-or-device-ip>:8080` when Fyr is published from Docker or another host.
-
-## Install and Run
-
-For full installation paths (development from source, Docker on existing systems, and Raspberry Pi OS from scratch with Docker), see [INSTALL.md](INSTALL.md).
-
-### Docker (Production)
-
-```bash
-docker run --rm -p 8080:8080 \
-	-e FYR_HOST=0.0.0.0 \
-	-e DATA_DIR=/data \
-	-v fyr-data:/data \
-	hexagon/fyr:latest
-```
-
-Open http://localhost:8080 on the same machine, or `http://<host-or-device-ip>:8080` from another device.
-
-### Docker (Dev Release)
-
-```bash
-docker run --rm -p 8080:8080 \
-	-e FYR_HOST=0.0.0.0 \
-	-e DATA_DIR=/data \
-	-v fyr-data:/data \
-	hexagon/fyr:dev
-```
-
-Note: `hexagon/fyr:dev` is a pre-release tag for testing and validation. Use `hexagon/fyr:latest` for production workloads.
-
-### Manual Build and Run
+If you have Rust installed and need a quick local launch, you can build Fyr from source:
 
 ```bash
 cargo build --release -p server --bin fyr
 ./target/release/fyr
 ```
 
-On Windows PowerShell:
+Open `http://localhost:8080` on the same machine.
 
-```powershell
-cargo build --release -p server --bin fyr
-.\target\release\fyr.exe
-```
+## Installation & Deployment
 
-`FYR_HOST` controls the bind address. Keep the default `127.0.0.1` for local-only access, or set `FYR_HOST=0.0.0.0` when Fyr runs in Docker or should be reachable from other devices. In a browser, use the machine or device address that publishes port `8080`; do not use the container bind address itself.
+For comprehensive installation paths, please refer to [INSTALL.md](/INSTALL.md). It serves as the single source of truth for deployment and includes step-by-step guides for:
 
-## Docker Data Behavior
+* Building from source for development workflows.
+* Running with Docker (both Production and Dev releases) on an existing system.
+* Installing and running Fyr on a clean Raspberry Pi OS setup.
 
-- Mount `DATA_DIR` (default `/data`) as a persistent volume to keep user content across upgrades.
-- Use either Docker named volumes (`-v fyr-data:/data`) or host folder bind-mounts (`-v /path/to/fyr-data:/data`).
-- On startup, Fyr automatically refreshes the two system-managed manuals in `DATA_DIR/books/`:
-	- `user-manual.md`
-	- `developer-manual.md`
-- Other files under `DATA_DIR` are preserved as user-managed content.
-- Reusing the same mount path/volume across reinstalls keeps your data.
+## Data Management
+
+Fyr stores all user content in a persistent data directory (defaulting to `./public/data` locally or `/data` in Docker).
+
+To learn how to persist data across reinstalls, refer to the volume mounting instructions in [INSTALL.md](/INSTALL.md). For a detailed breakdown of folder structures, supported file types, and how Fyr handles automatic system-manual refreshes on startup, see the Data Storage Layout section in the [User Manual](/docs/user/USER_MANUAL.md).
 
 ## Documentation
 
 - Installation guide: [INSTALL.md](INSTALL.md)
-- User guide: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
-- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
-- Project governance and module map: [AGENTS.md](AGENTS.md)
+- User guide: [docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
+- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
 
 ## License
 

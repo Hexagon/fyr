@@ -1,12 +1,14 @@
 # Fyr Installation Guide
 
-This guide provides three installation paths:
+This guide serves as the authoritative reference for deploying Fyr and provides three distinct installation paths:
 
-- Option A: build from source for development workflows.
-- Option B: run with Docker on an existing system.
-- Option C: install Raspberry Pi OS from scratch, then run Fyr with Docker.
+* Option A: build from source for development workflows.
+* Option B: run with Docker on an existing system.
+* Option C: install Raspberry Pi OS from scratch, then run Fyr with Docker.
 
-If you only need a quick local launch, see [README.md](README.md).
+If you only need a quick local launch, see the One-Minute Start in [README.md](README.md).
+
+---
 
 ## Option A: From Source (Development)
 
@@ -14,9 +16,9 @@ Use this path when you want to develop Fyr or run local code changes.
 
 ### Prerequisites
 
-- Rust stable toolchain
-- Node.js 24 (recommended to match CI)
-- npm
+* Rust stable toolchain
+* Node.js 24 (recommended to match CI)
+* npm
 
 ### Build and Run
 
@@ -51,9 +53,11 @@ Windows PowerShell:
 
 ### Optional Runtime Overrides
 
-- `DATA_DIR` (default `./public/data`)
-- `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for Docker/LAN access)
-- `FYR_PORT` (default `8080`)
+* `DATA_DIR` (default `./public/data`)
+* `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for Docker/LAN access)
+* `FYR_PORT` (default `8080`)
+
+---
 
 ## Option B: Docker on an Existing System
 
@@ -67,6 +71,7 @@ docker run --rm -p 8080:8080 \
   -e DATA_DIR=/data \
   -v fyr-data:/data \
   hexagon/fyr:latest
+
 ```
 
 ### Dev Image
@@ -83,8 +88,8 @@ Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>
 
 ### Notes
 
-- Keep `-v fyr-data:/data` to persist maps, books, models, and downloads.
-- `hexagon/fyr:dev` is for testing and validation; use `hexagon/fyr:latest` for production.
+* Keep `-v fyr-data:/data` to persist maps, books, models, and downloads.
+* `hexagon/fyr:dev` is for testing and validation; use `hexagon/fyr:latest` for production.
 
 ### Persist Data Across Reinstalls and Upgrades
 
@@ -125,6 +130,8 @@ Reinstall or upgrade while preserving data:
 1. Stop and remove the old container.
 2. Start a new image tag with the same `-v ...:/data` mount.
 3. Keep `DATA_DIR=/data` unless you intentionally change the container path.
+
+---
 
 ## Option C: Raspberry Pi OS From Scratch (with Docker)
 
@@ -170,7 +177,7 @@ docker run --rm -p 8080:8080 \
 
 Open from another device on the same network:
 
-- `http://<raspberry-pi-ip>:8080`
+* `http://<raspberry-pi-ip>:8080`
 
 ### 4) Optional: Start Automatically on Boot
 
@@ -182,22 +189,25 @@ docker run -d --restart unless-stopped --name fyr \
   -v fyr-data:/data \
   hexagon/fyr:latest
 ```
+---
 
 ## Quick Verification Checklist
 
-- `docker ps` (if running in Docker) shows Fyr container as running.
-- Browser can open `/api/status` on your target host and port.
-- `DATA_DIR` location is writable.
-- Port `8080` is not blocked by firewall or already occupied.
+* `docker ps` (if running in Docker) shows Fyr container as running.
+* Browser can open `/api/status` on your target host and port.
+* `DATA_DIR` location is writable.
+* Port `8080` is not blocked by firewall or already occupied.
+
+---
 
 ## Troubleshooting
 
-- Port in use: change `FYR_PORT` and host port mapping (for Docker).
-- Permission errors: ensure the selected `DATA_DIR` path is writable.
-- Missing content after restart: confirm the `/data` volume is mounted.
+For common startup issues, write permission errors, missing content after a restart, or port conflicts, please refer to the consolidated **Troubleshooting** section in the [User Manual](https://www.google.com/search?q=docs/user/USER_MANUAL.md)[cite: 4].
+
+---
 
 ## Related Documentation
 
-- User manual: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
-- Developer manual: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
-- Project governance and documentation policy: [AGENTS.md](AGENTS.md)
+* User manual: [docs/user/USER_MANUAL.md](https://www.google.com/search?q=docs/user/USER_MANUAL.md)
+
+* Developer manual: [docs/developer/DEVELOPER_MANUAL.md](https://www.google.com/search?q=docs/developer/DEVELOPER_MANUAL.md)
