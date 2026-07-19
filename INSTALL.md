@@ -2,79 +2,15 @@
 
 This guide is the authoritative reference for deploying Fyr. Choose one of three installation paths:
 
-* **Option A** — build from source (development workflows).
-* **Option B** — run with Docker on an existing system.
-* **Option C** — install Raspberry Pi OS from scratch, then run Fyr with Docker.
+* [Docker](#docker) — run on any existing Linux, macOS, or Windows machine.
+* [Raspberry Pi OS From Scratch](#raspberry-pi-os-from-scratch) — clean Raspberry Pi deployments.
+* [From Source](#from-source-development) — build locally for development workflows.
 
 If you only need a quick local launch, see the One-Minute Start in [README.md](README.md).
 
 ---
 
-## Option A: From Source (Development)
-
-Use this path when you want to develop Fyr or run local code changes.
-
-### Prerequisites
-
-* Rust stable toolchain
-* Node.js 24 (recommended to match CI)
-* npm
-
-### Build and Run
-
-1. Build frontend assets:
-
-```bash
-cd crates/ui/frontend
-npm ci
-npm run build
-cd ../../..
-```
-
-2. Build backend binary:
-
-```bash
-cargo build --release -p server --bin fyr
-```
-
-3. Run Fyr:
-
-```bash
-./target/release/fyr
-```
-
-Windows PowerShell:
-
-```powershell
-.\target\release\fyr.exe
-```
-
-4. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
-
-### Optional Runtime Overrides
-
-* `DATA_DIR` (default `./public/data`)
-* `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for LAN access)
-* `FYR_PORT` (default `8080`)
-
-### Upgrading (Option A)
-
-Pull the latest changes and rebuild:
-
-```bash
-git pull
-cd crates/ui/frontend
-npm ci
-npm run build
-cd ../../..
-cargo build --release -p server --bin fyr
-```
-
-Restart the binary. Your data directory is separate from the build output, so no data is affected.
-
----
-
-## Option B: Docker on an Existing System
+## Docker
 
 Use this path for a fast, repeatable deployment on Linux, macOS, or Windows.
 
@@ -112,11 +48,22 @@ docker run --rm -p 8080:8080 `
 
 Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
 
+### Bind-Mount Permissions (Linux)
+
+The Fyr container runs as UID 1000. If your host folder is owned by a different user, the container will fail to write data. Fix this by setting the correct ownership before starting Fyr:
+
+```bash
+mkdir -p /path/to/fyr-data
+sudo chown -R 1000:1000 /path/to/fyr-data
+```
+
+Then use that folder as the bind-mount target. Named volumes (managed by Docker) do not have this issue.
+
 ### Dev Image
 
 Use `hexagon/fyr:dev` for testing pre-release builds. Replace `:latest` with `:dev` in any command above. Do not use the dev image for production deployments.
 
-### Upgrading (Option B)
+### Upgrading
 
 1. Pull the new image:
 
@@ -135,7 +82,7 @@ docker rm <container-id-or-name>
 
 ---
 
-## Option C: Raspberry Pi OS From Scratch (with Docker)
+## Raspberry Pi OS From Scratch
 
 Use this path for clean Raspberry Pi deployments.
 
@@ -190,7 +137,11 @@ docker run -d --restart unless-stopped --name fyr \
   hexagon/fyr:latest
 ```
 
-### Upgrading (Option C)
+### Bind-Mount Permissions
+
+If you use a host folder bind-mount instead of a named volume, set ownership to UID 1000 first (see [Bind-Mount Permissions](#bind-mount-permissions-linux) above).
+
+### Upgrading
 
 1. Pull the new image:
 
@@ -206,6 +157,70 @@ docker rm fyr
 ```
 
 3. Re-run the same `docker run` command from step 3 or 4 above. The `fyr-data` volume is preserved.
+
+---
+
+## From Source (Development)
+
+Use this path when you want to develop Fyr or run local code changes.
+
+### Prerequisites
+
+* Rust stable toolchain
+* Node.js 24 (recommended to match CI)
+* npm
+
+### Build and Run
+
+1. Build frontend assets:
+
+```bash
+cd crates/ui/frontend
+npm ci
+npm run build
+cd ../../..
+```
+
+2. Build backend binary:
+
+```bash
+cargo build --release -p server --bin fyr
+```
+
+3. Run Fyr:
+
+```bash
+./target/release/fyr
+```
+
+Windows PowerShell:
+
+```powershell
+.\target\release\fyr.exe
+```
+
+4. Open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` from another device.
+
+### Optional Runtime Overrides
+
+* `DATA_DIR` (default `./public/data`)
+* `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for LAN access)
+* `FYR_PORT` (default `8080`)
+
+### Upgrading
+
+Pull the latest changes and rebuild:
+
+```bash
+git pull
+cd crates/ui/frontend
+npm ci
+npm run build
+cd ../../..
+cargo build --release -p server --bin fyr
+```
+
+Restart the binary. Your data directory is separate from the build output, so no data is affected.
 
 ---
 
