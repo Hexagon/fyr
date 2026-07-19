@@ -86,10 +86,6 @@ jobs:
         working-directory: docs/build
         run: npm run build
 
-      - name: Verify Kiwix Compliance
-        working-directory: docs/build
-        run: npm run verify:kiwix
-
   publish-stable-image:
     name: Publish Stable Docker Image
     runs-on: ubuntu-latest

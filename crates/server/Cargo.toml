@@ -27,6 +27,7 @@ candle-core.workspace = true
 candle-nn.workspace = true
 candle-transformers.workspace = true
 tokenizers = "0.22"
+zim = "0.4"
 
 chrono = { version = "0.4", features = ["serde"] }
 

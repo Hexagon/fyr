@@ -9,7 +9,7 @@ It runs as a local web server and works without internet once content is present
 
 - Offline maps with PMTiles
 - Library with EPUB, PDF, Markdown, and ZIM reading
-- Embedded Kiwix web reader for large ZIM archives over HTTP range requests
+- Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
 
@@ -84,12 +84,3 @@ cargo build --release -p server --bin fyr
 ## License
 
 This repository is licensed under MIT. See [LICENSE](LICENSE).
-
-## Third-Party Licensing
-
-- Fyr project code is licensed under MIT.
-- This repository also distributes an embedded Kiwix web bundle under `public/kiwix-static/`.
-- The Kiwix bundle keeps its upstream copyleft licenses and notices:
-	- GPLv3 text: `public/kiwix-static/LICENSE-GPLv3.txt`
-	- AGPLv3 text (for included replay worker artifact): `public/kiwix-static/LICENSE-AGPLv3.txt`
-	- Bundle notice/provenance summary: `public/kiwix-static/THIRD_PARTY_NOTICES.txt`

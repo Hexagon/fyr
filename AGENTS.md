@@ -20,7 +20,6 @@ Do not add new standalone docs unless explicitly requested.
 Repository runtime is public-first:
 
 - [public/static](public/static) - SPA build output
-- [public/kiwix-static](public/kiwix-static) - embedded Kiwix bundle
 - [public/assets](public/assets) - static visual assets
 - [public/data](public/data) - default content data
 
@@ -47,8 +46,8 @@ Path: [crates/server/src](crates/server/src)
 Responsibilities:
 
 - Axum API handlers and routing
-- Static serving for `/static`, `/kiwix`, `/assets`, `/data`, `/docs/books`
-- ZIM API compatibility endpoints
+- Static serving for `/static`, `/assets`, `/data`, `/docs/books`
+- Native ZIM reader API endpoints
 
 ### Downloader Module: downloader
 Path: [crates/downloader/src](crates/downloader/src)
@@ -66,7 +65,7 @@ Responsibilities:
 
 - Vue SPA pages and API integration
 - Maps rendering (MapLibre/PMTiles)
-- Books reading flows (EPUB + embedded ZIM)
+- Books reading flows (EPUB + native ZIM)
 
 ## Development Workflow
 

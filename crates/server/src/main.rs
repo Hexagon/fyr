@@ -90,7 +90,6 @@ fn create_router(state: AppState) -> Router {
     let data_path: PathBuf = state.config.data_dir.clone();
     let books_path: PathBuf = state.config.books_dir();
     let static_path: PathBuf = state.static_dir.clone();
-    let kiwix_path: PathBuf = first_existing_path("public/kiwix-static", "kiwix-static");
     let assets_path: PathBuf = first_existing_path("public/assets", "assets");
     let cors = CorsLayer::new()
         .allow_origin([
@@ -140,14 +139,17 @@ fn create_router(state: AppState) -> Router {
         .route("/api/download/:task_id", delete(handlers::cancel_download))
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
-        .route("/api/kiwix/status", get(handlers::kiwix_status))
-        .route("/api/reader/kiwix/capabilities", get(handlers::kiwix_reader_capabilities))
+        .route("/api/reader/capabilities", get(handlers::reader_capabilities))
+        .route("/api/reader/open/:filename", get(handlers::reader_open))
+        .route("/api/reader/zim/:filename/meta", get(handlers::reader_zim_meta))
+        .route("/api/reader/zim/:filename/capabilities", get(handlers::reader_zim_capabilities))
+        .route("/api/reader/zim/:filename/native/article", get(handlers::reader_zim_native_article))
+        .route("/api/reader/zim/:filename/native/search", get(handlers::reader_zim_native_search))
+        .route("/api/reader/zim/:filename/native/content/*path", get(handlers::reader_zim_native_content))
         // Data file serving (for PMTiles, etc.) - use configured data directory
         .nest_service("/data", ServeDir::new(data_path))
         // Book-serving alias for URL-based reader integrations
         .nest_service("/docs/books", ServeDir::new(books_path))
-        // Local Kiwix static reader bundle (kept outside Vite output dir)
-        .nest_service("/kiwix", ServeDir::new(kiwix_path))
         // Optional generic public asset passthrough
         .nest_service("/assets", ServeDir::new(assets_path))
         // Static file serving and SPA fallback

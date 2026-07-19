@@ -1,6 +1,5 @@
 {
   "scripts": {
-    "verify:kiwix": "node verify-kiwix-compliance.js",
     "build:manuals": "node build-manuals.js",
     "build": "node build-manuals.js"
   }

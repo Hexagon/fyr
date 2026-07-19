@@ -73,9 +73,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ### Books
 - Put local book files in `public/data/books/`.
 - URL downloads with supported book extensions are routed to `books/` automatically.
-- For ZIM archives, use Kiwix's library and download index:
-  - `https://library.kiwix.org`
-  - `https://download.kiwix.org/zim/`
+- For ZIM archives, use trusted OpenZIM-compatible sources.
 
 ### Maps
 - Put `.pmtiles` files in `public/data/maps/`.
@@ -105,18 +103,9 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - You can cancel queued or in-progress downloads from the downloads panel.
 
 ## 5. ZIM Reading
-- Select a `.zim` file in Books and Fyr opens it directly in the embedded reader.
-- Kiwix web bundle is served from `/kiwix/www/index.html`.
-- Book archives are served at `/docs/books/<filename>.zim` with byte-range support.
-- Capabilities endpoint: `/api/reader/kiwix/capabilities`.
-
-Licensing note for embedded reader:
-- Fyr core project code is MIT-licensed.
-- The embedded Kiwix bundle under `public/kiwix-static/` is a third-party component with its own copyleft licenses.
-- License texts are distributed in:
-  - `public/kiwix-static/LICENSE-GPLv3.txt`
-  - `public/kiwix-static/LICENSE-AGPLv3.txt`
-  - `public/kiwix-static/THIRD_PARTY_NOTICES.txt`
+- Select a `.zim` file in Books and Fyr opens it using the native reader module.
+- Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
+- Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
@@ -163,9 +152,9 @@ Environment overrides:
 - Cancel the task and retry the URL.
 - For repeated failures, verify the source URL is reachable and supports direct file transfer.
 
-### Kiwix view not loading
-- Confirm `public/kiwix-static/www/index.html` exists.
-- Check `/api/kiwix/status`.
+### ZIM view not loading
+- Confirm the selected `.zim` file exists under `public/data/books/` (or your configured `DATA_DIR/books/`).
+- Check the server status and retry opening the archive.
 
 ### Assistant model import fails
 - Confirm the model file extension is `.gguf`.

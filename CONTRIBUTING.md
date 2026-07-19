@@ -7,7 +7,7 @@ This guide is intentionally short and points to canonical docs for details.
 
 Prerequisites:
 - Rust 1.70+
-- Node.js 18+ (CI uses Node 20)
+- Node.js 18+ (CI uses Node 24)
 - npm 9+
 
 Helpful references:
@@ -30,7 +30,7 @@ Run from repo root:
 cargo test --workspace --all-targets
 cargo check -p server
 (cd crates/ui/frontend && npm ci && npm run build)
-(cd docs/build && npm ci && npm run build && npm run verify:kiwix)
+(cd docs/build && npm ci && npm run build)
 ```
 
 ## 4. Documentation Update Rules
@@ -51,4 +51,4 @@ Canonical docs are limited to:
 - Keep Fyr naming consistent (`Fyr`, `FYR_HOST`, `FYR_PORT`).
 - Respect module ownership in [AGENTS.md](AGENTS.md).
 - Source code is MIT licensed (see [LICENSE](LICENSE)).
-- Embedded Kiwix assets in `public/kiwix-static/` retain upstream copyleft licenses.
+- Native ZIM reading is implemented in server code using Rust dependencies declared in `crates/server/Cargo.toml`.
