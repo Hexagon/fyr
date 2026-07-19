@@ -130,16 +130,16 @@ AI assistant endpoints:
 - `GET /api/models/:filename/infer/stream`
 
 Model upload/import flow:
-- Frontend uploads `.gguf` files as multipart form data to `POST /api/models/upload`.
+- Model uploads are initiated from the Content Manager models section; the Assistant links there instead of uploading directly.
+- Content Manager uploads `.gguf` files as multipart form data to `POST /api/import/upload`.
 - The server sanitizes the filename, validates the `.gguf` extension and `GGUF` magic bytes, and writes the file into `DATA_DIR/inbox`.
-- Frontend then calls `POST /api/models/import` with source `inbox` so `ModelManager` can move the file into `DATA_DIR/models`.
-- Assistant and Content Manager now share this same upload-plus-import flow instead of relying on placeholder status text or manual pre-placement.
+- Frontend then calls `POST /api/import/download/:filename`, allowing `DownloadManager` to route the staged file into `DATA_DIR/models`.
 
 Generic local import flow:
 - Content Manager uploads supported files as multipart form data to `POST /api/import/upload`.
 - Server writes uploaded files to `DATA_DIR/inbox` and returns detected content type metadata.
 - Frontend then calls `POST /api/import/download/:filename` to enqueue a `DownloadSource::LocalFile` task.
-- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads.
+- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads, and the frontend refreshes both download tasks and content listings when task states change.
 
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
