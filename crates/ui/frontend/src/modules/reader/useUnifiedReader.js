@@ -75,6 +75,12 @@ const rewriteSrcset = (value, mapUrl) => {
     .join(', ')
 }
 
+const sanitizeNativeZimBodyHtml = (html) => {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true }
+  })
+}
+
 const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
   const parser = new DOMParser()
   const doc = parser.parseFromString(String(html || ''), 'text/html')
@@ -112,6 +118,7 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
   doc.querySelectorAll('link[rel="stylesheet"][href]').forEach((link) => {
     const href = mapAssetUrl(link.getAttribute('href'))
     if (!href) return
+    if (!href.startsWith('/api/reader/zim/')) return
     const media = link.getAttribute('media')
     const mediaAttr = media ? ` media="${media}"` : ''
     injectedHeadAssets.push(`<link rel="stylesheet" href="${href}"${mediaAttr}>`)
@@ -136,8 +143,10 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     node.setAttribute('srcset', rewriteSrcset(srcset, mapAssetUrl))
   })
 
-  const bodyHtml = doc.body.innerHTML
-  return `${injectedHeadAssets.join('')}\n${bodyHtml}`
+  return {
+    headHtml: injectedHeadAssets.join(''),
+    bodyHtml: doc.body.innerHTML
+  }
 }
 
 export const useUnifiedReader = () => {
@@ -266,9 +275,7 @@ export const useUnifiedReader = () => {
       )
       zimNativeArticle.value = {
         ...nativeArticle,
-        content: DOMPurify.sanitize(rendered, {
-          USE_PROFILES: { html: true }
-        })
+        content: `${rendered.headHtml}\n${sanitizeNativeZimBodyHtml(rendered.bodyHtml)}`
       }
       status.value = `opened ${descriptor.filename}`
       return
@@ -287,9 +294,7 @@ export const useUnifiedReader = () => {
     )
     zimNativeArticle.value = {
       ...nativeArticle,
-      content: DOMPurify.sanitize(rendered, {
-        USE_PROFILES: { html: true }
-      })
+      content: `${rendered.headHtml}\n${sanitizeNativeZimBodyHtml(rendered.bodyHtml)}`
     }
     return zimNativeArticle.value
   }
