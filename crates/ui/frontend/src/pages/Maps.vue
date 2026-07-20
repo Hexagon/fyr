@@ -1060,7 +1060,7 @@ onBeforeUnmount(() => {
 }
 
 .overlay-layers {
-  top: 0.75rem;
+  top: 7rem;
   right: 0.75rem;
   width: 250px;
 }
@@ -1265,7 +1265,7 @@ onBeforeUnmount(() => {
   }
 
   .overlay-layers {
-    top: 3.4rem;
+    top: 7rem;
   }
 
   .overlay-info {
