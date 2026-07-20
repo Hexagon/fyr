@@ -59,7 +59,7 @@ import { useRoute } from 'vue-router'
 import { loadAppSettings } from './services/settings'
 import { useLocationState } from './services/location'
 import { getLocationClock } from './services/locationClock'
-import { loadAuthStatus, logout, useAuthState } from './services/auth'
+import { loadAuthStatus, logout, useAuthState, isAdminLocked } from './services/auth'
 
 const route = useRoute()
 const locationState = useLocationState()
@@ -77,12 +77,9 @@ const currentDate = computed(() => formatClockDatePart('date', clock.value.dateT
 const headerSummary = computed(() => `${pageHeaderLabel.value}`)
 
 // Show the Content Manager nav link only when not locked out.
-const showAdminNav = computed(() => {
-  if (!authState.loaded) return true // optimistic until status loads
-  if (authState.readonly) return false
-  if (authState.requiresAuth && !authState.authenticated) return false
-  return true
-})
+// isAdminLocked() returns true until auth status is confirmed, so the link
+// is hidden during the brief initial load rather than flickering in.
+const showAdminNav = computed(() => !isAdminLocked())
 
 const handleLogout = async () => {
   await logout()

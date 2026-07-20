@@ -89,7 +89,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Server listening on http://{}:{}", bind_host, bind_port);
 
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

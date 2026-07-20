@@ -46,8 +46,18 @@ const handleLogin = async () => {
   error.value = null
   try {
     await login(password.value)
-    const redirect = router.currentRoute.value.query.redirect || '/content'
-    router.push(redirect)
+    const rawRedirect = router.currentRoute.value.query.redirect
+    // Validate the redirect to prevent open-redirect attacks: must be a
+    // relative path starting with '/' and must not start with '//' (which
+    // browsers interpret as a protocol-relative URL).
+    const safeRedirect =
+      rawRedirect &&
+      typeof rawRedirect === 'string' &&
+      rawRedirect.startsWith('/') &&
+      !rawRedirect.startsWith('//')
+        ? rawRedirect
+        : '/content'
+    router.push(safeRedirect)
   } catch (err) {
     const status = err?.response?.status
     if (status === 429) {

@@ -6,7 +6,7 @@
 
 use crate::AppState;
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{header, HeaderValue, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -15,6 +15,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
+    net::SocketAddr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -114,6 +115,12 @@ impl AuthManager {
 const SESSION_COOKIE_NAME: &str = "fyr_session";
 
 /// Build a `Set-Cookie` header value for the session token.
+///
+/// NOTE: The `Secure` flag is intentionally omitted because Fyr is designed
+/// for local and LAN deployments where HTTPS is typically not available.
+/// For public HTTPS deployments, a TLS-terminating reverse proxy (nginx,
+/// Caddy, etc.) should be placed in front of Fyr and should be configured
+/// to set the `Secure` flag via response-header manipulation if required.
 fn set_cookie_header(token: &str) -> HeaderValue {
     HeaderValue::from_str(&format!(
         "{}={}; HttpOnly; Path=/; SameSite=Strict",
@@ -242,6 +249,7 @@ pub async fn auth_status_handler(
 /// `POST /api/auth/login` — Validate password and create a session.
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Response {
@@ -268,15 +276,16 @@ pub async fn login_handler(
             .into_response();
     };
 
-    // Determine the client IP from the X-Forwarded-For header or fall back to
-    // a placeholder.  This is used only for rate limiting.
+    // Use the real TCP peer address as the primary rate-limit key.
+    // X-Forwarded-For is considered only as a secondary hint and is explicitly
+    // documented as requiring a trusted reverse proxy to be tamper-proof.
+    let peer_ip = addr.ip().to_string();
     let client_ip = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.split(',').next())
-        .unwrap_or("unknown")
-        .trim()
-        .to_string();
+        .map(|s| s.trim().to_string())
+        .unwrap_or(peer_ip);
 
     if state.auth_manager.is_rate_limited(&client_ip) {
         return (

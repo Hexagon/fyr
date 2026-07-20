@@ -59,7 +59,8 @@ export const useAuthState = () => readonly(state)
 
 /** Returns true when admin features should be hidden / blocked for this user. */
 export const isAdminLocked = () => {
-  if (!state.loaded) return false
+  // Fail-safe: treat as locked until the server confirms the access mode.
+  if (!state.loaded) return true
   if (state.readonly) return true
   if (state.requiresAuth && !state.authenticated) return true
   return false
