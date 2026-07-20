@@ -251,6 +251,7 @@ impl ModelManager {
                     let mut input_ids = token_ids.clone();
                     let mut index_pos = 0usize;
                     let mut generated_text = String::new();
+                    // emitted_len tracks bytes already sent from the *visible* (think-stripped) text
                     let mut emitted_len = 0usize;
 
                     for _ in 0..max_tokens {
@@ -300,23 +301,31 @@ impl ModelManager {
                         token_ids.push(next_token);
                         generated_text.push_str(&fragment);
 
-                        if let Some(stop_at) = first_role_marker_index(&generated_text) {
-                            let visible_text = &generated_text[..stop_at];
-                            if visible_text.len() > emitted_len {
-                                let delta = &visible_text[emitted_len..];
-                                if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
-                                    return;
-                                }
-                            }
+                        // Guard against repetition loops before trying to emit anything
+                        if is_repeating(&token_ids) {
                             break;
                         }
 
-                        if generated_text.len() > emitted_len {
-                            let delta = &generated_text[emitted_len..];
+                        // Stop if the model starts generating a new conversation turn
+                        let raw_text = if let Some(stop_at) = first_role_marker_index(&generated_text) {
+                            &generated_text[..stop_at]
+                        } else {
+                            &generated_text
+                        };
+
+                        // Strip any <think>…</think> reasoning blocks before emitting
+                        let visible = strip_think_blocks(raw_text);
+                        if visible.len() > emitted_len {
+                            let delta = &visible[emitted_len..];
                             if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
                                 return;
                             }
-                            emitted_len = generated_text.len();
+                            emitted_len = visible.len();
+                        }
+
+                        // If we hit a role marker, stop after emitting the visible prefix
+                        if first_role_marker_index(&generated_text).is_some() {
+                            break;
                         }
 
                         index_pos = token_ids.len() - 1;
@@ -360,8 +369,40 @@ fn format_chat_prompt(prompt: &str) -> String {
     )
 }
 
+/// Strip `<think>…</think>` reasoning blocks from `text`.
+///
+/// Completed blocks are removed entirely.  If the text ends inside an
+/// unclosed `<think>` block the output is truncated at the opening tag so
+/// that in-progress reasoning is never forwarded to the client.
+fn strip_think_blocks(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut remaining = text;
+
+    loop {
+        match remaining.find("<think>") {
+            None => {
+                result.push_str(remaining);
+                break;
+            }
+            Some(pos) => {
+                result.push_str(&remaining[..pos]);
+                remaining = &remaining[pos + 7..]; // skip "<think>"
+                match remaining.find("</think>") {
+                    None => break, // still inside think block – stop emitting
+                    Some(end) => {
+                        remaining = &remaining[end + 8..]; // skip "</think>"
+                    }
+                }
+            }
+        }
+    }
+
+    result
+}
+
 fn first_role_marker_index(text: &str) -> Option<usize> {
-    const ROLE_MARKERS: [&str; 8] = [
+    // Text-style role prefixes that are only valid at line start
+    const LINE_MARKERS: [&str; 8] = [
         "ASSISTENT:",
         "ANVÄNDARE:",
         "ASSISTANT:",
@@ -371,8 +412,10 @@ fn first_role_marker_index(text: &str) -> Option<usize> {
         "\nASSISTANT:",
         "\nUSER:",
     ];
+    // ChatML control tokens – stop at any position in the output
+    const CHATML_MARKERS: [&str; 2] = ["<|im_start|>", "<|im_end|>"];
 
-    ROLE_MARKERS
+    let line_stop = LINE_MARKERS
         .iter()
         .filter_map(|marker| {
             text.match_indices(marker).find_map(|(index, _)| {
@@ -383,5 +426,125 @@ fn first_role_marker_index(text: &str) -> Option<usize> {
                 }
             })
         })
-        .min()
+        .min();
+
+    let chatml_stop = CHATML_MARKERS
+        .iter()
+        .filter_map(|marker| text.find(marker))
+        .min();
+
+    match (line_stop, chatml_stop) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+/// Return true if the tail of `tokens` shows a repetition loop.
+///
+/// Specifically: if the last `WINDOW` tokens are identical to the `WINDOW`
+/// tokens immediately before them, the model is stuck repeating itself.
+fn is_repeating(tokens: &[u32]) -> bool {
+    const WINDOW: usize = 32;
+    if tokens.len() < WINDOW * 2 {
+        return false;
+    }
+    let n = tokens.len();
+    tokens[n - WINDOW * 2..n - WINDOW] == tokens[n - WINDOW..]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{first_role_marker_index, is_repeating, strip_think_blocks};
+
+    // --- strip_think_blocks ---
+
+    #[test]
+    fn strip_no_think_tag_unchanged() {
+        assert_eq!(strip_think_blocks("Hello world"), "Hello world");
+    }
+
+    #[test]
+    fn strip_complete_think_block_removed() {
+        assert_eq!(
+            strip_think_blocks("Hello <think>internal reasoning</think> World"),
+            "Hello  World"
+        );
+    }
+
+    #[test]
+    fn strip_multiple_think_blocks() {
+        assert_eq!(
+            strip_think_blocks("<think>A</think>foo<think>B</think>bar"),
+            "foobar"
+        );
+    }
+
+    #[test]
+    fn strip_unclosed_think_block_truncates() {
+        assert_eq!(
+            strip_think_blocks("Visible<think>hidden and growing"),
+            "Visible"
+        );
+    }
+
+    #[test]
+    fn strip_empty_think_block() {
+        assert_eq!(strip_think_blocks("A<think></think>B"), "AB");
+    }
+
+    // --- first_role_marker_index ---
+
+    #[test]
+    fn role_marker_detects_user_at_start_of_line() {
+        let text = "Hello\nUSER: oops";
+        assert_eq!(first_role_marker_index(text), Some(6));
+    }
+
+    #[test]
+    fn role_marker_ignores_inline_user() {
+        // "USER:" not at a line boundary should be ignored
+        let text = "Some text USER: more text";
+        assert_eq!(first_role_marker_index(text), None);
+    }
+
+    #[test]
+    fn role_marker_detects_chatml_anywhere() {
+        let text = "Hello<|im_end|>World";
+        assert_eq!(first_role_marker_index(text), Some(5));
+    }
+
+    #[test]
+    fn role_marker_detects_im_start_anywhere() {
+        let text = "Partial response<|im_start|>user";
+        assert_eq!(first_role_marker_index(text), Some(16));
+    }
+
+    #[test]
+    fn role_marker_returns_none_for_clean_text() {
+        assert_eq!(first_role_marker_index("Just a normal response."), None);
+    }
+
+    // --- is_repeating ---
+
+    #[test]
+    fn repetition_not_detected_when_short() {
+        let tokens: Vec<u32> = (0..10).collect();
+        assert!(!is_repeating(&tokens));
+    }
+
+    #[test]
+    fn repetition_detected_when_window_repeats() {
+        let mut tokens: Vec<u32> = (0..32).collect();
+        let repeat: Vec<u32> = tokens.clone();
+        tokens.extend_from_slice(&repeat);
+        assert!(is_repeating(&tokens));
+    }
+
+    #[test]
+    fn repetition_not_detected_for_varied_tokens() {
+        let tokens: Vec<u32> = (0..64).collect();
+        assert!(!is_repeating(&tokens));
+    }
 }

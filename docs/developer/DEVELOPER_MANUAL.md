@@ -31,6 +31,30 @@ Performance recommendation:
 RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 ```
 
+### Inference hardening
+
+The streaming inference loop in `crates/server/src/ai/manager.rs` applies three guards before sending tokens to the client:
+
+1. **Repetition detection** — `is_repeating()` compares the last 32 generated tokens with the 32 tokens before them. If they match, generation stops immediately. This prevents models from getting stuck in a loop when temperature is low or the prompt is ambiguous.
+
+2. **`<think>` block stripping** — `strip_think_blocks()` removes content between `<think>` and `</think>` tags before emitting any text. If the closing tag has not yet arrived the output is held back at the opening tag. This prevents internal reasoning from models such as Qwen3 and DeepSeek-R1 from reaching the chat UI.
+
+3. **ChatML stop markers** — `first_role_marker_index()` now catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
+
+### Recommended model files
+
+Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with embedded tokenizer metadata.
+
+| Use case | Suggested model | Quantization |
+|---|---|---|
+| Low memory (≤2 GB, Raspberry Pi) | `Qwen2.5-0.5B-Instruct` | Q4_K_M |
+| General use | `Qwen2.5-1.5B-Instruct` | Q4_K_M or Q6_K |
+| Higher quality (≥8 GB RAM) | `Qwen2.5-3B-Instruct` | Q6_K or Q8_0 |
+
+GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repository: `Qwen/Qwen2.5-1.5B-Instruct-GGUF`.
+
+**Avoid thinking-mode variants** (e.g. `Qwen3`, `DeepSeek-R1`) for everyday use. Fyr filters their `<think>` reasoning output, but the extra tokens increase latency without adding visible value. Use standard instruction-tuned (`*-Instruct`) variants instead.
+
 Extending model support:
 - Current integration uses GGUF metadata parsing plus quantized variable loading.
 - Add architecture-specific runtime in `crates/server/src/ai/loader.rs` when introducing new generation backends.
