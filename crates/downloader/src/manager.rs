@@ -206,13 +206,14 @@ impl DownloadManager {
             tasks.clone()
         };
 
-        // Clean up the cancel flag
+        // Persist first; only clean up the cancel flag on success
+        self.persist_tasks(&snapshot)?;
+
         {
             let mut flags = self.cancel_flags.write().await;
             flags.remove(task_id);
         }
 
-        self.persist_tasks(&snapshot)?;
         Ok(true)
     }
 

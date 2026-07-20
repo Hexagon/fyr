@@ -766,6 +766,13 @@ pub async fn delete_content_file(
 ) -> Result<StatusCode, StatusCode> {
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
 
+    // Defense-in-depth: reject any filename that still contains a path separator after
+    // sanitization (sanitize_upload_filename uses Path::file_name which already strips
+    // directory components, but this guard is explicit).
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     let dir = match content_type.as_str() {
         "maps" => state.config.maps_dir(),
         "books" => state.config.books_dir(),

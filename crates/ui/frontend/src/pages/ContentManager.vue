@@ -170,6 +170,7 @@
           <strong>{{ confirmDeleteFile.filename }}</strong>?
           This action cannot be undone.
         </p>
+        <p v-if="deleteFileError" class="error-text">{{ deleteFileError }}</p>
         <div class="confirm-actions">
           <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
           <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">
@@ -215,6 +216,7 @@ const contentError = ref(null)
 const downloadsError = ref(null)
 const downloadsLoading = ref(false)
 const confirmDeleteFile = ref(null)
+const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
 let hasLoadedDownloads = false
@@ -332,6 +334,7 @@ const dismissDownload = async (taskId) => {
 }
 
 const requestDeleteContentFile = (file) => {
+  deleteFileError.value = null
   confirmDeleteFile.value = file
 }
 
@@ -341,13 +344,13 @@ const confirmDeleteContentFile = async () => {
   const file = confirmDeleteFile.value
   if (!file) return
   deleteFilePending.value = true
+  deleteFileError.value = null
   try {
     await apiService.deleteContentFile(activeCategory.value, file.filename)
     confirmDeleteFile.value = null
     await loadContent()
   } catch (err) {
-    contentError.value = apiService.handleError(err)
-    confirmDeleteFile.value = null
+    deleteFileError.value = apiService.handleError(err)
   } finally {
     deleteFilePending.value = false
   }
@@ -355,6 +358,7 @@ const confirmDeleteContentFile = async () => {
 
 const cancelDeleteContentFile = () => {
   confirmDeleteFile.value = null
+  deleteFileError.value = null
 }
 
 const openFilePicker = () => {
