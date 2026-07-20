@@ -14,6 +14,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 ## 3. Main Pages
 - **Home:** system status, location, sunrise/sunset, and storage overview.
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
+- **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
@@ -35,6 +36,7 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 
 **What requires admin login:**
 - Content Manager (downloads, imports, file deletion)
+- Settings (location and preferences)
 - Model uploads and model management
 - Storage details on the Overview page
 
@@ -42,7 +44,7 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 1. Click **Log in** in the top-right navbar.
 2. Enter the admin password on the login page.
 3. On success, an **Admin** badge appears in the navbar alongside a **Log out** button.
-4. The Content Manager nav link and storage details become visible.
+4. The Content Manager, Settings nav links and storage details become visible.
 
 **How to log out:**
 Click **Log out** in the navbar. Your session is cleared immediately.
@@ -53,7 +55,7 @@ Click **Log out** in the navbar. Your session is cleared immediately.
 - If you forget the password, restart the server with the correct `FYR_ADMIN_PASSWORD` value.
 
 ### Strict read-only mode (`FYR_READONLY`)
-Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager and model management links are hidden. The server shows a **Read-only** badge in the navbar.
+Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
 
 Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed.
 
