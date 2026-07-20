@@ -182,6 +182,36 @@ impl DownloadManager {
         Ok(true)
     }
 
+    /// Dismiss a download task: cancels it if still active, then removes it from the list.
+    pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        // Signal cancellation if the task is still running
+        let flag = {
+            let flags = self.cancel_flags.read().await;
+            flags.get(task_id).cloned()
+        };
+        if let Some(cancel_flag) = flag {
+            cancel_flag.store(true, Ordering::Relaxed);
+        }
+
+        // Remove the task from the map
+        let snapshot = {
+            let mut tasks = self.tasks.write().await;
+            if tasks.remove(task_id).is_none() {
+                return Ok(false);
+            }
+            tasks.clone()
+        };
+
+        // Clean up the cancel flag
+        {
+            let mut flags = self.cancel_flags.write().await;
+            flags.remove(task_id);
+        }
+
+        self.persist_tasks(&snapshot)?;
+        Ok(true)
+    }
+
     /// List all tasks
     pub async fn list_tasks(&self) -> Vec<DownloadTask> {
         let tasks = self.tasks.read().await;

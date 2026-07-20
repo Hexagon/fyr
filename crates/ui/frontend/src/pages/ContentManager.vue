@@ -48,6 +48,7 @@
                 <th>Name</th>
                 <th>Size</th>
                 <th>Modified</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -55,6 +56,9 @@
                 <td>{{ file.filename }}</td>
                 <td>{{ formatBytes(file.size || 0) }}</td>
                 <td>{{ formatDate(file.modified) }}</td>
+                <td class="actions-cell">
+                  <button class="btn btn-danger btn-inline" @click="requestDeleteContentFile(file)">Delete</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -120,6 +124,13 @@
                 >
                   Cancel
                 </button>
+                <button
+                  v-if="isDownloadDismissible(dl.status)"
+                  class="btn btn-secondary btn-inline"
+                  @click="dismissDownload(dl.id)"
+                >
+                  Dismiss
+                </button>
                 <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
               </div>
             </div>
@@ -150,6 +161,21 @@
     </div>
 
     <div v-if="loading" class="loading">Loading content...</div>
+
+    <div v-if="confirmDeleteFile" class="confirm-overlay">
+      <div class="confirm-dialog">
+        <p class="confirm-warning">⚠️ Permanent deletion</p>
+        <p class="confirm-message">
+          Are you sure you want to permanently delete
+          <strong>{{ confirmDeleteFile.filename }}</strong>?
+          This action cannot be undone.
+        </p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" @click="cancelDeleteContentFile">Cancel</button>
+          <button class="btn btn-danger" @click="confirmDeleteContentFile">Delete permanently</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -186,6 +212,7 @@ const loading = ref(true)
 const contentError = ref(null)
 const downloadsError = ref(null)
 const downloadsLoading = ref(false)
+const confirmDeleteFile = ref(null)
 
 let downloadRefreshTimer = null
 let hasLoadedDownloads = false
@@ -280,6 +307,8 @@ const handleDownload = async () => {
 
 const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
 
+const isDownloadDismissible = (status) => ['completed', 'failed', 'cancelled'].includes(String(status || '').toLowerCase())
+
 const cancelDownload = async (taskId) => {
   try {
     await apiService.cancelDownload(taskId)
@@ -289,6 +318,35 @@ const cancelDownload = async (taskId) => {
   } catch (err) {
     urlDownloadError.value = apiService.handleError(err)
   }
+}
+
+const dismissDownload = async (taskId) => {
+  try {
+    await apiService.dismissDownload(taskId)
+    await loadDownloads()
+  } catch (err) {
+    urlDownloadError.value = apiService.handleError(err)
+  }
+}
+
+const requestDeleteContentFile = (file) => {
+  confirmDeleteFile.value = file
+}
+
+const confirmDeleteContentFile = async () => {
+  const file = confirmDeleteFile.value
+  if (!file) return
+  confirmDeleteFile.value = null
+  try {
+    await apiService.deleteContentFile(activeCategory.value, file.filename)
+    await loadContent()
+  } catch (err) {
+    contentError.value = apiService.handleError(err)
+  }
+}
+
+const cancelDeleteContentFile = () => {
+  confirmDeleteFile.value = null
 }
 
 const openFilePicker = () => {
@@ -861,6 +919,58 @@ onUnmounted(() => {
   color: #9d9d9d;
   font-style: italic;
   margin: 0;
+}
+
+.btn-danger {
+  background: #7a2020;
+  color: #ffdada;
+}
+
+.btn-danger:hover {
+  background: #9e2a2a;
+}
+
+.actions-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  background: #2a2a2a;
+  border: 1px solid #5a3a3a;
+  border-radius: 10px;
+  padding: 1.5rem;
+  max-width: 420px;
+  width: 90%;
+}
+
+.confirm-warning {
+  font-weight: 700;
+  color: #ff8e8e;
+  margin: 0 0 0.5rem;
+}
+
+.confirm-message {
+  color: #cfcfcf;
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
 }
 
 @media (max-width: 1024px) {
