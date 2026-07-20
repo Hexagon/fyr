@@ -198,6 +198,7 @@ Reader and ZIM endpoints:
 Static content aliases:
 - `GET /data/*path` (full data directory)
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
+- Content Manager's per-file **Download** action links to `/data/<category>/<filename>` for browser retrieval.
 
 Native ZIM integration notes:
 - Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.
