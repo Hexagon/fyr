@@ -200,9 +200,10 @@ Static content aliases:
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
 
 Native ZIM integration notes:
-- Frontend opens `.zim` through the unified reader module and fetches metadata/capabilities from native server endpoints.
+- Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.
+- `.zim` archives are opened through the native ZIM module, which fetches metadata/capabilities from server endpoints and renders article HTML in a sandboxed iframe (`srcdoc`) with same-origin navigation bridged via `postMessage`.
 - Server-side article resolution uses the Rust `zim` crate and returns article payloads through `/api/reader/zim/:filename/native/article`.
-- Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`.
+- Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`, and rewritten asset links in the frontend target this endpoint.
 - Native mode is always active for `.zim` archives. The `FYR_ZIM_NATIVE_EXPERIMENTAL` toggle has been removed.
 
 Licensing and distribution notes:

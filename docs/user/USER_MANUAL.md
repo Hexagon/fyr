@@ -120,8 +120,15 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.
+- Use the search input above the article panel to find entries by title or path, then open results directly in the same reader view.
+- Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
+
+## 5c. Reader Shell
+- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
+- On narrow screens, the library list stacks above the reader panel automatically.
 
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.

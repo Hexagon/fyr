@@ -23,7 +23,7 @@ use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use walkdir::WalkDir;
 use tracing::{error, warn};
-use zim::{DirectoryEntry, MimeType, Namespace, Target, Zim};
+use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -1081,7 +1081,15 @@ pub async fn reader_zim_native_search(
 
     let mut results: Vec<ZimNativeSearchItem> = Vec::new();
     let mut seen_paths = std::collections::HashSet::new();
-    for entry in zim.iterate_by_urls() {
+    for entry_result in zim.iterate_by_urls() {
+        let entry = match entry_result {
+            Ok(entry) => entry,
+            Err(error) => {
+                warn!("Skipping invalid ZIM entry while searching {}: {}", sanitized, error);
+                continue;
+            }
+        };
+
         if !is_searchable_article_entry(&entry) {
             continue;
         }
@@ -1273,18 +1281,9 @@ fn extract_zim_title(path: &FsPath) -> Option<String> {
         .ok()? // outer Ok: convert panic result to Option (None on panic)
         .ok()?; // inner Ok: convert Zim::new's Result to Option (None on error)
 
-    let title_entry = zim
-        .iterate_by_urls()
-        .find(|e| matches!(e.namespace, Namespace::Metadata) && e.url == "Title")?;
-
-    let (cluster_idx, blob_idx) = match title_entry.target {
-        Some(Target::Cluster(c, b)) => (c, b),
-        _ => return None,
-    };
-
-    let cluster = zim.get_cluster(cluster_idx).ok()?;
-    let blob = cluster.get_blob(blob_idx).ok()?;
-    let title = String::from_utf8_lossy(blob.as_ref()).trim().to_string();
+    let content = zim.metadata("Title").ok()??;
+    let blob = content.to_vec().ok()?;
+    let title = String::from_utf8_lossy(&blob).trim().to_string();
 
     if title.is_empty() {
         None
@@ -1483,6 +1482,7 @@ fn resolve_main_entry(zim: &Zim) -> Option<DirectoryEntry> {
 
     zim
         .iterate_by_urls()
+        .filter_map(Result::ok)
         .find(|entry| matches!(entry.namespace, Namespace::Articles))
         .and_then(|entry| resolve_redirect(zim, entry, 0).ok())
 }
@@ -1495,7 +1495,7 @@ fn find_entry_by_path_flexible(zim: &Zim, path: &str) -> Option<DirectoryEntry> 
 
     let variants = path_lookup_variants(&normalized);
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         let entry_url = normalize_zim_url(&entry.url);
         let entry_title = normalize_zim_url(&entry.title);
         variants.iter().any(|candidate| entry_url == *candidate || entry_title == *candidate)
@@ -1558,7 +1558,7 @@ fn find_any_entry_by_path(zim: &Zim, path: &str) -> Option<DirectoryEntry> {
         return None;
     }
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         normalize_zim_url(&entry.url) == normalized || normalize_zim_url(&entry.title) == normalized
     })?;
 
@@ -1571,7 +1571,7 @@ fn find_any_entry_by_basename(zim: &Zim, filename: &str) -> Option<DirectoryEntr
         return None;
     }
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         let url = normalize_zim_url(&entry.url);
         let title = normalize_zim_url(&entry.title);
         url.rsplit('/').next().is_some_and(|name| name == needle)
@@ -1593,47 +1593,26 @@ fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
     )
 }
 
-fn resolve_redirect(zim: &Zim, mut entry: DirectoryEntry, mut depth: usize) -> zim::Result<DirectoryEntry> {
-    while depth < 8 {
-        match entry.target {
-            Some(Target::Redirect(index)) => {
-                entry = zim.get_by_url_index(index)?;
-                depth += 1;
-            }
-            _ => return Ok(entry),
-        }
-    }
-
-    Ok(entry)
+fn resolve_redirect(zim: &Zim, entry: DirectoryEntry, _depth: usize) -> zim::Result<DirectoryEntry> {
+    zim.resolve(entry)
 }
 
 fn resolve_entry_bytes(
     zim: &Zim,
     entry: &DirectoryEntry,
 ) -> Result<(String, String, String, Vec<u8>), StatusCode> {
-    let (cluster_idx, blob_idx) = match entry.target {
-        Some(Target::Cluster(cluster_idx, blob_idx)) => (cluster_idx, blob_idx),
-        _ => return Err(StatusCode::NOT_FOUND),
-    };
-
-    let cluster = zim.get_cluster(cluster_idx).map_err(|error| {
+    let content = zim.entry_content(entry).map_err(|error| {
         error!(
-            "Failed to resolve ZIM cluster {} for {}: {}",
-            cluster_idx,
+            "Failed to resolve ZIM content handle for {}: {}",
             entry.url,
             error
         );
         StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?;
 
-    let blob = cluster.get_blob(blob_idx).map_err(|error| {
-        error!(
-            "Failed to resolve ZIM blob {}:{} for {}: {}",
-            cluster_idx,
-            blob_idx,
-            entry.url,
-            error
-        );
+    let bytes = content.to_vec().map_err(|error| {
+        error!("Failed to read ZIM content bytes for {}: {}", entry.url, error);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -1654,7 +1633,7 @@ fn resolve_entry_bytes(
         normalize_zim_url(&entry.url),
         title,
         mime_type,
-        blob.as_ref().to_vec(),
+        bytes,
     ))
 }
 

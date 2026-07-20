@@ -1,150 +1,182 @@
 <template>
   <div class="books-page">
-    <div class="books-container">
-      <aside class="books-sidebar" :class="{ collapsed: sidebarCollapsed }">
-        <div class="sidebar-header">
-          <h3 v-if="!sidebarCollapsed">Books ({{ filteredBooks.length }})</h3>
-          <button
-            class="collapse-btn"
-            @click="toggleSidebar"
-            :title="sidebarCollapsed ? 'Expand book list' : 'Collapse book list'"
-          >
-            {{ sidebarCollapsed ? '»' : '«' }}
-          </button>
-        </div>
+    <div class="books-layout">
+      <aside class="books-library">
+        <header class="library-header">
+          <h2>Library</h2>
+          <p>{{ filteredBooks.length }} item(s)</p>
+        </header>
 
-        <div v-if="!sidebarCollapsed" class="search-box">
+        <div class="library-search">
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search books..."
+            placeholder="Search by title or filename"
             class="search-input"
           />
         </div>
 
-        <p v-if="!sidebarCollapsed" class="hint-text">Supported book formats: .epub, .pdf, .mobi, .md, .zim</p>
+        <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
 
-        <p v-if="!sidebarCollapsed && booksLoading" class="status-state">Loading books...</p>
-        <p v-else-if="!sidebarCollapsed && booksError" class="error-state">{{ booksError }}</p>
-        <div v-else-if="!sidebarCollapsed && filteredBooks.length" class="books-list">
+        <p v-if="booksLoading" class="status-card status-loading">Loading books...</p>
+        <p v-else-if="booksError" class="status-card status-error">{{ booksError }}</p>
+
+        <div v-else-if="filteredBooks.length" class="books-list">
           <button
             v-for="book in filteredBooks"
             :key="book.filename"
-            @click="selectBook(book)"
+            type="button"
             class="book-item"
             :class="{ active: selectedBook?.filename === book.filename }"
+            @click="selectBook(book)"
           >
-            <span class="book-icon">📖</span>
-            <div class="book-details">
-              <span class="book-name">{{ book.title || getDisplayName(book.filename) }}</span>
-              <span v-if="book.title" class="book-filename">{{ book.filename }}</span>
-              <span class="book-size">{{ formatBytes(book.size) }}</span>
+            <div class="book-title-row">
+              <span class="book-title">{{ book.title || getDisplayName(book.filename) }}</span>
+              <span class="book-format">{{ fileExt(book.filename) }}</span>
             </div>
+            <span v-if="book.title" class="book-filename">{{ book.filename }}</span>
+            <span class="book-size">{{ formatBytes(book.size) }}</span>
           </button>
         </div>
 
-        <p v-else-if="!sidebarCollapsed" class="empty-state">
+        <p v-else class="library-empty">
           No books found. <router-link to="/content">Add books</router-link>
         </p>
       </aside>
 
-      <div class="book-viewer">
-        <div v-if="selectedBook" class="book-content">
-          <div v-if="isEpubSelected && epubBook" id="book-viewer" class="book-reader"></div>
-          <div v-else-if="isMarkdownSelected" class="markdown-reader">
-            <article class="markdown-content" v-html="markdownHtml"></article>
-          </div>
-          <div v-else-if="isPdfSelected" class="pdf-reader">
-            <iframe
-              class="pdf-reader-frame"
-              :src="selectedPdfUrl"
-              title="PDF reader"
-              loading="lazy"
-            ></iframe>
-            <p class="hint-text pdf-hint">
-              If inline PDF rendering is unavailable in this browser,
-              <a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer">open it in a new tab</a>.
-            </p>
-          </div>
-          <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
-            <div class="zim-search">
-              <div class="zim-search-row">
-                <input
-                  v-model="zimSearchQuery"
-                  class="zim-search-input"
-                  type="text"
-                  :placeholder="shouldUseNativeZimAdapter ? 'Search article title or path' : 'Enable native ZIM mode to search'"
-                  :disabled="!shouldUseNativeZimAdapter"
-                  @keydown.enter.prevent="runZimSearch"
-                />
-                <button class="zim-search-btn" type="button" :disabled="!shouldUseNativeZimAdapter" @click="runZimSearch">Search</button>
-              </div>
-              <p v-if="zimSearchLoading" class="hint-text">Searching...</p>
-              <div v-else-if="zimSearchResults.length" class="zim-search-results">
-                <button
-                  v-for="result in zimSearchResults"
-                  :key="result.path"
-                  class="zim-search-result"
-                  :class="{ 'is-current': isCurrentSearchResult(result.path) }"
-                  type="button"
-                  :disabled="isCurrentSearchResult(result.path)"
-                  @click="openZimSearchResult(result.path)"
-                  :title="result.path"
-                >
-                  {{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ' (current)' : '' }}
-                </button>
-              </div>
-              <p v-else-if="zimSearchRan" class="hint-text">No matching articles found.</p>
+      <section class="reader-stage">
+        <div v-if="selectedBook" class="reader-shell">
+          <header class="reader-header">
+            <div>
+              <h3>{{ selectedBook.title || getDisplayName(selectedBook.filename) }}</h3>
+              <p class="reader-subtitle">{{ selectedBook.filename }}</p>
             </div>
-            <div v-if="shouldUseNativeZimAdapter" class="zim-native-panel">
+            <div class="reader-badges">
+              <span class="badge badge-format">{{ activeFormat.toUpperCase() }}</span>
+              <span class="badge" :class="readerStatusClass">{{ readerStatusLabel }}</span>
+            </div>
+          </header>
+
+          <div v-if="readerError" class="status-card status-error">{{ readerError }}</div>
+
+          <div class="reader-canvas">
+            <div v-if="isEpubSelected && epubBook" id="book-viewer" class="epub-viewer"></div>
+
+            <div v-else-if="isMarkdownSelected" class="markdown-reader">
+              <article class="markdown-content" v-html="markdownHtml"></article>
+            </div>
+
+            <div v-else-if="isPdfSelected" class="pdf-reader">
               <iframe
-                v-if="zimNativeArticle?.content"
-                class="zim-native-article-frame"
-                :srcdoc="zimNativeArticle.content"
-                sandbox="allow-scripts allow-same-origin"
-                title="ZIM article"
+                class="pdf-frame"
+                :src="pdfUrl || selectedPdfUrl"
+                title="PDF reader"
+                loading="lazy"
               ></iframe>
-              <p v-else class="hint-text">No native article content was returned for this archive.</p>
+              <p class="reader-subtle">
+                If inline PDF rendering is unavailable,
+                <a :href="pdfUrl || selectedPdfUrl" target="_blank" rel="noopener noreferrer">open it in a new tab</a>.
+              </p>
             </div>
-            <div class="zim-status-bar">
-              <p v-if="unifiedReaderStatus !== 'idle'" class="hint-text">Reader module: {{ unifiedReaderStatus }}</p>
-              <p v-if="zimAdapter" class="hint-text">Adapter mode: {{ zimAdapter.mode }}</p>
-              <p v-if="zimMeta" class="hint-text">Archive size: {{ formatBytes(zimMeta.size_bytes) }}</p>
-              <p v-if="shouldUseNativeZimAdapter" class="status-state">Native ZIM adapter path selected for this archive.</p>
-              <p v-if="shouldUseNativeZimAdapter && zimNativeArticle?.title" class="hint-text">Article: {{ zimNativeArticle.title }}</p>
-              <p v-if="!shouldUseNativeZimAdapter" class="error-state">{{ nativeZimUnavailableMessage }}</p>
-              <p v-if="readerError" class="error-state">{{ readerError }}</p>
+
+            <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
+              <div class="zim-tools">
+                <div class="zim-tools-row">
+                  <input
+                    v-model="zimSearchQuery"
+                    type="text"
+                    class="zim-search-input"
+                    :placeholder="shouldUseNativeZimAdapter ? 'Search article title or path' : 'Native ZIM mode is required for search'"
+                    :disabled="!shouldUseNativeZimAdapter"
+                    @keydown.enter.prevent="runZimSearch"
+                  />
+                  <button
+                    type="button"
+                    class="zim-search-button"
+                    :disabled="!shouldUseNativeZimAdapter"
+                    @click="runZimSearch"
+                  >
+                    Search
+                  </button>
+                </div>
+
+                <p v-if="zimSearchLoading" class="reader-subtle">Searching archive...</p>
+
+                <div v-else-if="zimSearchResults.length" class="zim-search-results">
+                  <button
+                    v-for="result in zimSearchResults"
+                    :key="result.path"
+                    type="button"
+                    class="zim-search-result"
+                    :class="{ current: isCurrentSearchResult(result.path) }"
+                    :disabled="isCurrentSearchResult(result.path)"
+                    :title="result.path"
+                    @click="openZimSearchResult(result.path)"
+                  >
+                    {{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ' (current)' : '' }}
+                  </button>
+                </div>
+                <p v-else-if="zimSearchRan" class="reader-subtle">No matching articles found.</p>
+              </div>
+
+              <div class="zim-content">
+                <iframe
+                  v-if="shouldUseNativeZimAdapter && zimNativeArticle?.content"
+                  ref="zimNativeFrameRef"
+                  class="zim-native-frame"
+                  :srcdoc="zimNativeArticle.content"
+                  :style="zimFrameStyle"
+                  @load="onZimFrameLoad"
+                  scrolling="no"
+                  sandbox="allow-scripts allow-same-origin"
+                  title="ZIM article"
+                ></iframe>
+                <p v-else-if="shouldUseNativeZimAdapter" class="reader-subtle">No native article content was returned for this archive.</p>
+                <p v-else class="status-card status-error">{{ nativeZimUnavailableMessage }}</p>
+              </div>
+
+              <footer class="zim-meta">
+                <p v-if="zimAdapter">Adapter: {{ zimAdapter.mode }}</p>
+                <p v-if="zimMeta">Archive size: {{ formatBytes(zimMeta.size_bytes) }}</p>
+                <p v-if="shouldUseNativeZimAdapter && zimNativeArticle?.title">Article: {{ zimNativeArticle.title }}</p>
+              </footer>
             </div>
-          </div>
-          <div v-else class="book-info-empty">
-            Select an EPUB, Markdown file, PDF, or ZIM in the list to read it here.
+
+            <div v-else class="status-card status-warning">
+              Select an EPUB, Markdown file, PDF, or ZIM in the library.
+            </div>
           </div>
         </div>
 
-        <div v-else class="empty-view">
-          <p>Select a book to open the reader.</p>
+        <div v-else class="reader-empty">
+          <p>Pick a book from the library to open the reader.</p>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { apiService } from '../services/api'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useUnifiedReader } from '../modules/reader/useUnifiedReader'
+import { apiService } from '../services/api'
 
 const books = ref([])
 const booksLoading = ref(false)
 const booksError = ref(null)
 const selectedBook = ref(null)
-const sidebarCollapsed = ref(false)
 const searchQuery = ref('')
-const readerCapabilities = ref(null)
 const zimSearchQuery = ref('')
 const zimSearchLoading = ref(false)
 const zimSearchResults = ref([])
 const zimSearchRan = ref(false)
+const zimFrameHeight = ref(null)
+const zimNativeFrameRef = ref(null)
+
+let zimFrameObserver = null
+let zimFrameClickHandler = null
+let zimFrameResizeHandler = null
+let zimFrameSettleTimer = null
 
 const {
   activeFormat,
@@ -155,37 +187,28 @@ const {
   zimMeta,
   zimAdapter,
   zimNativeArticle,
+  pdfUrl,
   hasExtension,
+  decodePathDeep,
   selectBook: selectWithUnifiedReader,
   loadNativeZimArticle,
   resize: resizeUnifiedReader,
   dispose: disposeUnifiedReader
 } = useUnifiedReader()
 
-const isEpubSelected = computed(() => {
-  return activeFormat.value === 'epub' && epubBook.value
-})
-
-const isMarkdownSelected = computed(() => {
-  return activeFormat.value === 'md'
-})
-
-const isPdfSelected = computed(() => {
-  return hasExtension(selectedBook.value?.filename, '.pdf')
-})
+const isEpubSelected = computed(() => activeFormat.value === 'epub' && epubBook.value)
+const isMarkdownSelected = computed(() => activeFormat.value === 'md')
+const isPdfSelected = computed(() => activeFormat.value === 'pdf')
 
 const filteredBooks = computed(() => {
-  const query = searchQuery.value.toLowerCase()
-  return books.value.filter(book => {
+  const query = searchQuery.value.toLowerCase().trim()
+  if (!query) return books.value
+
+  return books.value.filter((book) => {
     const nameMatch = getDisplayName(book.filename).toLowerCase().includes(query)
     const titleMatch = book.title ? book.title.toLowerCase().includes(query) : false
     return nameMatch || titleMatch
   })
-})
-
-const selectedZimUrl = computed(() => {
-  if (!hasExtension(selectedBook.value?.filename, '.zim')) return ''
-  return `/docs/books/${encodeURIComponent(selectedBook.value.filename)}`
 })
 
 const selectedPdfUrl = computed(() => {
@@ -197,26 +220,32 @@ const shouldUseNativeZimAdapter = computed(() => {
   return activeFormat.value === 'zim' && zimAdapter.value?.supports_native_render === true
 })
 
-const decodePathDeep = (value, maxRounds = 3) => {
-  let out = String(value || '')
-  for (let i = 0; i < maxRounds; i += 1) {
-    try {
-      const decoded = decodeURIComponent(out)
-      if (decoded === out) break
-      out = decoded
-    } catch {
-      break
-    }
-  }
-  return out
-}
+const readerStatusClass = computed(() => {
+  if (readerError.value) return 'badge-error'
+  if (unifiedReaderStatus.value.startsWith('loading')) return 'badge-loading'
+  if (unifiedReaderStatus.value.startsWith('opened')) return 'badge-ready'
+  if (unifiedReaderStatus.value === 'unsupported format') return 'badge-warning'
+  return 'badge-idle'
+})
+
+const readerStatusLabel = computed(() => {
+  if (unifiedReaderStatus.value === 'idle') return 'idle'
+  return unifiedReaderStatus.value
+})
 
 const nativeZimUnavailableMessage = computed(() => {
-  if (activeFormat.value !== 'zim') {
-    return ''
+  if (activeFormat.value !== 'zim') return ''
+  return 'Native ZIM parsing is unavailable for this archive with the current parser implementation.'
+})
+
+const zimFrameStyle = computed(() => {
+  if (!zimFrameHeight.value) {
+    return null
   }
 
-  return 'Native ZIM parsing is unavailable for this archive with the current parser implementation.'
+  return {
+    height: `${zimFrameHeight.value}px`
+  }
 })
 
 const normalizePathKey = (value) => {
@@ -226,41 +255,199 @@ const normalizePathKey = (value) => {
     .toLowerCase()
 }
 
-const isCurrentSearchResult = (path) => {
-  const current = normalizePathKey(zimNativeArticle.value?.path)
-  if (!current) {
-    return false
-  }
-  return normalizePathKey(path) === current
+const currentZimArticleBase = () => {
+  const currentPath = String(zimNativeArticle.value?.path || '').trim()
+  const normalized = `/${currentPath.replace(/^\/+/, '')}`
+  const safe = normalized === '/' ? '/' : normalized
+  return new URL(safe, window.location.origin)
 }
 
-const handleZimMessage = async (event) => {
-  if (event.origin !== window.location.origin) return
-  if (event.data?.type !== 'zim-navigate') return
+const resolveNativeArticlePath = (rawHref) => {
+  const href = String(rawHref || '').trim()
+  if (!href || href.startsWith('#')) {
+    return null
+  }
 
-  const rawHref = String(event.data.href || '')
-  if (!rawHref || rawHref.startsWith('#')) return
-
-  const lowerHref = rawHref.toLowerCase()
+  const lowerHref = href.toLowerCase()
   if (
     lowerHref.startsWith('mailto:') ||
     lowerHref.startsWith('javascript:') ||
     lowerHref.startsWith('data:') ||
     lowerHref.startsWith('vbscript:')
-  ) return
+  ) {
+    return null
+  }
 
   let resolved
   try {
-    resolved = new URL(rawHref, window.location.origin)
+    resolved = new URL(href, currentZimArticleBase())
   } catch {
+    return null
+  }
+
+  if (resolved.origin !== window.location.origin) {
+    return null
+  }
+
+  const normalizedPath = decodePathDeep(resolved.pathname).replace(/^\/+/, '')
+  if (!normalizedPath) {
+    return null
+  }
+
+  return `${normalizedPath}${resolved.search}`
+}
+
+const syncZimFrameHeight = () => {
+  const frame = zimNativeFrameRef.value
+  const doc = frame?.contentDocument
+  if (!doc) {
     return
   }
 
-  if (resolved.origin !== window.location.origin) return
+  const body = doc.body
+  const docEl = doc.documentElement
+  if (body) {
+    body.style.overflowY = 'hidden'
+    body.style.overflowX = 'hidden'
+  }
+  if (docEl) {
+    docEl.style.overflowY = 'hidden'
+    docEl.style.overflowX = 'hidden'
+  }
+
+  const measured = Math.max(
+    body?.scrollHeight || 0,
+    body?.offsetHeight || 0,
+    docEl?.scrollHeight || 0,
+    docEl?.offsetHeight || 0,
+    560
+  )
+
+  zimFrameHeight.value = Math.min(12000, Math.ceil(measured + 8))
+}
+
+const clearZimFrameHooks = () => {
+  const frame = zimNativeFrameRef.value
+  const doc = frame?.contentDocument
+  const win = frame?.contentWindow
+
+  if (doc && zimFrameClickHandler) {
+    doc.removeEventListener('click', zimFrameClickHandler, true)
+  }
+
+  if (win && zimFrameResizeHandler) {
+    win.removeEventListener('resize', zimFrameResizeHandler)
+  }
+
+  if (zimFrameObserver) {
+    zimFrameObserver.disconnect()
+    zimFrameObserver = null
+  }
+
+  if (zimFrameSettleTimer) {
+    clearInterval(zimFrameSettleTimer)
+    zimFrameSettleTimer = null
+  }
+
+  zimFrameClickHandler = null
+  zimFrameResizeHandler = null
+}
+
+const onZimFrameLoad = () => {
+  clearZimFrameHooks()
+
+  const frame = zimNativeFrameRef.value
+  const doc = frame?.contentDocument
+  const win = frame?.contentWindow
+  if (!doc || !win) {
+    return
+  }
+
+  zimFrameClickHandler = async (event) => {
+    if (event.defaultPrevented) {
+      return
+    }
+
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return
+    }
+
+    let anchor = event.target
+    while (anchor && anchor.tagName !== 'A') {
+      anchor = anchor.parentElement
+    }
+    if (!anchor) {
+      return
+    }
+
+    const rawHref = anchor.getAttribute('href')
+    const articlePath = resolveNativeArticlePath(rawHref)
+    if (!articlePath || !selectedBook.value?.filename) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    try {
+      await loadNativeZimArticle(selectedBook.value.filename, articlePath, apiService)
+    } catch (error) {
+      readerError.value = apiService.handleError(error)
+    }
+  }
+
+  doc.addEventListener('click', zimFrameClickHandler, true)
+
+  zimFrameResizeHandler = () => {
+    syncZimFrameHeight()
+  }
+  win.addEventListener('resize', zimFrameResizeHandler)
+
+  zimFrameObserver = new MutationObserver(() => {
+    syncZimFrameHeight()
+  })
+  zimFrameObserver.observe(doc.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true
+  })
+
+  syncZimFrameHeight()
+
+  let ticks = 0
+  zimFrameSettleTimer = setInterval(() => {
+    syncZimFrameHeight()
+    ticks += 1
+    if (ticks >= 16) {
+      clearInterval(zimFrameSettleTimer)
+      zimFrameSettleTimer = null
+    }
+  }, 250)
+}
+
+const isCurrentSearchResult = (path) => {
+  const current = normalizePathKey(zimNativeArticle.value?.path)
+  if (!current) return false
+  return normalizePathKey(path) === current
+}
+
+const handleZimMessage = async (event) => {
+  if (event.origin !== window.location.origin) return
+
+  if (event.data?.type === 'zim-height') {
+    const next = Number(event.data?.height)
+    if (!Number.isFinite(next) || next <= 0) return
+    zimFrameHeight.value = Math.max(560, Math.min(12000, Math.ceil(next)))
+    return
+  }
+
+  if (event.data?.type !== 'zim-navigate') return
+
   if (!selectedBook.value?.filename) return
 
-  const articlePath = `${decodePathDeep(resolved.pathname)}${resolved.search}`
-  if (!articlePath || articlePath === '/') return
+  const articlePath = resolveNativeArticlePath(event.data.href)
+  if (!articlePath) return
 
   try {
     await loadNativeZimArticle(selectedBook.value.filename, articlePath, apiService)
@@ -317,39 +504,29 @@ const openZimSearchResult = async (resultPath) => {
 }
 
 const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${units[i]}`
 }
 
-const getDisplayName = (filename) => {
-  return filename.replace(/\.[^/.]+$/, '')
+const fileExt = (filename) => {
+  const clean = String(filename || '')
+  const idx = clean.lastIndexOf('.')
+  return idx >= 0 ? clean.slice(idx + 1).toUpperCase() : 'FILE'
 }
 
-const toggleSidebar = () => {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  requestAnimationFrame(() => {
-    resizeUnifiedReader()
-  })
-}
+const getDisplayName = (filename) => String(filename || '').replace(/\.[^/.]+$/, '')
 
 const selectBook = async (book) => {
+  clearZimFrameHooks()
   selectedBook.value = book
+  zimFrameHeight.value = null
   zimSearchQuery.value = ''
   zimSearchResults.value = []
   zimSearchRan.value = false
   await selectWithUnifiedReader(book, apiService)
-}
-
-const loadReaderCapabilities = async () => {
-  try {
-    readerCapabilities.value = await apiService.getReaderCapabilities()
-  } catch (error) {
-    console.warn('Could not load unified reader capabilities:', error)
-    readerCapabilities.value = null
-  }
+  requestAnimationFrame(() => resizeUnifiedReader())
 }
 
 const loadBooks = async () => {
@@ -359,7 +536,6 @@ const loadBooks = async () => {
     const response = await apiService.getBooks()
     books.value = response.data || []
   } catch (err) {
-    console.error('Error loading books:', err)
     booksError.value = apiService.handleError(err)
   } finally {
     booksLoading.value = false
@@ -368,373 +544,328 @@ const loadBooks = async () => {
 
 onMounted(async () => {
   window.addEventListener('message', handleZimMessage)
-  await loadReaderCapabilities()
   await loadBooks()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('message', handleZimMessage)
+  clearZimFrameHooks()
   disposeUnifiedReader()
 })
 </script>
 
 <style scoped>
 .books-page {
-  display: flex;
-  flex-direction: column;
+  --panel: #1f2428;
+  --panel-soft: #252d33;
+  --panel-ink: #12161a;
+  --line: #39434c;
+  --text: #e7edf3;
+  --muted: #a8b2bc;
+  --brand: #0f766e;
+  --brand-soft: #114d48;
+  --error: #a2332f;
+  --warning: #845c18;
+
+  min-height: calc(100vh - 200px);
 }
 
-.books-container {
+.books-layout {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(270px, 320px) 1fr;
   gap: 1rem;
   min-height: calc(100vh - 260px);
 }
 
-.books-sidebar,
-.book-viewer {
-  background: #2a2a2a;
-  padding: 1.25rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  border: 1px solid #3a3a3a;
+.books-library,
+.reader-stage {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-ink) 100%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
 }
 
-.books-sidebar {
-  width: 320px;
-  transition: width 0.2s ease, padding 0.2s ease;
-}
-
-.books-sidebar.collapsed {
-  width: 64px;
-  padding: 0.65rem;
-}
-
-.sidebar-header {
+.books-library {
+  padding: 1rem;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.sidebar-header h3 {
+.library-header h2 {
   margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
 }
 
-.collapse-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 1px solid #4a4a4a;
-  background: #1a1a1a;
-  color: #d8d8d8;
-  cursor: pointer;
+.library-header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
-.search-box {
-  margin-bottom: 1rem;
+.library-search {
+  margin-top: 0.2rem;
 }
 
-.search-input {
+.search-input,
+.zim-search-input {
   width: 100%;
-  padding: 0.75rem;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  color: #e0e0e0;
+  background: #11161a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.6rem 0.75rem;
 }
 
-.search-input::placeholder {
-  color: #808080;
-}
-
-.search-input:focus {
+.search-input:focus,
+.zim-search-input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #1f9288;
+  box-shadow: 0 0 0 3px rgba(31, 146, 136, 0.2);
+}
+
+.library-hint,
+.reader-subtle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .books-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: calc(100vh - 360px);
+  gap: 0.55rem;
   overflow-y: auto;
+  max-height: calc(100vh - 340px);
 }
 
 .book-item {
-  padding: 0.75rem;
-  background: #1a1a1a;
-  border: 2px solid #3a3a3a;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+  color: var(--text);
   text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #e0e0e0;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
 .book-item:hover {
-  background: #252525;
-  border-color: #667eea;
+  border-color: #1f9288;
+  transform: translateY(-1px);
 }
 
 .book-item.active {
-  background: #2d3f5a;
-  border-color: #667eea;
+  border-color: #40c0b5;
+  background: #1a3f44;
 }
 
-.book-icon {
-  font-size: 1.2rem;
-}
-
-.book-details {
+.book-title-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.book-title {
+  flex: 1;
   min-width: 0;
-}
-
-.book-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.book-filename {
-  font-size: 0.75rem;
-  color: #606060;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.book-format {
+  background: rgba(64, 192, 181, 0.2);
+  border: 1px solid rgba(64, 192, 181, 0.5);
+  color: #b9fff6;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.68rem;
 }
 
+.book-filename,
 .book-size {
-  font-size: 0.8rem;
-  color: #808080;
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
-.empty-state {
-  color: #808080;
-  font-style: italic;
-  text-align: center;
+.reader-stage {
   padding: 1rem;
 }
 
-.empty-state a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.empty-state a:hover {
-  text-decoration: underline;
-}
-
-.status-state,
-.error-state {
-  border-radius: 6px;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.86rem;
-}
-
-.hint-text {
-  margin: 0 0 0.75rem;
-  color: #a8a8a8;
-  font-size: 0.82rem;
-}
-
-.status-state {
-  background: rgba(102, 126, 234, 0.18);
-  border: 1px solid rgba(142, 162, 255, 0.45);
-  color: #dbe2ff;
-}
-
-.error-state {
-  background: rgba(164, 45, 45, 0.22);
-  border: 1px solid rgba(220, 112, 112, 0.5);
-  color: #ffd3d3;
-}
-
-.book-content {
+.reader-shell {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-height: calc(100vh - 320px);
+  gap: 0.75rem;
 }
 
-.book-info-empty {
-  background: #222;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  color: #a8a8a8;
-  padding: 1rem;
+.reader-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.7rem;
 }
 
-.markdown-reader {
+.reader-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.12rem;
+}
+
+.reader-subtitle {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.reader-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  color: var(--text);
+  background: #172026;
+}
+
+.badge-format {
+  border-color: rgba(64, 192, 181, 0.5);
+  color: #b9fff6;
+  background: rgba(64, 192, 181, 0.2);
+}
+
+.badge-idle { background: #222c35; }
+.badge-loading { background: #21344a; border-color: #3b5c7e; }
+.badge-ready { background: #1f4b45; border-color: #2f8277; }
+.badge-error { background: #5d2727; border-color: #8f3434; }
+.badge-warning { background: #4e3a1f; border-color: #7d5d2f; }
+
+.status-card {
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.84rem;
+  margin: 0;
+}
+
+.status-loading {
+  background: rgba(59, 92, 126, 0.3);
+  border: 1px solid #3b5c7e;
+  color: #d7e9ff;
+}
+
+.status-error {
+  background: rgba(162, 51, 47, 0.25);
+  border: 1px solid #a2332f;
+  color: #ffe0df;
+}
+
+.status-warning {
+  background: rgba(132, 92, 24, 0.25);
+  border: 1px solid #845c18;
+  color: #ffe8be;
+}
+
+.reader-canvas {
+  min-height: calc(100vh - 360px);
+}
+
+.epub-viewer,
+.markdown-reader,
+.pdf-frame {
   width: 100%;
-  min-height: calc(100vh - 320px);
+  min-height: calc(100vh - 360px);
+  border-radius: 10px;
   background: #ffffff;
-  border: 1px solid #cfcfcf;
-  border-radius: 4px;
-  overflow-y: auto;
-  overflow-x: hidden;
+}
+
+.epub-viewer,
+.markdown-reader,
+.pdf-frame {
+  border: 1px solid #ccd4db;
 }
 
 .markdown-content {
-  max-width: 900px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 1.5rem;
   color: #111111;
   line-height: 1.6;
 }
 
-.markdown-content :deep(h1),
-.markdown-content :deep(h2),
-.markdown-content :deep(h3) {
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-}
-
-.markdown-content :deep(p),
-.markdown-content :deep(li) {
-  margin-bottom: 0.6rem;
-}
-
 .markdown-content :deep(pre) {
-  background: #f3f3f3;
-  border: 1px solid #dddddd;
-  border-radius: 4px;
-  padding: 0.9rem;
+  background: #f4f6f8;
+  border: 1px solid #dbe1e6;
+  border-radius: 6px;
+  padding: 0.85rem;
   overflow-x: auto;
 }
 
 .markdown-content :deep(code) {
-  font-family: Consolas, Monaco, monospace;
-  background: #f3f3f3;
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-}
-
-.markdown-content :deep(a) {
-  color: #2a5bd7;
+  background: #eef1f4;
+  border-radius: 4px;
+  padding: 0.1rem 0.25rem;
 }
 
 .pdf-reader {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-}
-
-.pdf-reader-frame {
-  width: 100%;
-  min-height: calc(100vh - 320px);
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  background: #ffffff;
-}
-
-.pdf-hint {
-  margin: 0;
-}
-
-.pdf-hint a {
-  color: #dbe2ff;
+  gap: 0.55rem;
 }
 
 .zim-reader {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 0.7rem;
 }
 
-.zim-retry-btn {
-  align-self: flex-start;
-  border: 1px solid #4f67bb;
-  background: #2a3f86;
-  color: #edf2ff;
-  border-radius: 6px;
-  padding: 0.45rem 0.7rem;
-  cursor: pointer;
+.zim-tools {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: #151b20;
 }
 
-.zim-retry-btn:hover {
-  filter: brightness(1.08);
-}
-
-.zim-reader-frame {
-  width: 100%;
-  min-height: calc(100vh - 320px);
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  background: #fff;
-}
-
-.zim-native-panel {
-  padding: 0;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  background: #1f1f1f;
-  overflow: hidden;
-}
-
-.zim-native-article-frame {
-  width: 100%;
-  min-height: calc(100vh - 420px);
-  border: none;
-  display: block;
-}
-
-.zim-status-bar {
-  background: #1f1f1f;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  padding: 0.8rem;
-}
-
-.zim-search {
-  margin-bottom: 0.8rem;
-}
-
-.zim-search-row {
+.zim-tools-row {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.5rem;
-  margin-bottom: 0.45rem;
 }
 
-.zim-search-input {
-  width: 100%;
-  min-width: 0;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid #4a4a4a;
-  border-radius: 6px;
-  background: #151515;
-  color: #efefef;
-}
-
-.zim-search-btn {
-  border: 1px solid #4f67bb;
-  background: #2a3f86;
-  color: #edf2ff;
-  border-radius: 6px;
-  padding: 0.45rem 0.7rem;
+.zim-search-button {
+  border: 1px solid #2f8277;
+  background: #16534c;
+  color: #d8fff9;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
   cursor: pointer;
+}
+
+.zim-search-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .zim-search-results {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  margin-top: 0.55rem;
 }
 
 .zim-search-result {
   border: 1px solid #3f4f74;
-  background: #1b2747;
-  color: #e5ecff;
+  background: #1d2740;
+  color: #e8efff;
   border-radius: 999px;
   padding: 0.35rem 0.6rem;
   font-size: 0.78rem;
@@ -745,58 +876,90 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.zim-search-result.is-current,
+.zim-search-result.current,
 .zim-search-result:disabled {
-  background: #2f2f2f;
-  border-color: #565656;
-  color: #b5b5b5;
+  background: #32363f;
+  border-color: #505867;
+  color: #b6bfcc;
   cursor: default;
 }
 
-#book-viewer {
+.zim-content {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: visible;
+  background: #0f1418;
+}
+
+.zim-native-frame {
   width: 100%;
-  height: calc(100vh - 320px);
-  background: #ffffff;
-  border: 1px solid #cfcfcf;
-  border-radius: 4px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-height: 0;
+  height: 560px;
+  border: none;
+  display: block;
+  overflow: hidden;
 }
 
-.empty-view {
+.zim-meta {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 320px);
-  color: #808080;
-  font-size: 1.05rem;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #151b20;
+  padding: 0.55rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
-@media (max-width: 1024px) {
-  .books-container {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
+.zim-meta p {
+  margin: 0;
+}
 
-  .books-sidebar,
-  .books-sidebar.collapsed {
-    width: 100%;
-    padding: 1rem;
+.reader-empty {
+  min-height: calc(100vh - 360px);
+  display: grid;
+  place-content: center;
+  color: var(--muted);
+  text-align: center;
+}
+
+.library-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.library-empty a,
+.reader-subtle a {
+  color: #7ee4da;
+}
+
+@media (max-width: 1080px) {
+  .books-layout {
+    grid-template-columns: 1fr;
   }
 
   .books-list {
     max-height: 240px;
   }
 
-  #book-viewer,
+  .reader-canvas,
+  .epub-viewer,
   .markdown-reader,
-  .pdf-reader-frame,
-  .zim-reader-frame,
-  .zim-native-article-frame,
-  .book-content,
-  .empty-view {
-    height: auto;
+  .pdf-frame,
+  .zim-native-frame,
+  .reader-empty {
     min-height: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .reader-header {
+    flex-direction: column;
+  }
+
+  .zim-tools-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
