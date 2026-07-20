@@ -70,7 +70,8 @@ const routes = [
     meta: {
       title: 'Settings',
       subtitle: 'Configure location and other application-wide preferences',
-      headerLabel: 'Location and preferences'
+      headerLabel: 'Location and preferences',
+      requiresAdmin: true
     }
   },
   {
