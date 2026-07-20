@@ -36,7 +36,8 @@
           >
             <span class="book-icon">📖</span>
             <div class="book-details">
-              <span class="book-name">{{ getDisplayName(book.filename) }}</span>
+              <span class="book-name">{{ book.title || getDisplayName(book.filename) }}</span>
+              <span v-if="book.title" class="book-filename">{{ book.filename }}</span>
               <span class="book-size">{{ formatBytes(book.size) }}</span>
             </div>
           </button>
@@ -174,9 +175,12 @@ const isPdfSelected = computed(() => {
 })
 
 const filteredBooks = computed(() => {
-  return books.value.filter(book =>
-    getDisplayName(book.filename).toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
+  const query = searchQuery.value.toLowerCase()
+  return books.value.filter(book => {
+    const nameMatch = getDisplayName(book.filename).toLowerCase().includes(query)
+    const titleMatch = book.title ? book.title.toLowerCase().includes(query) : false
+    return nameMatch || titleMatch
+  })
 })
 
 const selectedZimUrl = computed(() => {
@@ -496,6 +500,14 @@ onBeforeUnmount(() => {
 
 .book-name {
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-filename {
+  font-size: 0.75rem;
+  color: #606060;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

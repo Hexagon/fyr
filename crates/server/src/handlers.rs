@@ -1192,6 +1192,11 @@ fn list_content_files(
         .filter_map(|entry| {
             let path = entry.path().to_path_buf();
             let metadata = std::fs::metadata(&path).ok()?;
+            let title = if content_type == ContentType::Book {
+                extract_book_title(&path)
+            } else {
+                None
+            };
             Some(ContentMetadata {
                 id: path
                     .file_stem()
@@ -1203,6 +1208,7 @@ fn list_content_files(
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string(),
+                title,
                 content_type,
                 file_path: path,
                 file_size: metadata.len(),
@@ -1213,6 +1219,117 @@ fn list_content_files(
         .collect();
 
     Json(files)
+}
+
+/// Try to extract the human-readable title embedded in a book file.
+/// Returns `None` if the format is unsupported or the title cannot be read.
+fn extract_book_title(path: &FsPath) -> Option<String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "epub" => extract_epub_title(path),
+        "zim" => extract_zim_title(path),
+        _ => None,
+    }
+}
+
+/// Extract the `dc:title` from an EPUB's OPF package document.
+fn extract_epub_title(path: &FsPath) -> Option<String> {
+    use std::io::Read;
+
+    let file = std::fs::File::open(path).ok()?;
+    let mut archive = zip::ZipArchive::new(file).ok()?;
+
+    // Locate the OPF file via META-INF/container.xml
+    let container_xml = {
+        let mut entry = archive.by_name("META-INF/container.xml").ok()?;
+        let mut content = String::new();
+        entry.read_to_string(&mut content).ok()?;
+        content
+    };
+    let opf_path = extract_xml_attr(&container_xml, "full-path")?;
+
+    // Read the OPF package document
+    let opf_content = {
+        let mut entry = archive.by_name(&opf_path).ok()?;
+        let mut content = String::new();
+        entry.read_to_string(&mut content).ok()?;
+        content
+    };
+
+    // Extract the title from <dc:title>
+    extract_xml_text_content(&opf_content, "dc:title")
+}
+
+/// Extract the archive-level title from a ZIM file's `M/Title` metadata entry.
+fn extract_zim_title(path: &FsPath) -> Option<String> {
+    // The ZIM library can panic on malformed archives; catch_unwind mirrors the
+    // approach used by open_zim_archive / probe_zim_archive elsewhere in this module.
+    let zim = std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path)))
+        .ok()?
+        .ok()?;
+
+    let title_entry = zim
+        .iterate_by_urls()
+        .find(|e| matches!(e.namespace, Namespace::Metadata) && e.url == "Title")?;
+
+    let (cluster_idx, blob_idx) = match title_entry.target {
+        Some(Target::Cluster(c, b)) => (c, b),
+        _ => return None,
+    };
+
+    let cluster = zim.get_cluster(cluster_idx).ok()?;
+    let blob = cluster.get_blob(blob_idx).ok()?;
+    let title = String::from_utf8_lossy(blob.as_ref()).trim().to_string();
+
+    if title.is_empty() {
+        None
+    } else {
+        Some(title)
+    }
+}
+
+/// Extract the value of `attr="..."` or `attr='...'` (with optional whitespace around `=`)
+/// from a snippet of XML.  Handles both single- and double-quoted attribute values.
+fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
+    let attr_start = xml.find(attr)?;
+    let after_attr = xml[attr_start + attr.len()..].trim_start();
+    let after_eq = after_attr.strip_prefix('=')?;
+    let rest = after_eq.trim_start();
+    let (quote, inner) = if let Some(s) = rest.strip_prefix('"') {
+        ('"', s)
+    } else if let Some(s) = rest.strip_prefix('\'') {
+        ('\'', s)
+    } else {
+        return None;
+    };
+    let end = inner.find(quote)?;
+    let value = inner[..end].trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+/// Extract the plain-text content of the first `<tag …>…</tag>` element in an XML
+/// snippet.  Attributes on the opening tag are skipped correctly, and the returned
+/// value has leading/trailing whitespace trimmed.
+///
+/// This helper covers well-formed EPUB OPF and ZIM metadata XML.  It does not
+/// handle CDATA sections, XML comments, or nested elements of the same tag.
+fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
+    let open_tag = format!("<{}", tag);
+    let close_tag = format!("</{}>", tag);
+    let tag_start = xml.find(&open_tag)?;
+    // Skip past the closing `>` of the opening tag (which may carry attributes).
+    let content_start = xml[tag_start..].find('>')? + tag_start + 1;
+    let content_end = xml.find(&close_tag)?;
+    if content_end <= content_start {
+        return None;
+    }
+    let text = xml[content_start..content_end].trim().to_string();
+    if text.is_empty() { None } else { Some(text) }
 }
 
 fn get_dir_size(dir: std::path::PathBuf) -> (u64, usize) {

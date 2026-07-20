@@ -47,6 +47,11 @@ impl ContentType {
 pub struct ContentMetadata {
     pub id: String,
     pub name: String,
+    /// Human-readable title extracted from the file's internal metadata, if available.
+    /// For EPUB files this is the `dc:title` from the OPF package document.
+    /// For ZIM archives this is the `Title` metadata entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub content_type: ContentType,
     pub file_path: PathBuf,
     pub file_size: u64,

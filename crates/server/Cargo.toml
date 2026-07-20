@@ -28,6 +28,7 @@ candle-nn.workspace = true
 candle-transformers.workspace = true
 tokenizers = "0.22"
 zim = "0.4"
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"
