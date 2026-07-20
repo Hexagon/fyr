@@ -48,8 +48,8 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 Click **Log out** in the navbar. Your session is cleared immediately.
 
 **Security notes:**
-- Sessions are stored as HttpOnly cookies (not accessible to JavaScript).
-- Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes).
+- Session tokens are stored server-side in memory; the HttpOnly cookie contains only the token reference (not the session data itself). Cookies are not accessible to JavaScript.
+- Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes, using the real TCP peer address).
 - If you forget the password, restart the server with the correct `FYR_ADMIN_PASSWORD` value.
 
 ### Strict read-only mode (`FYR_READONLY`)

@@ -109,6 +109,22 @@ impl AuthManager {
 }
 
 // ---------------------------------------------------------------------------
+// Constant-time helpers
+// ---------------------------------------------------------------------------
+
+/// Compare two byte slices in constant time to resist timing attacks.
+///
+/// Returns `true` only when `a` and `b` have equal length and identical
+/// contents.  The fold loop runs for all bytes regardless of where a
+/// mismatch occurs, so the runtime does not leak positional information.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+// ---------------------------------------------------------------------------
 // Cookie helpers
 // ---------------------------------------------------------------------------
 
@@ -250,7 +266,6 @@ pub async fn auth_status_handler(
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: axum::http::HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Response {
     let auth_cfg = &state.config.auth;
@@ -276,16 +291,12 @@ pub async fn login_handler(
             .into_response();
     };
 
-    // Use the real TCP peer address as the primary rate-limit key.
-    // X-Forwarded-For is considered only as a secondary hint and is explicitly
-    // documented as requiring a trusted reverse proxy to be tamper-proof.
-    let peer_ip = addr.ip().to_string();
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
-        .map(|s| s.trim().to_string())
-        .unwrap_or(peer_ip);
+    // Always rate-limit by the real TCP peer address to prevent clients from
+    // spoofing X-Forwarded-For headers to bypass limits.  When running behind
+    // a reverse proxy the proxy's address will be used; in that scenario the
+    // proxy itself should handle rate limiting or strip/validate
+    // X-Forwarded-For before forwarding.
+    let client_ip = addr.ip().to_string();
 
     if state.auth_manager.is_rate_limited(&client_ip) {
         return (
@@ -297,7 +308,7 @@ pub async fn login_handler(
             .into_response();
     }
 
-    if body.password != *expected_password {
+    if !constant_time_eq(body.password.as_bytes(), expected_password.as_bytes()) {
         state.auth_manager.record_failed_attempt(&client_ip);
         return (
             StatusCode::UNAUTHORIZED,

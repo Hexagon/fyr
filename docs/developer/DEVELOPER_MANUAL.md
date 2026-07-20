@@ -125,7 +125,7 @@ Fyr implements a two-level access control system controlled entirely by environm
   2. If no password configured → pass through (open mode).
   3. Otherwise → validate the `fyr_session` cookie value against `AuthManager::tokens`.
 - **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
-- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The IP is read from the `X-Forwarded-For` header (first entry) when present, otherwise `"unknown"`.
+- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (`ConnectInfo<SocketAddr>`), so clients cannot bypass limits by spoofing `X-Forwarded-For` headers. When Fyr runs behind a reverse proxy, all requests share the proxy's IP; in that case the proxy should handle rate limiting.
 - **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
 
 ### Adding new protected endpoints

@@ -111,14 +111,13 @@ import { computed, ref, onMounted } from 'vue'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { getLocationClock } from '../services/locationClock'
-import { useAuthState, isAdminLocked } from '../services/auth'
+import { isAdminLocked } from '../services/auth'
 
 const status = ref(null)
 const storage = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const locationState = useLocationState()
-const authState = useAuthState()
 
 const adminLocked = computed(() => isAdminLocked())
 
