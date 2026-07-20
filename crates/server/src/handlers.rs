@@ -1270,8 +1270,8 @@ fn extract_zim_title(path: &FsPath) -> Option<String> {
     // The ZIM library can panic on malformed archives; catch_unwind mirrors the
     // approach used by open_zim_archive / probe_zim_archive elsewhere in this module.
     let zim = std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path)))
-        .ok()?
-        .ok()?;
+        .ok()? // outer Ok: convert panic result to Option (None on panic)
+        .ok()?; // inner Ok: convert Zim::new's Result to Option (None on error)
 
     let title_entry = zim
         .iterate_by_urls()
