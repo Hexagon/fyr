@@ -33,13 +33,13 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 
 ### Inference hardening
 
-The streaming inference loop in `crates/server/src/ai/manager.rs` applies three guards before sending tokens to the client:
+The streaming inference loop in `crates/server/src/ai/manager.rs` applies two server-side guards before sending tokens to the client:
 
 1. **Repetition detection** — `is_repeating()` compares the last 32 generated tokens with the 32 tokens before them. If they match, generation stops immediately. This prevents models from getting stuck in a loop when temperature is low or the prompt is ambiguous.
 
-2. **`<think>` block stripping** — `strip_think_blocks()` removes content between `<think>` and `</think>` tags before emitting any text. If the closing tag has not yet arrived the output is held back at the opening tag. This prevents internal reasoning from models such as Qwen3 and DeepSeek-R1 from reaching the chat UI.
+2. **ChatML stop markers** — `first_role_marker_index()` catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
 
-3. **ChatML stop markers** — `first_role_marker_index()` now catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
+`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. Think content is shown in a collapsible `<details>` element that streams live while the model reasons and collapses automatically when `</think>` arrives.
 
 ### Recommended model files
 
@@ -53,7 +53,7 @@ Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with 
 
 GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repository: `Qwen/Qwen2.5-1.5B-Instruct-GGUF`.
 
-**Avoid thinking-mode variants** (e.g. `Qwen3`, `DeepSeek-R1`) for everyday use. Fyr filters their `<think>` reasoning output, but the extra tokens increase latency without adding visible value. Use standard instruction-tuned (`*-Instruct`) variants instead.
+Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
 
 Extending model support:
 - Current integration uses GGUF metadata parsing plus quantized variable loading.

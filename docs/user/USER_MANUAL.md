@@ -33,7 +33,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
 > * Fyr's inference runtime supports the **Qwen2** model family. Tested variants include `Qwen2.5-0.5B`, `Qwen2.5-1.5B`, and `Qwen2.5-3B` in GGUF format.
-> * **Prefer non-thinking model variants.** Some models (e.g., Qwen3, DeepSeek-R1) emit extended internal reasoning blocks tagged `<think>…</think>` before responding. Fyr filters these blocks from the streamed output, but they increase latency and memory use. For better performance, use instruction-tuned variants without a built-in thinking mode (for example `Qwen2.5-Instruct` rather than `Qwen3-thinking`).
+> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays this reasoning in a collapsible **Thinking** section above the response — it streams live while the model reasons and collapses automatically when reasoning is complete.
 
 ### Where to find compatible models
 
