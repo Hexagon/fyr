@@ -13,10 +13,51 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 
 ## 3. Main Pages
 - **Home:** system status, location, sunrise/sunset, and storage overview.
-- **Content Manager:** add URL downloads, import local files, and inspect content inventory.
+- **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
+- **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
+
+## 3b. Access Control and Admin Login
+
+Fyr can run in three access modes:
+
+### Open mode (default)
+All features are available to everyone. No authentication is needed.
+
+### Password-protected mode (`FYR_ADMIN_PASSWORD`)
+The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environment variable.
+
+**What guests can do:**
+- Browse maps, books, and POIs
+- Chat with pre-loaded AI models
+- Read content
+
+**What requires admin login:**
+- Content Manager (downloads, imports, file deletion)
+- Settings (location and preferences)
+- Model uploads and model management
+- Storage details on the Overview page
+
+**How to log in:**
+1. Click **Log in** in the top-right navbar.
+2. Enter the admin password on the login page.
+3. On success, an **Admin** badge appears in the navbar alongside a **Log out** button.
+4. The Content Manager, Settings nav links and storage details become visible.
+
+**How to log out:**
+Click **Log out** in the navbar. Your session is cleared immediately.
+
+**Security notes:**
+- Session tokens are stored server-side in memory; the HttpOnly cookie contains only the token reference (not the session data itself). Cookies are not accessible to JavaScript.
+- Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes, using the real TCP peer address).
+- If you forget the password, restart the server with the correct `FYR_ADMIN_PASSWORD` value.
+
+### Strict read-only mode (`FYR_READONLY`)
+Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
+
+Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed.
 
 ### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.
@@ -24,7 +65,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 
 ## 3a. Using the AI Assistant
 - Open the Assistant tab from the top navigation.
-- Use **Import Model** to upload a local `.gguf` file. Fyr stores it in `public/data/inbox/` and imports it into the model library automatically.
+- Use **Open Content Manager** from the Assistant sidebar to jump to the Models section for `.gguf` uploads.
 - For text generation, use GGUF files that include tokenizer metadata.
 - Select a model and press **Load Model**.
 - Enter a prompt and send it to start token streaming.
@@ -32,6 +73,19 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 > **Model choice notes:**
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
+> * Fyr's inference runtime supports the **Qwen2** model family. Tested variants include `Qwen2.5-0.5B`, `Qwen2.5-1.5B`, and `Qwen2.5-3B` in GGUF format.
+> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays this reasoning in a collapsible **Thinking** section above the response — it streams live while the model reasons and collapses automatically when reasoning is complete.
+
+### Where to find compatible models
+
+GGUF files can be downloaded from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending). Recommended search:
+
+- Search: `Qwen2.5 GGUF` — filter by library `GGUF`
+- Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-0.5B-Instruct-GGUF`, `Qwen/Qwen2.5-1.5B-Instruct-GGUF`)
+- For low-memory devices (Raspberry Pi, 1–2 GB RAM): choose `Q4_K_M` quantization variants (~300–900 MB)
+- For faster laptops with more RAM: `Q6_K` or `Q8_0` give better output quality
+
+Once downloaded, upload the `.gguf` file through Content Manager → Models.
 
 ## 4. Add Content
 ### Data directories and supported file types
@@ -60,7 +114,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - If using `.json`, make sure it follows a valid geo dataset structure used by your workflow.
 
 ### Models
-- Open **Assistant** or **Content Manager** and upload a `.gguf` file.
+- Open **Content Manager** and upload a `.gguf` file in the Models section.
 - Fyr validates the GGUF header, stores the upload in `public/data/inbox/`, then imports it into `public/data/models/`.
 - Current inference runtime is implemented for GGUF models with `qwen2` architecture.
 - Other GGUF architectures can still be loaded for validation/health checks but may not support text generation yet.
@@ -72,16 +126,25 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
-- Use **Import File** in Content Manager (or drag/drop) to upload local files and enqueue a local import task.
+- Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
+- Use the **Download** button in each Content Manager file row to download a local copy from the browser.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
 - Active tasks persist across restarts and are restored automatically.
-- You can cancel queued or in-progress downloads from the downloads panel.
+- Content listings and download tasks refresh automatically as task state changes.
+- You can cancel queued or in-progress downloads from the download manager.
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.
+- Use the search input above the article panel to find entries by title or path, then open results directly in the same reader view.
+- Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
+
+## 5c. Reader Shell
+- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
+- On narrow screens, the library list stacks above the reader panel automatically.
 
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.

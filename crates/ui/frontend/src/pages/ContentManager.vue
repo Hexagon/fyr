@@ -38,28 +38,6 @@
             </button>
           </div>
 
-          <div class="toolbar-actions">
-            <input
-              ref="fileInput"
-              type="file"
-              class="hidden-input"
-              @change="onFilePicked"
-            />
-            <button class="btn btn-primary" @click="openFilePicker">Import File</button>
-          </div>
-        </div>
-
-        <div
-          class="drop-zone"
-          :class="{ active: dragActive }"
-          @dragenter.prevent="dragActive = true"
-          @dragover.prevent="dragActive = true"
-          @dragleave.prevent="dragActive = false"
-          @drop.prevent="onDrop"
-        >
-          Drop files here to import into {{ currentFolderLabel }}
-          <br />
-          <small>Supported in this folder: {{ currentFolderHint }}</small>
         </div>
 
         <div class="file-table-wrap">
@@ -70,6 +48,7 @@
                 <th>Name</th>
                 <th>Size</th>
                 <th>Modified</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -77,74 +56,148 @@
                 <td>{{ file.filename }}</td>
                 <td>{{ formatBytes(file.size || 0) }}</td>
                 <td>{{ formatDate(file.modified) }}</td>
+                <td class="actions-cell">
+                  <a
+                    class="btn btn-secondary btn-inline"
+                    :href="buildContentDownloadUrl(activeCategory, file.filename)"
+                    :download="file.filename"
+                  >
+                    Download
+                  </a>
+                  <button class="btn btn-danger btn-inline" @click="requestDeleteContentFile(file)">Delete</button>
+                </td>
               </tr>
             </tbody>
           </table>
           <p v-else class="empty-state">No files in {{ currentFolderLabel }}.</p>
         </div>
 
-        <div class="downloads-panel">
-          <div class="download-header">
-            <h3>Active Downloads</h3>
-            <span class="pill">{{ downloads.length }}</span>
-          </div>
-
-          <div v-if="downloads.length" class="download-list">
-            <div v-for="dl in downloads" :key="dl.id" class="download-item">
-              <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
-              <p class="download-status">
-                <span class="badge" :class="dl.status">{{ dl.status }}</span>
-              </p>
-              <p class="download-progress" v-if="dl.total_bytes">
-                {{ Math.round((dl.bytes_downloaded / dl.total_bytes) * 100) }}%
-                ({{ formatBytes(dl.bytes_downloaded) }} / {{ formatBytes(dl.total_bytes) }})
-              </p>
-              <button
-                v-if="isDownloadCancellable(dl.status)"
-                class="btn btn-secondary btn-inline"
-                @click="cancelDownload(dl.id)"
-              >
-                Cancel
-              </button>
-              <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+        <div class="manager-panels">
+          <div class="imports-panel">
+            <div class="panel-header">
+              <h3>Local Imports</h3>
             </div>
-          </div>
-          <p v-else-if="!downloadsLoading" class="empty-state">No active downloads</p>
-          <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
-          <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
 
-          <div class="download-create">
-            <p class="status-text">
-              URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
-            </p>
             <input
-              type="text"
-              v-model="downloadUrl"
-              placeholder="Enter URL (https://example.com/file.pmtiles)"
-              @keyup.enter="handleDownload"
+              ref="fileInput"
+              type="file"
+              class="hidden-input"
+              multiple
+              @change="onFilePicked"
             />
-            <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || downloading">
-              {{ downloading ? 'Downloading...' : 'Download URL' }}
-            </button>
+
+            <div class="panel-actions">
+              <button class="btn btn-primary" @click="openFilePicker" :disabled="importing">
+                {{ importing ? 'Importing...' : 'Import Files' }}
+              </button>
+            </div>
+
+            <div
+              class="drop-zone"
+              :class="{ active: dragActive, disabled: importing }"
+              @dragenter.prevent="onDragEnter"
+              @dragover.prevent="onDragOver"
+              @dragleave.prevent="onDragLeave"
+              @drop.prevent="onDrop"
+            >
+              Drop files here to import into {{ currentFolderLabel }}
+              <br />
+              <small>Supported in this folder: {{ currentFolderHint }}</small>
+            </div>
+
+            <p v-if="importStatus" class="status-text">{{ importStatus }}</p>
+            <p v-if="importError" class="error-text">{{ importError }}</p>
           </div>
 
-          <p v-if="downloadStatus" class="status-text">{{ downloadStatus }}</p>
-          <p v-if="downloadError" class="error-text">{{ downloadError }}</p>
+          <div class="downloads-panel">
+            <div class="download-header">
+              <h3>Download Manager</h3>
+              <span class="pill">{{ downloads.length }}</span>
+            </div>
+
+            <div v-if="downloads.length" class="download-list">
+              <div v-for="dl in downloads" :key="dl.id" class="download-item">
+                <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
+                <p class="download-status">
+                  <span class="badge" :class="downloadBadgeClass(dl.status)">{{ dl.status }}</span>
+                </p>
+                <p class="download-progress" v-if="showDownloadProgress(dl)">
+                  {{ formatDownloadProgress(dl) }}
+                </p>
+                <button
+                  v-if="isDownloadCancellable(dl.status)"
+                  class="btn btn-secondary btn-inline"
+                  @click="cancelDownload(dl.id)"
+                >
+                  Cancel
+                </button>
+                <button
+                  v-if="isDownloadDismissible(dl.status)"
+                  class="btn btn-secondary btn-inline"
+                  @click="dismissDownload(dl.id)"
+                >
+                  Dismiss
+                </button>
+                <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+              </div>
+            </div>
+            <p v-else-if="!downloadsLoading" class="empty-state">No download tasks</p>
+            <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
+            <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
+
+            <div class="download-create">
+              <p class="status-text">
+                URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+              </p>
+              <input
+                type="text"
+                v-model="downloadUrl"
+                placeholder="Enter URL (https://example.com/file.pmtiles)"
+                @keyup.enter="handleDownload"
+              />
+              <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || urlDownloadPending">
+                {{ urlDownloadPending ? 'Downloading...' : 'Download URL' }}
+              </button>
+            </div>
+
+            <p v-if="urlDownloadStatus" class="status-text">{{ urlDownloadStatus }}</p>
+            <p v-if="urlDownloadError" class="error-text">{{ urlDownloadError }}</p>
+          </div>
         </div>
       </section>
     </div>
 
     <div v-if="loading" class="loading">Loading content...</div>
+
+    <div v-if="confirmDeleteFile" class="confirm-overlay">
+      <div class="confirm-dialog">
+        <p class="confirm-warning">⚠️ Permanent deletion</p>
+        <p class="confirm-message">
+          Are you sure you want to permanently delete
+          <strong>{{ confirmDeleteFile.filename }}</strong>?
+          This action cannot be undone.
+        </p>
+        <p v-if="deleteFileError" class="error-text">{{ deleteFileError }}</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
+          <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">
+            {{ deleteFilePending ? 'Deleting...' : 'Delete permanently' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { apiService } from '../services/api'
 
 const sidebarCollapsed = ref(false)
 const fileInput = ref(null)
 const dragActive = ref(false)
+const route = useRoute()
 
 const activeCategory = ref('books')
 const searchQuery = ref('')
@@ -152,9 +205,12 @@ const sortBy = ref('name')
 const sortDir = ref('asc')
 
 const downloadUrl = ref('')
-const downloading = ref(false)
-const downloadStatus = ref(null)
-const downloadError = ref(null)
+const urlDownloadPending = ref(false)
+const urlDownloadStatus = ref(null)
+const urlDownloadError = ref(null)
+const importing = ref(false)
+const importStatus = ref(null)
+const importError = ref(null)
 
 const maps = ref([])
 const books = ref([])
@@ -166,8 +222,12 @@ const loading = ref(true)
 const contentError = ref(null)
 const downloadsError = ref(null)
 const downloadsLoading = ref(false)
+const confirmDeleteFile = ref(null)
+const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
+let hasLoadedDownloads = false
+let lastDownloadStateSnapshot = new Map()
 
 const folderEntries = computed(() => [
   { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles files.' },
@@ -217,11 +277,12 @@ const visibleFiles = computed(() => {
 })
 
 const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
+  const value = Number(bytes)
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(value) / Math.log(k)))
+  return Math.round((value / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
 const formatDate = (value) => {
@@ -231,132 +292,250 @@ const formatDate = (value) => {
   return d.toLocaleString()
 }
 
+const normalizeCategory = (value) => {
+  const category = String(value || '').toLowerCase()
+  return folderEntries.value.some((entry) => entry.key === category) ? category : null
+}
+
+const encodeDownloadSegment = (value) => encodeURIComponent(String(value || '').trim())
+
+const buildContentDownloadUrl = (category, filename) => {
+  return `/api/content/${encodeDownloadSegment(String(category || '').toLowerCase())}/${encodeDownloadSegment(filename)}/download`
+}
+
 const handleDownload = async () => {
   if (!downloadUrl.value) return
 
-  downloading.value = true
-  downloadStatus.value = 'Starting download...'
-  downloadError.value = null
+  urlDownloadPending.value = true
+  urlDownloadStatus.value = 'Starting download...'
+  urlDownloadError.value = null
 
   try {
     const response = await apiService.createDownload(downloadUrl.value)
-    downloadStatus.value = `Download queued: ${response.data.task_id}`
+    urlDownloadStatus.value = `Download queued: ${response.data.task_id}`
     downloadUrl.value = ''
-    setTimeout(loadDownloads, 500)
+    await loadDownloads()
   } catch (err) {
-    downloadError.value = apiService.handleError(err)
+    urlDownloadError.value = apiService.handleError(err)
   } finally {
-    downloading.value = false
+    urlDownloadPending.value = false
   }
 }
 
 const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
 
+const isDownloadDismissible = (status) => ['completed', 'failed', 'cancelled'].includes(String(status || '').toLowerCase())
+
 const cancelDownload = async (taskId) => {
   try {
     await apiService.cancelDownload(taskId)
-    downloadStatus.value = `Cancelled download: ${taskId}`
-    downloadError.value = null
+    urlDownloadStatus.value = `Cancelled download: ${taskId}`
+    urlDownloadError.value = null
     await loadDownloads()
   } catch (err) {
-    downloadError.value = apiService.handleError(err)
+    urlDownloadError.value = apiService.handleError(err)
   }
+}
+
+const dismissDownload = async (taskId) => {
+  try {
+    await apiService.dismissDownload(taskId)
+    await loadDownloads()
+  } catch (err) {
+    urlDownloadError.value = apiService.handleError(err)
+  }
+}
+
+const requestDeleteContentFile = (file) => {
+  deleteFileError.value = null
+  confirmDeleteFile.value = file
+}
+
+const deleteFilePending = ref(false)
+
+const confirmDeleteContentFile = async () => {
+  const file = confirmDeleteFile.value
+  if (!file) return
+  deleteFilePending.value = true
+  deleteFileError.value = null
+  try {
+    await apiService.deleteContentFile(activeCategory.value, file.filename)
+    confirmDeleteFile.value = null
+    await loadContent()
+  } catch (err) {
+    deleteFileError.value = apiService.handleError(err)
+  } finally {
+    deleteFilePending.value = false
+  }
+}
+
+const cancelDeleteContentFile = () => {
+  confirmDeleteFile.value = null
+  deleteFileError.value = null
 }
 
 const openFilePicker = () => {
   fileInput.value?.click()
 }
 
-const importLocalFile = async (file) => {
-  downloading.value = true
-  downloadError.value = null
-  downloadStatus.value = `Uploading ${file.name}...`
+const fileListFromInput = (files) => Array.from(files || []).filter(Boolean)
 
-  try {
-    const uploadResponse = await apiService.uploadFile(file)
-    const uploadedFilename = uploadResponse.data?.filename
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-    if (!uploadedFilename) {
-      throw new Error('Upload did not return a filename.')
-    }
-
-    downloadStatus.value = `Queued import for ${uploadedFilename}...`
-
-    const importResponse = await apiService.createImportDownload(uploadedFilename)
-    const taskId = importResponse.data?.task_id
-
-    if (!taskId) {
-      throw new Error('Import task could not be created.')
-    }
-
-    let completed = false
-    for (let i = 0; i < 120; i += 1) {
-      const statusResponse = await apiService.getDownloadStatus(taskId)
-      const task = statusResponse.data
-      const status = String(task?.status || '').toLowerCase()
-
-      if (status === 'completed') {
-        const typeToCategory = {
-          map: 'maps',
-          book: 'books',
-          poi: 'poi',
-          model: 'models',
-          misc: 'misc'
-        }
-        const nextCategory = typeToCategory[String(task?.content_type || '').toLowerCase()]
-        if (nextCategory) {
-          activeCategory.value = nextCategory
-        }
-        downloadStatus.value = `Imported ${uploadedFilename} successfully.`
-        completed = true
-        break
-      }
-
-      if (status === 'failed' || status === 'cancelled') {
-        throw new Error(task?.error || `Import ended with status: ${status}`)
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-
-    if (!completed) {
-      throw new Error('Import timed out while waiting for task completion.')
-    }
-
-    await loadDownloads()
-    await loadContent()
-  } catch (err) {
-    downloadError.value = apiService.handleError(err)
-    downloadStatus.value = null
-  } finally {
-    downloading.value = false
+const setCategoryFromContentType = (contentType) => {
+  const typeToCategory = {
+    map: 'maps',
+    book: 'books',
+    poi: 'poi',
+    model: 'models',
+    misc: 'misc'
+  }
+  const nextCategory = typeToCategory[String(contentType || '').toLowerCase()]
+  if (nextCategory) {
+    activeCategory.value = nextCategory
   }
 }
 
-const onFilePicked = async (event) => {
-  const file = event.target?.files?.[0]
-  if (!file) return
+const importLocalFile = async (file, index, total) => {
+  importStatus.value = total > 1
+    ? `Uploading ${index + 1} of ${total}: ${file.name}...`
+    : `Uploading ${file.name}...`
 
-  await importLocalFile(file)
-  if (event.target) {
-    event.target.value = ''
+  const uploadResponse = await apiService.uploadFile(file)
+  const uploadedFilename = uploadResponse.data?.filename
+
+  if (!uploadedFilename) {
+    throw new Error('Upload did not return a filename.')
+  }
+
+  importStatus.value = total > 1
+    ? `Queued import ${index + 1} of ${total}: ${uploadedFilename}...`
+    : `Queued import for ${uploadedFilename}...`
+
+  const importResponse = await apiService.createImportDownload(uploadedFilename)
+  const taskId = importResponse.data?.task_id
+
+  if (!taskId) {
+    throw new Error('Import task could not be created.')
+  }
+
+  await loadDownloads()
+
+  for (let i = 0; i < 120; i += 1) {
+    const statusResponse = await apiService.getDownloadStatus(taskId)
+    const task = statusResponse.data
+    const status = String(task?.status || '').toLowerCase()
+
+    if (status === 'completed') {
+      setCategoryFromContentType(task?.content_type)
+      importStatus.value = total > 1
+        ? `Imported ${index + 1} of ${total}: ${uploadedFilename}.`
+        : `Imported ${uploadedFilename} successfully.`
+      await loadDownloads()
+      return
+    }
+
+    if (status === 'failed' || status === 'cancelled') {
+      throw new Error(task?.error || `Import ended with status: ${status}`)
+    }
+
+    await sleep(1000)
+  }
+
+  throw new Error('Import timed out while waiting for task completion.')
+}
+
+const onFilePicked = async (event) => {
+  try {
+    await importFiles(fileListFromInput(event.target?.files))
+  } finally {
+    if (event.target) {
+      event.target.value = ''
+    }
   }
 }
 
 const onDrop = async (event) => {
   dragActive.value = false
-  const file = event.dataTransfer?.files?.[0]
-  if (!file) return
+  await importFiles(fileListFromInput(event.dataTransfer?.files))
+}
 
-  await importLocalFile(file)
+const onDragEnter = () => {
+  if (!importing.value) {
+    dragActive.value = true
+  }
+}
+
+const onDragOver = () => {
+  if (!importing.value) {
+    dragActive.value = true
+  }
+}
+
+const onDragLeave = () => {
+  dragActive.value = false
+}
+
+const importFiles = async (files) => {
+  if (!files.length || importing.value) return
+
+  importing.value = true
+  importError.value = null
+
+  try {
+    for (const [index, file] of files.entries()) {
+      await importLocalFile(file, index, files.length)
+    }
+
+    await loadContent()
+  } catch (err) {
+    importError.value = apiService.handleError(err)
+    importStatus.value = null
+  } finally {
+    importing.value = false
+    dragActive.value = false
+  }
 }
 
 const describeDownloadSource = (source) => {
   if (!source) return 'Unknown source'
   if (source.url) return source.url
-  if (source.path) return source.path
+  if (source.path) {
+    const path = String(source.path)
+    const filename = path.split(/[/\\]/).filter(Boolean).pop()
+    return filename ? `Upload: ${filename}` : path
+  }
   if (typeof source === 'string') return source
   return 'Unknown source'
+}
+
+const downloadBadgeClass = (status) => String(status || '').toLowerCase()
+
+const showDownloadProgress = (task) => {
+  const totalBytes = Number(task?.total_bytes)
+  const bytesDownloaded = Number(task?.bytes_downloaded)
+  const progress = Number(task?.progress)
+  return (Number.isFinite(totalBytes) && totalBytes > 0)
+    || (Number.isFinite(bytesDownloaded) && bytesDownloaded > 0)
+    || (Number.isFinite(progress) && progress > 0)
+}
+
+const formatDownloadProgress = (task) => {
+  const totalBytes = Number(task?.total_bytes)
+  const bytesDownloaded = Number(task?.bytes_downloaded)
+  const safeBytesDownloaded = Number.isFinite(bytesDownloaded) && bytesDownloaded > 0 ? bytesDownloaded : 0
+  const progress = Math.max(0, Math.min(100, Math.round(Number(task?.progress) || 0)))
+
+  if (Number.isFinite(totalBytes) && totalBytes > 0) {
+    const completedBytes = Math.min(safeBytesDownloaded, totalBytes)
+    return `${progress}% (${formatBytes(completedBytes)} / ${formatBytes(totalBytes)})`
+  }
+
+  if (safeBytesDownloaded > 0) {
+    return `${progress}% (${formatBytes(safeBytesDownloaded)})`
+  }
+
+  return `${progress}%`
 }
 
 const loadContent = async () => {
@@ -386,7 +565,25 @@ const loadDownloads = async () => {
   downloadsError.value = null
   try {
     const response = await apiService.listDownloads()
-    downloads.value = response.data || []
+    const nextDownloads = Array.isArray(response.data) ? response.data : []
+    const nextStateSnapshot = new Map(
+      nextDownloads.map((task) => [
+        task.id,
+        `${String(task?.status || '').toLowerCase()}|${String(task?.content_type || '').toLowerCase()}|${task?.error || ''}`
+      ])
+    )
+    const shouldRefreshContent = hasLoadedDownloads && (
+      nextStateSnapshot.size !== lastDownloadStateSnapshot.size
+      || Array.from(nextStateSnapshot.entries()).some(([taskId, state]) => lastDownloadStateSnapshot.get(taskId) !== state)
+    )
+
+    downloads.value = nextDownloads
+    lastDownloadStateSnapshot = nextStateSnapshot
+    hasLoadedDownloads = true
+
+    if (shouldRefreshContent) {
+      await loadContent()
+    }
   } catch (err) {
     console.error('Error loading downloads:', err)
     downloadsError.value = apiService.handleError(err)
@@ -410,6 +607,17 @@ const scheduleDownloadRefresh = () => {
     scheduleDownloadRefresh()
   }, delayMs)
 }
+
+watch(
+  () => route.query.category,
+  (value) => {
+    const category = normalizeCategory(value)
+    if (category) {
+      activeCategory.value = category
+    }
+  },
+  { immediate: true }
+)
 
 onMounted(async () => {
   loading.value = true
@@ -544,14 +752,43 @@ onUnmounted(() => {
   min-width: 260px;
 }
 
-.toolbar-actions {
+.hidden-input {
+  display: none;
+}
+
+.manager-panels {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  gap: 0.85rem;
+}
+
+.imports-panel,
+.downloads-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #1f1f1f;
+}
+
+.panel-header,
+.download-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.panel-header h3,
+.download-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panel-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.hidden-input {
-  display: none;
+  margin-bottom: 0.75rem;
 }
 
 .drop-zone {
@@ -566,6 +803,10 @@ onUnmounted(() => {
   border-color: #77b255;
   color: #cbf5cb;
   background: rgba(77, 122, 77, 0.2);
+}
+
+.drop-zone.disabled {
+  opacity: 0.65;
 }
 
 .file-table-wrap {
@@ -590,25 +831,6 @@ onUnmounted(() => {
 .file-table th {
   background: #202020;
   color: #cfcfcf;
-}
-
-.downloads-panel {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  padding: 0.85rem;
-  background: #1f1f1f;
-}
-
-.download-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.download-header h3 {
-  margin: 0;
-  font-size: 1rem;
 }
 
 .pill {
@@ -651,29 +873,29 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.badge.Queued {
+.badge.queued {
   background: #3d3a2a;
   color: #d4a94a;
 }
 
-.badge.Downloading,
-.badge.Validating,
-.badge.Routing {
+.badge.downloading,
+.badge.validating,
+.badge.routing {
   background: #2a3d3d;
   color: #5cadc4;
 }
 
-.badge.Completed {
+.badge.completed {
   background: #2d5a2d;
   color: #90ee90;
 }
 
-.badge.Failed {
+.badge.failed {
   background: #3d2a2a;
   color: #ff6b6b;
 }
 
-.badge.Cancelled {
+.badge.cancelled {
   background: #3a3a3a;
   color: #b0b0b0;
 }
@@ -724,6 +946,66 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.btn-danger {
+  background: #7a2020;
+  color: #ffdada;
+}
+
+.btn-danger:hover {
+  background: #9e2a2a;
+}
+
+.actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actions-cell a.btn {
+  text-decoration: none;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  background: #2a2a2a;
+  border: 1px solid #5a3a3a;
+  border-radius: 10px;
+  padding: 1.5rem;
+  max-width: 420px;
+  width: 90%;
+}
+
+.confirm-warning {
+  font-weight: 700;
+  color: #ff8e8e;
+  margin: 0 0 0.5rem;
+}
+
+.confirm-message {
+  color: #cfcfcf;
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
 @media (max-width: 1024px) {
   .manager-layout {
     grid-template-columns: 1fr;
@@ -736,6 +1018,10 @@ onUnmounted(() => {
   }
 
   .download-create {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-panels {
     grid-template-columns: 1fr;
   }
 }

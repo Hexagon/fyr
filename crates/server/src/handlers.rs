@@ -23,7 +23,7 @@ use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 use walkdir::WalkDir;
 use tracing::{error, warn};
-use zim::{DirectoryEntry, MimeType, Namespace, Target, Zim};
+use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -738,6 +738,136 @@ pub async fn cancel_download(
     }
 }
 
+/// DELETE /api/download/:task_id/dismiss — Dismiss (remove) a download task
+pub async fn dismiss_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let dismissed = state
+        .download_manager
+        .dismiss_task(&task_id)
+        .await
+        .map_err(|error| {
+            error!("Failed to dismiss download task {}: {}", task_id, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if dismissed {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// DELETE /api/content/:content_type/:filename — Permanently delete a content file from disk
+pub async fn delete_content_file(
+    State(state): State<Arc<AppState>>,
+    Path((content_type, filename)): Path<(String, String)>,
+) -> Result<StatusCode, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    // Defense-in-depth: reject any filename that still contains a path separator after
+    // sanitization (sanitize_upload_filename uses Path::file_name which already strips
+    // directory components, but this guard is explicit).
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = match content_type.as_str() {
+        "maps" => state.config.maps_dir(),
+        "books" => state.config.books_dir(),
+        "poi" => state.config.poi_dir(),
+        "models" => state.config.models_dir(),
+        "misc" => state.config.misc_dir(),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let file_path = dir.join(&sanitized);
+
+    // Security: ensure the resolved path stays within the content directory
+    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+    if !canonical_path.starts_with(&canonical_dir) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    tokio::fs::remove_file(&file_path).await.map_err(|error| {
+        error!("Failed to delete content file {}: {}", file_path.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// GET /api/content/:content_type/:filename/download — Download a content file from disk
+pub async fn download_content_file(
+    State(state): State<Arc<AppState>>,
+    Path((content_type, filename)): Path<(String, String)>,
+) -> Result<Response, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = match content_type.as_str() {
+        "maps" => state.config.maps_dir(),
+        "books" => state.config.books_dir(),
+        "poi" => state.config.poi_dir(),
+        "models" => state.config.models_dir(),
+        "misc" => state.config.misc_dir(),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let file_path = dir.join(&sanitized);
+
+    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+    if !canonical_path.starts_with(&canonical_dir) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let bytes = tokio::fs::read(&canonical_path).await.map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to read content file {}: {}", canonical_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+
+    let mut response = Response::new(Body::from(bytes));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    response
+        .headers_mut()
+        .insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
+
+    Ok(response)
+}
+
 /// GET /api/reader/capabilities — Unified reader capabilities
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {
@@ -1010,7 +1140,15 @@ pub async fn reader_zim_native_search(
 
     let mut results: Vec<ZimNativeSearchItem> = Vec::new();
     let mut seen_paths = std::collections::HashSet::new();
-    for entry in zim.iterate_by_urls() {
+    for entry_result in zim.iterate_by_urls() {
+        let entry = match entry_result {
+            Ok(entry) => entry,
+            Err(error) => {
+                warn!("Skipping invalid ZIM entry while searching {}: {}", sanitized, error);
+                continue;
+            }
+        };
+
         if !is_searchable_article_entry(&entry) {
             continue;
         }
@@ -1121,6 +1259,11 @@ fn list_content_files(
         .filter_map(|entry| {
             let path = entry.path().to_path_buf();
             let metadata = std::fs::metadata(&path).ok()?;
+            let title = if content_type == ContentType::Book {
+                extract_book_title(&path)
+            } else {
+                None
+            };
             Some(ContentMetadata {
                 id: path
                     .file_stem()
@@ -1132,6 +1275,7 @@ fn list_content_files(
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string(),
+                title,
                 content_type,
                 file_path: path,
                 file_size: metadata.len(),
@@ -1142,6 +1286,108 @@ fn list_content_files(
         .collect();
 
     Json(files)
+}
+
+/// Try to extract the human-readable title embedded in a book file.
+/// Returns `None` if the format is unsupported or the title cannot be read.
+fn extract_book_title(path: &FsPath) -> Option<String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "epub" => extract_epub_title(path),
+        "zim" => extract_zim_title(path),
+        _ => None,
+    }
+}
+
+/// Extract the `dc:title` from an EPUB's OPF package document.
+fn extract_epub_title(path: &FsPath) -> Option<String> {
+    use std::io::Read;
+
+    let file = std::fs::File::open(path).ok()?;
+    let mut archive = zip::ZipArchive::new(file).ok()?;
+
+    // Locate the OPF file via META-INF/container.xml
+    let container_xml = {
+        let mut entry = archive.by_name("META-INF/container.xml").ok()?;
+        let mut content = String::new();
+        entry.read_to_string(&mut content).ok()?;
+        content
+    };
+    let opf_path = extract_xml_attr(&container_xml, "full-path")?;
+
+    // Read the OPF package document
+    let opf_content = {
+        let mut entry = archive.by_name(&opf_path).ok()?;
+        let mut content = String::new();
+        entry.read_to_string(&mut content).ok()?;
+        content
+    };
+
+    // Extract the title from <dc:title>
+    extract_xml_text_content(&opf_content, "dc:title")
+}
+
+/// Extract the archive-level title from a ZIM file's `M/Title` metadata entry.
+fn extract_zim_title(path: &FsPath) -> Option<String> {
+    // The ZIM library can panic on malformed archives; catch_unwind mirrors the
+    // approach used by open_zim_archive / probe_zim_archive elsewhere in this module.
+    let zim = std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path)))
+        .ok()? // outer Ok: convert panic result to Option (None on panic)
+        .ok()?; // inner Ok: convert Zim::new's Result to Option (None on error)
+
+    let content = zim.metadata("Title").ok()??;
+    let blob = content.to_vec().ok()?;
+    let title = String::from_utf8_lossy(&blob).trim().to_string();
+
+    if title.is_empty() {
+        None
+    } else {
+        Some(title)
+    }
+}
+
+/// Extract the value of `attr="..."` or `attr='...'` (with optional whitespace around `=`)
+/// from a snippet of XML.  Handles both single- and double-quoted attribute values.
+fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
+    let attr_start = xml.find(attr)?;
+    let after_attr = xml[attr_start + attr.len()..].trim_start();
+    let after_eq = after_attr.strip_prefix('=')?;
+    let rest = after_eq.trim_start();
+    let (quote, inner) = if let Some(s) = rest.strip_prefix('"') {
+        ('"', s)
+    } else if let Some(s) = rest.strip_prefix('\'') {
+        ('\'', s)
+    } else {
+        return None;
+    };
+    let end = inner.find(quote)?;
+    let value = inner[..end].trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+/// Extract the plain-text content of the first `<tag …>…</tag>` element in an XML
+/// snippet.  Attributes on the opening tag are skipped correctly, and the returned
+/// value has leading/trailing whitespace trimmed.
+///
+/// This helper covers well-formed EPUB OPF and ZIM metadata XML.  It does not
+/// handle CDATA sections, XML comments, or nested elements of the same tag.
+fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
+    let open_tag = format!("<{}", tag);
+    let close_tag = format!("</{}>", tag);
+    let tag_start = xml.find(&open_tag)?;
+    // Skip past the closing `>` of the opening tag (which may carry attributes).
+    let content_start = xml[tag_start..].find('>')? + tag_start + 1;
+    let content_end = xml.find(&close_tag)?;
+    if content_end <= content_start {
+        return None;
+    }
+    let text = xml[content_start..content_end].trim().to_string();
+    if text.is_empty() { None } else { Some(text) }
 }
 
 fn get_dir_size(dir: std::path::PathBuf) -> (u64, usize) {
@@ -1295,6 +1541,7 @@ fn resolve_main_entry(zim: &Zim) -> Option<DirectoryEntry> {
 
     zim
         .iterate_by_urls()
+        .filter_map(Result::ok)
         .find(|entry| matches!(entry.namespace, Namespace::Articles))
         .and_then(|entry| resolve_redirect(zim, entry, 0).ok())
 }
@@ -1307,7 +1554,7 @@ fn find_entry_by_path_flexible(zim: &Zim, path: &str) -> Option<DirectoryEntry> 
 
     let variants = path_lookup_variants(&normalized);
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         let entry_url = normalize_zim_url(&entry.url);
         let entry_title = normalize_zim_url(&entry.title);
         variants.iter().any(|candidate| entry_url == *candidate || entry_title == *candidate)
@@ -1370,7 +1617,7 @@ fn find_any_entry_by_path(zim: &Zim, path: &str) -> Option<DirectoryEntry> {
         return None;
     }
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         normalize_zim_url(&entry.url) == normalized || normalize_zim_url(&entry.title) == normalized
     })?;
 
@@ -1383,7 +1630,7 @@ fn find_any_entry_by_basename(zim: &Zim, filename: &str) -> Option<DirectoryEntr
         return None;
     }
 
-    let direct = zim.iterate_by_urls().find(|entry| {
+    let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         let url = normalize_zim_url(&entry.url);
         let title = normalize_zim_url(&entry.title);
         url.rsplit('/').next().is_some_and(|name| name == needle)
@@ -1405,47 +1652,26 @@ fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
     )
 }
 
-fn resolve_redirect(zim: &Zim, mut entry: DirectoryEntry, mut depth: usize) -> zim::Result<DirectoryEntry> {
-    while depth < 8 {
-        match entry.target {
-            Some(Target::Redirect(index)) => {
-                entry = zim.get_by_url_index(index)?;
-                depth += 1;
-            }
-            _ => return Ok(entry),
-        }
-    }
-
-    Ok(entry)
+fn resolve_redirect(zim: &Zim, entry: DirectoryEntry, _depth: usize) -> zim::Result<DirectoryEntry> {
+    zim.resolve(entry)
 }
 
 fn resolve_entry_bytes(
     zim: &Zim,
     entry: &DirectoryEntry,
 ) -> Result<(String, String, String, Vec<u8>), StatusCode> {
-    let (cluster_idx, blob_idx) = match entry.target {
-        Some(Target::Cluster(cluster_idx, blob_idx)) => (cluster_idx, blob_idx),
-        _ => return Err(StatusCode::NOT_FOUND),
-    };
-
-    let cluster = zim.get_cluster(cluster_idx).map_err(|error| {
+    let content = zim.entry_content(entry).map_err(|error| {
         error!(
-            "Failed to resolve ZIM cluster {} for {}: {}",
-            cluster_idx,
+            "Failed to resolve ZIM content handle for {}: {}",
             entry.url,
             error
         );
         StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?;
 
-    let blob = cluster.get_blob(blob_idx).map_err(|error| {
-        error!(
-            "Failed to resolve ZIM blob {}:{} for {}: {}",
-            cluster_idx,
-            blob_idx,
-            entry.url,
-            error
-        );
+    let bytes = content.to_vec().map_err(|error| {
+        error!("Failed to read ZIM content bytes for {}: {}", entry.url, error);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -1466,7 +1692,7 @@ fn resolve_entry_bytes(
         normalize_zim_url(&entry.url),
         title,
         mime_type,
-        blob.as_ref().to_vec(),
+        bytes,
     ))
 }
 

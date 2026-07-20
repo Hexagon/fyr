@@ -10,17 +10,21 @@
         </div>
 
         <div v-if="!sidebarCollapsed" class="sidebar-content">
-          <button class="btn btn-primary" @click="openImportDialog">
-            Import Model
-          </button>
-          <p class="hint-text">Supported model format: .gguf. Import writes to /data/inbox, then moves the model into /data/models.</p>
-          <input
-            ref="modelFileInput"
-            class="hidden-input"
-            type="file"
-            accept=".gguf"
-            @change="onModelFilePicked"
-          />
+          <router-link
+            v-if="!adminLocked"
+            class="btn btn-primary import-link"
+            :to="{ name: 'ContentManager', query: { category: 'models' } }"
+          >
+            Open Content Manager
+          </router-link>
+          <router-link
+            v-else-if="authState.requiresAuth && !authState.readonly"
+            class="btn btn-secondary import-link"
+            to="/login"
+          >
+            Log in to manage models
+          </router-link>
+          <p class="hint-text">Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.</p>
 
           <div class="model-list">
             <button
@@ -54,6 +58,10 @@
               v-if="message.role === 'assistant'"
               class="bubble-content markdown-content"
             >
+              <details v-if="message.thinkText || message.isThinking" class="think-block" :open="message.isThinking">
+                <summary class="think-summary">{{ message.isThinking ? 'Thinking…' : 'Thinking' }}</summary>
+                <div class="think-content">{{ message.thinkText }}<span v-if="message.isThinking" class="think-cursor">▌</span></div>
+              </details>
               <div v-html="renderMarkdown(message.text)"></div>
               <p v-if="message.streaming" class="streaming-indicator">Generating…</p>
             </div>
@@ -100,11 +108,14 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { apiService } from '../services/api'
+import { useAuthState, isAdminLocked } from '../services/auth'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
+const authState = useAuthState()
+const adminLocked = computed(() => isAdminLocked())
+
 const sidebarCollapsed = ref(false)
-const modelFileInput = ref(null)
 const models = ref([])
 const selectedModel = ref(null)
 const modelHealth = ref(null)
@@ -114,7 +125,6 @@ const temperature = ref(0.7)
 const maxTokens = ref(512)
 const loadingModel = ref(false)
 const streaming = ref(false)
-const modelImportSource = ref('inbox')
 const chatHistoryRef = ref(null)
 const activeAssistantMessage = ref(null)
 let eventSource = null
@@ -148,37 +158,6 @@ const scrollChatHistoryToBottom = async () => {
   const element = chatHistoryRef.value
   if (element) {
     element.scrollTop = element.scrollHeight
-  }
-}
-
-const openImportDialog = () => {
-  modelFileInput.value?.click()
-}
-
-const onModelFilePicked = async (event) => {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  try {
-    const uploadResponse = await apiService.uploadModel(file)
-    await apiService.importModel(uploadResponse.data.filename, modelImportSource.value)
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: `Imported ${uploadResponse.data.filename} to /data/models.`
-    })
-    await loadModels()
-  } catch (error) {
-    const detail = apiService.handleError(error)
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: `Health check: import failed for ${file.name}. ${detail}`
-    })
-  } finally {
-    if (event.target) {
-      event.target.value = ''
-    }
   }
 }
 
@@ -225,7 +204,10 @@ const sendPrompt = () => {
   const assistantMessage = {
     id: crypto.randomUUID(),
     role: 'assistant',
+    rawText: '',
     text: '',
+    thinkText: '',
+    isThinking: false,
     streaming: true
   }
   messages.value.push(assistantMessage)
@@ -241,11 +223,16 @@ const sendPrompt = () => {
     },
     {
       onToken: (token) => {
-        assistantMessage.text += token
+        assistantMessage.rawText += token
+        const parsed = parseThinkAndText(assistantMessage.rawText)
+        assistantMessage.text = parsed.text
+        assistantMessage.thinkText = parsed.thinkText
+        assistantMessage.isThinking = parsed.isThinking
         scrollChatHistoryToBottom()
       },
       onDone: () => {
         assistantMessage.streaming = false
+        assistantMessage.isThinking = false
         activeAssistantMessage.value = null
         streaming.value = false
         eventSource = null
@@ -253,6 +240,7 @@ const sendPrompt = () => {
       },
       onError: () => {
         assistantMessage.streaming = false
+        assistantMessage.isThinking = false
         activeAssistantMessage.value = null
         streaming.value = false
         eventSource = null
@@ -289,6 +277,40 @@ const renderMarkdown = (text) => {
   return DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true }
   })
+}
+
+// Split raw streamed text into visible response text and think-block content.
+// Multiple <think>…</think> blocks are accumulated into a single thinkText.
+// An unclosed <think> block sets isThinking=true so the UI can show a live indicator.
+const parseThinkAndText = (raw) => {
+  let text = ''
+  let thinkText = ''
+  let isThinking = false
+  let remaining = raw
+
+  while (remaining.length > 0) {
+    if (!isThinking) {
+      const thinkStart = remaining.indexOf('<think>')
+      if (thinkStart === -1) {
+        text += remaining
+        break
+      }
+      text += remaining.slice(0, thinkStart)
+      remaining = remaining.slice(thinkStart + '<think>'.length)
+      isThinking = true
+    } else {
+      const thinkEnd = remaining.indexOf('</think>')
+      if (thinkEnd === -1) {
+        thinkText += remaining
+        break
+      }
+      thinkText += remaining.slice(0, thinkEnd)
+      remaining = remaining.slice(thinkEnd + '</think>'.length)
+      isThinking = false
+    }
+  }
+
+  return { text, thinkText, isThinking }
 }
 
 const loadModels = async () => {
@@ -383,8 +405,11 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
-.hidden-input {
-  display: none;
+.import-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .model-list {
@@ -610,6 +635,56 @@ onBeforeUnmount(() => {
   color: #9a9a9a;
   font-style: italic;
   margin: 0;
+}
+
+.think-block {
+  margin-bottom: 0.6rem;
+  border: 1px solid #3a4a3a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.think-summary {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+  color: #8fb08f;
+  cursor: pointer;
+  user-select: none;
+  background: #1e2e1e;
+  list-style: none;
+}
+
+.think-summary::-webkit-details-marker {
+  display: none;
+}
+
+.think-summary::before {
+  content: '▶ ';
+  font-size: 0.7em;
+}
+
+details.think-block[open] .think-summary::before {
+  content: '▼ ';
+}
+
+.think-content {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  color: #8a9e8a;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: #171f17;
+}
+
+.think-cursor {
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 @media (max-width: 1024px) {

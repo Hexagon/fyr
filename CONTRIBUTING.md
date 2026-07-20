@@ -51,4 +51,3 @@ Canonical docs are limited to:
 - Keep Fyr naming consistent (`Fyr`, `FYR_HOST`, `FYR_PORT`).
 - Respect module ownership in [AGENTS.md](AGENTS.md).
 - Source code is MIT licensed (see [LICENSE](LICENSE)).
-- Native ZIM reading is implemented in server code using Rust dependencies declared in `crates/server/Cargo.toml`.

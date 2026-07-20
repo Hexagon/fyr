@@ -31,6 +31,30 @@ Performance recommendation:
 RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 ```
 
+### Inference hardening
+
+The streaming inference loop in `crates/server/src/ai/manager.rs` applies two server-side guards before sending tokens to the client:
+
+1. **Repetition detection** — `is_repeating()` compares the last 32 generated tokens with the 32 tokens before them. If they match, generation stops immediately. This prevents models from getting stuck in a loop when temperature is low or the prompt is ambiguous.
+
+2. **ChatML stop markers** — `first_role_marker_index()` catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
+
+`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. Think content is shown in a collapsible `<details>` element that streams live while the model reasons and collapses automatically when `</think>` arrives.
+
+### Recommended model files
+
+Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with embedded tokenizer metadata.
+
+| Use case | Suggested model | Quantization |
+|---|---|---|
+| Low memory (≤2 GB, Raspberry Pi) | `Qwen2.5-0.5B-Instruct` | Q4_K_M |
+| General use | `Qwen2.5-1.5B-Instruct` | Q4_K_M or Q6_K |
+| Higher quality (≥8 GB RAM) | `Qwen2.5-3B-Instruct` | Q6_K or Q8_0 |
+
+GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repository: `Qwen/Qwen2.5-1.5B-Instruct-GGUF`.
+
+Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
+
 Extending model support:
 - Current integration uses GGUF metadata parsing plus quantized variable loading.
 - Add architecture-specific runtime in `crates/server/src/ai/loader.rs` when introducing new generation backends.
@@ -103,43 +127,85 @@ Container expectations:
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
 
-## 4. Active API Surface (Current)
-Core endpoints:
+## 3.5 Access Control Architecture
+
+Fyr implements a two-level access control system controlled entirely by environment variables at startup. The restriction is enforced at the Axum API layer — the frontend also adapts its UI, but that is a secondary UX concern, not the security boundary.
+
+### Modes
+
+| Mode | Env var | Effect |
+|------|---------|--------|
+| Open (default) | _(none)_ | All endpoints accessible |
+| Password-protected | `FYR_ADMIN_PASSWORD=<pass>` | Mutating endpoints require a valid session cookie |
+| Strict read-only | `FYR_READONLY=true` | All mutating endpoints return `403 Forbidden`; no login possible |
+
+### Implementation (`crates/server/src/auth.rs`)
+
+- **`AuthManager`** — in-memory struct holding:
+  - A `Mutex<HashSet<String>>` of live session tokens (UUIDs).
+  - A `Mutex<HashMap<String, RateLimitEntry>>` for per-IP rate limiting.
+- **`require_admin` middleware** — Axum `from_fn_with_state` middleware applied via `route_layer` to a sub-router containing all mutating routes. It checks:
+  1. If `FYR_READONLY` → return `403`.
+  2. If no password configured → pass through (open mode).
+  3. Otherwise → validate the `fyr_session` cookie value against `AuthManager::tokens`.
+- **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
+- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (`ConnectInfo<SocketAddr>`), so clients cannot bypass limits by spoofing `X-Forwarded-For` headers. When Fyr runs behind a reverse proxy, all requests share the proxy's IP; in that case the proxy should handle rate limiting.
+- **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
+
+### Adding new protected endpoints
+
+Add the route to the `protected` `Router` in `create_router` in `crates/server/src/main.rs`. The `route_layer(admin_mw)` call automatically covers all routes in that sub-router.
+
+
+
+### Auth endpoints (always public)
+- `GET /api/auth/status` — returns `{ readonly, requires_auth, authenticated }`. Use this to determine the current access mode.
+- `POST /api/auth/login` — body: `{ "password": "..." }`. Returns `Set-Cookie: fyr_session=<token>; HttpOnly; Path=/; SameSite=Strict` on success. Returns `429 Too Many Requests` when rate-limited.
+- `POST /api/auth/logout` — clears the session cookie and revokes the token.
+
+### Core read-only endpoints (always public)
 - `GET /api/status`
 - `GET /api/config`
 - `GET /api/storage`
+- `GET /api/settings`
 - `GET /api/content/maps`
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`
 - `GET /api/content/misc`
-- `POST /api/download`
-- `DELETE /api/download/:task_id`
+- `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+
+### Admin-only endpoints (require auth when `FYR_ADMIN_PASSWORD` is set; always blocked when `FYR_READONLY`)
+- `PUT /api/settings`
+- `DELETE /api/content/:type/:filename` — permanently delete a content file from disk
+- `POST /api/download`
+- `DELETE /api/download/:task_id`
+- `DELETE /api/download/:task_id/dismiss`
 - `POST /api/import/upload`
 - `POST /api/import/download/:filename`
-
-AI assistant endpoints:
-- `GET /api/models`
 - `POST /api/models/upload`
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
+
+AI read-only endpoints (always public):
+- `GET /api/models`
 - `GET /api/models/:filename/health`
 - `GET /api/models/:filename/infer/stream`
 
 Model upload/import flow:
-- Frontend uploads `.gguf` files as multipart form data to `POST /api/models/upload`.
+- Model uploads are initiated from the Content Manager models section; the Assistant links there instead of uploading directly.
+- Content Manager uploads `.gguf` files as multipart form data to `POST /api/import/upload`.
 - The server sanitizes the filename, validates the `.gguf` extension and `GGUF` magic bytes, and writes the file into `DATA_DIR/inbox`.
-- Frontend then calls `POST /api/models/import` with source `inbox` so `ModelManager` can move the file into `DATA_DIR/models`.
-- Assistant and Content Manager now share this same upload-plus-import flow instead of relying on placeholder status text or manual pre-placement.
+- Frontend then calls `POST /api/import/download/:filename`, allowing `DownloadManager` to route the staged file into `DATA_DIR/models`.
 
 Generic local import flow:
 - Content Manager uploads supported files as multipart form data to `POST /api/import/upload`.
 - Server writes uploaded files to `DATA_DIR/inbox` and returns detected content type metadata.
 - Frontend then calls `POST /api/import/download/:filename` to enqueue a `DownloadSource::LocalFile` task.
-- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads.
+- `DownloadManager` runs local import workers with the same task lifecycle and persistence model used by URL downloads, and the frontend refreshes both download tasks and content listings when task states change.
 
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
@@ -157,11 +223,13 @@ Reader and ZIM endpoints:
 Static content aliases:
 - `GET /data/*path` (full data directory)
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
+- Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.
 
 Native ZIM integration notes:
-- Frontend opens `.zim` through the unified reader module and fetches metadata/capabilities from native server endpoints.
+- Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.
+- `.zim` archives are opened through the native ZIM module, which fetches metadata/capabilities from server endpoints and renders article HTML in a sandboxed iframe (`srcdoc`) with same-origin navigation bridged via `postMessage`.
 - Server-side article resolution uses the Rust `zim` crate and returns article payloads through `/api/reader/zim/:filename/native/article`.
-- Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`.
+- Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`, and rewritten asset links in the frontend target this endpoint.
 - Native mode is always active for `.zim` archives. The `FYR_ZIM_NATIVE_EXPERIMENTAL` toggle has been removed.
 
 Licensing and distribution notes:

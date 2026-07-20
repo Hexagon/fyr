@@ -74,12 +74,6 @@ impl SettingsManager {
         self.replace(current)
     }
 
-    pub fn set_location(&self, location: Option<GeoPosition>) -> Result<AppSettings> {
-        let mut current = self.current();
-        current.location = location;
-        self.replace(current)
-    }
-
     fn persist(&self, settings: &AppSettings) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
