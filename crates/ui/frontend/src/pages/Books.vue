@@ -96,12 +96,13 @@
               <p v-else-if="zimSearchRan" class="hint-text">No matching articles found.</p>
             </div>
             <div v-if="shouldUseNativeZimAdapter" class="zim-native-panel">
-              <div
+              <iframe
                 v-if="zimNativeArticle?.content"
-                class="zim-native-article"
-                @click="onNativeZimArticleClick"
-                v-html="zimNativeArticle.content"
-              ></div>
+                class="zim-native-article-frame"
+                :srcdoc="zimNativeArticle.content"
+                sandbox="allow-scripts allow-same-origin"
+                title="ZIM article"
+              ></iframe>
               <p v-else class="hint-text">No native article content was returned for this archive.</p>
             </div>
             <div class="zim-status-bar">
@@ -229,17 +230,20 @@ const isCurrentSearchResult = (path) => {
   return normalizePathKey(path) === current
 }
 
-const onNativeZimArticleClick = async (event) => {
-  const anchor = event.target?.closest?.('a')
-  if (!anchor) return
+const handleZimMessage = async (event) => {
+  if (event.origin !== window.location.origin) return
+  if (event.data?.type !== 'zim-navigate') return
 
-  const rawHref = String(anchor.getAttribute('href') || '')
+  const rawHref = String(event.data.href || '')
   if (!rawHref || rawHref.startsWith('#')) return
 
   const lowerHref = rawHref.toLowerCase()
-  if (lowerHref.startsWith('mailto:') || lowerHref.startsWith('javascript:')) {
-    return
-  }
+  if (
+    lowerHref.startsWith('mailto:') ||
+    lowerHref.startsWith('javascript:') ||
+    lowerHref.startsWith('data:') ||
+    lowerHref.startsWith('vbscript:')
+  ) return
 
   let resolved
   try {
@@ -248,20 +252,11 @@ const onNativeZimArticleClick = async (event) => {
     return
   }
 
-  if (resolved.origin !== window.location.origin) {
-    return
-  }
-
-  event.preventDefault()
-
-  if (!selectedBook.value?.filename) {
-    return
-  }
+  if (resolved.origin !== window.location.origin) return
+  if (!selectedBook.value?.filename) return
 
   const articlePath = `${decodePathDeep(resolved.pathname)}${resolved.search}`
-  if (!articlePath || articlePath === '/') {
-    return
-  }
+  if (!articlePath || articlePath === '/') return
 
   try {
     await loadNativeZimArticle(selectedBook.value.filename, articlePath, apiService)
@@ -368,11 +363,13 @@ const loadBooks = async () => {
 }
 
 onMounted(async () => {
+  window.addEventListener('message', handleZimMessage)
   await loadReaderCapabilities()
   await loadBooks()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('message', handleZimMessage)
   disposeUnifiedReader()
 })
 </script>
@@ -672,18 +669,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.zim-native-article {
+.zim-native-article-frame {
   width: 100%;
   min-height: calc(100vh - 420px);
-  background: #ffffff;
-  color: #202122;
   border: none;
-  border-radius: 0;
-  padding: 1.25rem;
-  overflow: auto;
-  line-height: 1.62;
-  font-family: Georgia, "Times New Roman", Times, serif;
-  font-size: 0.98rem;
+  display: block;
 }
 
 .zim-status-bar {
@@ -751,137 +741,6 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
-.zim-native-article :deep(a) {
-  color: #3366cc;
-  text-decoration: none;
-}
-
-.zim-native-article :deep(a:hover) {
-  color: #003399;
-  text-decoration: underline;
-}
-
-.zim-native-article :deep(p) {
-  margin: 0.45rem 0 0.7rem;
-}
-
-.zim-native-article :deep(h1),
-.zim-native-article :deep(h2),
-.zim-native-article :deep(h3),
-.zim-native-article :deep(h4) {
-  font-family: "Linux Libertine", "Times New Roman", Times, serif;
-  font-weight: 500;
-  line-height: 1.25;
-  border-bottom: 1px solid #eaecf0;
-  margin: 1rem 0 0.6rem;
-  padding-bottom: 0.15rem;
-}
-
-.zim-native-article :deep(ul),
-.zim-native-article :deep(ol) {
-  margin: 0.55rem 0 0.85rem 1.25rem;
-}
-
-.zim-native-article :deep(li) {
-  margin-bottom: 0.25rem;
-}
-
-.zim-native-article :deep(img) {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-.zim-native-article :deep(figure) {
-  margin: 0;
-}
-
-.zim-native-article :deep(figcaption) {
-  font-size: 0.78rem;
-  line-height: 1.3;
-  color: #3b3f45;
-}
-
-.zim-native-article :deep(table) {
-  max-width: 100%;
-  border-collapse: collapse;
-}
-
-.zim-native-article :deep(td),
-.zim-native-article :deep(th) {
-  border: 1px solid #d8dde3;
-  padding: 0.32rem 0.45rem;
-  vertical-align: top;
-}
-
-.zim-native-article :deep(table:not(.infobox):not(.vertical-navbox):not(.wikitable)) {
-  display: block;
-  overflow-x: auto;
-}
-
-.zim-native-article :deep(.thumb),
-.zim-native-article :deep(.infobox),
-.zim-native-article :deep(.gallery) {
-  max-width: 100%;
-}
-
-.zim-native-article :deep(.thumb) {
-  margin: 0.4rem 0 0.75rem;
-}
-
-.zim-native-article :deep(.thumb img) {
-  border: 1px solid #c8ccd1;
-  padding: 2px;
-  background: #ffffff;
-}
-
-.zim-native-article :deep(.infobox) {
-  float: right;
-  margin: 0 0 0.8rem 0.9rem;
-  font-size: 0.86rem;
-  width: min(320px, 100%);
-  background: #f8f9fa;
-}
-
-.zim-native-article :deep(.infobox td),
-.zim-native-article :deep(.infobox th) {
-  border-color: #c8ccd1;
-}
-
-.zim-native-article :deep(a.item) {
-  display: inline-flex;
-  width: 172px;
-  max-width: 100%;
-  margin: 0.32rem;
-  border: 1px solid #c8ccd1;
-  border-radius: 2px;
-  overflow: hidden;
-  vertical-align: top;
-  color: #202122;
-  background: #f8f9fa;
-}
-
-.zim-native-article :deep(a.item:hover) {
-  border-color: #a2a9b1;
-  background: #f1f3f5;
-}
-
-.zim-native-article :deep(a.item figure) {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.zim-native-article :deep(a.item img) {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-}
-
-.zim-native-article :deep(a.item figcaption) {
-  padding: 0.42rem 0.5rem;
-}
-
 #book-viewer {
   width: 100%;
   height: calc(100vh - 320px);
@@ -921,6 +780,7 @@ onBeforeUnmount(() => {
   .markdown-reader,
   .pdf-reader-frame,
   .zim-reader-frame,
+  .zim-native-article-frame,
   .book-content,
   .empty-view {
     height: auto;

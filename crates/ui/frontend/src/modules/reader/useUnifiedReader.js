@@ -81,6 +81,73 @@ const sanitizeNativeZimBodyHtml = (html) => {
   })
 }
 
+const ZIM_ARTICLE_BASE_CSS = [
+  'body{margin:0;padding:1.25rem;background:#ffffff;color:#202122;',
+  'font-family:Georgia,"Times New Roman",Times,serif;font-size:0.98rem;',
+  'line-height:1.62;overflow-x:hidden}',
+  'a{color:#3366cc;text-decoration:none}',
+  'a:hover{color:#003399;text-decoration:underline}',
+  'p{margin:0.45rem 0 0.7rem}',
+  'h1,h2,h3,h4{font-family:"Linux Libertine","Times New Roman",Times,serif;',
+  'font-weight:500;line-height:1.25;border-bottom:1px solid #eaecf0;',
+  'margin:1rem 0 0.6rem;padding-bottom:0.15rem}',
+  'ul,ol{margin:0.55rem 0 0.85rem 1.25rem}',
+  'li{margin-bottom:0.25rem}',
+  'img{max-width:100%;height:auto;display:block}',
+  'figure{margin:0}',
+  'figcaption{font-size:0.78rem;line-height:1.3;color:#3b3f45}',
+  'table{max-width:100%;border-collapse:collapse}',
+  'td,th{border:1px solid #d8dde3;padding:0.32rem 0.45rem;vertical-align:top}',
+  'table:not(.infobox):not(.vertical-navbox):not(.wikitable){display:block;overflow-x:auto}',
+  '.thumb,.infobox,.gallery{max-width:100%}',
+  '.thumb{margin:0.4rem 0 0.75rem}',
+  '.thumb img{border:1px solid #c8ccd1;padding:2px;background:#ffffff}',
+  '.infobox{float:right;margin:0 0 0.8rem 0.9rem;font-size:0.86rem;',
+  'width:min(320px,100%);background:#f8f9fa}',
+  '.infobox td,.infobox th{border-color:#c8ccd1}',
+  'a.item{display:inline-flex;width:172px;max-width:100%;margin:0.32rem;',
+  'border:1px solid #c8ccd1;border-radius:2px;overflow:hidden;',
+  'vertical-align:top;color:#202122;background:#f8f9fa}',
+  'a.item:hover{border-color:#a2a9b1;background:#f1f3f5}',
+  'a.item figure{display:flex;flex-direction:column;width:100%}',
+  'a.item img{width:100%;aspect-ratio:4/3;object-fit:cover}',
+  'a.item figcaption{padding:0.42rem 0.5rem}',
+].join('')
+
+const buildZimSandboxDocument = (headHtml, bodyHtml) => {
+  // Intercept same-origin link clicks and forward them to the parent via postMessage.
+  // External links are left to navigate the iframe naturally (parent page is unaffected).
+  const navScript =
+    '<script>' +
+    'document.addEventListener("click", function(e) {' +
+    '  var el = e.target;' +
+    '  while (el && el.tagName !== "A") { el = el.parentElement; }' +
+    '  if (!el) return;' +
+    '  var href = el.getAttribute("href");' +
+    '  if (!href || href.charAt(0) === "#") return;' +
+    '  var lower = href.toLowerCase();' +
+    '  if (lower.indexOf("mailto:") === 0 || lower.indexOf("javascript:") === 0' +
+    '      || lower.indexOf("data:") === 0 || lower.indexOf("vbscript:") === 0) return;' +
+    '  try {' +
+    '    var url = new URL(href, location.href);' +
+    '    if (url.origin !== location.origin) return;' +
+    '  } catch (ex) { return; }' +
+    '  e.preventDefault();' +
+    '  window.parent.postMessage({ type: "zim-navigate", href: href }, location.origin);' +
+    '});' +
+    '<\/script>'
+  return (
+    '<!DOCTYPE html><html><head>' +
+    '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    `<style>${ZIM_ARTICLE_BASE_CSS}</style>` +
+    headHtml +
+    navScript +
+    '</head><body>' +
+    bodyHtml +
+    '</body></html>'
+  )
+}
+
 const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
   const parser = new DOMParser()
   const doc = parser.parseFromString(String(html || ''), 'text/html')
@@ -275,7 +342,7 @@ export const useUnifiedReader = () => {
       )
       zimNativeArticle.value = {
         ...nativeArticle,
-        content: `${rendered.headHtml}\n${sanitizeNativeZimBodyHtml(rendered.bodyHtml)}`
+        content: buildZimSandboxDocument(rendered.headHtml, sanitizeNativeZimBodyHtml(rendered.bodyHtml))
       }
       status.value = `opened ${descriptor.filename}`
       return
@@ -294,7 +361,7 @@ export const useUnifiedReader = () => {
     )
     zimNativeArticle.value = {
       ...nativeArticle,
-      content: `${rendered.headHtml}\n${sanitizeNativeZimBodyHtml(rendered.bodyHtml)}`
+      content: buildZimSandboxDocument(rendered.headHtml, sanitizeNativeZimBodyHtml(rendered.bodyHtml))
     }
     return zimNativeArticle.value
   }
