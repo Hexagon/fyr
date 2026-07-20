@@ -809,6 +809,65 @@ pub async fn delete_content_file(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// GET /api/content/:content_type/:filename/download — Download a content file from disk
+pub async fn download_content_file(
+    State(state): State<Arc<AppState>>,
+    Path((content_type, filename)): Path<(String, String)>,
+) -> Result<Response, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = match content_type.as_str() {
+        "maps" => state.config.maps_dir(),
+        "books" => state.config.books_dir(),
+        "poi" => state.config.poi_dir(),
+        "models" => state.config.models_dir(),
+        "misc" => state.config.misc_dir(),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let file_path = dir.join(&sanitized);
+
+    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+    if !canonical_path.starts_with(&canonical_dir) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let bytes = tokio::fs::read(&canonical_path).await.map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to read content file {}: {}", canonical_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+
+    let mut response = Response::new(Body::from(bytes));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    response
+        .headers_mut()
+        .insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
+
+    Ok(response)
+}
+
 /// GET /api/reader/capabilities — Unified reader capabilities
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {

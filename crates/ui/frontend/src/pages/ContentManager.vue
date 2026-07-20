@@ -57,6 +57,13 @@
                 <td>{{ formatBytes(file.size || 0) }}</td>
                 <td>{{ formatDate(file.modified) }}</td>
                 <td class="actions-cell">
+                  <a
+                    class="btn btn-secondary btn-inline"
+                    :href="buildContentDownloadUrl(activeCategory, file.filename)"
+                    :download="file.filename"
+                  >
+                    Download
+                  </a>
                   <button class="btn btn-danger btn-inline" @click="requestDeleteContentFile(file)">Delete</button>
                 </td>
               </tr>
@@ -288,6 +295,12 @@ const formatDate = (value) => {
 const normalizeCategory = (value) => {
   const category = String(value || '').toLowerCase()
   return folderEntries.value.some((entry) => entry.key === category) ? category : null
+}
+
+const encodeDownloadSegment = (value) => encodeURIComponent(String(value || '').trim())
+
+const buildContentDownloadUrl = (category, filename) => {
+  return `/api/content/${encodeDownloadSegment(String(category || '').toLowerCase())}/${encodeDownloadSegment(filename)}/download`
 }
 
 const handleDownload = async () => {
@@ -943,8 +956,16 @@ onUnmounted(() => {
 }
 
 .actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
   text-align: right;
   white-space: nowrap;
+}
+
+.actions-cell a.btn {
+  text-decoration: none;
 }
 
 .confirm-overlay {

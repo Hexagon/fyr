@@ -114,6 +114,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
+- Use the **Download** button in each Content Manager file row to download a local copy from the browser.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
 - Active tasks persist across restarts and are restored automatically.
