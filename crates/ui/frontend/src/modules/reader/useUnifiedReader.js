@@ -135,7 +135,7 @@ const buildZimSandboxDocument = (headHtml, bodyHtml) => {
     '  e.preventDefault();' +
     '  window.parent.postMessage({ type: "zim-navigate", href: href }, location.origin);' +
     '});' +
-    '<\/script>'
+    '</script>'
   return (
     '<!DOCTYPE html><html><head>' +
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
