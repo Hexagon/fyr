@@ -149,6 +149,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/content/poi`
 - `GET /api/content/models`
 - `GET /api/content/misc`
+- `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
 
@@ -198,7 +199,7 @@ Reader and ZIM endpoints:
 Static content aliases:
 - `GET /data/*path` (full data directory)
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
-- Content Manager's per-file **Download** action links to `/data/<category>/<filename>` for browser retrieval.
+- Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.
 
 Native ZIM integration notes:
 - Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.

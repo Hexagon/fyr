@@ -162,6 +162,10 @@ fn create_router(state: AppState) -> Router {
         .route("/api/content/poi", get(handlers::list_poi))
         .route("/api/content/models", get(handlers::list_models))
         .route("/api/content/misc", get(handlers::list_misc))
+        .route(
+            "/api/content/:content_type/:filename/download",
+            get(handlers::download_content_file),
+        )
         .route("/api/models", get(handlers::ai_list_models))
         .route("/api/models/:filename/health", get(handlers::ai_model_health))
         .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
@@ -284,4 +288,3 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
 fn is_file_lock_error(error: &std::io::Error) -> bool {
     matches!(error.raw_os_error(), Some(32) | Some(33))
 }
-

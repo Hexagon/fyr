@@ -59,7 +59,7 @@
                 <td class="actions-cell">
                   <a
                     class="btn btn-secondary btn-inline"
-                    :href="contentDownloadUrl(activeCategory, file.filename)"
+                    :href="buildContentDownloadUrl(activeCategory, file.filename)"
                     :download="file.filename"
                   >
                     Download
@@ -297,8 +297,10 @@ const normalizeCategory = (value) => {
   return folderEntries.value.some((entry) => entry.key === category) ? category : null
 }
 
-const contentDownloadUrl = (category, filename) => {
-  return `/data/${encodeURIComponent(String(category || '').trim())}/${encodeURIComponent(String(filename || '').trim())}`
+const encodeDownloadSegment = (value) => encodeURIComponent(String(value || '').trim())
+
+const buildContentDownloadUrl = (category, filename) => {
+  return `/api/content/${encodeDownloadSegment(String(category || '').toLowerCase())}/${encodeDownloadSegment(filename)}/download`
 }
 
 const handleDownload = async () => {
