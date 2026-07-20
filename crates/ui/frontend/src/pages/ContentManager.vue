@@ -171,8 +171,10 @@
           This action cannot be undone.
         </p>
         <div class="confirm-actions">
-          <button class="btn btn-secondary" @click="cancelDeleteContentFile">Cancel</button>
-          <button class="btn btn-danger" @click="confirmDeleteContentFile">Delete permanently</button>
+          <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
+          <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">
+            {{ deleteFilePending ? 'Deleting...' : 'Delete permanently' }}
+          </button>
         </div>
       </div>
     </div>
@@ -333,15 +335,21 @@ const requestDeleteContentFile = (file) => {
   confirmDeleteFile.value = file
 }
 
+const deleteFilePending = ref(false)
+
 const confirmDeleteContentFile = async () => {
   const file = confirmDeleteFile.value
   if (!file) return
-  confirmDeleteFile.value = null
+  deleteFilePending.value = true
   try {
     await apiService.deleteContentFile(activeCategory.value, file.filename)
+    confirmDeleteFile.value = null
     await loadContent()
   } catch (err) {
     contentError.value = apiService.handleError(err)
+    confirmDeleteFile.value = null
+  } finally {
+    deleteFilePending.value = false
   }
 }
 

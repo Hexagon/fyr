@@ -782,7 +782,14 @@ pub async fn delete_content_file(
         error!("Failed to resolve content directory {}: {}", dir.display(), error);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let canonical_path = std::fs::canonicalize(&file_path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
     if !canonical_path.starts_with(&canonical_dir) {
         return Err(StatusCode::BAD_REQUEST);
     }

@@ -183,6 +183,10 @@ impl DownloadManager {
     }
 
     /// Dismiss a download task: cancels it if still active, then removes it from the list.
+    ///
+    /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
+    /// given ID exists. If the task is still in progress its cancel flag is set before removal,
+    /// signalling the worker to stop at the next checkpoint.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
