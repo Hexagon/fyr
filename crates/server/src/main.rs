@@ -6,7 +6,8 @@
 use axum::{
     extract::DefaultBodyLimit,
     http::{header, HeaderValue, Method},
-    routing::{delete, get, post},
+    middleware,
+    routing::{delete, get, post, put},
     Router,
 };
 use anyhow::Context;
@@ -23,6 +24,7 @@ use tracing::{info, warn};
 use settings::SettingsManager;
 
 mod ai;
+mod auth;
 mod handlers;
 mod state;
 mod settings;
@@ -46,6 +48,12 @@ async fn main() -> anyhow::Result<()> {
     config.validate_writable()?;
     sync_managed_manuals(&config)?;
 
+    if config.auth.readonly {
+        info!("Server is running in strict read-only mode (FYR_READONLY)");
+    } else if config.auth.admin_password.is_some() {
+        info!("Server is running in password-protected admin mode (FYR_ADMIN_PASSWORD)");
+    }
+
     info!("Data directory: {}", config.data_dir.display());
     info!("Server will run on: {}:{}", config.server.host, config.server.port);
     let bind_host = config.server.host.clone();
@@ -62,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
         download_manager: Arc::new(DownloadManager::new(config.data_dir.clone())),
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager: Arc::new(SettingsManager::new(config.data_dir.clone())),
+        auth_manager: Arc::new(auth::AuthManager::new()),
     };
 
     // Build router
@@ -108,19 +117,22 @@ fn create_router(state: AppState) -> Router {
             header::CONTENT_RANGE,
             header::ACCEPT_RANGES,
         ]);
-    
-    Router::new()
-        // API routes
-        .route("/api/status", get(handlers::status))
-        .route("/api/config", get(handlers::config))
-        .route("/api/settings", get(handlers::get_settings).put(handlers::update_settings))
-        .route("/api/storage", get(handlers::get_storage))
-        .route("/api/content/maps", get(handlers::list_maps))
-        .route("/api/content/books", get(handlers::list_books))
-        .route("/api/content/poi", get(handlers::list_poi))
-        .route("/api/content/models", get(handlers::list_models))
-        .route("/api/content/misc", get(handlers::list_misc))
-        .route("/api/models", get(handlers::ai_list_models))
+
+    // Build the Arc<AppState> early so the auth middleware can capture it.
+    let state_arc = Arc::new(state);
+
+    let admin_mw = middleware::from_fn_with_state(
+        Arc::clone(&state_arc),
+        auth::require_admin,
+    );
+
+    // Protected (mutating) routes — guarded by the admin middleware.
+    let protected = Router::new()
+        .route("/api/download", post(handlers::create_download))
+        .route("/api/download/:task_id", delete(handlers::cancel_download))
+        .route("/api/download/:task_id/dismiss", delete(handlers::dismiss_download))
+        .route("/api/import/download/:filename", post(handlers::create_import_download))
+        .route("/api/content/:content_type/:filename", delete(handlers::delete_content_file))
         .route(
             "/api/models/upload",
             post(handlers::ai_upload_model).layer(DefaultBodyLimit::disable()),
@@ -128,19 +140,29 @@ fn create_router(state: AppState) -> Router {
         .route("/api/models/import", post(handlers::ai_import_model))
         .route("/api/models/:filename/load", post(handlers::ai_load_model))
         .route("/api/models/:filename/load", delete(handlers::ai_unload_model))
-        .route("/api/models/:filename/health", get(handlers::ai_model_health))
-        .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
         .route(
             "/api/import/upload",
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
-        .route("/api/import/download/:filename", post(handlers::create_import_download))
-        .route("/api/download", post(handlers::create_download))
-        .route("/api/download/:task_id", delete(handlers::cancel_download))
-        .route("/api/download/:task_id/dismiss", delete(handlers::dismiss_download))
+        .route("/api/settings", put(handlers::update_settings))
+        .route_layer(admin_mw);
+
+    Router::new()
+        // Public read-only API
+        .route("/api/status", get(handlers::status))
+        .route("/api/config", get(handlers::config))
+        .route("/api/settings", get(handlers::get_settings))
+        .route("/api/storage", get(handlers::get_storage))
+        .route("/api/content/maps", get(handlers::list_maps))
+        .route("/api/content/books", get(handlers::list_books))
+        .route("/api/content/poi", get(handlers::list_poi))
+        .route("/api/content/models", get(handlers::list_models))
+        .route("/api/content/misc", get(handlers::list_misc))
+        .route("/api/models", get(handlers::ai_list_models))
+        .route("/api/models/:filename/health", get(handlers::ai_model_health))
+        .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
-        .route("/api/content/:content_type/:filename", delete(handlers::delete_content_file))
         .route("/api/reader/capabilities", get(handlers::reader_capabilities))
         .route("/api/reader/open/:filename", get(handlers::reader_open))
         .route("/api/reader/zim/:filename/meta", get(handlers::reader_zim_meta))
@@ -148,6 +170,12 @@ fn create_router(state: AppState) -> Router {
         .route("/api/reader/zim/:filename/native/article", get(handlers::reader_zim_native_article))
         .route("/api/reader/zim/:filename/native/search", get(handlers::reader_zim_native_search))
         .route("/api/reader/zim/:filename/native/content/*path", get(handlers::reader_zim_native_content))
+        // Auth endpoints
+        .route("/api/auth/status", get(auth::auth_status_handler))
+        .route("/api/auth/login", post(auth::login_handler))
+        .route("/api/auth/logout", post(auth::logout_handler))
+        // Protected (admin) routes
+        .merge(protected)
         // Data file serving (for PMTiles, etc.) - use configured data directory
         .nest_service("/data", ServeDir::new(data_path))
         // Book-serving alias for URL-based reader integrations
@@ -166,7 +194,7 @@ fn create_router(state: AppState) -> Router {
             HeaderValue::from_static("bytes"),
         ))
         .layer(cors)
-        .with_state(Arc::new(state))
+        .with_state(state_arc)
 }
 
 fn first_existing_path(primary: &str, fallback: &str) -> PathBuf {
@@ -252,3 +280,4 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
 fn is_file_lock_error(error: &std::io::Error) -> bool {
     matches!(error.raw_os_error(), Some(32) | Some(33))
 }
+

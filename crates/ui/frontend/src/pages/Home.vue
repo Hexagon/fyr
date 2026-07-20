@@ -73,7 +73,7 @@
       </div>
     </div>
 
-    <div v-if="storage" class="storage-section">
+    <div v-if="storage && !adminLocked" class="storage-section">
       <h3>📦 Storage Usage</h3>
       <p class="storage-path">
         Data Directory: <code>{{ storage.data_dir }}</code>
@@ -111,12 +111,16 @@ import { computed, ref, onMounted } from 'vue'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { getLocationClock } from '../services/locationClock'
+import { useAuthState, isAdminLocked } from '../services/auth'
 
 const status = ref(null)
 const storage = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const locationState = useLocationState()
+const authState = useAuthState()
+
+const adminLocked = computed(() => isAdminLocked())
 
 const clock = computed(() => getLocationClock(new Date(), locationState.location))
 const timeSourceText = computed(() => clock.value.mode === 'location' ? 'Saved location' : 'System time')

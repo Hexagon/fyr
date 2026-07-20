@@ -13,10 +13,49 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 
 ## 3. Main Pages
 - **Home:** system status, location, sunrise/sunset, and storage overview.
-- **Content Manager:** add URL downloads, import local files, and inspect content inventory.
+- **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
+
+## 3b. Access Control and Admin Login
+
+Fyr can run in three access modes:
+
+### Open mode (default)
+All features are available to everyone. No authentication is needed.
+
+### Password-protected mode (`FYR_ADMIN_PASSWORD`)
+The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environment variable.
+
+**What guests can do:**
+- Browse maps, books, and POIs
+- Chat with pre-loaded AI models
+- Read content
+
+**What requires admin login:**
+- Content Manager (downloads, imports, file deletion)
+- Model uploads and model management
+- Storage details on the Overview page
+
+**How to log in:**
+1. Click **Log in** in the top-right navbar.
+2. Enter the admin password on the login page.
+3. On success, an **Admin** badge appears in the navbar alongside a **Log out** button.
+4. The Content Manager nav link and storage details become visible.
+
+**How to log out:**
+Click **Log out** in the navbar. Your session is cleared immediately.
+
+**Security notes:**
+- Sessions are stored as HttpOnly cookies (not accessible to JavaScript).
+- Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes).
+- If you forget the password, restart the server with the correct `FYR_ADMIN_PASSWORD` value.
+
+### Strict read-only mode (`FYR_READONLY`)
+Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager and model management links are hidden. The server shows a **Read-only** badge in the navbar.
+
+Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed.
 
 ### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.

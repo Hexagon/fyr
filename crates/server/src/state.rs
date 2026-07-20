@@ -1,6 +1,7 @@
 //! Shared application state
 
 use crate::ai::ModelManager;
+use crate::auth::AuthManager;
 use crate::settings::SettingsManager;
 use types::Config;
 use downloader::DownloadManager;
@@ -14,4 +15,5 @@ pub struct AppState {
     pub download_manager: Arc<DownloadManager>,
     pub model_manager: Arc<ModelManager>,
     pub settings_manager: Arc<SettingsManager>,
+    pub auth_manager: Arc<AuthManager>,
 }

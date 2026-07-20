@@ -16,7 +16,7 @@
           <li><router-link to="/" :class="{ active: $route.name === 'Home' }">Overview</router-link></li>
           <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }">Maps</router-link></li>
           <li><router-link to="/books" :class="{ active: $route.name === 'Books' }">Library</router-link></li>
-          <li><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }">Content Manager</router-link></li>
+          <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }">Content Manager</router-link></li>
           <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }">Assistant</router-link></li>
           <li><router-link to="/settings" :class="{ active: $route.name === 'Settings' }">Settings</router-link></li>
         </ul>
@@ -26,6 +26,19 @@
           <span class="clock-time">{{ currentTime }}</span>
           <span class="clock-day">{{ currentWeekday }}</span>
           <span class="clock-date">{{ currentDate }}</span>
+        </div>
+        <div v-if="authState.requiresAuth && !authState.readonly" class="auth-badge">
+          <template v-if="authState.authenticated">
+            <span class="auth-label auth-on">Admin</span>
+            <button class="auth-btn" @click="handleLogout" title="Log out">Log out</button>
+          </template>
+          <template v-else>
+            <span class="auth-label auth-off">Read-only</span>
+            <router-link class="auth-btn" to="/login">Log in</router-link>
+          </template>
+        </div>
+        <div v-else-if="authState.readonly" class="auth-badge">
+          <span class="auth-label auth-off" title="FYR_READONLY is set">Read-only</span>
         </div>
       </div>
     </nav>
@@ -46,9 +59,11 @@ import { useRoute } from 'vue-router'
 import { loadAppSettings } from './services/settings'
 import { useLocationState } from './services/location'
 import { getLocationClock } from './services/locationClock'
+import { loadAuthStatus, logout, useAuthState } from './services/auth'
 
 const route = useRoute()
 const locationState = useLocationState()
+const authState = useAuthState()
 const now = ref(new Date())
 let timer = null
 
@@ -60,6 +75,18 @@ const currentTime = computed(() => clock.value.timeText)
 const currentWeekday = computed(() => formatClockDatePart('weekday', clock.value.dateText))
 const currentDate = computed(() => formatClockDatePart('date', clock.value.dateText))
 const headerSummary = computed(() => `${pageHeaderLabel.value}`)
+
+// Show the Content Manager nav link only when not locked out.
+const showAdminNav = computed(() => {
+  if (!authState.loaded) return true // optimistic until status loads
+  if (authState.readonly) return false
+  if (authState.requiresAuth && !authState.authenticated) return false
+  return true
+})
+
+const handleLogout = async () => {
+  await logout()
+}
 
 const formatClockDatePart = (kind, fullText) => {
   const parts = String(fullText || '').split(',').map(part => part.trim()).filter(Boolean)
@@ -76,7 +103,10 @@ const formatClockDatePart = (kind, fullText) => {
 }
 
 onMounted(async () => {
-  await loadAppSettings().catch(() => {})
+  await Promise.all([
+    loadAppSettings().catch(() => {}),
+    loadAuthStatus().catch(() => {})
+  ])
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
@@ -140,7 +170,51 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 0.75rem;
   min-width: 0;
+}
+
+.auth-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.auth-label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.auth-on {
+  color: #86efac;
+}
+
+.auth-off {
+  color: #fca5a5;
+}
+
+.auth-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 0.3rem;
+  color: white;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.auth-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .navbar-brand h1 {

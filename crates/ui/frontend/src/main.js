@@ -4,10 +4,12 @@ import App from './App.vue'
 
 import Home from './pages/Home.vue'
 import ContentManager from './pages/ContentManager.vue'
+import Login from './pages/Login.vue'
 import Maps from './pages/Maps.vue'
 import Books from './pages/Books.vue'
 import Assistant from './pages/Assistant.vue'
 import Settings from './pages/Settings.vue'
+import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
   {
@@ -47,7 +49,8 @@ const routes = [
     meta: {
       title: 'Content Manager',
       subtitle: 'Manage local files, imports, and downloads',
-      headerLabel: 'Files and imports'
+      headerLabel: 'Files and imports',
+      requiresAdmin: true
     }
   },
   {
@@ -69,6 +72,16 @@ const routes = [
       subtitle: 'Configure location and other application-wide preferences',
       headerLabel: 'Location and preferences'
     }
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: Login,
+    meta: {
+      title: 'Admin Login',
+      subtitle: 'Authenticate to access admin features',
+      headerLabel: 'Admin access'
+    }
   }
 ]
 
@@ -77,6 +90,30 @@ const router = createRouter({
   routes
 })
 
+// Navigation guard: redirect to /login when a route requires admin and the
+// user is not authenticated.
+router.beforeEach(async (to) => {
+  if (!to.meta.requiresAdmin) return true
+
+  const auth = useAuthState()
+  // Ensure auth status has been loaded at least once before guarding.
+  if (!auth.loaded) {
+    await loadAuthStatus()
+  }
+
+  if (auth.readonly) {
+    // Strict read-only — redirect to home rather than login.
+    return { name: 'Home' }
+  }
+
+  if (auth.requiresAuth && !auth.authenticated) {
+    return { name: 'Login', query: { redirect: to.fullPath } }
+  }
+
+  return true
+})
+
 const app = createApp(App)
 app.use(router)
 app.mount('#app')
+
