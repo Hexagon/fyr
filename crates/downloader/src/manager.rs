@@ -182,6 +182,41 @@ impl DownloadManager {
         Ok(true)
     }
 
+    /// Dismiss a download task: cancels it if still active, then removes it from the list.
+    ///
+    /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
+    /// given ID exists. If the task is still in progress its cancel flag is set before removal,
+    /// signalling the worker to stop at the next checkpoint.
+    pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
+        // Signal cancellation if the task is still running
+        let flag = {
+            let flags = self.cancel_flags.read().await;
+            flags.get(task_id).cloned()
+        };
+        if let Some(cancel_flag) = flag {
+            cancel_flag.store(true, Ordering::Relaxed);
+        }
+
+        // Remove the task from the map
+        let snapshot = {
+            let mut tasks = self.tasks.write().await;
+            if tasks.remove(task_id).is_none() {
+                return Ok(false);
+            }
+            tasks.clone()
+        };
+
+        // Persist first; only clean up the cancel flag on success
+        self.persist_tasks(&snapshot)?;
+
+        {
+            let mut flags = self.cancel_flags.write().await;
+            flags.remove(task_id);
+        }
+
+        Ok(true)
+    }
+
     /// List all tasks
     pub async fn list_tasks(&self) -> Vec<DownloadTask> {
         let tasks = self.tasks.read().await;

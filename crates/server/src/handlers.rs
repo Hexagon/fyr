@@ -738,6 +738,77 @@ pub async fn cancel_download(
     }
 }
 
+/// DELETE /api/download/:task_id/dismiss — Dismiss (remove) a download task
+pub async fn dismiss_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let dismissed = state
+        .download_manager
+        .dismiss_task(&task_id)
+        .await
+        .map_err(|error| {
+            error!("Failed to dismiss download task {}: {}", task_id, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if dismissed {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// DELETE /api/content/:content_type/:filename — Permanently delete a content file from disk
+pub async fn delete_content_file(
+    State(state): State<Arc<AppState>>,
+    Path((content_type, filename)): Path<(String, String)>,
+) -> Result<StatusCode, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    // Defense-in-depth: reject any filename that still contains a path separator after
+    // sanitization (sanitize_upload_filename uses Path::file_name which already strips
+    // directory components, but this guard is explicit).
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = match content_type.as_str() {
+        "maps" => state.config.maps_dir(),
+        "books" => state.config.books_dir(),
+        "poi" => state.config.poi_dir(),
+        "models" => state.config.models_dir(),
+        "misc" => state.config.misc_dir(),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let file_path = dir.join(&sanitized);
+
+    // Security: ensure the resolved path stays within the content directory
+    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
+    if !canonical_path.starts_with(&canonical_dir) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    tokio::fs::remove_file(&file_path).await.map_err(|error| {
+        error!("Failed to delete content file {}: {}", file_path.display(), error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// GET /api/reader/capabilities — Unified reader capabilities
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {

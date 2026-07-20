@@ -246,8 +246,10 @@ export const apiService = {
   // Download Management
   createDownload: (url) => api.post('/download', { url }),
   cancelDownload: (taskId) => api.delete(`/download/${taskId}`),
+  dismissDownload: (taskId) => api.delete(`/download/${taskId}/dismiss`),
   getDownloadStatus: (taskId) => api.get(`/download/${taskId}/status`),
   listDownloads: () => api.get('/downloads'),
+  deleteContentFile: (contentType, filename) => api.delete(`/content/${encodeURIComponent(contentType)}/${encodeURIComponent(filename)}`),
 
   // Error handler
   handleError: (error) => {

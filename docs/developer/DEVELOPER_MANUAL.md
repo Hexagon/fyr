@@ -113,8 +113,10 @@ Core endpoints:
 - `GET /api/content/poi`
 - `GET /api/content/models`
 - `GET /api/content/misc`
+- `DELETE /api/content/:type/:filename` — permanently delete a content file from disk (type: maps, books, poi, models, misc)
 - `POST /api/download`
 - `DELETE /api/download/:task_id`
+- `DELETE /api/download/:task_id/dismiss` — remove a download task from the list (cancels first if still active)
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
 - `POST /api/import/upload`
