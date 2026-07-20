@@ -58,6 +58,10 @@
               v-if="message.role === 'assistant'"
               class="bubble-content markdown-content"
             >
+              <details v-if="message.thinkText || message.isThinking" class="think-block" :open="message.isThinking">
+                <summary class="think-summary">{{ message.isThinking ? 'Thinking…' : 'Thinking' }}</summary>
+                <div class="think-content">{{ message.thinkText }}<span v-if="message.isThinking" class="think-cursor">▌</span></div>
+              </details>
               <div v-html="renderMarkdown(message.text)"></div>
               <p v-if="message.streaming" class="streaming-indicator">Generating…</p>
             </div>
@@ -200,7 +204,10 @@ const sendPrompt = () => {
   const assistantMessage = {
     id: crypto.randomUUID(),
     role: 'assistant',
+    rawText: '',
     text: '',
+    thinkText: '',
+    isThinking: false,
     streaming: true
   }
   messages.value.push(assistantMessage)
@@ -216,11 +223,16 @@ const sendPrompt = () => {
     },
     {
       onToken: (token) => {
-        assistantMessage.text += token
+        assistantMessage.rawText += token
+        const parsed = parseThinkAndText(assistantMessage.rawText)
+        assistantMessage.text = parsed.text
+        assistantMessage.thinkText = parsed.thinkText
+        assistantMessage.isThinking = parsed.isThinking
         scrollChatHistoryToBottom()
       },
       onDone: () => {
         assistantMessage.streaming = false
+        assistantMessage.isThinking = false
         activeAssistantMessage.value = null
         streaming.value = false
         eventSource = null
@@ -228,6 +240,7 @@ const sendPrompt = () => {
       },
       onError: () => {
         assistantMessage.streaming = false
+        assistantMessage.isThinking = false
         activeAssistantMessage.value = null
         streaming.value = false
         eventSource = null
@@ -264,6 +277,40 @@ const renderMarkdown = (text) => {
   return DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true }
   })
+}
+
+// Split raw streamed text into visible response text and think-block content.
+// Multiple <think>…</think> blocks are accumulated into a single thinkText.
+// An unclosed <think> block sets isThinking=true so the UI can show a live indicator.
+const parseThinkAndText = (raw) => {
+  let text = ''
+  let thinkText = ''
+  let isThinking = false
+  let remaining = raw
+
+  while (remaining.length > 0) {
+    if (!isThinking) {
+      const thinkStart = remaining.indexOf('<think>')
+      if (thinkStart === -1) {
+        text += remaining
+        break
+      }
+      text += remaining.slice(0, thinkStart)
+      remaining = remaining.slice(thinkStart + '<think>'.length)
+      isThinking = true
+    } else {
+      const thinkEnd = remaining.indexOf('</think>')
+      if (thinkEnd === -1) {
+        thinkText += remaining
+        break
+      }
+      thinkText += remaining.slice(0, thinkEnd)
+      remaining = remaining.slice(thinkEnd + '</think>'.length)
+      isThinking = false
+    }
+  }
+
+  return { text, thinkText, isThinking }
 }
 
 const loadModels = async () => {
@@ -588,6 +635,56 @@ onBeforeUnmount(() => {
   color: #9a9a9a;
   font-style: italic;
   margin: 0;
+}
+
+.think-block {
+  margin-bottom: 0.6rem;
+  border: 1px solid #3a4a3a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.think-summary {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+  color: #8fb08f;
+  cursor: pointer;
+  user-select: none;
+  background: #1e2e1e;
+  list-style: none;
+}
+
+.think-summary::-webkit-details-marker {
+  display: none;
+}
+
+.think-summary::before {
+  content: '▶ ';
+  font-size: 0.7em;
+}
+
+details.think-block[open] .think-summary::before {
+  content: '▼ ';
+}
+
+.think-content {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  color: #8a9e8a;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: #171f17;
+}
+
+.think-cursor {
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 @media (max-width: 1024px) {
