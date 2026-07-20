@@ -73,17 +73,27 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 > **Model choice notes:**
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
-> * Fyr's inference runtime supports the **Qwen2** model family. Tested variants include `Qwen2.5-0.5B`, `Qwen2.5-1.5B`, and `Qwen2.5-3B` in GGUF format.
+> * Fyr's inference runtime currently supports the **Qwen2** model family for text generation. The curated defaults focus on `Qwen2.5-1.5B`, `Qwen2.5-3B`, `Qwen2.5-7B`, and `Qwen2.5-14B` GGUF builds.
 > * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays this reasoning in a collapsible **Thinking** section above the response — it streams live while the model reasons and collapses automatically when reasoning is complete.
 
 ### Where to find compatible models
 
+Fyr ships a manually editable curated catalog at `public/data/curated-content.json` (served at `/data/curated-content.json`). It records tested model tiers together with recommended download sources for books and maps.
+
+Recommended model tiers from that catalog:
+
+- **Small** — `Qwen2.5-1.5B-Instruct` in `Q8_0` (~1.7 GB) for Raspberry Pi 5 systems with 4 GB RAM or for faster/simple answers.
+- **Standard / Recommended** — `Qwen2.5-3B-Instruct` in `Q6_K` (~2.6 GB) for the best balance on Raspberry Pi 5.
+- **Large** — `Qwen2.5-7B-Instruct` in `Q4_K_M` (~4.5 GB) for Raspberry Pi 5 systems with 8 GB RAM.
+- **Extra large / Desktop** — `Qwen2.5-14B-Instruct` in `Q4_K_M` (~9.8 GB), or `Qwen2.5-7B-Instruct` in `Q8_0` (~8.5 GB), for 16 GB+ systems.
+
 GGUF files can be downloaded from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending). Recommended search:
 
 - Search: `Qwen2.5 GGUF` — filter by library `GGUF`
-- Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-0.5B-Instruct-GGUF`, `Qwen/Qwen2.5-1.5B-Instruct-GGUF`)
-- For low-memory devices (Raspberry Pi, 1–2 GB RAM): choose `Q4_K_M` quantization variants (~300–900 MB)
-- For faster laptops with more RAM: `Q6_K` or `Q8_0` give better output quality
+- Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-1.5B-Instruct-GGUF`, `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, `Qwen/Qwen2.5-14B-Instruct-GGUF`)
+- Fyr's default RAG profile uses `temperature=0.2` and `max_tokens=512`
+- Fyr defaults to a `num_ctx` of `2048`; on systems with more than 16 GB of RAM it automatically expands to `8192`
+- Advanced users can force the larger context window by setting `settings.modules.assistant.high_ram_context` to `true`
 
 Once downloaded, upload the `.gguf` file through Content Manager → Models.
 
@@ -93,6 +103,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 | Folder | Supported file types | Typical use |
 | --- | --- | --- |
+| `curated-content.json` | structured JSON catalog | Manually editable list of recommended model, book, and map downloads |
 | `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives |
 | `maps/` | `.pmtiles` | Offline map tiles |
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
@@ -119,6 +130,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - Current inference runtime is implemented for GGUF models with `qwen2` architecture.
 - Other GGUF architectures can still be loaded for validation/health checks but may not support text generation yet.
 - Prefer models that include tokenizer metadata in GGUF.
+- The bundled curated catalog (`public/data/curated-content.json`) lists the recommended Qwen 2.5 GGUF tiers and their default RAG settings.
 
 ### Misc
 - Use `public/data/misc/` for generic files that are not map/book/poi/model types.
@@ -133,6 +145,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - Active tasks persist across restarts and are restored automatically.
 - Content listings and download tasks refresh automatically as task state changes.
 - You can cancel queued or in-progress downloads from the download manager.
+- Fyr does not overwrite your `curated-content.json` catalog when it already exists in `DATA_DIR`, so you can keep local recommendations there across updates.
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.
