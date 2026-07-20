@@ -43,6 +43,7 @@
             Clear location
           </button>
         </div>
+        <p v-if="browserGeoNote" class="geo-note">{{ browserGeoNote }}</p>
       </form>
 
       <p v-if="message" class="status-message">{{ message }}</p>
@@ -117,7 +118,16 @@ const moduleForm = reactive({
   payload: '{"source":"settings-page","updatedAt":""}'
 })
 
-const browserLocationAvailable = computed(() => typeof navigator !== 'undefined' && 'geolocation' in navigator)
+const browserGeoNote = computed(() => {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+    return 'Browser geolocation is not supported in this environment.'
+  }
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Browser geolocation requires a secure context (HTTPS or localhost).'
+  }
+  return ''
+})
+const browserLocationAvailable = computed(() => browserGeoNote.value === '')
 const moduleEntries = computed(() => Object.entries(settingsState.settings.modules || {}).map(([name, value]) => ({ name, value: JSON.stringify(value, null, 2) })))
 const moduleCount = computed(() => moduleEntries.value.length)
 
@@ -437,6 +447,12 @@ input:focus {
 .error-message {
   margin: 1rem 0 0;
   color: #ff8a8a;
+}
+
+.geo-note {
+  margin: 0.5rem 0 0;
+  color: #b8bfd0;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 768px) {
