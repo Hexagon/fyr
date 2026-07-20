@@ -386,11 +386,11 @@ fn strip_think_blocks(text: &str) -> String {
             }
             Some(pos) => {
                 result.push_str(&remaining[..pos]);
-                remaining = &remaining[pos + 7..]; // skip "<think>"
+                remaining = &remaining[pos + "<think>".len()..];
                 match remaining.find("</think>") {
                     None => break, // still inside think block – stop emitting
                     Some(end) => {
-                        remaining = &remaining[end + 8..]; // skip "</think>"
+                        remaining = &remaining[end + "</think>".len()..];
                     }
                 }
             }
