@@ -103,31 +103,70 @@ Container expectations:
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
 
-## 4. Active API Surface (Current)
-Core endpoints:
+## 3.5 Access Control Architecture
+
+Fyr implements a two-level access control system controlled entirely by environment variables at startup. The restriction is enforced at the Axum API layer — the frontend also adapts its UI, but that is a secondary UX concern, not the security boundary.
+
+### Modes
+
+| Mode | Env var | Effect |
+|------|---------|--------|
+| Open (default) | _(none)_ | All endpoints accessible |
+| Password-protected | `FYR_ADMIN_PASSWORD=<pass>` | Mutating endpoints require a valid session cookie |
+| Strict read-only | `FYR_READONLY=true` | All mutating endpoints return `403 Forbidden`; no login possible |
+
+### Implementation (`crates/server/src/auth.rs`)
+
+- **`AuthManager`** — in-memory struct holding:
+  - A `Mutex<HashSet<String>>` of live session tokens (UUIDs).
+  - A `Mutex<HashMap<String, RateLimitEntry>>` for per-IP rate limiting.
+- **`require_admin` middleware** — Axum `from_fn_with_state` middleware applied via `route_layer` to a sub-router containing all mutating routes. It checks:
+  1. If `FYR_READONLY` → return `403`.
+  2. If no password configured → pass through (open mode).
+  3. Otherwise → validate the `fyr_session` cookie value against `AuthManager::tokens`.
+- **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
+- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (`ConnectInfo<SocketAddr>`), so clients cannot bypass limits by spoofing `X-Forwarded-For` headers. When Fyr runs behind a reverse proxy, all requests share the proxy's IP; in that case the proxy should handle rate limiting.
+- **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
+
+### Adding new protected endpoints
+
+Add the route to the `protected` `Router` in `create_router` in `crates/server/src/main.rs`. The `route_layer(admin_mw)` call automatically covers all routes in that sub-router.
+
+
+
+### Auth endpoints (always public)
+- `GET /api/auth/status` — returns `{ readonly, requires_auth, authenticated }`. Use this to determine the current access mode.
+- `POST /api/auth/login` — body: `{ "password": "..." }`. Returns `Set-Cookie: fyr_session=<token>; HttpOnly; Path=/; SameSite=Strict` on success. Returns `429 Too Many Requests` when rate-limited.
+- `POST /api/auth/logout` — clears the session cookie and revokes the token.
+
+### Core read-only endpoints (always public)
 - `GET /api/status`
 - `GET /api/config`
 - `GET /api/storage`
+- `GET /api/settings`
 - `GET /api/content/maps`
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`
 - `GET /api/content/misc`
-- `DELETE /api/content/:type/:filename` — permanently delete a content file from disk (type: maps, books, poi, models, misc)
-- `POST /api/download`
-- `DELETE /api/download/:task_id`
-- `DELETE /api/download/:task_id/dismiss` — remove a download task from the list (cancels first if still active)
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+
+### Admin-only endpoints (require auth when `FYR_ADMIN_PASSWORD` is set; always blocked when `FYR_READONLY`)
+- `PUT /api/settings`
+- `DELETE /api/content/:type/:filename` — permanently delete a content file from disk
+- `POST /api/download`
+- `DELETE /api/download/:task_id`
+- `DELETE /api/download/:task_id/dismiss`
 - `POST /api/import/upload`
 - `POST /api/import/download/:filename`
-
-AI assistant endpoints:
-- `GET /api/models`
 - `POST /api/models/upload`
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
+
+AI read-only endpoints (always public):
+- `GET /api/models`
 - `GET /api/models/:filename/health`
 - `GET /api/models/:filename/infer/stream`
 

@@ -9,6 +9,26 @@ use anyhow::{Context, Result};
 pub struct Config {
     pub server: ServerConfig,
     pub data_dir: PathBuf,
+    pub auth: AuthConfig,
+}
+
+/// Authentication and access-control configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// When set, mutating API endpoints require a valid session.
+    /// Visitors without a session can only use read-only endpoints.
+    pub admin_password: Option<String>,
+    /// When true, all mutating endpoints are permanently disabled regardless
+    /// of any session state. Takes precedence over `admin_password`.
+    pub readonly: bool,
+}
+
+impl AuthConfig {
+    /// Returns true when the system is in any restricted mode (read-only or
+    /// password-protected).
+    pub fn is_restricted(&self) -> bool {
+        self.readonly || self.admin_password.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +47,10 @@ impl Config {
                 port: 8080,
             },
             data_dir,
+            auth: AuthConfig {
+                admin_password: None,
+                readonly: false,
+            },
         }
     }
 
@@ -115,6 +139,17 @@ impl Default for Config {
         let mut config = Self::default_with_data_dir(data_dir);
         config.server.host = host;
         config.server.port = port;
+
+        let admin_password = std::env::var("FYR_ADMIN_PASSWORD").ok().filter(|s| !s.is_empty());
+        let readonly = std::env::var("FYR_READONLY")
+            .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false);
+
+        config.auth = AuthConfig {
+            admin_password,
+            readonly,
+        };
+
         config
     }
 }

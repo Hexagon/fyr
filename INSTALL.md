@@ -206,6 +206,8 @@ Windows PowerShell:
 * `DATA_DIR` (default `./public/data`)
 * `FYR_HOST` (default `127.0.0.1`; use `0.0.0.0` for LAN access)
 * `FYR_PORT` (default `8080`)
+* `FYR_ADMIN_PASSWORD` — when set, mutating API endpoints (downloads, imports, deletes, model management) require a valid admin session. See [Access Control](#access-control) below.
+* `FYR_READONLY` — when set to `true`, `1`, or `yes`, all mutating endpoints are permanently disabled. No login is possible. Use this for strict public-facing deployments.
 
 ### Upgrading
 
@@ -224,7 +226,59 @@ Restart the binary. Your data directory is separate from the build output, so no
 
 ---
 
-## Quick Verification Checklist
+## Access Control
+
+By default Fyr is fully open — all endpoints are accessible without authentication. Two environment variables add access control:
+
+### `FYR_ADMIN_PASSWORD` — Password-Protected Admin Mode
+
+Set this variable to a strong password to enable admin authentication. When set:
+
+* Read-only operations (browsing maps, reading books, chatting with AI) remain accessible to all visitors.
+* Mutating operations (downloads, imports, file deletion, model management) require an authenticated admin session.
+* The Content Manager nav link is hidden from unauthenticated visitors.
+* Storage usage details on the Overview page are hidden from unauthenticated visitors.
+* A **Log in** button appears in the top navbar. Successful login stores an HttpOnly session cookie.
+* After logging in the **Log out** button appears in the navbar.
+* Failed login attempts from the same IP are rate-limited (up to 10 attempts per 5-minute window).
+
+**Docker example:**
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -e FYR_ADMIN_PASSWORD=my-strong-password \
+  -v fyr-data:/data \
+  hexagon/fyr:latest
+```
+
+**Source example:**
+
+```bash
+FYR_ADMIN_PASSWORD=my-strong-password ./target/release/fyr
+```
+
+### `FYR_READONLY` — Strict Read-Only Mode
+
+Set this variable to `true`, `1`, or `yes` to permanently disable all mutating endpoints. No login is possible.
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -e FYR_READONLY=true \
+  -v fyr-data:/data \
+  hexagon/fyr:latest
+```
+
+Use this for kiosk, library, or shared public-facing nodes where no administrative access should ever be possible at runtime.
+
+> **Note:** `FYR_READONLY` takes precedence over `FYR_ADMIN_PASSWORD`. If both are set, the system operates in strict read-only mode.
+
+---
+
+
 
 * `docker ps` (if running in Docker) shows the Fyr container as running.
 * Browser can open `/api/status` on your target host and port.

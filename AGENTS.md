@@ -28,6 +28,25 @@ Config overrides:
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+- `FYR_ADMIN_PASSWORD` — enables password-protected admin mode; mutating endpoints require a valid session
+- `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 regardless of session state
+
+## Core Security Function: Access Control
+
+**This is a permanent, always-active architectural concern.** Every agent working on this codebase must be aware of it.
+
+Fyr enforces read-only / admin access at the **Axum API middleware layer** (`crates/server/src/auth.rs`), not in the frontend. The frontend hiding of elements is a UX convenience only.
+
+Rules to always respect:
+
+1. **New mutating endpoints** (any `POST`, `PUT`, `PATCH`, `DELETE` that modifies server state) **must** be added to the `protected` sub-router in `crates/server/src/main.rs` so they inherit the `require_admin` middleware.
+2. **Read-only endpoints** (pure `GET` listing/reading) may remain in the public router.
+3. **Never bypass `require_admin`** in a handler or by restructuring the router in a way that removes the `route_layer`.
+4. **`FYR_READONLY` is absolute** — it returns `403` even if a valid session cookie is present.
+5. **Session tokens** are UUIDs stored in-memory (no persistence across restarts), set as HttpOnly cookies.
+6. Frontend components that reveal sensitive system information (storage paths, disk usage) must also check `isAdminLocked()` from `crates/ui/frontend/src/services/auth.js`.
+
+See `docs/developer/DEVELOPER_MANUAL.md § 3.5` for the full architecture description.
 
 ## Module Responsibilities
 
@@ -48,6 +67,7 @@ Responsibilities:
 - Axum API handlers and routing
 - Static serving for `/static`, `/assets`, `/data`, `/docs/books`
 - Native ZIM reader API endpoints
+- Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` middleware
 
 ### Downloader Module: downloader
 Path: [crates/downloader/src](crates/downloader/src)

@@ -11,10 +11,18 @@
 
         <div v-if="!sidebarCollapsed" class="sidebar-content">
           <router-link
+            v-if="!adminLocked"
             class="btn btn-primary import-link"
             :to="{ name: 'ContentManager', query: { category: 'models' } }"
           >
             Open Content Manager
+          </router-link>
+          <router-link
+            v-else-if="authState.requiresAuth && !authState.readonly"
+            class="btn btn-secondary import-link"
+            to="/login"
+          >
+            Log in to manage models
           </router-link>
           <p class="hint-text">Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.</p>
 
@@ -96,8 +104,12 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { apiService } from '../services/api'
+import { useAuthState, isAdminLocked } from '../services/auth'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+
+const authState = useAuthState()
+const adminLocked = computed(() => isAdminLocked())
 
 const sidebarCollapsed = ref(false)
 const models = ref([])
