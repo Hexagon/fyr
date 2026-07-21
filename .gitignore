@@ -36,6 +36,9 @@ docs/build/node_modules/
 # Data directory (user content) - ignore all content files
 /public/data/*
 
+# EXCEPT: Keep the default curated catalog under version control
+!/public/data/curated-content.json
+
 # EXCEPT: Include generated documentation manuals
 !/public/data/books/user-manual.epub
 !/public/data/books/developer-manual.epub

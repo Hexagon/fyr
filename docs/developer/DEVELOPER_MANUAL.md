@@ -45,13 +45,30 @@ The streaming inference loop in `crates/server/src/ai/manager.rs` applies two se
 
 Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with embedded tokenizer metadata.
 
-| Use case | Suggested model | Quantization |
-|---|---|---|
-| Low memory (≤2 GB, Raspberry Pi) | `Qwen2.5-0.5B-Instruct` | Q4_K_M |
-| General use | `Qwen2.5-1.5B-Instruct` | Q4_K_M or Q6_K |
-| Higher quality (≥8 GB RAM) | `Qwen2.5-3B-Instruct` | Q6_K or Q8_0 |
+| Tier | Suggested model | Quantization | Approx. size | Notes |
+|---|---|---|---|---|
+| Small | `Qwen2.5-1.5B-Instruct` | Q8_0 | ~1.7 GB | Fast/simple answers, workable on 4 GB Raspberry Pi 5 systems |
+| Standard | `Qwen2.5-3B-Instruct` | Q6_K | ~2.6 GB | Recommended default for Raspberry Pi 5 RAG usage |
+| Large | `Qwen2.5-7B-Instruct` | Q4_K_M | ~4.5 GB | Intended for 8 GB Raspberry Pi 5 systems |
+| Extra large | `Qwen2.5-14B-Instruct` | Q4_K_M | ~9.8 GB | Desktop-grade RAG quality on 16 GB+ systems |
+| Extra large (alt) | `Qwen2.5-7B-Instruct` | Q8_0 | ~8.5 GB | Smaller desktop alternative when 14B is too heavy |
 
-GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repository: `Qwen/Qwen2.5-1.5B-Instruct-GGUF`.
+GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repositories: `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, and `Qwen/Qwen2.5-14B-Instruct-GGUF`.
+
+Default assistant profile used by Fyr:
+
+- `temperature = 0.2`
+- `max_tokens = 512`
+- `num_ctx = 2048`
+- Auto-upgrade to `num_ctx = 8192` when the host reports more than 16 GB of RAM
+- Manual override: set `settings.modules.assistant.high_ram_context = true` or `settings.modules.assistant.num_ctx` to an explicit value
+
+Catalog file:
+
+- Fyr seeds `DATA_DIR/curated-content.json` from the bundled `public/data/curated-content.json` when the file is missing.
+- Existing `DATA_DIR/curated-content.json` files are preserved so operators can maintain a local curated list across upgrades.
+- The frontend content manager reads `/data/curated-content.json`, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.
+- Curated entries may include an optional `download_url` field that queues a direct download from the content manager UI.
 
 Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
 
