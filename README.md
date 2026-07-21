@@ -24,7 +24,7 @@ Open `http://localhost:8080` on the same machine.
 
 ## Installation & Deployment
 
-For comprehensive installation paths, please refer to [INSTALL.md](/INSTALL.md). It serves as the single source of truth for deployment and includes step-by-step guides for:
+For comprehensive installation paths, please refer to [fyr.guide/#installation](https://fyr.guide/#installation). It serves as the single source of truth for deployment and includes step-by-step guides for:
 
 * Building from source for development workflows.
 * Running with Docker (both Production and Dev releases) on an existing system.
@@ -34,11 +34,11 @@ For comprehensive installation paths, please refer to [INSTALL.md](/INSTALL.md).
 
 Fyr stores all user content in a persistent data directory (defaulting to `./public/data` locally or `/data` in Docker).
 
-To learn how to persist data across reinstalls, refer to the volume mounting instructions in [INSTALL.md](/INSTALL.md). For a detailed breakdown of folder structures, supported file types, and how Fyr handles automatic system-manual refreshes on startup, see the Data Storage Layout section in the [User Manual](/docs/user/USER_MANUAL.md).
+To learn how to persist data across reinstalls, refer to the volume mounting instructions at [fyr.guide/#installation](https://fyr.guide/#installation). For a detailed breakdown of folder structures, supported file types, and how Fyr handles automatic system-manual refreshes on startup, see the Data Storage Layout section in the [User Manual](/docs/user/USER_MANUAL.md).
 
 ## Documentation
 
-- Installation guide: [INSTALL.md](INSTALL.md)
+- Installation guide: [fyr.guide/#installation](https://fyr.guide/#installation)
 - User guide: [docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
 - Developer guide: [docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
 
