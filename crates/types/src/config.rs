@@ -1,8 +1,11 @@
 //! Configuration management for Fyr
 
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
+
+const CURATED_CONTENT_FILENAME: &str = "curated-content.json";
+const DEFAULT_CURATED_CONTENT: &str = include_str!("../../../public/data/curated-content.json");
 
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +87,11 @@ impl Config {
         self.data_dir.join("misc")
     }
 
+    /// Get path to the curated content catalog
+    pub fn curated_content_path(&self) -> PathBuf {
+        self.data_dir.join(CURATED_CONTENT_FILENAME)
+    }
+
     /// Initialize data directory structure
     pub fn initialize_directories(&self) -> Result<()> {
         std::fs::create_dir_all(&self.data_dir)?;
@@ -93,6 +101,12 @@ impl Config {
         std::fs::create_dir_all(self.inbox_dir())?;
         std::fs::create_dir_all(self.models_dir())?;
         std::fs::create_dir_all(self.misc_dir())?;
+
+        let curated_content_path = self.curated_content_path();
+        if !curated_content_path.exists() {
+            std::fs::write(&curated_content_path, DEFAULT_CURATED_CONTENT)?;
+        }
+
         Ok(())
     }
 
@@ -100,8 +114,12 @@ impl Config {
     pub fn validate_writable(&self) -> Result<()> {
         let probe = self.data_dir.join(".fyr-write-test");
 
-        std::fs::write(&probe, b"fyr")
-            .with_context(|| format!("Data directory is not writable: {}", self.data_dir.display()))?;
+        std::fs::write(&probe, b"fyr").with_context(|| {
+            format!(
+                "Data directory is not writable: {}",
+                self.data_dir.display()
+            )
+        })?;
 
         std::fs::remove_file(&probe)
             .with_context(|| format!("Failed to clean write probe file: {}", probe.display()))?;
@@ -140,7 +158,9 @@ impl Default for Config {
         config.server.host = host;
         config.server.port = port;
 
-        let admin_password = std::env::var("FYR_ADMIN_PASSWORD").ok().filter(|s| !s.is_empty());
+        let admin_password = std::env::var("FYR_ADMIN_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty());
         let readonly = std::env::var("FYR_READONLY")
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
@@ -151,5 +171,66 @@ impl Default for Config {
         };
 
         config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn test_data_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("fyr-types-tests-{unique}"))
+    }
+
+    #[test]
+    fn initialize_directories_seeds_curated_catalog_when_missing() {
+        let data_dir = test_data_dir();
+        let config = Config::default_with_data_dir(&data_dir);
+
+        config
+            .initialize_directories()
+            .expect("initialize directories");
+
+        assert!(config.maps_dir().is_dir());
+        assert!(config.books_dir().is_dir());
+        assert!(config.poi_dir().is_dir());
+        assert!(config.inbox_dir().is_dir());
+        assert!(config.models_dir().is_dir());
+        assert!(config.misc_dir().is_dir());
+
+        let catalog =
+            fs::read_to_string(config.curated_content_path()).expect("read curated catalog");
+        assert!(catalog.contains("\"schema_version\": 1"));
+        assert!(catalog.contains("\"assistant\""));
+        assert!(catalog.contains("\"models\""));
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
+    fn initialize_directories_preserves_existing_curated_catalog() {
+        let data_dir = test_data_dir();
+        fs::create_dir_all(&data_dir).expect("create test data dir");
+
+        let config = Config::default_with_data_dir(&data_dir);
+        let existing = "{\n  \"custom\": true\n}\n";
+        fs::write(config.curated_content_path(), existing).expect("write existing catalog");
+
+        config
+            .initialize_directories()
+            .expect("initialize directories");
+
+        let catalog =
+            fs::read_to_string(config.curated_content_path()).expect("read curated catalog");
+        assert_eq!(catalog, existing);
+
+        let _ = fs::remove_dir_all(data_dir);
     }
 }

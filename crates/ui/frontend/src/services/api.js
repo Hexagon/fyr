@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const API_BASE = '/api'
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 120000
 const MAX_RETRIES = 2
 const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
 
@@ -149,6 +149,15 @@ export const apiService = {
     const response = await api.get('/content/misc')
     return { data: mapContentArray(response.data.value || response.data) }
   },
+  getCuratedContent: async () => {
+    const response = await axios.get('/data/curated-content.json', {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+    return { data: response.data || {} }
+  },
 
   // AI model registry
   listAiModels: () => api.get('/models'),
@@ -220,12 +229,15 @@ export const apiService = {
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
-  streamInference: (filename, { prompt, temperature = 0.7, maxTokens = 256 }, handlers = {}) => {
+  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx }, handlers = {}) => {
     const params = new URLSearchParams({
       prompt,
       temperature: String(temperature),
       max_tokens: String(maxTokens)
     })
+    if (numCtx != null) {
+      params.set('num_ctx', String(numCtx))
+    }
     const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
     const source = new EventSource(url)
 
