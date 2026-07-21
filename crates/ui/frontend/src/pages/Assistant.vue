@@ -141,6 +141,17 @@ const modelStatusText = computed(() => {
   return `Model selected: ${selectedModel.value.filename}`
 })
 
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 const formatBytes = (bytes) => {
   if (!bytes) return '0 B'
   const k = 1024
@@ -177,14 +188,14 @@ const loadSelectedModel = async () => {
       ? `Model loaded for inference: ${selectedModel.value.filename}`
       : `Model validated: ${selectedModel.value.filename}. ${modelHealth.value?.error || 'Inference is not available yet for this runtime.'}`
     messages.value.push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'assistant',
       text: statusDetail
     })
   } catch (error) {
     const detail = apiService.handleError(error)
     messages.value.push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'assistant',
       text: `Health check: could not load ${selectedModel.value.filename}. ${detail}`
     })
@@ -199,10 +210,10 @@ const sendPrompt = () => {
   stopGeneration()
 
   const userPrompt = prompt.value
-  messages.value.push({ id: crypto.randomUUID(), role: 'user', text: userPrompt })
+  messages.value.push({ id: generateId(), role: 'user', text: userPrompt })
 
   const assistantMessage = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     role: 'assistant',
     rawText: '',
     text: '',
