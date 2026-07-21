@@ -35,7 +35,7 @@
 <body class="bg-gray-50 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
 
     <!-- Navigation -->
-    <nav class="fixed w-full bg-white/80 backdrop-blur-md border-b border-gray-200 z-50">
+    <nav class="fixed w-full bg-white/85 backdrop-blur-md border-b border-gray-200 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
                 <div class="flex-shrink-0 flex items-center gap-2">
@@ -44,6 +44,7 @@
                 </div>
                 <div class="hidden md:flex space-x-8">
                     <a href="#features" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Features</a>
+                    <a href="#preview" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Interface</a>
                     <a href="#installation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Installation</a>
                     <a href="#documentation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Documentation</a>
                 </div>
@@ -67,7 +68,7 @@
             </p>
             <div class="flex justify-center gap-4">
                 <a href="#installation" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/30">Get Started</a>
-                <a href="#documentation" class="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-3 rounded-lg font-medium transition-all shadow-sm">Read the Manuals</a>
+                <a href="#preview" class="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-3 rounded-lg font-medium transition-all shadow-sm">View Interface</a>
             </div>
         </div>
     </div>
@@ -125,8 +126,45 @@
         </div>
     </div>
 
+    <!-- Screenshot Showcase / Interactive Slider Section -->
+    <div id="preview" class="py-24 bg-gray-50 border-y border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-900">Designed for speed and clarity.</h2>
+                <p class="mt-4 text-lg text-gray-600">Explore the clean local dashboard and workspace interfaces.</p>
+                
+                <!-- Tab Controls Slider -->
+                <div class="mt-8 inline-flex p-1.5 bg-gray-200 rounded-xl space-x-1 shadow-inner">
+                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm">Library</button>
+                    <button onclick="switchTab(2)" id="tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Maps</button>
+                </div>
+            </div>
+
+            <!-- Simulated Browser Window Container -->
+            <div class="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden max-w-5xl mx-auto">
+                <div class="flex items-center justify-between px-4 py-3 bg-gray-100 border-b border-gray-200">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                    </div>
+                    <div class="bg-white px-4 py-1 rounded-md text-xs text-gray-500 font-mono border border-gray-200 w-96 text-center truncate shadow-xs">
+                        http://localhost:8080
+                    </div>
+                    <div class="w-12"></div>
+                </div>
+
+                <!-- Screenshot Display Viewport -->
+                <div class="relative bg-gray-900 aspect-[1557/773] overflow-hidden">
+                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Dashboard Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
+                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Workspace Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Installation Section -->
-    <div id="installation" class="py-24 bg-gray-900 text-gray-300 border-y border-gray-800">
+    <div id="installation" class="py-24 bg-gray-900 text-gray-300 border-b border-gray-800">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <!-- Quick Start Hero -->
@@ -206,6 +244,15 @@
   -e DATA_DIR=/data `
   -v C:\fyr-data:/data `
   hexagon/fyr:latest</code></pre>
+
+                <!-- Bind Mount Permissions & UID 1000 Note -->
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                    <p class="text-sm text-white font-semibold mb-1">⚠️ Note on Bind Mount Permissions & UID 1000</p>
+                    <p class="text-sm text-gray-300 leading-relaxed">
+                        When using a host folder bind-mount (e.g., <code>-v /path/to/fyr-data:/data</code>), file permission issues can occur if the host directory ownership does not match the container's execution user (typically UID <code>1000</code>). If Fyr encounters permission denied errors when writing downloads or user data, ensure the host directory is owned by the correct user or fix it using:
+                    </p>
+                    <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">sudo chown -R 1000:1000 /path/to/fyr-data</pre>
+                </div>
                 
                 <hr class="border-gray-800 my-10">
 
@@ -335,5 +382,34 @@ docker --version</code></pre>
         </div>
     </footer>
 
+    <!-- Interactive Screenshot Switcher Script -->
+    <script>
+        function switchTab(tabIndex) {
+            const btn1 = document.getElementById('tab-btn-1');
+            const btn2 = document.getElementById('tab-btn-2');
+            const img1 = document.getElementById('screenshot-1');
+            const img2 = document.getElementById('screenshot-2');
+
+            if (tabIndex === 1) {
+                btn1.className = "px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm";
+                btn2.className = "px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900";
+                
+                img1.classList.remove('opacity-0', 'pointer-events-none');
+                img1.classList.add('opacity-100');
+                
+                img2.classList.remove('opacity-100');
+                img2.classList.add('opacity-0', 'pointer-events-none');
+            } else {
+                btn2.className = "px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm";
+                btn1.className = "px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900";
+                
+                img2.classList.remove('opacity-0', 'pointer-events-none');
+                img2.classList.add('opacity-100');
+                
+                img1.classList.remove('opacity-100');
+                img1.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+    </script>
 </body>
 </html>
