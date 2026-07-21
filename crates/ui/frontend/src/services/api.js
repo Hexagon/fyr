@@ -149,6 +149,15 @@ export const apiService = {
     const response = await api.get('/content/misc')
     return { data: mapContentArray(response.data.value || response.data) }
   },
+  getCuratedContent: async () => {
+    const response = await axios.get('/data/curated-content.json', {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+    return { data: response.data || {} }
+  },
 
   // AI model registry
   listAiModels: () => api.get('/models'),

@@ -3,7 +3,8 @@
   "title": "Fyr curated content catalog",
   "notes": [
     "Edit this file manually to keep a local curated list of recommended downloads.",
-    "Fyr seeds this catalog when missing, but does not overwrite an existing copy in DATA_DIR."
+    "Fyr seeds this catalog when missing, but does not overwrite an existing copy in DATA_DIR.",
+    "Entries may include an optional download_url for direct downloads from the Content Manager."
   ],
   "assistant": {
     "supported_model_format": "gguf",

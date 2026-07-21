@@ -78,7 +78,7 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 
 ### Where to find compatible models
 
-Fyr ships a manually editable curated catalog at `public/data/curated-content.json` (served at `/data/curated-content.json`). It records tested model tiers together with recommended download sources for books and maps.
+Fyr ships a manually editable curated catalog at `public/data/curated-content.json` (served at `/data/curated-content.json`). It records tested model tiers together with recommended download sources for books and maps, and can also include optional direct `download_url` entries for one-click downloads in Content Manager.
 
 Recommended model tiers from that catalog:
 
@@ -138,6 +138,8 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
+- When a content folder is empty, Content Manager shows curated recommendations from `curated-content.json` instead of a blank listing.
+- When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
 - Use the **Download** button in each Content Manager file row to download a local copy from the browser.
 - Downloads are auto-routed by recognized extension to the correct folder.

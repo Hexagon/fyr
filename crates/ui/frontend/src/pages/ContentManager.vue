@@ -69,7 +69,53 @@
               </tr>
             </tbody>
           </table>
-          <p v-else class="empty-state">No files in {{ currentFolderLabel }}.</p>
+          <div v-else class="empty-panel">
+            <p class="empty-state">No files in {{ currentFolderLabel }}.</p>
+            <p v-if="!showCuratedPanel" class="status-text">Import files or queue a URL download to get started.</p>
+            <p v-if="curatedContentError" class="error-text">{{ curatedContentError }}</p>
+          </div>
+        </div>
+
+        <div v-if="showCuratedPanel" class="curated-panel" :class="showCuratedPrimary ? 'curated-panel-primary' : 'curated-panel-secondary'">
+          <div class="curated-header">
+            <div>
+              <h3>{{ curatedSectionTitle }}</h3>
+              <p class="status-text">{{ curatedSectionHint }}</p>
+            </div>
+            <span class="pill">{{ activeCuratedItems.length }}</span>
+          </div>
+
+          <div class="curated-list">
+            <article v-for="item in activeCuratedItems" :key="item.id" class="curated-item">
+              <div class="curated-copy">
+                <h4>{{ item.title }}</h4>
+                <p v-if="item.description" class="curated-description">{{ item.description }}</p>
+                <div v-if="item.meta.length" class="curated-meta">
+                  <span v-for="meta in item.meta" :key="`${item.id}-${meta}`" class="curated-chip">{{ meta }}</span>
+                </div>
+              </div>
+
+              <div class="curated-actions">
+                <button
+                  v-if="item.downloadUrl"
+                  class="btn btn-primary btn-inline"
+                  :disabled="urlDownloadPending"
+                  @click="startCuratedDownload(item)"
+                >
+                  {{ urlDownloadPending && downloadUrl === item.downloadUrl ? 'Downloading...' : 'Download now' }}
+                </button>
+                <a
+                  v-if="item.source"
+                  class="btn btn-secondary btn-inline"
+                  :href="item.source"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open source
+                </a>
+              </div>
+            </article>
+          </div>
         </div>
 
         <div class="manager-panels">
@@ -218,8 +264,10 @@ const pois = ref([])
 const models = ref([])
 const misc = ref([])
 const downloads = ref([])
+const curatedContent = ref({ items: {} })
 const loading = ref(true)
 const contentError = ref(null)
+const curatedContentError = ref(null)
 const downloadsError = ref(null)
 const downloadsLoading = ref(false)
 const confirmDeleteFile = ref(null)
@@ -276,6 +324,71 @@ const visibleFiles = computed(() => {
   return sortDir.value === 'asc' ? sorted : sorted.reverse()
 })
 
+const curatedCatalogCategoryMap = Object.freeze({
+  maps: 'maps',
+  books: 'books',
+  models: 'models'
+})
+
+const formatApproximateGigabytes = (value) => {
+  const size = Number(value)
+  if (!Number.isFinite(size) || size <= 0) return null
+  return `~${size} GB`
+}
+
+const buildCuratedMeta = (category, item) => {
+  if (category === 'models') {
+    return [
+      item.tier ? `Tier: ${item.tier}` : null,
+      item.quantization || null,
+      formatApproximateGigabytes(item.approx_size_gb),
+      item.license ? `License: ${item.license}` : null,
+      item.default_profile ? `Profile: ${item.default_profile}` : null
+    ].filter(Boolean)
+  }
+
+  const formats = Array.isArray(item.formats) && item.formats.length
+    ? `Formats: ${item.formats.map((format) => String(format).toUpperCase()).join(', ')}`
+    : null
+
+  return [formats].filter(Boolean)
+}
+
+const normalizedCuratedItems = (category) => {
+  const catalogKey = curatedCatalogCategoryMap[category]
+  const items = catalogKey ? curatedContent.value?.items?.[catalogKey] : []
+  if (!Array.isArray(items)) {
+    return []
+  }
+
+  return items.map((item, index) => ({
+    id: item.id || `${category}-${index}`,
+    title: category === 'models'
+      ? [item.model, item.quantization].filter(Boolean).join(' • ') || item.id || 'Recommended model'
+      : item.label || item.id || 'Recommended source',
+    description: item.recommended_for || item.notes || '',
+    downloadUrl: String(item.download_url || '').trim(),
+    source: String(item.source || '').trim(),
+    meta: buildCuratedMeta(category, item)
+  }))
+}
+
+const activeCuratedItems = computed(() => normalizedCuratedItems(activeCategory.value))
+
+const showCuratedPrimary = computed(() => !contentError.value && !visibleFiles.value.length && activeCuratedItems.value.length > 0)
+
+const showCuratedSupplement = computed(() => !contentError.value && visibleFiles.value.length > 0 && activeCuratedItems.value.length > 0)
+
+const showCuratedPanel = computed(() => showCuratedPrimary.value || showCuratedSupplement.value)
+
+const curatedSectionTitle = computed(() => showCuratedPrimary.value
+  ? `Recommended ${currentFolderLabel.value}`
+  : `More ${currentFolderLabel.value}`)
+
+const curatedSectionHint = computed(() => showCuratedPrimary.value
+  ? `Start with the curated catalog for trusted ${currentFolderLabel.value.toLowerCase()} sources and direct downloads where available.`
+  : `Need more ${currentFolderLabel.value.toLowerCase()}? The curated catalog keeps recommended sources handy alongside your current files.`)
+
 const formatBytes = (bytes) => {
   const value = Number(bytes)
   if (!Number.isFinite(value) || value <= 0) return '0 B'
@@ -320,6 +433,12 @@ const handleDownload = async () => {
   } finally {
     urlDownloadPending.value = false
   }
+}
+
+const startCuratedDownload = async (item) => {
+  if (!item?.downloadUrl || urlDownloadPending.value) return
+  downloadUrl.value = item.downloadUrl
+  await handleDownload()
 }
 
 const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
@@ -560,6 +679,18 @@ const loadContent = async () => {
   }
 }
 
+const loadCuratedContent = async () => {
+  curatedContentError.value = null
+  try {
+    const response = await apiService.getCuratedContent()
+    curatedContent.value = response.data || { items: {} }
+  } catch (err) {
+    console.error('Error loading curated content:', err)
+    curatedContent.value = { items: {} }
+    curatedContentError.value = apiService.handleError(err)
+  }
+}
+
 const loadDownloads = async () => {
   downloadsLoading.value = true
   downloadsError.value = null
@@ -621,7 +752,7 @@ watch(
 
 onMounted(async () => {
   loading.value = true
-  await Promise.all([loadContent(), loadDownloads()])
+  await Promise.all([loadContent(), loadDownloads(), loadCuratedContent()])
   loading.value = false
   scheduleDownloadRefresh()
 })
@@ -816,6 +947,10 @@ onUnmounted(() => {
   background: #1a1a1a;
 }
 
+.empty-panel {
+  padding: 0.85rem;
+}
+
 .file-table {
   width: 100%;
   border-collapse: collapse;
@@ -909,6 +1044,80 @@ onUnmounted(() => {
 .download-create .status-text {
   grid-column: 1 / -1;
   margin: 0;
+}
+
+.curated-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #1f1f1f;
+}
+
+.curated-panel-primary {
+  margin-top: -0.1rem;
+}
+
+.curated-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.curated-header h3,
+.curated-item h4 {
+  margin: 0;
+}
+
+.curated-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.curated-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #343434;
+  border-radius: 6px;
+  background: #151515;
+}
+
+.curated-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.curated-description {
+  margin: 0;
+  color: #cfcfcf;
+  line-height: 1.45;
+}
+
+.curated-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.curated-chip {
+  border-radius: 999px;
+  border: 1px solid #4d4d4d;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  color: #d8d8d8;
+}
+
+.curated-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .btn {
@@ -1023,6 +1232,10 @@ onUnmounted(() => {
 
   .manager-panels {
     grid-template-columns: 1fr;
+  }
+
+  .curated-item {
+    flex-direction: column;
   }
 }
 </style>

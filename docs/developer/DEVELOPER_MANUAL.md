@@ -67,6 +67,8 @@ Catalog file:
 
 - Fyr seeds `DATA_DIR/curated-content.json` from the bundled `public/data/curated-content.json` when the file is missing.
 - Existing `DATA_DIR/curated-content.json` files are preserved so operators can maintain a local curated list across upgrades.
+- The frontend content manager reads `/data/curated-content.json`, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.
+- Curated entries may include an optional `download_url` field that queues a direct download from the content manager UI.
 
 Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
 
