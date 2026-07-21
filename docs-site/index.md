@@ -1,8 +1,6 @@
 ---
-layout: post
-title: "Welcome to Fyr"
-date: 2024-01-01 00:00:00 +0000
-pin: true
+layout: default
+title: "Home"
 ---
 
 Fyr is an **offline-first content platform** for maps, books, and knowledge archives. It runs as a local web server and works without internet once content is present — ideal for homes, field use, air-gapped networks, or low-bandwidth environments.
