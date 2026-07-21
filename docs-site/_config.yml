@@ -1,0 +1,75 @@
+title: Fyr
+tagline: Offline-first content platform for maps, books, and knowledge archives
+description: >-
+  Fyr is an offline-first content platform for maps, books, and knowledge archives.
+  It runs as a local web server and works without internet once content is present.
+
+url: "https://fyr.guide"
+
+github:
+  username: Hexagon
+
+social:
+  name: Hexagon
+  email: ""
+  links:
+    - https://github.com/Hexagon/fyr
+
+lang: en
+timezone: UTC
+
+theme: jekyll-theme-chirpy
+
+paginate: 5
+
+# The following options are not recommended to be modified
+kramdown:
+  footnote_backlink: "&#8617;&#xfe0e;"
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: highlight
+    block:
+      line_numbers: true
+      start_line: 1
+
+collections:
+  tabs:
+    output: true
+    sort_by: order
+
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
+      comments: false
+      toc: true
+  - scope:
+      path: "_tabs"
+      type: tabs
+    values:
+      layout: page
+      permalink: /:title/
+
+sass:
+  style: compressed
+
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  profile: false
+  blanklines: false
+  ignore:
+    envs: [development]
+
+exclude:
+  - "*.gem"
+  - "*.gemspec"
+  - docs
+  - tools
+  - README.md
+  - CHANGELOG.md
+  - "*.config.js"
+  - package*.json
