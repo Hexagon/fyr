@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const API_BASE = '/api'
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 120000
 const MAX_RETRIES = 2
 const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
 
