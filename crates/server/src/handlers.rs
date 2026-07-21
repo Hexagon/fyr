@@ -1,29 +1,38 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse, ModelHealthResponse,
-    UploadModelResponse,
+    ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
 use axum::{
     body::Body,
     extract::{Multipart, Path, Query, State},
     http::{header, HeaderValue, StatusCode},
-    response::{sse::{Event, KeepAlive, Sse}, Html, IntoResponse, Response},
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        Html, IntoResponse, Response,
+    },
     Json,
 };
-use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
-use std::path::Path as FsPath;
 use std::panic::AssertUnwindSafe;
+use std::path::Path as FsPath;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
-use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
-use walkdir::WalkDir;
+use tokio_stream::StreamExt;
 use tracing::{error, warn};
+use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
+use walkdir::WalkDir;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
+
+const DEFAULT_ASSISTANT_TEMPERATURE: f64 = 0.2;
+const DEFAULT_ASSISTANT_MAX_TOKENS: usize = 512;
+const DEFAULT_ASSISTANT_NUM_CTX: usize = 2048;
+const HIGH_RAM_ASSISTANT_NUM_CTX: usize = 8192;
+const HIGH_RAM_THRESHOLD_KIB: u64 = 16 * 1024 * 1024;
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -361,15 +370,13 @@ pub async fn list_misc(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMe
 }
 
 /// GET /api/models — List model registry entries and load states
-pub async fn ai_list_models(State(state): State<Arc<AppState>>) -> Result<Json<Vec<crate::ai::types::ModelRegistryEntry>>, StatusCode> {
-    let models = state
-        .model_manager
-        .list_models()
-        .await
-        .map_err(|error| {
-            error!("Failed to list models: {}", error);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+pub async fn ai_list_models(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<crate::ai::types::ModelRegistryEntry>>, StatusCode> {
+    let models = state.model_manager.list_models().await.map_err(|error| {
+        error!("Failed to list models: {}", error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(Json(models))
 }
 
@@ -378,14 +385,10 @@ pub async fn ai_upload_model(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadModelResponse>), StatusCode> {
-    while let Some(mut field) = multipart
-        .next_field()
-        .await
-        .map_err(|error| {
-            warn!("Invalid multipart payload while uploading model: {}", error);
-            StatusCode::BAD_REQUEST
-        })?
-    {
+    while let Some(mut field) = multipart.next_field().await.map_err(|error| {
+        warn!("Invalid multipart payload while uploading model: {}", error);
+        StatusCode::BAD_REQUEST
+    })? {
         if field.name() != Some("file") {
             continue;
         }
@@ -398,17 +401,22 @@ pub async fn ai_upload_model(
         }
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path)
-            .await
-            .map_err(|error| {
-                error!("Failed to check existing upload target {}: {}", target_path.display(), error);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?
-        {
+        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
+            error!(
+                "Failed to check existing upload target {}: {}",
+                target_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })? {
             tokio::fs::remove_file(&target_path)
                 .await
                 .map_err(|error| {
-                    error!("Failed to remove existing upload target {}: {}", target_path.display(), error);
+                    error!(
+                        "Failed to remove existing upload target {}: {}",
+                        target_path.display(),
+                        error
+                    );
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
         }
@@ -416,7 +424,11 @@ pub async fn ai_upload_model(
         let mut file = tokio::fs::File::create(&target_path)
             .await
             .map_err(|error| {
-                error!("Failed to create upload target {}: {}", target_path.display(), error);
+                error!(
+                    "Failed to create upload target {}: {}",
+                    target_path.display(),
+                    error
+                );
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
@@ -442,12 +454,14 @@ pub async fn ai_upload_model(
                 }
             }
 
-            file.write_all(&chunk)
-                .await
-                .map_err(|error| {
-                    error!("Failed to write upload target {}: {}", target_path.display(), error);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            file.write_all(&chunk).await.map_err(|error| {
+                error!(
+                    "Failed to write upload target {}: {}",
+                    target_path.display(),
+                    error
+                );
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
             size_bytes += chunk.len() as u64;
         }
 
@@ -456,12 +470,14 @@ pub async fn ai_upload_model(
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
 
-        file.flush()
-            .await
-            .map_err(|error| {
-                error!("Failed to flush upload target {}: {}", target_path.display(), error);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        file.flush().await.map_err(|error| {
+            error!(
+                "Failed to flush upload target {}: {}",
+                target_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -481,14 +497,13 @@ pub async fn upload_file_to_import(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadFileResponse>), StatusCode> {
-    while let Some(mut field) = multipart
-        .next_field()
-        .await
-        .map_err(|error| {
-            warn!("Invalid multipart payload while uploading import file: {}", error);
-            StatusCode::BAD_REQUEST
-        })?
-    {
+    while let Some(mut field) = multipart.next_field().await.map_err(|error| {
+        warn!(
+            "Invalid multipart payload while uploading import file: {}",
+            error
+        );
+        StatusCode::BAD_REQUEST
+    })? {
         if field.name() != Some("file") {
             continue;
         }
@@ -498,17 +513,22 @@ pub async fn upload_file_to_import(
         let detected_type = detect_content_type(&filename).ok_or(StatusCode::BAD_REQUEST)?;
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path)
-            .await
-            .map_err(|error| {
-                error!("Failed to check existing upload target {}: {}", target_path.display(), error);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?
-        {
+        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
+            error!(
+                "Failed to check existing upload target {}: {}",
+                target_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })? {
             tokio::fs::remove_file(&target_path)
                 .await
                 .map_err(|error| {
-                    error!("Failed to remove existing upload target {}: {}", target_path.display(), error);
+                    error!(
+                        "Failed to remove existing upload target {}: {}",
+                        target_path.display(),
+                        error
+                    );
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
         }
@@ -516,7 +536,11 @@ pub async fn upload_file_to_import(
         let mut file = tokio::fs::File::create(&target_path)
             .await
             .map_err(|error| {
-                error!("Failed to create upload target {}: {}", target_path.display(), error);
+                error!(
+                    "Failed to create upload target {}: {}",
+                    target_path.display(),
+                    error
+                );
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
@@ -532,12 +556,14 @@ pub async fn upload_file_to_import(
                 magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
             }
 
-            file.write_all(&chunk)
-                .await
-                .map_err(|error| {
-                    error!("Failed to write upload target {}: {}", target_path.display(), error);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            file.write_all(&chunk).await.map_err(|error| {
+                error!(
+                    "Failed to write upload target {}: {}",
+                    target_path.display(),
+                    error
+                );
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
             size_bytes += chunk.len() as u64;
         }
 
@@ -551,12 +577,14 @@ pub async fn upload_file_to_import(
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
 
-        file.flush()
-            .await
-            .map_err(|error| {
-                error!("Failed to flush upload target {}: {}", target_path.display(), error);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        file.flush().await.map_err(|error| {
+            error!(
+                "Failed to flush upload target {}: {}",
+                target_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -632,23 +660,27 @@ pub async fn ai_infer_stream(
     Path(filename): Path<String>,
     Query(query): Query<InferStreamQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let temperature = query.temperature.unwrap_or(0.7);
-    let max_tokens = query.max_tokens.unwrap_or(256).clamp(1, 4096);
+    let temperature = query.temperature.unwrap_or(DEFAULT_ASSISTANT_TEMPERATURE);
+    let max_tokens = query
+        .max_tokens
+        .unwrap_or(DEFAULT_ASSISTANT_MAX_TOKENS)
+        .clamp(1, 4096);
+    let num_ctx = query
+        .num_ctx
+        .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
+        .clamp(256, 32768);
 
     let rx = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens)
+        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx)
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
-    let token_stream = ReceiverStream::new(rx).map(|token| {
-        Ok::<Event, Infallible>(
-            Event::default()
-                .event("token")
-                .data(token),
-        )
-    });
-    let done_stream = tokio_stream::iter(vec![Ok::<Event, Infallible>(Event::default().event("done"))]);
+    let token_stream = ReceiverStream::new(rx)
+        .map(|token| Ok::<Event, Infallible>(Event::default().event("token").data(token)));
+    let done_stream = tokio_stream::iter(vec![Ok::<Event, Infallible>(
+        Event::default().event("done"),
+    )]);
     let stream = token_stream.chain(done_stream);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
@@ -676,12 +708,14 @@ pub async fn create_import_download(
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
     let source_path = state.config.inbox_dir().join(&sanitized);
 
-    let exists = tokio::fs::try_exists(&source_path)
-        .await
-        .map_err(|error| {
-            error!("Failed to verify import source {}: {}", source_path.display(), error);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let exists = tokio::fs::try_exists(&source_path).await.map_err(|error| {
+        error!(
+            "Failed to verify import source {}: {}",
+            source_path.display(),
+            error
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     if !exists {
         return Err(StatusCode::NOT_FOUND);
@@ -786,14 +820,22 @@ pub async fn delete_content_file(
 
     // Security: ensure the resolved path stays within the content directory
     let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
-        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        error!(
+            "Failed to resolve content directory {}: {}",
+            dir.display(),
+            error
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             StatusCode::NOT_FOUND
         } else {
-            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            error!(
+                "Failed to resolve content file path {}: {}",
+                file_path.display(),
+                error
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         }
     })?;
@@ -802,7 +844,11 @@ pub async fn delete_content_file(
     }
 
     tokio::fs::remove_file(&file_path).await.map_err(|error| {
-        error!("Failed to delete content file {}: {}", file_path.display(), error);
+        error!(
+            "Failed to delete content file {}: {}",
+            file_path.display(),
+            error
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -832,14 +878,22 @@ pub async fn download_content_file(
     let file_path = dir.join(&sanitized);
 
     let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
-        error!("Failed to resolve content directory {}: {}", dir.display(), error);
+        error!(
+            "Failed to resolve content directory {}: {}",
+            dir.display(),
+            error
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             StatusCode::NOT_FOUND
         } else {
-            error!("Failed to resolve content file path {}: {}", file_path.display(), error);
+            error!(
+                "Failed to resolve content file path {}: {}",
+                file_path.display(),
+                error
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         }
     })?;
@@ -851,7 +905,11 @@ pub async fn download_content_file(
         if error.kind() == std::io::ErrorKind::NotFound {
             StatusCode::NOT_FOUND
         } else {
-            error!("Failed to read content file {}: {}", canonical_path.display(), error);
+            error!(
+                "Failed to read content file {}: {}",
+                canonical_path.display(),
+                error
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         }
     })?;
@@ -861,9 +919,10 @@ pub async fn download_content_file(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/octet-stream"),
     );
-    response
-        .headers_mut()
-        .insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment"),
+    );
 
     Ok(response)
 }
@@ -910,16 +969,14 @@ pub async fn reader_open(
     let format = reader_format_from_filename(&sanitized).ok_or(StatusCode::BAD_REQUEST)?;
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let exists = tokio::fs::try_exists(&source_path)
-        .await
-        .map_err(|error| {
-            error!(
-                "Failed to check reader source {}: {}",
-                source_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let exists = tokio::fs::try_exists(&source_path).await.map_err(|error| {
+        error!(
+            "Failed to check reader source {}: {}",
+            source_path.display(),
+            error
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     if !exists {
         return Err(StatusCode::NOT_FOUND);
@@ -963,20 +1020,18 @@ pub async fn reader_zim_meta(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let metadata = tokio::fs::metadata(&source_path)
-        .await
-        .map_err(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                StatusCode::NOT_FOUND
-            } else {
-                error!(
-                    "Failed to read archive metadata {}: {}",
-                    source_path.display(),
-                    error
-                );
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        })?;
+    let metadata = tokio::fs::metadata(&source_path).await.map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            StatusCode::NOT_FOUND
+        } else {
+            error!(
+                "Failed to read archive metadata {}: {}",
+                source_path.display(),
+                error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
 
     Ok(Json(ZimArchiveMetaResponse {
         filename: sanitized.clone(),
@@ -997,16 +1052,14 @@ pub async fn reader_zim_capabilities(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let exists = tokio::fs::try_exists(&source_path)
-        .await
-        .map_err(|error| {
-            error!(
-                "Failed to check ZIM archive existence {}: {}",
-                source_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let exists = tokio::fs::try_exists(&source_path).await.map_err(|error| {
+        error!(
+            "Failed to check ZIM archive existence {}: {}",
+            source_path.display(),
+            error
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     if !exists {
         return Err(StatusCode::NOT_FOUND);
@@ -1092,8 +1145,7 @@ pub async fn reader_zim_native_content(
     let zim = open_zim_archive(&source_path)?;
     let mut entry = content_path_lookup_variants(&normalized_path)
         .into_iter()
-        .find_map(|candidate| find_any_entry_by_path(&zim, &candidate))
-        ;
+        .find_map(|candidate| find_any_entry_by_path(&zim, &candidate));
 
     if entry.is_none() && normalized_path.starts_with("_assets_/") {
         if let Some(filename_only) = normalized_path.rsplit('/').next() {
@@ -1109,7 +1161,9 @@ pub async fn reader_zim_native_content(
 
     let mut response = Response::new(Body::from(bytes));
     *response.status_mut() = StatusCode::OK;
-    response.headers_mut().insert(header::CONTENT_TYPE, header_value);
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, header_value);
     Ok(response)
 }
 
@@ -1144,7 +1198,10 @@ pub async fn reader_zim_native_search(
         let entry = match entry_result {
             Ok(entry) => entry,
             Err(error) => {
-                warn!("Skipping invalid ZIM entry while searching {}: {}", sanitized, error);
+                warn!(
+                    "Skipping invalid ZIM entry while searching {}: {}",
+                    sanitized, error
+                );
                 continue;
             }
         };
@@ -1159,9 +1216,7 @@ pub async fn reader_zim_native_search(
         }
 
         let title = if entry.title.is_empty() {
-            entry
-                .url
-                .replace('_', " ")
+            entry.url.replace('_', " ")
         } else {
             entry.title.clone()
         };
@@ -1367,7 +1422,11 @@ fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
     };
     let end = inner.find(quote)?;
     let value = inner[..end].trim().to_string();
-    if value.is_empty() { None } else { Some(value) }
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 /// Extract the plain-text content of the first `<tag …>…</tag>` element in an XML
@@ -1387,7 +1446,11 @@ fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
         return None;
     }
     let text = xml[content_start..content_end].trim().to_string();
-    if text.is_empty() { None } else { Some(text) }
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 fn get_dir_size(dir: std::path::PathBuf) -> (u64, usize) {
@@ -1446,7 +1509,9 @@ fn map_model_error_to_status(error: &crate::ai::error::ModelError) -> StatusCode
     }
 }
 
-fn model_error_response(error: crate::ai::error::ModelError) -> (StatusCode, Json<ErrorMessageResponse>) {
+fn model_error_response(
+    error: crate::ai::error::ModelError,
+) -> (StatusCode, Json<ErrorMessageResponse>) {
     let status = map_model_error_to_status(&error);
     (
         status,
@@ -1539,8 +1604,7 @@ fn resolve_main_entry(zim: &Zim) -> Option<DirectoryEntry> {
         }
     }
 
-    zim
-        .iterate_by_urls()
+    zim.iterate_by_urls()
         .filter_map(Result::ok)
         .find(|entry| matches!(entry.namespace, Namespace::Articles))
         .and_then(|entry| resolve_redirect(zim, entry, 0).ok())
@@ -1557,7 +1621,9 @@ fn find_entry_by_path_flexible(zim: &Zim, path: &str) -> Option<DirectoryEntry> 
     let direct = zim.iterate_by_urls().filter_map(Result::ok).find(|entry| {
         let entry_url = normalize_zim_url(&entry.url);
         let entry_title = normalize_zim_url(&entry.title);
-        variants.iter().any(|candidate| entry_url == *candidate || entry_title == *candidate)
+        variants
+            .iter()
+            .any(|candidate| entry_url == *candidate || entry_title == *candidate)
     })?;
 
     resolve_redirect(zim, direct, 0).ok()
@@ -1652,7 +1718,11 @@ fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
     )
 }
 
-fn resolve_redirect(zim: &Zim, entry: DirectoryEntry, _depth: usize) -> zim::Result<DirectoryEntry> {
+fn resolve_redirect(
+    zim: &Zim,
+    entry: DirectoryEntry,
+    _depth: usize,
+) -> zim::Result<DirectoryEntry> {
     zim.resolve(entry)
 }
 
@@ -1660,18 +1730,22 @@ fn resolve_entry_bytes(
     zim: &Zim,
     entry: &DirectoryEntry,
 ) -> Result<(String, String, String, Vec<u8>), StatusCode> {
-    let content = zim.entry_content(entry).map_err(|error| {
-        error!(
-            "Failed to resolve ZIM content handle for {}: {}",
-            entry.url,
-            error
-        );
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    let content = zim
+        .entry_content(entry)
+        .map_err(|error| {
+            error!(
+                "Failed to resolve ZIM content handle for {}: {}",
+                entry.url, error
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     let bytes = content.to_vec().map_err(|error| {
-        error!("Failed to read ZIM content bytes for {}: {}", entry.url, error);
+        error!(
+            "Failed to read ZIM content bytes for {}: {}",
+            entry.url, error
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -1688,12 +1762,7 @@ fn resolve_entry_bytes(
         entry.title.clone()
     };
 
-    Ok((
-        normalize_zim_url(&entry.url),
-        title,
-        mime_type,
-        bytes,
-    ))
+    Ok((normalize_zim_url(&entry.url), title, mime_type, bytes))
 }
 
 fn normalize_zim_url(value: &str) -> String {
@@ -1751,9 +1820,57 @@ fn hex_nibble(value: u8) -> Option<u8> {
     }
 }
 
+fn resolve_assistant_num_ctx(settings: &AppSettings) -> usize {
+    assistant_num_ctx_override(settings).unwrap_or_else(default_assistant_num_ctx)
+}
+
+fn assistant_num_ctx_override(settings: &AppSettings) -> Option<usize> {
+    let assistant = settings.modules.get("assistant")?.as_object()?;
+
+    if let Some(num_ctx) = assistant.get("num_ctx").and_then(|value| value.as_u64()) {
+        return usize::try_from(num_ctx).ok().filter(|value| *value > 0);
+    }
+
+    if assistant
+        .get("high_ram_context")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return Some(HIGH_RAM_ASSISTANT_NUM_CTX);
+    }
+
+    None
+}
+
+fn default_assistant_num_ctx() -> usize {
+    match detect_total_memory_kib() {
+        Some(total_kib) if total_kib > HIGH_RAM_THRESHOLD_KIB => HIGH_RAM_ASSISTANT_NUM_CTX,
+        _ => DEFAULT_ASSISTANT_NUM_CTX,
+    }
+}
+
+fn detect_total_memory_kib() -> Option<u64> {
+    let raw = std::fs::read_to_string("/proc/meminfo").ok()?;
+    parse_total_memory_kib(&raw)
+}
+
+fn parse_total_memory_kib(meminfo: &str) -> Option<u64> {
+    meminfo.lines().find_map(|line| {
+        let rest = line.strip_prefix("MemTotal:")?;
+        rest.split_whitespace().next()?.parse::<u64>().ok()
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{reader_format_from_filename, sanitize_upload_filename};
+    use super::{
+        assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
+        resolve_assistant_num_ctx, sanitize_upload_filename, DEFAULT_ASSISTANT_NUM_CTX,
+        HIGH_RAM_ASSISTANT_NUM_CTX,
+    };
+    use serde_json::json;
+    use std::collections::HashMap;
+    use types::AppSettings;
 
     #[test]
     fn detects_supported_reader_formats() {
@@ -1779,6 +1896,58 @@ mod tests {
         assert_eq!(sanitize_upload_filename("  "), None);
     }
 
+    #[test]
+    fn parses_memtotal_from_proc_meminfo() {
+        let meminfo = "MemTotal:       32768000 kB\nMemFree:         1024000 kB\n";
+        assert_eq!(parse_total_memory_kib(meminfo), Some(32_768_000));
+    }
+
+    #[test]
+    fn assistant_num_ctx_override_prefers_explicit_num_ctx() {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "assistant".to_string(),
+            json!({
+                "num_ctx": 4096,
+                "high_ram_context": true
+            }),
+        );
+
+        let settings = AppSettings {
+            location: None,
+            modules,
+        };
+
+        assert_eq!(assistant_num_ctx_override(&settings), Some(4096));
+    }
+
+    #[test]
+    fn assistant_num_ctx_override_supports_high_ram_flag() {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "assistant".to_string(),
+            json!({
+                "high_ram_context": true
+            }),
+        );
+
+        let settings = AppSettings {
+            location: None,
+            modules,
+        };
+
+        assert_eq!(
+            assistant_num_ctx_override(&settings),
+            Some(HIGH_RAM_ASSISTANT_NUM_CTX)
+        );
+    }
+
+    #[test]
+    fn resolve_assistant_num_ctx_uses_default_without_override() {
+        let settings = AppSettings::default();
+        let resolved = resolve_assistant_num_ctx(&settings);
+        assert!(resolved == DEFAULT_ASSISTANT_NUM_CTX || resolved == HIGH_RAM_ASSISTANT_NUM_CTX);
+    }
 }
 
 fn validate_upload_magic(filename: &str, content_type: ContentType, magic: &[u8]) -> bool {

@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "title": "Fyr curated content catalog",
+  "notes": [
+    "Edit this file manually to keep a local curated list of recommended downloads.",
+    "Fyr seeds this catalog when missing, but does not overwrite an existing copy in DATA_DIR.",
+    "Entries may include an optional download_url for direct downloads from the Content Manager."
+  ],
+  "assistant": {
+    "supported_model_format": "gguf",
+    "tested_architecture": "qwen2",
+    "default_profile": {
+      "id": "rag-balanced",
+      "temperature": 0.2,
+      "num_ctx": 2048,
+      "max_tokens": 512,
+      "notes": "Low-temperature defaults for retrieval-augmented prompts and local-document Q&A."
+    },
+    "high_ram_override": {
+      "enabled_when": "system_ram_gb > 16 or settings.modules.assistant.high_ram_context = true",
+      "num_ctx": 8192,
+      "notes": "Use on desktop-class systems to fit longer chapters or large ZIM articles into one prompt."
+    }
+  },
+  "items": {
+    "models": [
+      {
+        "id": "qwen2.5-1.5b-instruct-q8_0",
+        "tier": "small",
+        "recommended_for": "Raspberry Pi 5 with 4 GB RAM or fast, simple answers",
+        "model": "Qwen2.5-1.5B-Instruct",
+        "format": "gguf",
+        "quantization": "Q8_0",
+        "approx_size_gb": 1.7,
+        "license": "Apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": true
+      },
+      {
+        "id": "qwen2.5-3b-instruct-q6_k",
+        "tier": "standard",
+        "recommended_for": "Recommended default for Raspberry Pi 5",
+        "model": "Qwen2.5-3B-Instruct",
+        "format": "gguf",
+        "quantization": "Q6_K",
+        "approx_size_gb": 2.6,
+        "license": "Apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": true
+      },
+      {
+        "id": "qwen2.5-7b-instruct-q4_k_m",
+        "tier": "large",
+        "recommended_for": "Raspberry Pi 5 with 8 GB RAM",
+        "model": "Qwen2.5-7B-Instruct",
+        "format": "gguf",
+        "quantization": "Q4_K_M",
+        "approx_size_gb": 4.5,
+        "license": "Apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": true
+      },
+      {
+        "id": "qwen2.5-14b-instruct-q4_k_m",
+        "tier": "extra-large",
+        "recommended_for": "Desktop systems with 16 GB+ RAM",
+        "model": "Qwen2.5-14B-Instruct",
+        "format": "gguf",
+        "quantization": "Q4_K_M",
+        "approx_size_gb": 9.8,
+        "license": "Apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": true
+      },
+      {
+        "id": "qwen2.5-7b-instruct-q8_0",
+        "tier": "extra-large-alternative",
+        "recommended_for": "Desktop systems with 16 GB+ RAM that prefer a smaller footprint than 14B",
+        "model": "Qwen2.5-7B-Instruct",
+        "format": "gguf",
+        "quantization": "Q8_0",
+        "approx_size_gb": 8.5,
+        "license": "Apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": true
+      }
+    ],
+    "books": [
+      {
+        "id": "standard-ebooks",
+        "label": "Standard Ebooks catalog",
+        "formats": [
+          "epub"
+        ],
+        "source": "https://standardebooks.org/ebooks",
+        "notes": "High-quality public-domain ebooks that import directly into Fyr's books folder."
+      },
+      {
+        "id": "project-gutenberg",
+        "label": "Project Gutenberg",
+        "formats": [
+          "epub",
+          "txt"
+        ],
+        "source": "https://www.gutenberg.org/ebooks/",
+        "notes": "Large public-domain library; prefer EPUB when available for the built-in reader."
+      },
+      {
+        "id": "kiwix-library",
+        "label": "Kiwix / OpenZIM library",
+        "formats": [
+          "zim"
+        ],
+        "source": "https://library.kiwix.org/",
+        "notes": "Trusted source for offline ZIM archives such as Wikipedia, Wiktionary, and Stack Exchange snapshots."
+      }
+    ],
+    "maps": [
+      {
+        "id": "protomaps-downloads",
+        "label": "Protomaps PMTiles downloads",
+        "formats": [
+          "pmtiles"
+        ],
+        "source": "https://protomaps.com/",
+        "notes": "Good default source for PMTiles extracts that Fyr can serve directly from /data/maps."
+      }
+    ]
+  }
+}

@@ -51,6 +51,7 @@ pub struct InferStreamQuery {
     pub prompt: String,
     pub temperature: Option<f64>,
     pub max_tokens: Option<usize>,
+    pub num_ctx: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]

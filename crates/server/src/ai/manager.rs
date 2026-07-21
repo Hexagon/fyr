@@ -47,7 +47,10 @@ impl ModelManager {
                 continue;
             }
 
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default();
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or_default();
             if !ext.eq_ignore_ascii_case("gguf") {
                 continue;
             }
@@ -117,11 +120,13 @@ impl ModelManager {
             return Ok(target_path);
         }
 
-        std::fs::rename(&source_path, &target_path).or_else(|_| {
-            std::fs::copy(&source_path, &target_path)
-                .map(|_| ())
-                .and_then(|_| std::fs::remove_file(&source_path))
-        }).map_err(|e| ModelError::ImportFailed(e.to_string()))?;
+        std::fs::rename(&source_path, &target_path)
+            .or_else(|_| {
+                std::fs::copy(&source_path, &target_path)
+                    .map(|_| ())
+                    .and_then(|_| std::fs::remove_file(&source_path))
+            })
+            .map_err(|e| ModelError::ImportFailed(e.to_string()))?;
 
         Ok(target_path)
     }
@@ -144,7 +149,10 @@ impl ModelManager {
                     loaded_models.insert(filename.to_string(), model);
                 }
                 let mut states = self.states.write().await;
-                states.insert(filename.to_string(), (ModelLoadState::Ready, validation_reason));
+                states.insert(
+                    filename.to_string(),
+                    (ModelLoadState::Ready, validation_reason),
+                );
                 if !supports_inference {
                     return Ok(());
                 }
@@ -180,7 +188,9 @@ impl ModelManager {
 
         ModelHealthResponse {
             filename: filename.to_string(),
-            loaded: loaded_model.map(|model| model.supports_inference()).unwrap_or(false),
+            loaded: loaded_model
+                .map(|model| model.supports_inference())
+                .unwrap_or(false),
             state,
             architecture: loaded_model.and_then(|m| m.metadata.architecture.clone()),
             has_tokenizer_metadata: loaded_model
@@ -196,6 +206,7 @@ impl ModelManager {
         prompt: String,
         temperature: f64,
         max_tokens: usize,
+        num_ctx: usize,
     ) -> Result<mpsc::Receiver<String>, ModelError> {
         let loaded = self.loaded.read().await;
         let Some(model) = loaded.get(filename) else {
@@ -222,15 +233,12 @@ impl ModelManager {
                     let encoding = match tokenizer.encode(formatted_prompt, true) {
                         Ok(encoding) => encoding,
                         Err(error) => {
-                            send_error(
-                                format!("Tokenizer error: {error}"),
-                                &tx,
-                            );
+                            send_error(format!("Tokenizer error: {error}"), &tx);
                             return;
                         }
                     };
 
-                    let mut token_ids = encoding.get_ids().to_vec();
+                    let mut token_ids = trim_context_window(encoding.get_ids(), num_ctx);
                     if token_ids.is_empty() {
                         send_error("Tokenizer produced no input tokens.".to_string(), &tx);
                         return;
@@ -334,11 +342,9 @@ impl ModelManager {
                 });
             }
             ModelRuntime::ValidationOnly { reason } => {
-                return Err(ModelError::InferenceFailed(
-                    reason.unwrap_or_else(|| {
-                        "Inference is not implemented for this loaded model.".to_string()
-                    }),
-                ));
+                return Err(ModelError::InferenceFailed(reason.unwrap_or_else(|| {
+                    "Inference is not implemented for this loaded model.".to_string()
+                })));
             }
         }
 
@@ -422,9 +428,17 @@ fn is_repeating(tokens: &[u32]) -> bool {
     tokens[n - WINDOW * 2..n - WINDOW] == tokens[n - WINDOW..]
 }
 
+fn trim_context_window(tokens: &[u32], num_ctx: usize) -> Vec<u32> {
+    if tokens.len() <= num_ctx {
+        return tokens.to_vec();
+    }
+
+    tokens[tokens.len() - num_ctx..].to_vec()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{first_role_marker_index, is_repeating};
+    use super::{first_role_marker_index, is_repeating, trim_context_window};
 
     // --- first_role_marker_index ---
 
@@ -478,5 +492,17 @@ mod tests {
     fn repetition_not_detected_for_varied_tokens() {
         let tokens: Vec<u32> = (0..64).collect();
         assert!(!is_repeating(&tokens));
+    }
+
+    #[test]
+    fn trim_context_window_keeps_tail_when_prompt_exceeds_limit() {
+        let tokens: Vec<u32> = (0..10).collect();
+        assert_eq!(trim_context_window(&tokens, 4), vec![6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn trim_context_window_keeps_full_prompt_when_under_limit() {
+        let tokens: Vec<u32> = (0..4).collect();
+        assert_eq!(trim_context_window(&tokens, 8), tokens);
     }
 }
