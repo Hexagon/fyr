@@ -115,13 +115,21 @@
                     <p class="text-gray-600">Fetch maps, books, AI models, POI data, and misc files from curated or custom sources directly via the UI.</p>
                 </div>
                 <!-- Feature 5 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100 lg:col-span-2">
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
                     </div>
                     <h3 class="text-xl font-semibold text-gray-900 mb-2">Central Content Management</h3>
                     <p class="text-gray-600">Import local files, inspect the content inventory, manage roles (Open, Password-protected, or Read-only kiosks), and organize all assets in one place.</p>
                 </div>
+                <!-- Feature 6 -->
+                <a href="#raspberry-pi" class="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-500 hover:shadow-md transition-all group block">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors">Raspberry Pi Ready</h3>
+                    <p class="text-gray-600">Native <code>linux/arm64</code> support. Deploy Fyr on a Raspberry Pi and optionally turn it into a standalone Wi-Fi hotspot for fully off-grid access. <span class="text-brand-600 font-medium">See the guide →</span></p>
+                </a>
             </div>
         </div>
     </div>
@@ -291,11 +299,11 @@ cd ../../..</code></pre>
                 <hr class="border-gray-800 my-10">
 
                 <!-- Option C: Raspberry Pi -->
-                <h3 class="text-2xl text-white">Option C: Raspberry Pi OS From Scratch</h3>
-                <p>Use this path for clean Raspberry Pi deployments.</p>
+                <h3 id="raspberry-pi" class="text-2xl text-white">Option C: Raspberry Pi OS From Scratch</h3>
+                <p>Use this path to deploy Fyr on a clean Raspberry Pi. Fyr images natively support <code>linux/arm64</code>, which matches Raspberry Pi 64-bit OS perfectly.</p>
 
-                <h4>1) Install Raspberry Pi OS</h4>
-                <p>Flash Raspberry Pi OS 64-bit (Bookworm recommended). Boot and update packages:</p>
+                <h4>1) Flash and Update Raspberry Pi OS</h4>
+                <p>Flash Raspberry Pi OS 64-bit (Bookworm recommended) using <a href="https://www.raspberrypi.com/software/" target="_blank" class="text-brand-400 hover:underline">Raspberry Pi Imager</a>. Boot and update packages:</p>
                 <pre><code>sudo apt update
 sudo apt full-upgrade -y
 sudo reboot</code></pre>
@@ -307,21 +315,48 @@ sudo usermod -aG docker $USER
 newgrp docker
 docker --version</code></pre>
 
-                <h4>3) Run Fyr in Docker</h4>
-                <p>Fyr images natively support <code>linux/arm64</code>, which perfectly matches the Raspberry Pi 64-bit OS.</p>
-                <pre><code>docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest</code></pre>
-
-                <h4>4) Optional: Start Automatically on Boot</h4>
+                <h4>3) Run Fyr</h4>
+                <p>Once Docker is installed, follow <a href="#installation" class="text-brand-400 hover:underline">Option A above</a> to run Fyr — the same Docker commands and environment variable overrides apply.</p>
+                <p>To start Fyr automatically on every boot:</p>
                 <pre><code>docker run -d --restart unless-stopped --name fyr \
   -p 8080:8080 \
   -e FYR_HOST=0.0.0.0 \
   -e DATA_DIR=/data \
   -v fyr-data:/data \
   hexagon/fyr:latest</code></pre>
+
+                <h4>4) Optional: Set Up as a Wi-Fi Hotspot</h4>
+                <p>Turn your Raspberry Pi into a standalone Wi-Fi hotspot so phones, tablets, and laptops can connect directly to Fyr — no existing router or internet connection required. This is ideal for field use, classrooms, or off-grid deployments.</p>
+
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                    <ul class="text-sm text-gray-300 space-y-1">
+                        <li><strong>Requires:</strong> Raspberry Pi 3B+ or newer (built-in Wi-Fi), or a supported USB Wi-Fi adapter.</li>
+                        <li><strong>OS:</strong> Raspberry Pi OS Bookworm — NetworkManager (<code>nmcli</code>) is the default and is used below.</li>
+                    </ul>
+                </div>
+
+                <p>Create the hotspot (replace <code>Fyr</code> and <code>offline-fyr</code> with your preferred SSID and password):</p>
+                <pre><code>sudo nmcli device wifi hotspot \
+  ifname wlan0 \
+  con-name fyr-hotspot \
+  ssid "Fyr" \
+  password "offline-fyr"</code></pre>
+
+                <p>Enable the hotspot to start automatically on every boot:</p>
+                <pre><code>sudo nmcli connection modify fyr-hotspot connection.autoconnect yes
+sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</code></pre>
+
+                <p>Bring it up immediately without rebooting:</p>
+                <pre><code>sudo nmcli connection up fyr-hotspot</code></pre>
+
+                <p>Once devices connect to the <strong>Fyr</strong> Wi-Fi network, they can reach Fyr at <code>http://10.42.0.1:8080</code> (the default hotspot gateway address assigned by NetworkManager).</p>
+
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                    <p class="text-sm text-white font-semibold mb-1">💡 Tip: Sharing an Ethernet Connection</p>
+                    <p class="text-sm text-gray-300 leading-relaxed">
+                        If the Raspberry Pi is also connected via Ethernet (<code>eth0</code>), NetworkManager will automatically share that connection through the hotspot, giving connected devices internet access when available.
+                    </p>
+                </div>
 
                 <hr class="border-gray-800 my-10">
 
