@@ -55,6 +55,7 @@ const sanitizeNativeZimBodyHtml = (html) => {
 
 const ZIM_ARTICLE_BASE_CSS = [
   'html,body{height:auto;min-height:100%;overflow:hidden!important}',
+  'html{background:#ffffff}',
   'body{margin:0;padding:1.25rem;background:#ffffff;color:#202122;',
   'font-family:Georgia,"Times New Roman",Times,serif;font-size:0.98rem;',
   'line-height:1.62;overflow-x:hidden}',
