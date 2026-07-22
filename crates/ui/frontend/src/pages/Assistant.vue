@@ -76,19 +76,21 @@
             class="prompt-input"
             rows="4"
             placeholder="Write your prompt..."
+            @keydown.enter.ctrl.prevent="sendPrompt"
           ></textarea>
 
-          <div class="control-grid">
-            <label>
-              Temperature
-              <input v-model.number="temperature" type="range" min="0" max="2" step="0.1" />
-              <span>{{ temperature.toFixed(1) }}</span>
-            </label>
-            <label>
-              Max Tokens
-              <input v-model.number="maxTokens" type="range" min="32" max="2048" step="32" />
-              <span>{{ maxTokens }}</span>
-            </label>
+          <div class="preset-row">
+            <span class="preset-label">Mode:</span>
+            <div class="preset-group">
+              <button
+                v-for="p in presets"
+                :key="p.id"
+                class="preset-btn"
+                :class="{ active: selectedPreset === p.id }"
+                :title="p.description"
+                @click="selectedPreset = p.id"
+              >{{ p.label }}</button>
+            </div>
           </div>
 
           <div class="action-row">
@@ -115,19 +117,29 @@ import DOMPurify from 'dompurify'
 const authState = useAuthState()
 const adminLocked = computed(() => isAdminLocked())
 
+const STORAGE_KEY_MODEL = 'fyr_assistant_default_model'
+const MAX_HISTORY_MESSAGES = 6
+
+const presets = [
+  { id: 'precise', label: 'Precise', description: 'Focused, factual answers', temperature: 0.1, maxTokens: 512 },
+  { id: 'balanced', label: 'Balanced', description: 'Default: concise and reliable', temperature: 0.2, maxTokens: 512 },
+  { id: 'creative', label: 'Creative', description: 'More elaborate, varied responses', temperature: 0.7, maxTokens: 1024 }
+]
+
 const sidebarCollapsed = ref(false)
 const models = ref([])
 const selectedModel = ref(null)
 const modelHealth = ref(null)
 const messages = ref([])
 const prompt = ref('')
-const temperature = ref(0.2)
-const maxTokens = ref(512)
+const selectedPreset = ref('balanced')
 const loadingModel = ref(false)
 const streaming = ref(false)
 const chatHistoryRef = ref(null)
 const activeAssistantMessage = ref(null)
 let eventSource = null
+
+const currentPreset = computed(() => presets.find(p => p.id === selectedPreset.value) ?? presets[1])
 
 const canSend = computed(() => {
   return !!selectedModel.value && !!modelHealth.value?.loaded && prompt.value.trim().length > 0 && !streaming.value
@@ -135,9 +147,10 @@ const canSend = computed(() => {
 
 const modelStatusText = computed(() => {
   if (!selectedModel.value) return 'No model selected'
+  if (loadingModel.value) return `Loading model: ${selectedModel.value.filename}…`
   if (!modelHealth.value) return `Model selected: ${selectedModel.value.filename}`
   if (modelHealth.value.error) return `Health check: ${modelHealth.value.error}`
-  if (modelHealth.value.loaded) return `Model loaded for validation: ${selectedModel.value.filename}`
+  if (modelHealth.value.loaded) return `Model loaded: ${selectedModel.value.filename}`
   return `Model selected: ${selectedModel.value.filename}`
 })
 
@@ -174,6 +187,7 @@ const scrollChatHistoryToBottom = async () => {
 
 const selectModel = (model) => {
   selectedModel.value = model
+  try { localStorage.setItem(STORAGE_KEY_MODEL, model.filename) } catch { /* ignore */ }
   loadHealth(model.filename)
 }
 
@@ -197,11 +211,19 @@ const loadSelectedModel = async () => {
     messages.value.push({
       id: generateId(),
       role: 'assistant',
-      text: `Health check: could not load ${selectedModel.value.filename}. ${detail}`
+      text: `Could not load ${selectedModel.value.filename}. ${detail}`
     })
   } finally {
     loadingModel.value = false
   }
+}
+
+const buildHistory = () => {
+  const completedMessages = messages.value.filter(
+    m => !m.streaming && (m.role === 'user' || (m.role === 'assistant' && m.text?.trim()))
+  )
+  const recent = completedMessages.slice(-MAX_HISTORY_MESSAGES)
+  return recent.map(m => ({ role: m.role, text: m.text }))
 }
 
 const sendPrompt = () => {
@@ -210,6 +232,7 @@ const sendPrompt = () => {
   stopGeneration()
 
   const userPrompt = prompt.value
+  const history = buildHistory()
   messages.value.push({ id: generateId(), role: 'user', text: userPrompt })
 
   const assistantMessage = {
@@ -224,13 +247,15 @@ const sendPrompt = () => {
   messages.value.push(assistantMessage)
   activeAssistantMessage.value = assistantMessage
 
+  const preset = currentPreset.value
   streaming.value = true
   eventSource = apiService.streamInference(
     selectedModel.value.filename,
     {
       prompt: userPrompt,
-      temperature: temperature.value,
-      maxTokens: maxTokens.value
+      temperature: preset.temperature,
+      maxTokens: preset.maxTokens,
+      history
     },
     {
       onToken: (token) => {
@@ -342,8 +367,38 @@ const loadHealth = async (filename) => {
   }
 }
 
+const restoreDefaultModel = async () => {
+  let savedName = null
+  try { savedName = localStorage.getItem(STORAGE_KEY_MODEL) } catch { /* ignore */ }
+  if (!savedName) return
+
+  const match = models.value.find(m => m.filename === savedName)
+  if (!match) return
+
+  selectedModel.value = match
+  await loadHealth(match.filename)
+
+  if (!modelHealth.value?.loaded) {
+    loadingModel.value = true
+    try {
+      await apiService.loadModel(match.filename)
+      await loadHealth(match.filename)
+    } catch (error) {
+      const detail = apiService.handleError(error)
+      messages.value.push({
+        id: generateId(),
+        role: 'assistant',
+        text: `Auto-load failed for ${match.filename}: ${detail}`
+      })
+    } finally {
+      loadingModel.value = false
+    }
+  }
+}
+
 onMounted(async () => {
   await loadModels()
+  await restoreDefaultModel()
 })
 
 onBeforeUnmount(() => {
@@ -600,17 +655,38 @@ onBeforeUnmount(() => {
   resize: vertical;
 }
 
-.control-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.control-grid label {
+.preset-label {
+  color: #b0b0b0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.preset-group {
   display: flex;
-  flex-direction: column;
   gap: 0.4rem;
-  color: #c9c9c9;
+}
+
+.preset-btn {
+  background: #1a1a1a;
+  color: #c0c0c0;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.preset-btn.active {
+  background: #253025;
+  border-color: #77b255;
+  color: #8fd28f;
+  font-weight: 600;
 }
 
 .action-row {
@@ -708,3 +784,4 @@ details.think-block[open] .think-summary::before {
   }
 }
 </style>
+

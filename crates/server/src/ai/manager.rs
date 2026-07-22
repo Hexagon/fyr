@@ -207,6 +207,7 @@ impl ModelManager {
         temperature: f64,
         max_tokens: usize,
         num_ctx: usize,
+        history: Vec<(String, String)>,
     ) -> Result<mpsc::Receiver<String>, ModelError> {
         let loaded = self.loaded.read().await;
         let Some(model) = loaded.get(filename) else {
@@ -229,7 +230,7 @@ impl ModelManager {
                         let _ = tx.blocking_send(message);
                     };
 
-                    let formatted_prompt = format_chat_prompt(&prompt);
+                    let formatted_prompt = format_chat_prompt(&history, &prompt);
                     let encoding = match tokenizer.encode(formatted_prompt, true) {
                         Ok(encoding) => encoding,
                         Err(error) => {
@@ -366,12 +367,30 @@ fn user_facing_model_error(error: &ModelError) -> String {
     message
 }
 
-fn format_chat_prompt(prompt: &str) -> String {
-    format!(
-        "<|im_start|>system\n{system}\n<|im_end|>\n<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
-        system = CHAT_SYSTEM_PROMPT,
-        prompt = prompt.trim()
-    )
+fn format_chat_prompt(history: &[(String, String)], prompt: &str) -> String {
+    let mut output = format!(
+        "<|im_start|>system\n{}\n<|im_end|>\n",
+        CHAT_SYSTEM_PROMPT
+    );
+
+    for (role, text) in history {
+        let role_tag = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        output.push_str(&format!(
+            "<|im_start|>{}\n{}\n<|im_end|>\n",
+            role_tag,
+            text.trim()
+        ));
+    }
+
+    output.push_str(&format!(
+        "<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
+        prompt.trim()
+    ));
+
+    output
 }
 
 fn first_role_marker_index(text: &str) -> Option<usize> {
@@ -438,7 +457,36 @@ fn trim_context_window(tokens: &[u32], num_ctx: usize) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_role_marker_index, is_repeating, trim_context_window};
+    use super::{first_role_marker_index, format_chat_prompt, is_repeating, trim_context_window};
+
+    // --- format_chat_prompt ---
+
+    #[test]
+    fn format_chat_prompt_single_turn_has_no_history() {
+        let result = format_chat_prompt(&[], "Hello?");
+        assert!(result.contains("<|im_start|>user\nHello?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_includes_history_turns() {
+        let history = vec![
+            ("user".to_string(), "Hi".to_string()),
+            ("assistant".to_string(), "Hello!".to_string()),
+        ];
+        let result = format_chat_prompt(&history, "How are you?");
+        assert!(result.contains("<|im_start|>user\nHi\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>assistant\nHello!\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>user\nHow are you?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_unknown_role_defaults_to_user() {
+        let history = vec![("system".to_string(), "ignored".to_string())];
+        let result = format_chat_prompt(&history, "Hello");
+        assert!(result.contains("<|im_start|>user\nignored\n<|im_end|>"));
+    }
 
     // --- first_role_marker_index ---
 

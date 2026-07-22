@@ -91,11 +91,27 @@ GGUF files can be downloaded from [Hugging Face](https://huggingface.co/models?l
 
 - Search: `Qwen2.5 GGUF` — filter by library `GGUF`
 - Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-1.5B-Instruct-GGUF`, `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, `Qwen/Qwen2.5-14B-Instruct-GGUF`)
-- Fyr's default RAG profile uses `temperature=0.2` and `max_tokens=512`
+- Fyr's **Balanced** mode uses `temperature=0.2` and `max_tokens=512`; the **Precise** mode uses `temperature=0.1`; the **Creative** mode uses `temperature=0.7` and `max_tokens=1024`
 - Fyr defaults to a `num_ctx` of `2048`; on systems with more than 16 GB of RAM it automatically expands to `8192`
 - Advanced users can force the larger context window by setting `settings.modules.assistant.high_ram_context` to `true`
 
 Once downloaded, upload the `.gguf` file through Content Manager → Models.
+
+### Conversation context and modes
+
+The Assistant keeps track of recent conversation turns and sends the last six messages as context when inferring, so the model can reference what was discussed earlier in the session.
+
+Three response modes are available:
+
+| Mode | Behaviour |
+|------|-----------|
+| **Precise** | temperature=0.1, max_tokens=512 — focused, factual answers |
+| **Balanced** | temperature=0.2, max_tokens=512 — default, concise and reliable |
+| **Creative** | temperature=0.7, max_tokens=1024 — more elaborate, varied responses |
+
+### Persisting the default model
+
+The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.
 
 ## 4. Add Content
 ### Data directories and supported file types

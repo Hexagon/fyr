@@ -1,7 +1,7 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ChatMessage, ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
     ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
@@ -670,9 +670,18 @@ pub async fn ai_infer_stream(
         .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
         .clamp(256, 32768);
 
+    let history: Vec<(String, String)> = query
+        .history
+        .as_deref()
+        .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| (m.role, m.text))
+        .collect();
+
     let rx = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx)
+        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history)
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 

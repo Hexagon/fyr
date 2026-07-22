@@ -55,13 +55,18 @@ Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with 
 
 GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repositories: `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, and `Qwen/Qwen2.5-14B-Instruct-GGUF`.
 
-Default assistant profile used by Fyr:
+Default assistant profiles used by Fyr:
 
-- `temperature = 0.2`
-- `max_tokens = 512`
-- `num_ctx = 2048`
-- Auto-upgrade to `num_ctx = 8192` when the host reports more than 16 GB of RAM
+| Mode | temperature | max_tokens | Notes |
+|------|-------------|------------|-------|
+| Precise | 0.1 | 512 | Focused, factual answers |
+| Balanced | 0.2 | 512 | Default, concise and reliable |
+| Creative | 0.7 | 1024 | More elaborate, varied responses |
+
+- `num_ctx = 2048` — auto-upgrade to `8192` when host RAM > 16 GB
 - Manual override: set `settings.modules.assistant.high_ram_context = true` or `settings.modules.assistant.num_ctx` to an explicit value
+
+Conversation context: the SSE endpoint accepts an optional `history` query parameter — a JSON array of `{"role":"user"|"assistant","text":"..."}` objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.
 
 Catalog file:
 
