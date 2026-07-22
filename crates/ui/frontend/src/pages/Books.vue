@@ -898,6 +898,7 @@ onBeforeUnmount(() => {
   border: none;
   display: block;
   overflow: hidden;
+  background: #ffffff;
 }
 
 .zim-meta {
