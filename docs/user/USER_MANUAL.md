@@ -4,8 +4,15 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local server and is accessed from a browser.
 
+> **Project status:** Fyr is currently in **preview**. UI details may evolve as features are refined.
+
+### Related documentation
+- Installation and deployment paths: [fyr.guide/#installation](https://fyr.guide/#installation)
+- Project overview: [README.md](../../README.md)
+- Developer architecture details: [Developer Manual](../developer/DEVELOPER_MANUAL.md)
+
 ## 2. Start Fyr
-For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—please refer to the authoritative [INSTALL.md](/INSTALL.md).
+For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation).
 
 Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
 

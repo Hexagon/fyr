@@ -3,6 +3,15 @@
 ## 1. Overview
 Fyr is a Rust workspace with a Vue frontend.
 
+> **Project status:** Fyr is currently in **preview**; prefer additive and backward-compatible changes where practical.
+
+Documentation map:
+- Product overview and quick navigation: [README.md](../../README.md)
+- Installation/deployment site: [docs-site/index.html](../../docs-site/index.html)
+- End-user behavior reference: [User Manual](../user/USER_MANUAL.md)
+- Contributor workflow and validation requirements: [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- Governance and ownership boundaries: [AGENTS.md](../../AGENTS.md)
+
 Workspace modules:
 - `crates/types`: shared types and configuration.
 - `crates/downloader`: task management and routing.
