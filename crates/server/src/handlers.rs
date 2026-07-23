@@ -1,7 +1,7 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ChatMessage, ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
     ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
@@ -670,9 +670,20 @@ pub async fn ai_infer_stream(
         .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
         .clamp(256, 32768);
 
+    let history: Vec<(String, String)> = query
+        .history
+        .as_deref()
+        .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| (m.role, m.text))
+        .collect();
+
+    let app_context = build_content_catalog_summary(&state.config);
+
     let rx = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx)
+        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history, app_context)
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
@@ -1297,6 +1308,57 @@ fn count_files(dir: std::path::PathBuf) -> usize {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .count()
+}
+
+/// Return a sorted list of filenames present directly inside `dir`.
+fn list_dir_filenames(dir: std::path::PathBuf) -> Vec<String> {
+    if !dir.exists() {
+        return Vec::new();
+    }
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            if path.is_file() {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// Build a human-readable summary of the locally installed content library for
+/// use in the assistant's system prompt.
+fn build_content_catalog_summary(config: &types::Config) -> String {
+    let mut lines: Vec<String> = Vec::new();
+
+    let maps = list_dir_filenames(config.maps_dir());
+    if !maps.is_empty() {
+        lines.push(format!("- Maps ({}): {}", maps.len(), maps.join(", ")));
+    }
+
+    let books = list_dir_filenames(config.books_dir());
+    if !books.is_empty() {
+        lines.push(format!("- Books ({}): {}", books.len(), books.join(", ")));
+    }
+
+    let models = list_dir_filenames(config.models_dir());
+    if !models.is_empty() {
+        lines.push(format!("- Models ({}): {}", models.len(), models.join(", ")));
+    }
+
+    if lines.is_empty() {
+        return String::new();
+    }
+
+    format!("Current local content library:\n{}", lines.join("\n"))
 }
 
 fn list_content_files(

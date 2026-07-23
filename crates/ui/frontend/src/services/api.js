@@ -229,7 +229,7 @@ export const apiService = {
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
-  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx }, handlers = {}) => {
+  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [] }, handlers = {}) => {
     const params = new URLSearchParams({
       prompt,
       temperature: String(temperature),
@@ -237,6 +237,9 @@ export const apiService = {
     })
     if (numCtx != null) {
       params.set('num_ctx', String(numCtx))
+    }
+    if (history.length > 0) {
+      params.set('history', JSON.stringify(history))
     }
     const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
     const source = new EventSource(url)

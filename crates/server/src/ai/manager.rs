@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use types::Config;
 
-const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, a concise offline help assistant. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
+const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, an offline help assistant embedded in Fyr — a self-hosted offline content server that provides maps, books (EPUB and ZIM archives), and local AI inference. You run entirely on the user's own device without internet access. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
 
 #[derive(Clone)]
 pub struct ModelManager {
@@ -207,6 +207,8 @@ impl ModelManager {
         temperature: f64,
         max_tokens: usize,
         num_ctx: usize,
+        history: Vec<(String, String)>,
+        app_context: String,
     ) -> Result<mpsc::Receiver<String>, ModelError> {
         let loaded = self.loaded.read().await;
         let Some(model) = loaded.get(filename) else {
@@ -229,7 +231,7 @@ impl ModelManager {
                         let _ = tx.blocking_send(message);
                     };
 
-                    let formatted_prompt = format_chat_prompt(&prompt);
+                    let formatted_prompt = format_chat_prompt(&history, &prompt, &app_context);
                     let encoding = match tokenizer.encode(formatted_prompt, true) {
                         Ok(encoding) => encoding,
                         Err(error) => {
@@ -366,12 +368,36 @@ fn user_facing_model_error(error: &ModelError) -> String {
     message
 }
 
-fn format_chat_prompt(prompt: &str) -> String {
-    format!(
-        "<|im_start|>system\n{system}\n<|im_end|>\n<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
-        system = CHAT_SYSTEM_PROMPT,
-        prompt = prompt.trim()
-    )
+fn format_chat_prompt(history: &[(String, String)], prompt: &str, app_context: &str) -> String {
+    let system_block = if app_context.is_empty() {
+        CHAT_SYSTEM_PROMPT.to_string()
+    } else {
+        format!("{}\n\n{}", CHAT_SYSTEM_PROMPT, app_context)
+    };
+
+    let mut output = format!(
+        "<|im_start|>system\n{}\n<|im_end|>\n",
+        system_block
+    );
+
+    for (role, text) in history {
+        let role_tag = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        output.push_str(&format!(
+            "<|im_start|>{}\n{}\n<|im_end|>\n",
+            role_tag,
+            text.trim()
+        ));
+    }
+
+    output.push_str(&format!(
+        "<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
+        prompt.trim()
+    ));
+
+    output
 }
 
 fn first_role_marker_index(text: &str) -> Option<usize> {
@@ -438,7 +464,55 @@ fn trim_context_window(tokens: &[u32], num_ctx: usize) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_role_marker_index, is_repeating, trim_context_window};
+    use super::{first_role_marker_index, format_chat_prompt, is_repeating, trim_context_window};
+
+    // --- format_chat_prompt ---
+
+    #[test]
+    fn format_chat_prompt_single_turn_has_no_history() {
+        let result = format_chat_prompt(&[], "Hello?", "");
+        assert!(result.contains("<|im_start|>user\nHello?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_includes_history_turns() {
+        let history = vec![
+            ("user".to_string(), "Hi".to_string()),
+            ("assistant".to_string(), "Hello!".to_string()),
+        ];
+        let result = format_chat_prompt(&history, "How are you?", "");
+        assert!(result.contains("<|im_start|>user\nHi\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>assistant\nHello!\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>user\nHow are you?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_unknown_role_defaults_to_user() {
+        let history = vec![("system".to_string(), "ignored".to_string())];
+        let result = format_chat_prompt(&history, "Hello", "");
+        assert!(result.contains("<|im_start|>user\nignored\n<|im_end|>"));
+    }
+
+    #[test]
+    fn format_chat_prompt_embeds_app_context_in_system_block() {
+        let ctx = "Current local content library:\n- Maps (1): world.pmtiles";
+        let result = format_chat_prompt(&[], "What maps are loaded?", ctx);
+        assert!(result.contains(ctx));
+        assert!(result.starts_with("<|im_start|>system\n"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_empty_app_context_omits_extra_newline() {
+        let without = format_chat_prompt(&[], "Hi", "");
+        let with_ctx = format_chat_prompt(&[], "Hi", "Context: something");
+        // With context must be longer
+        assert!(with_ctx.len() > without.len());
+        // Without context should not contain double-newline separator
+        assert!(!without.contains("\n\nCurrent"));
+    }
 
     // --- first_role_marker_index ---
 
