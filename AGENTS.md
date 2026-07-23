@@ -15,6 +15,13 @@ Authoritative documentation is limited to these files:
 All other markdown under [docs/](docs/) should be treated as migration stubs only.
 Do not add new standalone docs unless explicitly requested.
 
+Audience guidance:
+- [README.md](README.md): quick orientation and navigation hub.
+- [docs-site/index.html](docs-site/index.html): install/deploy landing page.
+- [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md): operator and end-user workflows.
+- [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md): implementation and architecture.
+- [CONTRIBUTING.md](CONTRIBUTING.md): PR process and required validation.
+
 ## Runtime Layout
 
 Repository runtime is public-first:

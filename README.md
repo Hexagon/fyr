@@ -3,6 +3,8 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local web server and works without internet once content is present.
 
+> **Project status:** Fyr is currently in **preview**. Interfaces and workflows may continue to evolve.
+
 ## Features
 
 - Offline maps with PMTiles
@@ -22,25 +24,35 @@ cargo build --release -p server --bin fyr
 
 Open `http://localhost:8080` on the same machine.
 
+Prefer Docker for first-time evaluation? Use the install paths on [fyr.guide/#installation](https://fyr.guide/#installation).
+
 ## Installation & Deployment
 
-For comprehensive installation paths, please refer to [fyr.guide/#installation](https://fyr.guide/#installation). It serves as the single source of truth for deployment and includes step-by-step guides for:
+The canonical installation guide lives at [fyr.guide/#installation](https://fyr.guide/#installation) and includes:
 
 * Building from source for development workflows.
 * Running with Docker (both Production and Dev releases) on an existing system.
 * Installing and running Fyr on a clean Raspberry Pi OS setup.
 
+## Documentation Map
+
+- Website + installation playbooks: [fyr.guide](https://fyr.guide/)
+- End-user operations and troubleshooting: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
+- Architecture and implementation details: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
+- Contributor workflow and validation requirements: [/CONTRIBUTING.md](/CONTRIBUTING.md)
+- Repository governance and ownership boundaries: [/AGENTS.md](/AGENTS.md)
+
 ## Data Management
 
-Fyr stores all user content in a persistent data directory (defaulting to `./public/data` locally or `/data` in Docker).
-
-To learn how to persist data across reinstalls, refer to the volume mounting instructions at [fyr.guide/#installation](https://fyr.guide/#installation). For a detailed breakdown of folder structures, supported file types, and how Fyr handles automatic system-manual refreshes on startup, see the Data Storage Layout section in the [User Manual](/docs/user/USER_MANUAL.md).
+Fyr stores user content in a persistent data directory (`./public/data` by default, `/data` in Docker).
+See [fyr.guide/#installation](https://fyr.guide/#installation) for persistence setup and the [User Manual data layout section](/docs/user/USER_MANUAL.md#6-data-storage-layout) for folder-level details.
 
 ## Documentation
 
 - Installation guide: [fyr.guide/#installation](https://fyr.guide/#installation)
-- User guide: [docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
-- Developer guide: [docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
+- User guide: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
+- Developer guide: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
+- Contributing: [/CONTRIBUTING.md](/CONTRIBUTING.md)
 
 ## License
 
