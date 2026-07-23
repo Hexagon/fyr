@@ -19,6 +19,11 @@ Workspace modules:
 - `crates/ui/frontend`: Vue 3 application built into `public/static/`.
 - `crates/server/src/ai`: Candle-powered GGUF model loading and assistant endpoints.
 
+Downloader timeout centralization:
+- URL download request timeout is sourced from persisted app settings at `settings.modules.downloads.request_timeout_seconds`.
+- On server startup and each `PUT /api/settings`, the server applies this value to `DownloadManager` for future tasks.
+- Valid range is clamped to `30..=86400` seconds; default is `300` seconds.
+
 ## 1.1 AI Integration with Candle
 
 Fyr integrates GGUF models with native Rust inference tooling.
@@ -48,11 +53,13 @@ The streaming inference loop in `crates/server/src/ai/manager.rs` applies two se
 
 2. **ChatML stop markers** — `first_role_marker_index()` catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
 
-`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. Think content is shown in a collapsible `<details>` element that streams live while the model reasons and collapses automatically when `</think>` arrives.
+`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. The assistant now shows a generic thinking placeholder immediately on send, then upgrades that block with live `<think>` content if the model emits it.
+
+The browser streaming client in `crates/ui/frontend/src/services/api.js` reads the SSE response body with `fetch()` and a `ReadableStream` reader rather than relying on `EventSource`. This avoids the chunked final-render behavior seen in some environments and keeps stop/error handling explicit.
 
 ### Recommended model files
 
-Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with embedded tokenizer metadata.
+Fyr's inference runtime currently supports GGUF files for the **Qwen2**, **Llama**, and **Phi-3 / Phi-3.5** architecture families when tokenizer metadata is embedded. For Phi-3/Phi-3.5 specifically, a sidecar tokenizer JSON may be required for reliable generation quality.
 
 | Tier | Suggested model | Quantization | Approx. size | Notes |
 |---|---|---|---|---|
@@ -61,8 +68,10 @@ Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with 
 | Large | `Qwen2.5-7B-Instruct` | Q4_K_M | ~4.5 GB | Intended for 8 GB Raspberry Pi 5 systems |
 | Extra large | `Qwen2.5-14B-Instruct` | Q4_K_M | ~9.8 GB | Desktop-grade RAG quality on 16 GB+ systems |
 | Extra large (alt) | `Qwen2.5-7B-Instruct` | Q8_0 | ~8.5 GB | Smaller desktop alternative when 14B is too heavy |
+| Llama alternative | `Llama-3.2-3B-Instruct` | Q4_K_M | ~2.0 GB | Good cross-domain instruct model; some downloads require Hugging Face license acceptance |
+| Phi alternative | `Phi-3.5-mini-instruct` | Q4_K_M | ~2.4 GB | Compact reasoning-oriented option with `phi3` GGUF architecture |
 
-GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repositories: `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, and `Qwen/Qwen2.5-14B-Instruct-GGUF`.
+GGUF files for these models are commonly published on [Hugging Face](https://huggingface.co/models?library=gguf). Examples used by Fyr's curated catalog include `Qwen/Qwen2.5-3B-Instruct-GGUF`, `bartowski/Llama-3.2-3B-Instruct-GGUF`, and `bartowski/Phi-3.5-mini-instruct-GGUF`.
 
 Default assistant profiles used by Fyr:
 
@@ -84,11 +93,16 @@ Catalog file:
 - The frontend content manager reads `/data/curated-content.json`, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.
 - Curated entries may include an optional `download_url` field that queues a direct download from the content manager UI.
 
-Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
+Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block above the live response stream.
+
+Prompt formatting is architecture-specific:
+- `qwen2` uses ChatML-style `<|im_start|>...<|im_end|>` prompts.
+- `llama` uses the Llama 3 instruct header template with `<|start_header_id|>` and `<|eot_id|>` markers.
+- `phi3` uses the Phi chat template with `<|system|>`, `<|user|>`, `<|assistant|>`, and `<|end|>` delimiters.
 
 Extending model support:
 - Current integration uses GGUF metadata parsing plus quantized variable loading.
-- Add architecture-specific runtime in `crates/server/src/ai/loader.rs` when introducing new generation backends.
+- Add architecture-specific runtime and prompt formatting in `crates/server/src/ai/loader.rs` and `crates/server/src/ai/manager.rs` when introducing new generation backends.
 - Keep unsupported architectures failing with explicit error messages instead of fallback panics.
 
 ## 2. Local Development
@@ -241,6 +255,8 @@ Generic local import flow:
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
 - The runtime currently requires tokenizer metadata embedded in the GGUF file.
+- Loader tokenizer resolution order is: `<model>.tokenizer.json`, `<model>.json`, `tokenizer.json` in the model directory, then GGUF tokenizer metadata fallback.
+- Phi/Phi-3.5 models should prefer the official tokenizer JSON sidecar when available.
 - If tokenizer metadata is missing, model loading fails with a clear validation error.
 
 Reader and ZIM endpoints:

@@ -15,6 +15,9 @@ use axum::{
     },
     Json,
 };
+use downloader::{
+    DEFAULT_REQUEST_TIMEOUT_SECS, MAX_REQUEST_TIMEOUT_SECS, MIN_REQUEST_TIMEOUT_SECS,
+};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::panic::AssertUnwindSafe;
@@ -258,6 +261,12 @@ pub async fn update_settings(
             warn!("Failed to persist settings: {}", error);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    let timeout_secs = resolve_download_request_timeout_secs(&updated);
+    state
+        .download_manager
+        .set_request_timeout_secs(timeout_secs)
+        .await;
 
     Ok(Json(updated))
 }
@@ -1911,6 +1920,19 @@ fn default_assistant_num_ctx() -> usize {
     }
 }
 
+pub(crate) fn resolve_download_request_timeout_secs(settings: &AppSettings) -> u64 {
+    download_request_timeout_override(settings).unwrap_or(DEFAULT_REQUEST_TIMEOUT_SECS)
+}
+
+fn download_request_timeout_override(settings: &AppSettings) -> Option<u64> {
+    let downloads = settings.modules.get("downloads")?.as_object()?;
+    let timeout = downloads
+        .get("request_timeout_seconds")
+        .and_then(|value| value.as_u64())?;
+
+    Some(timeout.clamp(MIN_REQUEST_TIMEOUT_SECS, MAX_REQUEST_TIMEOUT_SECS))
+}
+
 fn detect_total_memory_kib() -> Option<u64> {
     let raw = std::fs::read_to_string("/proc/meminfo").ok()?;
     parse_total_memory_kib(&raw)
@@ -1927,8 +1949,8 @@ fn parse_total_memory_kib(meminfo: &str) -> Option<u64> {
 mod tests {
     use super::{
         assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
-        resolve_assistant_num_ctx, sanitize_upload_filename, DEFAULT_ASSISTANT_NUM_CTX,
-        HIGH_RAM_ASSISTANT_NUM_CTX,
+        resolve_assistant_num_ctx, resolve_download_request_timeout_secs, sanitize_upload_filename,
+        DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS, HIGH_RAM_ASSISTANT_NUM_CTX,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -2009,6 +2031,30 @@ mod tests {
         let settings = AppSettings::default();
         let resolved = resolve_assistant_num_ctx(&settings);
         assert!(resolved == DEFAULT_ASSISTANT_NUM_CTX || resolved == HIGH_RAM_ASSISTANT_NUM_CTX);
+    }
+
+    #[test]
+    fn resolve_download_timeout_uses_default_without_override() {
+        let settings = AppSettings::default();
+        assert_eq!(resolve_download_request_timeout_secs(&settings), DEFAULT_REQUEST_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn resolve_download_timeout_uses_override() {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "downloads".to_string(),
+            json!({
+                "request_timeout_seconds": 900
+            }),
+        );
+
+        let settings = AppSettings {
+            location: None,
+            modules,
+        };
+
+        assert_eq!(resolve_download_request_timeout_secs(&settings), 900);
     }
 }
 

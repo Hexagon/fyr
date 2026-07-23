@@ -10,3 +10,8 @@ pub mod manager;
 
 pub use router::ContentRouter;
 pub use manager::DownloadManager;
+pub use manager::{
+	DEFAULT_REQUEST_TIMEOUT_SECS,
+	MAX_REQUEST_TIMEOUT_SECS,
+	MIN_REQUEST_TIMEOUT_SECS,
+};

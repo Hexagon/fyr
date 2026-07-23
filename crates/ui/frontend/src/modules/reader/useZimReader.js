@@ -53,10 +53,9 @@ const sanitizeNativeZimBodyHtml = (html) => {
   })
 }
 
-const ZIM_ARTICLE_BASE_CSS = [
+const ZIM_ARTICLE_LAYOUT_CSS = [
   'html,body{height:auto;min-height:100%;overflow:hidden!important}',
-  'html{background:#ffffff}',
-  'body{margin:0;padding:1.25rem;background:#ffffff;color:#202122;',
+  'body{margin:0;padding:1.25rem;color:#202122;',
   'font-family:Georgia,"Times New Roman",Times,serif;font-size:0.98rem;',
   'line-height:1.62;overflow-x:hidden}',
   'a{color:#3366cc;text-decoration:none}',
@@ -86,6 +85,11 @@ const ZIM_ARTICLE_BASE_CSS = [
   'a.item figure{display:flex;flex-direction:column;width:100%}',
   'a.item img{width:100%;aspect-ratio:4/3;object-fit:cover}',
   'a.item figcaption{padding:0.42rem 0.5rem}'
+].join('')
+
+const ZIM_ARTICLE_PAGE_RESET_CSS = [
+  'html{background:#ffffff!important}',
+  'body{background:#ffffff!important}'
 ].join('')
 
 const buildZimSandboxDocument = (headHtml, bodyHtml) => {
@@ -137,8 +141,9 @@ const buildZimSandboxDocument = (headHtml, bodyHtml) => {
   return (
     '<!DOCTYPE html><html><head>' +
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    `<style>${ZIM_ARTICLE_BASE_CSS}</style>` +
     headHtml +
+    `<style>${ZIM_ARTICLE_LAYOUT_CSS}</style>` +
+    `<style>${ZIM_ARTICLE_PAGE_RESET_CSS}</style>` +
     scrollOverride +
     navScript +
     '</head><body>' +

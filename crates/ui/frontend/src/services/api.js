@@ -69,6 +69,47 @@ const encodePathPreservingSlashes = (path) => {
     .join('/')
 }
 
+const parseSseFrame = (frame) => {
+  const lines = String(frame || '').split(/\r?\n/)
+  let event = 'message'
+  const data = []
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd()
+    if (!line || line.startsWith(':')) {
+      continue
+    }
+
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim() || 'message'
+      continue
+    }
+
+    if (line.startsWith('data:')) {
+      const value = line.slice(5)
+      data.push(value.startsWith(' ') ? value.slice(1) : value)
+    }
+  }
+
+  return {
+    event,
+    data: data.join('\n')
+  }
+}
+
+const extractNextSseFrame = (buffer) => {
+  const match = /\r?\n\r?\n/.exec(buffer)
+  if (!match || match.index == null) {
+    return null
+  }
+
+  const boundaryIndex = match.index
+  return {
+    frame: buffer.slice(0, boundaryIndex),
+    remainder: buffer.slice(boundaryIndex + match[0].length)
+  }
+}
+
 export const apiService = {
   getReaderCapabilities: async () => {
     const response = await api.get('/reader/capabilities')
@@ -242,20 +283,94 @@ export const apiService = {
       params.set('history', JSON.stringify(history))
     }
     const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
-    const source = new EventSource(url)
+    const controller = new AbortController()
+    let closed = false
 
-    source.addEventListener('token', (event) => {
-      handlers.onToken?.(event.data)
-    })
-    source.addEventListener('done', () => {
-      handlers.onDone?.()
-      source.close()
-    })
-    source.onerror = (error) => {
-      handlers.onError?.(error)
-      source.close()
+    const close = () => {
+      if (closed) return
+      closed = true
+      controller.abort()
     }
-    return source
+
+    ;(async () => {
+      let completed = false
+
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Accept: 'text/event-stream'
+          },
+          cache: 'no-store',
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw {
+            response: {
+              status: response.status,
+              data: { message: await response.text() }
+            }
+          }
+        }
+
+        if (!response.body) {
+          throw new Error('Streaming response body is unavailable.')
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (!closed) {
+          const { value, done } = await reader.read()
+          if (done) {
+            break
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+
+          let extracted = extractNextSseFrame(buffer)
+          while (extracted) {
+            const { frame, remainder } = extracted
+            buffer = remainder
+
+            const parsed = parseSseFrame(frame)
+            if (parsed.event === 'token') {
+              handlers.onToken?.(parsed.data)
+            } else if (parsed.event === 'done') {
+              completed = true
+              handlers.onDone?.()
+              close()
+              return
+            }
+
+            extracted = extractNextSseFrame(buffer)
+          }
+        }
+
+        const trailing = buffer + decoder.decode()
+        if (!closed && trailing.trim()) {
+          const parsed = parseSseFrame(trailing)
+          if (parsed.event === 'token') {
+            handlers.onToken?.(parsed.data)
+          } else if (parsed.event === 'done') {
+            completed = true
+            handlers.onDone?.()
+          }
+        }
+
+        if (!closed && !completed) {
+          handlers.onDone?.()
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handlers.onError?.(error)
+        }
+      }
+    })()
+
+    return { close }
   },
 
   // Download Management

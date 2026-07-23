@@ -74,14 +74,15 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 - Open the Assistant tab from the top navigation.
 - Use **Open Content Manager** from the Assistant sidebar to jump to the Models section for `.gguf` uploads.
 - For text generation, use GGUF files that include tokenizer metadata.
-- Select a model and press **Load Model**.
-- Enter a prompt and send it to start token streaming.
+- Select a model; Fyr loads it automatically when possible.
+- Enter a prompt and send it to start live token streaming.
 
 > **Model choice notes:**
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
-> * Fyr's inference runtime currently supports the **Qwen2** model family for text generation. The curated defaults focus on `Qwen2.5-1.5B`, `Qwen2.5-3B`, `Qwen2.5-7B`, and `Qwen2.5-14B` GGUF builds.
-> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays this reasoning in a collapsible **Thinking** section above the response — it streams live while the model reasons and collapses automatically when reasoning is complete.
+> * Fyr's inference runtime currently supports GGUF models with **Qwen2**, **Llama**, and **Phi-3/Phi-3.5** architectures.
+> * The assistant shows a **Thinking** block immediately after you send a prompt, then streams the visible reply as it arrives.
+> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays that reasoning in the same collapsible **Thinking** section and streams it live while the model reasons.
 
 ### Where to find compatible models
 
@@ -93,14 +94,19 @@ Recommended model tiers from that catalog:
 - **Standard / Recommended** — `Qwen2.5-3B-Instruct` in `Q6_K` (~2.6 GB) for the best balance on Raspberry Pi 5.
 - **Large** — `Qwen2.5-7B-Instruct` in `Q4_K_M` (~4.5 GB) for Raspberry Pi 5 systems with 8 GB RAM.
 - **Extra large / Desktop** — `Qwen2.5-14B-Instruct` in `Q4_K_M` (~9.8 GB), or `Qwen2.5-7B-Instruct` in `Q8_0` (~8.5 GB), for 16 GB+ systems.
+- **Llama alternative** — `Llama-3.2-3B-Instruct` in `Q4_K_M` (~2.0 GB) when you want a broadly compatible multilingual instruct model.
+- **Phi alternative** — `Phi-3.5-mini-instruct` in `Q4_K_M` (~2.4 GB) when you want a compact reasoning-oriented model.
 
 GGUF files can be downloaded from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending). Recommended search:
 
 - Search: `Qwen2.5 GGUF` — filter by library `GGUF`
 - Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-1.5B-Instruct-GGUF`, `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, `Qwen/Qwen2.5-14B-Instruct-GGUF`)
+- Search: `Llama 3.2 3B Instruct GGUF` — a common mirror is `bartowski/Llama-3.2-3B-Instruct-GGUF`
+- Search: `Phi-3.5 mini instruct GGUF` — common sources are `bartowski/Phi-3.5-mini-instruct-GGUF` and Microsoft's official `Phi-3` GGUF repositories
 - Fyr's **Balanced** mode uses `temperature=0.2` and `max_tokens=512`; the **Precise** mode uses `temperature=0.1`; the **Creative** mode uses `temperature=0.7` and `max_tokens=1024`
 - Fyr defaults to a `num_ctx` of `2048`; on systems with more than 16 GB of RAM it automatically expands to `8192`
 - Advanced users can force the larger context window by setting `settings.modules.assistant.high_ram_context` to `true`
+- Some Llama-family downloads are gated by Hugging Face license acceptance. In those cases, Content Manager may link you to the source page rather than providing a one-click direct download.
 
 Once downloaded, upload the `.gguf` file through Content Manager → Models.
 
@@ -150,10 +156,10 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ### Models
 - Open **Content Manager** and upload a `.gguf` file in the Models section.
 - Fyr validates the GGUF header, stores the upload in `public/data/inbox/`, then imports it into `public/data/models/`.
-- Current inference runtime is implemented for GGUF models with `qwen2` architecture.
-- Other GGUF architectures can still be loaded for validation/health checks but may not support text generation yet.
+- Current inference runtime is implemented for GGUF models with `qwen2`, `llama`, and `phi3` architectures.
 - Prefer models that include tokenizer metadata in GGUF.
-- The bundled curated catalog (`public/data/curated-content.json`) lists the recommended Qwen 2.5 GGUF tiers and their default RAG settings.
+- For `phi3`/`phi-3.5` models, keep a tokenizer sidecar in the same folder (preferred: `public/data/models/Phi-3.5-mini-instruct-Q4_K_M.tokenizer.json`; fallback names: `tokenizer.json` or `<model>.json`).
+- The bundled curated catalog (`public/data/curated-content.json`) lists recommended Qwen2.5, Llama 3.2, and Phi-3.5 GGUF tiers together with their default RAG settings.
 
 ### Misc
 - Use `public/data/misc/` for generic files that are not map/book/poi/model types.
@@ -161,6 +167,8 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
+- Large URL download timeout is centrally configurable from **Settings → Downloads** as **Request timeout (seconds)**.
+- Advanced path: the same value is persisted in `settings.modules.downloads.request_timeout_seconds`.
 - When a content folder is empty, Content Manager shows curated recommendations from `curated-content.json` instead of a blank listing.
 - When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
@@ -255,9 +263,11 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 ### Assistant inference fails after load
 - Confirm the model architecture is currently supported by Fyr inference.
 - Confirm the `.gguf` model includes tokenizer metadata.
+- For `phi3`/`phi-3.5`, confirm a sidecar tokenizer JSON exists next to the `.gguf` model.
 - If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.
 
 ### Assistant load fails or runs slowly
 - Check model health in the assistant status line.
 - If memory is limited, use a smaller quantized model.
 - If tokenizer metadata is missing, re-export the model with tokenizer fields included.
+- For `phi3`/`phi-3.5`, use the original `tokenizer.json` from the model repository and place it beside the model file.

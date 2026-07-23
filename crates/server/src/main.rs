@@ -63,13 +63,22 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Resolved static directory: {}", static_path.display());
 
+    let settings_manager = Arc::new(SettingsManager::new(config.data_dir.clone()));
+    let download_manager = Arc::new(DownloadManager::new(config.data_dir.clone()));
+
+    let initial_settings = settings_manager.current();
+    let initial_download_timeout = handlers::resolve_download_request_timeout_secs(&initial_settings);
+    download_manager
+        .set_request_timeout_secs(initial_download_timeout)
+        .await;
+
     // Create shared application state
     let app_state = AppState {
         config: config.clone(),
         static_dir: static_path,
-        download_manager: Arc::new(DownloadManager::new(config.data_dir.clone())),
+        download_manager,
         model_manager: Arc::new(ModelManager::new(config.clone())),
-        settings_manager: Arc::new(SettingsManager::new(config.data_dir.clone())),
+        settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
     };
 
