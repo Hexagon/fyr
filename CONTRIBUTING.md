@@ -43,7 +43,7 @@ When behavior changes, update docs in the same PR:
 - Technical behavior: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
 - Onboarding/quickstart changes: [README.md](README.md)
 - Governance/policy updates: [AGENTS.md](AGENTS.md)
-- Website install flow updates: [docs-site/index.html](docs-site/index.html)
+- Website install flow updates: [docs/site/index.html](docs/site/index.html)
 
 ## 5. Scope and Licensing Notes
 

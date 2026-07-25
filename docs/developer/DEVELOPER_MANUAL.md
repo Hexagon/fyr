@@ -7,7 +7,7 @@ Fyr is a Rust workspace with a Vue frontend.
 
 Documentation map:
 - Product overview and quick navigation: [README.md](../../README.md)
-- Installation/deployment site: [docs-site/index.html](../../docs-site/index.html)
+- Installation/deployment site: [docs/site/index.html](../../docs/site/index.html)
 - End-user behavior reference: [User Manual](../user/USER_MANUAL.md)
 - Contributor workflow and validation requirements: [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - Governance and ownership boundaries: [AGENTS.md](../../AGENTS.md)
