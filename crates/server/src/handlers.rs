@@ -1355,7 +1355,19 @@ fn build_content_catalog_summary(config: &types::Config) -> String {
 
     let books = list_dir_filenames(config.books_dir());
     if !books.is_empty() {
-        lines.push(format!("- Books ({}): {}", books.len(), books.join(", ")));
+        // Use extracted titles when available, fall back to filenames
+        let books_dir = config.books_dir();
+        let book_descriptions: Vec<String> = books
+            .iter()
+            .map(|filename| {
+                let format = crate::library::detect_format(filename);
+                match format.and_then(|fmt| crate::library::extract_title(&books_dir.join(filename), fmt)) {
+                    Some(title) => format!("{} ({})", title, filename),
+                    None => filename.clone(),
+                }
+            })
+            .collect();
+        lines.push(format!("- Books ({}): {}", books.len(), book_descriptions.join(", ")));
     }
 
     let models = list_dir_filenames(config.models_dir());
@@ -1943,6 +1955,100 @@ fn parse_total_memory_kib(meminfo: &str) -> Option<u64> {
         let rest = line.strip_prefix("MemTotal:")?;
         rest.split_whitespace().next()?.parse::<u64>().ok()
     })
+}
+
+/// GET /api/library/books/:filename — Unified book metadata
+pub async fn library_book_metadata(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<types::BookMetadata>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    match crate::library::extract_book_metadata(&books_dir, &sanitized) {
+        Ok(metadata) => Ok(Json(metadata)),
+        Err(error) => {
+            warn!("Failed to extract book metadata for {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+/// GET /api/library/books/:filename/toc — Unified book table of contents
+pub async fn library_book_toc(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<Vec<types::TocEntry>>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    match crate::library::extract_toc(&books_dir, &sanitized) {
+        Ok(toc) => Ok(Json(toc)),
+        Err(error) => {
+            warn!("Failed to extract TOC for {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+/// GET /api/library/books/:filename/search?q=...&limit=20 — Unified book search
+pub async fn library_book_search(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Query(query): Query<LibrarySearchQuery>,
+) -> Result<Json<types::BookSearchResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let limit = query.limit.unwrap_or(20).clamp(1, 100);
+
+    match crate::library::search_book(&books_dir, &sanitized, &query.q, limit) {
+        Ok(response) => Ok(Json(response)),
+        Err(error) => {
+            warn!("Failed to search book {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct LibrarySearchQuery {
+    pub q: String,
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[cfg(test)]

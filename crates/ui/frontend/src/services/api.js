@@ -381,6 +381,25 @@ export const apiService = {
   listDownloads: () => api.get('/downloads'),
   deleteContentFile: (contentType, filename) => api.delete(`/content/${encodeURIComponent(contentType)}/${encodeURIComponent(filename)}`),
 
+  // Unified Library API
+  getLibraryBookMetadata: async (filename) => {
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}`)
+    return response.data
+  },
+
+  getLibraryBookToc: async (filename) => {
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}/toc`)
+    return response.data
+  },
+
+  getLibraryBookSearch: async (filename, q, limit = 20) => {
+    const params = new URLSearchParams()
+    params.set('q', String(q || ''))
+    params.set('limit', String(limit))
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}/search?${params.toString()}`)
+    return response.data
+  },
+
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
