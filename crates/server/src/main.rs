@@ -47,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
     config.initialize_directories()?;
     config.validate_writable()?;
     sync_managed_manuals(&config)?;
+    configure_ai_runtime(&config);
 
     if config.auth.readonly {
         info!("Server is running in strict read-only mode (FYR_READONLY)");
@@ -212,6 +213,82 @@ fn create_router(state: AppState) -> Router {
         ))
         .layer(cors)
         .with_state(state_arc)
+}
+
+/// Log detected CPU SIMD capabilities and size Candle's CPU thread pool.
+///
+/// Runs on the real deployment hardware at process startup, not at Docker
+/// build time, so the logged feature status is accurate even when the
+/// image itself was built under QEMU emulation for a foreign architecture.
+fn configure_ai_runtime(config: &Config) {
+    log_cpu_feature_support();
+
+    let candle_threads_set = std::env::var("CANDLE_NUM_THREADS").is_ok();
+    let rayon_threads_set = std::env::var("RAYON_NUM_THREADS").is_ok();
+    if candle_threads_set || rayon_threads_set {
+        info!("Candle CPU thread pool size is controlled by an existing CANDLE_NUM_THREADS/RAYON_NUM_THREADS environment variable; leaving it as-is");
+        return;
+    }
+
+    let threads = config.ai.threads.unwrap_or_else(default_ai_thread_count).max(1);
+
+    info!(
+        "Configuring Candle CPU inference thread pool: {} thread(s) (override with FYR_AI_THREADS, or CANDLE_NUM_THREADS/RAYON_NUM_THREADS directly)",
+        threads
+    );
+
+    // SAFETY: runs synchronously, very early in `main`, before the Tokio
+    // runtime schedules any tasks that read process environment variables
+    // and before Candle's lazily-initialized thread pool is touched by any
+    // inference call. No other thread can observe a torn read at this
+    // point in startup.
+    unsafe {
+        std::env::set_var("CANDLE_NUM_THREADS", threads.to_string());
+        std::env::set_var("RAYON_NUM_THREADS", threads.to_string());
+    }
+}
+
+/// Container/cgroup-aware default thread count for CPU inference.
+///
+/// `available_parallelism()` respects cgroup CPU quotas on Linux, unlike a
+/// naive core count, which matters for Docker deployments given a
+/// fractional CPU allowance.
+fn default_ai_thread_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+}
+
+fn log_cpu_feature_support() {
+    #[cfg(target_arch = "aarch64")]
+    {
+        let compiled_neon = cfg!(target_feature = "neon");
+        let compiled_dotprod = cfg!(target_feature = "dotprod");
+        let runtime_neon = std::arch::is_aarch64_feature_detected!("neon");
+        let runtime_fp16 = std::arch::is_aarch64_feature_detected!("fp16");
+        let runtime_dotprod = std::arch::is_aarch64_feature_detected!("dotprod");
+        let runtime_fcma = std::arch::is_aarch64_feature_detected!("fcma");
+
+        info!(
+            "CPU features (aarch64): compiled[neon={} dotprod={}] runtime[neon={} fp16={} dotprod={} fcma={}]",
+            compiled_neon, compiled_dotprod, runtime_neon, runtime_fp16, runtime_dotprod, runtime_fcma
+        );
+
+        if runtime_dotprod && !compiled_dotprod {
+            info!("This CPU supports the 'dotprod' instruction (e.g. Raspberry Pi 5 / Cortex-A75 and newer), but this binary was not compiled with it, so quantized inference is using a slower fallback kernel. Rebuild the Docker image with --build-arg RUST_TARGET_FEATURES=+dotprod for faster inference on this hardware. Do not use this flag for images that must also run on older boards such as Raspberry Pi 3/4.");
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        info!(
+            "CPU features (x86_64): compiled[avx2={} fma={}] runtime[avx2={} fma={}]",
+            cfg!(target_feature = "avx2"),
+            cfg!(target_feature = "fma"),
+            std::arch::is_x86_feature_detected!("avx2"),
+            std::arch::is_x86_feature_detected!("fma"),
+        );
+    }
 }
 
 fn first_existing_path(primary: &str, fallback: &str) -> PathBuf {

@@ -6,8 +6,10 @@ use candle_transformers::generation::LogitsProcessor;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
 use tokenizers::Tokenizer;
+use tracing::info;
 use types::Config;
 
 const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, an offline help assistant embedded in Fyr — a self-hosted offline content server that provides maps, books (EPUB and ZIM archives), and local AI inference. You run entirely on the user's own device without internet access. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
@@ -312,6 +314,75 @@ impl ModelManager {
     }
 }
 
+/// Tracks prefill/decode timing for a single inference run and logs a
+/// tokens-per-second summary when the run ends, regardless of which exit
+/// path (success, error, or early stop) is taken.
+struct InferenceTiming {
+    prefill_started: Instant,
+    prefill_tokens: usize,
+    decode_started: Option<Instant>,
+    decode_tokens: usize,
+}
+
+impl InferenceTiming {
+    fn new() -> Self {
+        Self {
+            prefill_started: Instant::now(),
+            prefill_tokens: 0,
+            decode_started: None,
+            decode_tokens: 0,
+        }
+    }
+
+    /// Call once prompt prefill has finished, with the number of tokens that
+    /// were prefilled (post context-window trimming).
+    fn mark_prefill_done(&mut self, tokens: usize) {
+        self.prefill_tokens = tokens;
+        self.decode_started = Some(Instant::now());
+    }
+}
+
+impl Drop for InferenceTiming {
+    fn drop(&mut self) {
+        let prefill_elapsed = match self.decode_started {
+            Some(decode_started) => decode_started.duration_since(self.prefill_started),
+            None => self.prefill_started.elapsed(),
+        };
+        let prefill_tok_s = tokens_per_second(self.prefill_tokens, prefill_elapsed);
+
+        match self.decode_started {
+            Some(decode_started) => {
+                let decode_elapsed = decode_started.elapsed();
+                let decode_tok_s = tokens_per_second(self.decode_tokens, decode_elapsed);
+                info!(
+                    "AI inference: prefill {} tok in {:.2?} ({:.1} tok/s), decode {} tok in {:.2?} ({:.1} tok/s)",
+                    self.prefill_tokens,
+                    prefill_elapsed,
+                    prefill_tok_s,
+                    self.decode_tokens,
+                    decode_elapsed,
+                    decode_tok_s,
+                );
+            }
+            None => {
+                info!(
+                    "AI inference aborted during prompt prefill: {} tok in {:.2?} ({:.1} tok/s)",
+                    self.prefill_tokens, prefill_elapsed, prefill_tok_s,
+                );
+            }
+        }
+    }
+}
+
+fn tokens_per_second(tokens: usize, elapsed: Duration) -> f64 {
+    let secs = elapsed.as_secs_f64();
+    if secs <= 0.0 {
+        0.0
+    } else {
+        tokens as f64 / secs
+    }
+}
+
 fn spawn_quantized_inference<M, FReset, FForward>(
     model: Arc<std::sync::Mutex<M>>,
     tokenizer: Arc<Tokenizer>,
@@ -328,7 +399,7 @@ fn spawn_quantized_inference<M, FReset, FForward>(
     FReset: Fn(&mut M) + Send + 'static,
     FForward: Fn(&mut M, &Tensor, usize) -> candle_core::Result<Tensor> + Send + 'static,
 {
-    const PREFILL_CHUNK_TOKENS: usize = 256;
+        const PREFILL_CHUNK_TOKENS: usize = 256;
 
     tokio::task::spawn_blocking(move || {
         let send_error = |message: String, tx: &mpsc::Sender<String>| {
@@ -348,6 +419,11 @@ fn spawn_quantized_inference<M, FReset, FForward>(
             send_error("Tokenizer produced no input tokens.".to_string(), &tx);
             return;
         }
+
+        // Logged via Drop regardless of which return path is taken below, so
+        // slow/failed runs still surface prefill and decode tok/s for
+        // performance debugging (see AGENTS.md CPU optimization notes).
+        let mut timing = InferenceTiming::new();
 
         let mut model = match model.lock() {
             Ok(model) => model,
@@ -390,8 +466,10 @@ fn spawn_quantized_inference<M, FReset, FForward>(
                 Err(_) => logits,
             });
 
-            index_pos += chunk.len();
+                        index_pos += chunk.len();
         }
+
+        timing.mark_prefill_done(token_ids.len());
 
         for _ in 0..max_tokens {
             let Some(logits) = last_logits.take() else {
@@ -412,6 +490,7 @@ fn spawn_quantized_inference<M, FReset, FForward>(
             }
 
             generated_ids.push(next_token);
+            timing.decode_tokens += 1;
             let decoded_text = match tokenizer.decode(&generated_ids, true) {
                 Ok(text) => text,
                 Err(error) => {

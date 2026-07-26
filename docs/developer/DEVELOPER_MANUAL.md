@@ -45,6 +45,14 @@ Performance recommendation:
 RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 ```
 
+### CPU optimization and thread pool sizing
+
+- GGUF weights are loaded via `memmap2` (`crates/server/src/ai/loader.rs`) instead of being read fully into a `Vec<u8>`. The OS pages weight data in on demand and can evict it under memory pressure, which matters on RAM-constrained boards such as a Raspberry Pi.
+- At startup, `configure_ai_runtime()` in `crates/server/src/main.rs` logs detected CPU SIMD capabilities (NEON/fp16/dotprod/fcma on aarch64, AVX2/FMA on x86_64), comparing what the running binary was compiled with against what the hardware actually supports. This check runs on the real deployment hardware at process startup, so it stays accurate even when the Docker image itself was built under QEMU emulation for a foreign architecture (see Docker section below).
+- The same function sizes Candle's CPU thread pool via `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS`, defaulting to `std::thread::available_parallelism()` (cgroup/quota-aware, unlike a naive core count). Override with `FYR_AI_THREADS=<n>`, or set `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS` directly for full manual control; Fyr will not overwrite either variable if already set.
+- Each inference run logs a `tracing::info!` summary of prefill and decode throughput (tokens and tok/s, separately) from `spawn_quantized_inference()` in `crates/server/src/ai/manager.rs`, regardless of how the run ends (success, error, or early stop), to make performance regressions and slow hardware easy to spot in server logs.
+- For aarch64 self-builds targeting known hardware, use the Dockerfile's `RUST_TARGET_FEATURES` build arg (e.g. `+dotprod` for Raspberry Pi 5 / Cortex-A75 and newer) to compile in optional ARMv8.2+ kernels. Do not set this for the published multi-arch `hexagon/fyr:*` image, since it must keep running on older boards (Raspberry Pi 3/4, Cortex-A53/A72) that lack these extensions. Baseline NEON is always enabled on aarch64 and does not require this flag.
+
 ### Inference hardening
 
 The streaming inference loop in `crates/server/src/ai/manager.rs` applies two server-side guards before sending tokens to the client:
@@ -134,6 +142,7 @@ CI-pinned versions for parity:
 - `FYR_HOST` (default `127.0.0.1`)
 - `FYR_PORT` (default `8080`)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
+- `FYR_AI_THREADS` (optional override for the Candle CPU inference thread pool size; default is `std::thread::available_parallelism()`)
 
 ## 3. Docker
 
@@ -171,6 +180,18 @@ Container expectations:
 - Healthcheck uses `GET /api/status`.
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
+
+### Multi-arch builds and CPU features
+
+- `docker/setup-qemu-action` + `buildx` are used in CI to produce `linux/arm64` images on `x86_64` GitHub-hosted runners. This is QEMU-emulated user-mode execution of `rustc`/`cargo`, not true cross-compilation (host and target triple both resolve to `aarch64-unknown-linux-gnu` from Cargo's point of view), so build correctness is unaffected. The main practical costs are much slower CI build times for the `arm64` leg and no reliable build-time signal for optional ARMv8.2+ CPU feature probing under emulation.
+- The Dockerfile accepts an optional `RUST_TARGET_FEATURES` build arg (default empty) that is threaded into `RUSTFLAGS` as `-C target-feature=<value>`. Use it only for self-builds targeting known hardware, e.g.:
+
+```bash
+docker build --build-arg RUST_TARGET_FEATURES=+dotprod -t fyr:rpi5 .
+```
+
+- Never set `RUST_TARGET_FEATURES` when building the published multi-arch `hexagon/fyr:*` tags — it would silently break older aarch64 boards (Raspberry Pi 3/4, Cortex-A53/A72) that do not implement `dotprod`/`i8mm`/`fp16` and would crash with an illegal-instruction fault. Baseline NEON is part of the mandatory ARMv8-A instruction set and is always available regardless of this flag.
+- Because build-time feature negotiation is unreliable under emulation, Fyr instead detects and logs real CPU capabilities at process startup on the actual deployment hardware (`configure_ai_runtime()` in `crates/server/src/main.rs`; see § 1.1 above). Check the startup logs after deploying to a new device to confirm whether a rebuild with `RUST_TARGET_FEATURES` would help.
 
 ## 3.5 Access Control Architecture
 

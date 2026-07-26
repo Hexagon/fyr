@@ -225,6 +225,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+- `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
 
@@ -271,3 +272,4 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - If memory is limited, use a smaller quantized model.
 - If tokenizer metadata is missing, re-export the model with tokenizer fields included.
 - For `phi3`/`phi-3.5`, use the original `tokenizer.json` from the model repository and place it beside the model file.
+- On constrained hardware (e.g. Raspberry Pi), check the server startup logs for CPU feature information. If the log shows `dotprod` is available at runtime but not compiled in, rebuild the Docker image with `--build-arg RUST_TARGET_FEATURES=+dotprod` for faster quantized inference. You can also adjust the inference thread pool by setting `FYR_AI_THREADS=<n>` (default: number of available CPU cores).
