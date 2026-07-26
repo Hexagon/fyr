@@ -176,6 +176,7 @@ const zimNativeFrameRef = ref(null)
 let zimFrameObserver = null
 let zimFrameClickHandler = null
 let zimFrameResizeHandler = null
+let zimFrameWheelHandler = null
 let zimFrameSettleTimer = null
 
 const {
@@ -335,6 +336,10 @@ const clearZimFrameHooks = () => {
     doc.removeEventListener('click', zimFrameClickHandler, true)
   }
 
+  if (doc && zimFrameWheelHandler) {
+    doc.removeEventListener('wheel', zimFrameWheelHandler, { passive: true })
+  }
+
   if (win && zimFrameResizeHandler) {
     win.removeEventListener('resize', zimFrameResizeHandler)
   }
@@ -350,6 +355,7 @@ const clearZimFrameHooks = () => {
   }
 
   zimFrameClickHandler = null
+  zimFrameWheelHandler = null
   zimFrameResizeHandler = null
 }
 
@@ -397,6 +403,15 @@ const onZimFrameLoad = () => {
   }
 
   doc.addEventListener('click', zimFrameClickHandler, true)
+
+  zimFrameWheelHandler = (event) => {
+    window.scrollBy({
+      top: event.deltaY,
+      left: event.deltaX,
+      behavior: 'auto'
+    })
+  }
+  doc.addEventListener('wheel', zimFrameWheelHandler, { passive: true })
 
   zimFrameResizeHandler = () => {
     syncZimFrameHeight()
