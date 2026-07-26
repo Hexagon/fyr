@@ -26,6 +26,7 @@ use settings::SettingsManager;
 mod ai;
 mod auth;
 mod handlers;
+mod library;
 mod state;
 mod settings;
 
@@ -188,6 +189,10 @@ fn create_router(state: AppState) -> Router {
         .route("/api/reader/zim/:filename/native/article", get(handlers::reader_zim_native_article))
         .route("/api/reader/zim/:filename/native/search", get(handlers::reader_zim_native_search))
         .route("/api/reader/zim/:filename/native/content/*path", get(handlers::reader_zim_native_content))
+        // Unified library API (read-only book metadata, TOC, search)
+        .route("/api/library/books/:filename", get(handlers::library_book_metadata))
+        .route("/api/library/books/:filename/toc", get(handlers::library_book_toc))
+        .route("/api/library/books/:filename/search", get(handlers::library_book_search))
         // Auth endpoints
         .route("/api/auth/status", get(auth::auth_status_handler))
         .route("/api/auth/login", post(auth::login_handler))

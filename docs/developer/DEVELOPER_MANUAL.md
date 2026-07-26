@@ -280,6 +280,13 @@ Current inference path:
 - Phi/Phi-3.5 models should prefer the official tokenizer JSON sidecar when available.
 - If tokenizer metadata is missing, model loading fails with a clear validation error.
 
+Unified Library API endpoints (read-only, always public):
+- `GET /api/library/books/:filename` — Unified book metadata (title, author, format, file size, MIME type, TOC/search availability)
+- `GET /api/library/books/:filename/toc` — Unified table of contents (EPUB nav/ncx, ZIM articles, PDF outline, Markdown headings)
+- `GET /api/library/books/:filename/search?q=...&limit=20` — Unified full-text search (ZIM articles, EPUB spine items, Markdown lines)
+
+The library module (`crates/server/src/library.rs`) implements format-agnostic extraction for metadata, TOC, and search. Each format handler (EPUB, ZIM, PDF, Markdown) is isolated in its own helper section within the module.
+
 Reader and ZIM endpoints:
 - `GET /api/reader/capabilities`
 - `GET /api/reader/open/:filename`
