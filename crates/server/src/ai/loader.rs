@@ -7,9 +7,10 @@ use candle_transformers::models::quantized_llama;
 use candle_transformers::models::quantized_phi;
 use candle_transformers::models::quantized_phi3;
 use candle_transformers::models::quantized_qwen2;
+use memmap2::Mmap;
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::Read;
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenizers::tokenizer::SplitDelimiterBehavior;
@@ -99,19 +100,18 @@ impl ModelLoader {
             return Err(ModelError::InvalidExtension(path.display().to_string()));
         }
 
-        let mut magic_reader = File::open(path)
-            .map_err(|e| ModelError::ImportFailed(format!("{} ({})", path.display(), e)))?;
-        let mut magic = [0u8; 4];
-        magic_reader
-            .read_exact(&mut magic)
-            .map_err(|e| ModelError::InvalidMagic(format!("{} ({})", path.display(), e)))?;
-        if magic != *b"GGUF" {
+                        // Memory-map the GGUF file once and reuse the mapping for header
+        // parsing and tensor loading below. This avoids reading multi-GB
+        // model files into process memory up front, letting the OS page
+        // weights in on demand and evict them under memory pressure
+        // (important on constrained hardware such as a Raspberry Pi).
+        let mmap = open_runtime_reader(path)?;
+        if mmap.len() < 4 || mmap[..4] != *b"GGUF" {
             return Err(ModelError::InvalidMagic(path.display().to_string()));
         }
 
-        let mut file = File::open(path)
-            .map_err(|e| ModelError::ImportFailed(format!("{} ({})", path.display(), e)))?;
-        let content = gguf_file::Content::read(&mut file)
+        let mut cursor = Cursor::new(&mmap[..]);
+        let content = gguf_file::Content::read(&mut cursor)
             .map_err(|e| ModelError::GgufParse(e.to_string()))?;
 
         let architecture = content
@@ -129,9 +129,7 @@ impl ModelLoader {
             return Err(ModelError::MissingTokenizerMetadata(path.display().to_string()));
         }
 
-        let size_bytes = std::fs::metadata(path)
-            .map_err(|e| ModelError::ImportFailed(e.to_string()))?
-            .len();
+                let size_bytes = mmap.len() as u64;
         let tensor_count = content.tensor_infos.len();
 
         let filename = path
@@ -140,11 +138,11 @@ impl ModelLoader {
             .unwrap_or("unknown.gguf")
             .to_string();
 
-        let runtime = match architecture.as_deref() {
-            Some("qwen2") => load_quantized_qwen2_runtime(path, content, &filename)?,
-            Some("llama") => load_quantized_llama_runtime(path, content, &filename)?,
-            Some("phi") => load_quantized_phi_runtime(path, content, &filename)?,
-            Some("phi3") => load_quantized_phi3_runtime(path, content, &filename)?,
+                let runtime = match architecture.as_deref() {
+            Some("qwen2") => load_quantized_qwen2_runtime(path, &mmap, content, &filename)?,
+            Some("llama") => load_quantized_llama_runtime(path, &mmap, content, &filename)?,
+            Some("phi") => load_quantized_phi_runtime(path, &mmap, content, &filename)?,
+            Some("phi3") => load_quantized_phi3_runtime(path, &mmap, content, &filename)?,
             _ => ModelRuntime::ValidationOnly {
                 reason: Some("Inference is not implemented for this model architecture in Fyr yet. Supported architectures are qwen2, llama, phi, and phi3.".to_string()),
             },
@@ -167,13 +165,14 @@ impl ModelLoader {
 
 fn load_quantized_qwen2_runtime(
     path: &Path,
+    mmap: &Mmap,
     content: gguf_file::Content,
     filename: &str,
 ) -> Result<ModelRuntime, ModelError> {
     let tokenizer = load_tokenizer(path, &content, filename)?;
     let device = candle_core::Device::Cpu;
-    let mut file = open_runtime_file(path)?;
-    let model = quantized_qwen2::ModelWeights::from_gguf(content, &mut file, &device)
+    let mut cursor = Cursor::new(&mmap[..]);
+    let model = quantized_qwen2::ModelWeights::from_gguf(content, &mut cursor, &device)
         .map_err(|e| ModelError::GgufParse(e.to_string()))?;
 
     Ok(ModelRuntime::QuantizedQwen2 {
@@ -185,13 +184,14 @@ fn load_quantized_qwen2_runtime(
 
 fn load_quantized_llama_runtime(
     path: &Path,
+    mmap: &Mmap,
     content: gguf_file::Content,
     filename: &str,
 ) -> Result<ModelRuntime, ModelError> {
     let tokenizer = load_tokenizer(path, &content, filename)?;
     let device = candle_core::Device::Cpu;
-    let mut file = open_runtime_file(path)?;
-    let model = quantized_llama::ModelWeights::from_gguf(content, &mut file, &device)
+    let mut cursor = Cursor::new(&mmap[..]);
+    let model = quantized_llama::ModelWeights::from_gguf(content, &mut cursor, &device)
         .map_err(|e| ModelError::GgufParse(e.to_string()))?;
 
     Ok(ModelRuntime::QuantizedLlama {
@@ -203,13 +203,14 @@ fn load_quantized_llama_runtime(
 
 fn load_quantized_phi_runtime(
     path: &Path,
+    mmap: &Mmap,
     content: gguf_file::Content,
     filename: &str,
 ) -> Result<ModelRuntime, ModelError> {
     let tokenizer = load_tokenizer(path, &content, filename)?;
     let device = candle_core::Device::Cpu;
-    let mut file = open_runtime_file(path)?;
-    let model = quantized_phi::ModelWeights::from_gguf(content, &mut file, &device)
+    let mut cursor = Cursor::new(&mmap[..]);
+    let model = quantized_phi::ModelWeights::from_gguf(content, &mut cursor, &device)
         .map_err(|e| ModelError::GgufParse(e.to_string()))?;
 
     Ok(ModelRuntime::QuantizedPhi {
@@ -221,14 +222,15 @@ fn load_quantized_phi_runtime(
 
 fn load_quantized_phi3_runtime(
     path: &Path,
+    mmap: &Mmap,
     mut content: gguf_file::Content,
     filename: &str,
 ) -> Result<ModelRuntime, ModelError> {
     cap_phi3_context_length(&mut content);
     let tokenizer = load_tokenizer(path, &content, filename)?;
     let device = candle_core::Device::Cpu;
-    let mut file = open_runtime_file(path)?;
-    let model = quantized_phi3::ModelWeights::from_gguf(false, content, &mut file, &device)
+    let mut cursor = Cursor::new(&mmap[..]);
+    let model = quantized_phi3::ModelWeights::from_gguf(false, content, &mut cursor, &device)
         .map_err(|e| ModelError::GgufParse(e.to_string()))?;
 
     Ok(ModelRuntime::QuantizedPhi3 {
@@ -773,8 +775,15 @@ fn build_unigram_tokenizer_from_gguf(content: &gguf_file::Content) -> Result<Tok
     Ok(tokenizer)
 }
 
-fn open_runtime_file(path: &Path) -> Result<File, ModelError> {
-    File::open(path)
+fn open_runtime_reader(path: &Path) -> Result<Mmap, ModelError> {
+    let file = File::open(path)
+        .map_err(|e| ModelError::ImportFailed(format!("{} ({})", path.display(), e)))?;
+
+    // SAFETY: the mapping is treated as read-only for its entire lifetime.
+    // Fyr does not modify or truncate model files while they are loaded, so
+    // the usual mmap caveat (undefined behavior if the backing file changes
+    // size concurrently) does not apply in normal operation.
+    unsafe { Mmap::map(&file) }
         .map_err(|e| ModelError::ImportFailed(format!("{} ({})", path.display(), e)))
 }
 

@@ -13,6 +13,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub data_dir: PathBuf,
     pub auth: AuthConfig,
+    pub ai: AiConfig,
 }
 
 /// Authentication and access-control configuration
@@ -40,6 +41,15 @@ pub struct ServerConfig {
     pub port: u16,
 }
 
+/// Local AI inference runtime configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    /// Optional operator override for the Candle CPU inference thread pool
+    /// size (`FYR_AI_THREADS`). When unset, a container-aware default is
+    /// computed at startup from `std::thread::available_parallelism()`.
+    pub threads: Option<usize>,
+}
+
 impl Config {
     /// Create default configuration
     pub fn default_with_data_dir(data_dir: impl AsRef<Path>) -> Self {
@@ -49,11 +59,12 @@ impl Config {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
             },
-            data_dir,
+                        data_dir,
             auth: AuthConfig {
                 admin_password: None,
                 readonly: false,
             },
+            ai: AiConfig { threads: None },
         }
     }
 
@@ -165,10 +176,16 @@ impl Default for Config {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-        config.auth = AuthConfig {
+                config.auth = AuthConfig {
             admin_password,
             readonly,
         };
+
+        let ai_threads = std::env::var("FYR_AI_THREADS")
+            .ok()
+            .and_then(|raw| raw.parse::<usize>().ok())
+            .filter(|threads| *threads > 0);
+        config.ai = AiConfig { threads: ai_threads };
 
         config
     }
