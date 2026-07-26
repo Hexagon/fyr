@@ -788,7 +788,8 @@ fn find_matching_tag(xml: &str, tag: &str) -> Option<usize> {
     let open = format!("<{}", tag);
     let close = format!("</{}>", tag);
     let mut depth = 1i32;
-    let mut pos = 0;
+    // Start at 1 to skip the opening tag's '<' — depth already accounts for it
+    let mut pos = 1;
 
     while depth > 0 {
         let next_open = xml[pos..].find(&open);
@@ -1012,7 +1013,7 @@ mod tests {
     #[test]
     fn strips_html_tags() {
         let html = "<p>Hello <b>world</b>!</p>";
-        assert_eq!(strip_html_tags(html), "Hello world !");
+        assert_eq!(strip_html_tags(html), "Hello world!");
     }
 
     #[test]
