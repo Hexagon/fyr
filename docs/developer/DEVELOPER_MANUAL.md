@@ -116,12 +116,11 @@ Extending model support:
 ## 2. Local Development
 ### Prerequisites
 - Rust 1.70+
-- Node.js 18+
+- Node.js 24
 - npm 9+
 
 CI-pinned versions for parity:
 - Rust stable (Docker build uses `rust:bookworm`)
-- Node.js 24
 
 ### Build frontend
 1. `cd crates/ui/frontend`
@@ -141,8 +140,9 @@ CI-pinned versions for parity:
 - `DATA_DIR` (default `./public/data`)
 - `FYR_HOST` (default `127.0.0.1`)
 - `FYR_PORT` (default `8080`)
+- `FYR_ADMIN_PASSWORD` (optional; enables password-protected admin mode)
+- `FYR_READONLY` (optional; enables strict read-only mode; all mutating endpoints return 403)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
-- `FYR_AI_THREADS` (optional override for the Candle CPU inference thread pool size; default is `std::thread::available_parallelism()`)
 
 ## 3. Docker
 
@@ -150,26 +150,7 @@ Reference image name in all docs/examples:
 
 - `hexagon/fyr:latest`
 
-Run prebuilt image:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-```
-
-Build locally and run:
-
-```bash
-docker build -t hexagon/fyr:latest .
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-```
+For complete Docker installation and configuration (including persistence, bind mounts, and platform-specific notes), see the canonical installation guide at [docs/site/index.html](../site/index.html) or [fyr.guide/#installation](https://fyr.guide/#installation).
 
 Container expectations:
 
@@ -318,7 +299,7 @@ Download lifecycle notes:
 - Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
 - Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h).
 
-## 5. Platform Support Guidance
+## 4. Platform Support Guidance
 
 Primary support targets:
 
@@ -341,7 +322,7 @@ docker buildx build \
 - For native releases, cross-compile with explicit Rust targets.
 - Keep ARM runtime memory/storage constraints in mind for large map/ZIM archives.
 
-## 6. Release Process (dev/main)
+## 5. Release Process (dev/main)
 
 Branch model:
 - `dev` is the integration branch and produces dev releases.
@@ -385,13 +366,13 @@ git push origin v0.4.1
 
 4. Confirm workflow `Stable Release` completed and images were published.
 
-## 7. Documentation Rules
+## 6. Documentation Rules
 1. Keep implementation details in developer docs, not user docs.
 2. Keep transient delivery/status reports out of permanent docs.
 3. Update docs in the same change set as endpoint or behavior changes.
 4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
 
-## 8. Building Documentation Artifacts
+## 7. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`
 - Outputs:
   - `public/data/books/user-manual.md`
@@ -404,11 +385,11 @@ Run:
 1. `cd docs/build`
 2. `npm run build`
 
-## 9. Current Known Gaps
+## 8. Current Known Gaps
 - Download resume/range continuation is not yet implemented for interrupted transfers.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
-## 10. Recommended Validation Sequence
+## 9. Recommended Validation Sequence
 Run from repository root unless noted:
 
 1. `cargo test --workspace --all-targets`
@@ -417,11 +398,11 @@ Run from repository root unless noted:
 4. `cd docs/build && npm ci && npm run build`
 5. Validate native ZIM flow by opening a `.zim` file in Books and confirming article payload retrieval.
 
-## 11. Native ZIM Reader Notes
+## 10. Native ZIM Reader Notes
 1. Keep server-side reader contracts stable:
   - `/api/reader/zim/:filename/meta`
   - `/api/reader/zim/:filename/capabilities`
   - `/api/reader/zim/:filename/native/article`
   - `/api/reader/zim/:filename/native/content/*path`
-2. Maintain clean-room implementation boundaries (no third-party reader bundle code).
+2. Maintain clean-room implementation boundaries: all ZIM reader logic must be implemented directly in Fyr's Rust server code using the `zim` crate. Do not bundle or wrap third-party reader JavaScript bundles.
 3. Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.

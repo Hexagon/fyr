@@ -7,8 +7,7 @@ This guide is intentionally short and points to canonical docs for details.
 
 Prerequisites:
 - Rust 1.70+
-- Node.js 18+ (CI uses Node 24)
-- npm 9+
+- Node.js 24
 
 Helpful references:
 - Project overview and install options: [README.md](README.md)
@@ -47,6 +46,5 @@ When behavior changes, update docs in the same PR:
 
 ## 5. Scope and Licensing Notes
 
-- Keep Fyr naming consistent (`Fyr`, `FYR_HOST`, `FYR_PORT`).
 - Respect module ownership in [AGENTS.md](AGENTS.md).
 - Source code is MIT licensed (see [LICENSE](LICENSE)).

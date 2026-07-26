@@ -11,6 +11,7 @@ Authoritative documentation is limited to these files:
 - [AGENTS.md](AGENTS.md)
 - [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 - [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
 
 All other markdown under [docs/](docs/) should be treated as migration stubs only.
 Do not add new standalone docs unless explicitly requested.
@@ -20,7 +21,6 @@ Audience guidance:
 - [docs/site/index.html](docs/site/index.html): install/deploy landing page.
 - [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md): operator and end-user workflows.
 - [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md): implementation and architecture.
-- [CONTRIBUTING.md](CONTRIBUTING.md): PR process and required validation.
 
 ## Runtime Layout
 
@@ -102,7 +102,7 @@ When adding or changing behavior:
 2. Update user-facing behavior in [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md) and/or [docs/site/index.html](docs/site/index.html).
 3. Update technical behavior in [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md).
 4. If onboarding/quickstart changes, update [README.md](README.md) and/or [docs/site/index.html](docs/site/index.html).
-5. If installation paths, platform setup, or deployment bootstrap steps change, update [docs/site/index.html](/docs/site/index.html).
+5. If installation paths, platform setup, or deployment bootstrap steps change, update [docs/site/index.html](docs/site/index.html).
 6. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
 
 ## Docker and Platform Expectations
@@ -113,10 +113,8 @@ When adding or changing behavior:
 
 ## Release Checklist
 
-- `cargo test --workspace --all-targets`
-- `cargo check -p server`
-- `cd crates/ui/frontend && npm run build`
-- `cd docs/build && npm run build`
+These steps are in addition to the per-PR validation in the Development Workflow section above.
+
 - manual docs reviewed
 - docker build succeeds
 

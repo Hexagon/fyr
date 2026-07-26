@@ -12,7 +12,7 @@ It runs as a local server and is accessed from a browser.
 - Developer architecture details: [Developer Manual](../developer/DEVELOPER_MANUAL.md)
 
 ## 2. Start Fyr
-For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation).
+For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation). (If viewing this file locally, open `docs/site/index.html` in a browser for the same installation guide.)
 
 Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
 
@@ -26,7 +26,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
 
-## 3b. Access Control and Admin Login
+## 3a. Access Control and Admin Login
 
 Fyr can run in three access modes:
 
@@ -70,7 +70,7 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 - The top header shows the current page context together with the clock, weekday, and date.
 - Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
 
-## 3a. Using the AI Assistant
+## 3b. Using the AI Assistant
 - Open the Assistant tab from the top navigation.
 - Use **Open Content Manager** from the Assistant sidebar to jump to the Models section for `.gguf` uploads.
 - For text generation, use GGUF files that include tokenizer metadata.
@@ -187,11 +187,6 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
-## 5c. Reader Shell
-- Books uses a unified reader shell with format badges and open/loading/error status badges.
-- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
-- On narrow screens, the library list stacks above the reader panel automatically.
-
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
@@ -199,6 +194,10 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ## 5b. PDF Reading
 - Select a `.pdf` file in Books to open it inline in the built-in reader panel.
 - If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
+
+## 5c. Reader Shell
+- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:
@@ -225,6 +224,8 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+- `FYR_ADMIN_PASSWORD` — enables password-protected admin mode (see §3a)
+- `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 (see §3a)
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
