@@ -23,7 +23,6 @@ FROM rust:bookworm AS builder
 # extensions. Baseline NEON is always enabled by the aarch64 target and
 # does not require this flag. See docs/developer/DEVELOPER_MANUAL.md.
 ARG RUST_TARGET_FEATURES=""
-ENV RUSTFLAGS=${RUST_TARGET_FEATURES:+-C target-feature=${RUST_TARGET_FEATURES}}
 
 WORKDIR /build
 
@@ -39,7 +38,7 @@ RUN mkdir -p crates/types/src crates/downloader/src crates/server/src crates/ui/
   && touch crates/types/src/lib.rs crates/downloader/src/lib.rs crates/ui/src/lib.rs \
   && printf 'fn main() {}\n' > crates/server/src/main.rs
 
-RUN cargo build --release --locked -p server --bin fyr
+RUN RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
 
 # Copy the real project contents after dependencies are cached.
 COPY crates crates
@@ -49,7 +48,7 @@ COPY --from=frontend-builder /build/public/static /build/public/static
 # Ensure Cargo sees copied sources as newer than the priming stub files.
 RUN find crates -type f -exec touch {} +
 
-RUN cargo build --release --locked -p server --bin fyr
+RUN RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
 
 # Stage 2: Runtime (minimal base image)
 FROM debian:bookworm-slim
