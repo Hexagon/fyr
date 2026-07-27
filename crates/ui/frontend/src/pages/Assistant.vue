@@ -91,10 +91,14 @@
             </div>
 
             <div class="action-row">
-              <button class="btn btn-primary" @click="sendPrompt" :disabled="!canSend">Send</button>
+              <template v-if="!streaming">
+                <button class="btn btn-primary" @click="sendPrompt" :disabled="!canSend">Send</button>
+              </template>
+              <template v-else>
+                <button class="btn btn-danger" @click="stopGeneration">Stop</button>
+              </template>
               <button class="btn btn-secondary" @click="restartConversation" :disabled="!messages.length && !prompt.trim()">Restart Conversation</button>
               <button class="btn btn-secondary" @click="regenerate" :disabled="!messages.length">Regenerate</button>
-              <button class="btn btn-danger" @click="stopGeneration" :disabled="!streaming">Stop</button>
             </div>
           </div>
         </template>
@@ -103,7 +107,7 @@
           <div class="assistant-gate-card">
             <h3>{{ assistantEmptyTitle }}</h3>
             <p class="assistant-gate-body">{{ assistantEmptyBody }}</p>
-            <p class="assistant-gate-note">Select a model from the library on the left to continue.</p>
+            <p class="assistant-gate-note">{{ assistantGateNote }}</p>
           </div>
         </div>
       </section>
@@ -174,6 +178,13 @@ const assistantEmptyBody = computed(() => {
   if (!selectedModel.value) return 'Choose a model from the library to begin a conversation.'
   if (modelHealth.value?.error) return modelStatusText.value
   return modelStatusText.value
+})
+
+const assistantGateNote = computed(() => {
+  if (loadingModel.value) return 'Please wait while the model loads…'
+  if (!selectedModel.value) return 'Select a model from the library on the left to continue.'
+  if (modelHealth.value?.error) return 'Try selecting the model again, or choose a different one.'
+  return 'The model needs to be loaded before you can chat.'
 })
 
 const generateId = () => {
