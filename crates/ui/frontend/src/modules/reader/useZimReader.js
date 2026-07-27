@@ -54,7 +54,7 @@ const sanitizeNativeZimBodyHtml = (html) => {
 }
 
 const ZIM_ARTICLE_LAYOUT_CSS = [
-  'html,body{height:auto;min-height:100%;overflow:hidden!important}',
+  'html,body{height:auto;min-height:100vh;overflow-x:hidden!important}',
   'body{margin:0;padding:1.25rem;color:#202122;',
   'font-family:Georgia,"Times New Roman",Times,serif;font-size:0.98rem;',
   'line-height:1.62;overflow-x:hidden}',
@@ -134,7 +134,7 @@ const buildZimSandboxDocument = (headHtml, bodyHtml) => {
 
   const scrollOverride =
     '<style>' +
-    'html,body{overflow:hidden!important;overscroll-behavior:contain}' +
+    'html,body{overflow-x:hidden!important;overflow-y:visible;overscroll-behavior:contain}' +
     'body{max-width:100%;}' +
     '</style>'
 
@@ -176,6 +176,19 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     if (!raw || raw.startsWith('#')) return raw
     const lower = String(raw).toLowerCase()
     if (lower.startsWith('mailto:') || lower.startsWith('javascript:')) return raw
+
+    // Detect domain-prefixed ZIM paths (e.g. "www.nhs.uk/medicines/alogliptin/")
+    // These are stored as absolute paths in the ZIM archive, not relative to the current article.
+    // new URL() would interpret "www.nhs.uk" as a path segment, so we detect this pattern
+    // by checking if the href starts with a known domain-like pattern (contains a dot before
+    // the first slash, or starts with a hostname-like prefix).
+    const hasDomainPrefix = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/|$)/.test(raw)
+    if (hasDomainPrefix) {
+      // Treat as an absolute ZIM path — strip any leading slash and use directly
+      const normalizedPath = decodePathDeep(raw).replace(/^\/+/, '')
+      if (!normalizedPath) return raw
+      return normalizedPath
+    }
 
     const resolved = toResolvedUrl(raw, articlePath)
     if (!resolved) return raw
@@ -228,11 +241,13 @@ export const useZimReader = () => {
   const meta = ref(null)
   const adapter = ref(null)
   const nativeArticle = ref(null)
+  const pendingHash = ref(null)
 
   const dispose = () => {
     meta.value = null
     adapter.value = null
     nativeArticle.value = null
+    pendingHash.value = null
   }
 
   const open = async (descriptor, apiService) => {
@@ -255,7 +270,20 @@ export const useZimReader = () => {
   }
 
   const loadNativeArticle = async (filename, path, apiService) => {
-    const native = await apiService.getZimNativeArticle(filename, path)
+    // Extract hash fragment from the path before sending to the server
+    // (hashes are client-side only and would be stripped by the browser)
+    let hash = ''
+    let cleanPath = path
+    if (path) {
+      const hashIdx = path.indexOf('#')
+      if (hashIdx >= 0) {
+        hash = path.slice(hashIdx)
+        cleanPath = path.slice(0, hashIdx)
+      }
+    }
+    pendingHash.value = hash || null
+
+    const native = await apiService.getZimNativeArticle(filename, cleanPath)
     const rendered = rewriteNativeZimHtml(
       filename,
       native?.path,
@@ -275,6 +303,7 @@ export const useZimReader = () => {
     meta,
     adapter,
     nativeArticle,
+    pendingHash,
     open,
     loadNativeArticle,
     dispose,

@@ -96,6 +96,7 @@ export const useUnifiedReader = () => {
     zimMeta: zimReader.meta,
     zimAdapter: zimReader.adapter,
     zimNativeArticle: zimReader.nativeArticle,
+    zimPendingHash: zimReader.pendingHash,
     pdfUrl: pdfReader.url,
     hasExtension: factory.hasExtension,
     decodePathDeep: zimReader.decodePathDeep,

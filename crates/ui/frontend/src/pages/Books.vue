@@ -188,6 +188,7 @@ const {
   zimMeta,
   zimAdapter,
   zimNativeArticle,
+  zimPendingHash,
   pdfUrl,
   hasExtension,
   decodePathDeep,
@@ -279,6 +280,21 @@ const resolveNativeArticlePath = (rawHref) => {
     return null
   }
 
+  // If the href is already a plain ZIM path (no URL scheme, no leading slash),
+  // it was already resolved by mapArticleHref. Use it directly to avoid
+  // double-resolution against currentZimArticleBase().
+  if (!href.startsWith('/') && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) {
+    // Split off hash and search fragments before normalizing the path portion
+    const hashIdx = href.indexOf('#')
+    const searchIdx = href.indexOf('?')
+    const firstFragment = hashIdx >= 0 && (searchIdx < 0 || hashIdx < searchIdx) ? hashIdx : searchIdx
+    const pathPart = firstFragment >= 0 ? href.slice(0, firstFragment) : href
+    const fragmentPart = firstFragment >= 0 ? href.slice(firstFragment) : ''
+    const normalizedPath = decodePathDeep(pathPart).replace(/^\/+/, '')
+    if (!normalizedPath) return null
+    return `${normalizedPath}${fragmentPart}`
+  }
+
   let resolved
   try {
     resolved = new URL(href, currentZimArticleBase())
@@ -295,7 +311,7 @@ const resolveNativeArticlePath = (rawHref) => {
     return null
   }
 
-  return `${normalizedPath}${resolved.search}`
+  return `${normalizedPath}${resolved.search}${resolved.hash}`
 }
 
 const syncZimFrameHeight = () => {
@@ -324,7 +340,15 @@ const syncZimFrameHeight = () => {
     560
   )
 
-  zimFrameHeight.value = Math.min(12000, Math.ceil(measured + 8))
+  const current = zimFrameHeight.value || 0
+  const next = Math.min(12000, Math.ceil(measured + 8))
+
+  // Tolerance guard: only update if the change is more than 10px to prevent
+  // infinite height growth when min-height makes the frame height feed back
+  // into the content measurement.
+  if (Math.abs(next - current) > 10) {
+    zimFrameHeight.value = next
+  }
 }
 
 const clearZimFrameHooks = () => {
@@ -430,11 +454,26 @@ const onZimFrameLoad = () => {
 
   syncZimFrameHeight()
 
+  // Scroll to hash fragment if one is pending
+  const hash = zimPendingHash?.value
+  if (hash) {
+    try {
+      const targetId = decodeURIComponent(hash.slice(1))
+      const target = doc.getElementById(targetId) || doc.querySelector(`[name="${targetId}"]`)
+      if (target) {
+        target.scrollIntoView()
+      }
+    } catch {
+      // ignore scroll errors
+    }
+    zimPendingHash.value = null
+  }
+
   let ticks = 0
   zimFrameSettleTimer = setInterval(() => {
     syncZimFrameHeight()
     ticks += 1
-    if (ticks >= 16) {
+    if (ticks >= 8) {
       clearInterval(zimFrameSettleTimer)
       zimFrameSettleTimer = null
     }
