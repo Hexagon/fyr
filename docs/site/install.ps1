@@ -87,7 +87,7 @@ if (Test-Path $ConfigFile) {
     try {
         $Config = Get-Content $ConfigFile -Raw | ConvertFrom-Json -AsHashtable
     } catch {
-        Write-Warning "Could not read config file $ConfigFile — using defaults."
+        # Silently use defaults if config file is unreadable; not critical.
     }
 }
 
