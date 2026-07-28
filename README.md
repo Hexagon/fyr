@@ -12,6 +12,7 @@ It runs as a local web server and works without internet once content is present
 - Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
+- Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline, client-side
 
 ## Quick Install
 

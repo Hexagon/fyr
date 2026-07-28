@@ -46,6 +46,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
+- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
 ## 3a. Access Control and Admin Login
 
@@ -295,3 +296,44 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - If tokenizer metadata is missing, re-export the model with tokenizer fields included.
 - For `phi3`/`phi-3.5`, use the original `tokenizer.json` from the model repository and place it beside the model file.
 - On constrained hardware (e.g. Raspberry Pi), check the server startup logs for CPU feature information. If the log shows `dotprod` is available at runtime but not compiled in, rebuild the Docker image with `--build-arg RUST_TARGET_FEATURES=+dotprod` for faster quantized inference. You can also adjust the inference thread pool by setting `FYR_AI_THREADS=<n>` (default: number of available CPU cores).
+
+## 9. Tools
+
+The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations run entirely in your browser—no data is sent to the server or over the network.
+
+### Unit Converters
+
+The **Unit Converters** tab supports seven conversion categories, each with its own card:
+
+| Category | Units |
+|----------|-------|
+| Length | mm, cm, m, km, in, ft, yd, mi |
+| Mass | mg, g, kg, oz, lb |
+| Temperature | C, F, K |
+| Area | mm², cm², m², km², ha, in², ft², ac |
+| Volume | mL, L, m³, fl_oz, gal, cup |
+| Speed | m/s, km/h, mph, knot |
+| Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
+
+**How to use a converter:** Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.
+
+### Encryption & Ciphers
+
+The **Encryption & Ciphers** tab provides four tools:
+
+- **AES-256-CBC:** Encrypt or decrypt text with a password using AES-256 in CBC mode. Encryption produces a hex-encoded string containing the salt, IV, and ciphertext. Decryption requires the same password used during encryption. Uses PBKDF2 with 100,000 iterations for key derivation.
+
+- **Base64:** Encode plain text to Base64 or decode Base64 back to plain text. Handles Unicode text correctly.
+
+- **ROT13:** Apply the classic ROT13 letter substitution cipher (A↔N, B↔O, etc.). Non-letter characters pass through unchanged. Applying ROT13 twice recovers the original text.
+
+- **Hash / Checksum:** Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: **SHA-256**, **SHA-512**, **SHA-1**, and **MD5**. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.
+
+> **Algorithm implementation notes:**
+> * **AES-256-CBC** uses the browser's Web Crypto API with PBKDF2 key derivation (SHA-256, 100,000 iterations) and a random IV per encryption. The hex output format is Fyr-specific and cannot be directly decrypted by standard tools without extracting the salt and IV.
+> * **Base64** uses the browser's built-in `btoa`/`atob` with UTF-8 safe encoding via `encodeURIComponent`. Results match the standard Base64 alphabet.
+> * **ROT13** applies the classic single-pass rotation; non-letter characters are unaffected.
+> * **SHA-256, SHA-512, and SHA-1** use the browser's Web Crypto digest API and produce standard lowercase hex digests identical to `sha256sum`, `sha512sum`, and `sha1sum` command-line tools.
+> * **MD5** uses a self-contained JavaScript implementation that produces standard lowercase hex digests. It has been verified against the reference RFC 1321 test vectors and matches the output of `md5sum`.
+>
+> **Security note:** The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.

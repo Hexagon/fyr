@@ -19,6 +19,8 @@ Workspace modules:
 - `crates/ui/frontend`: Vue 3 application built into `public/static/`.
 - `crates/server/src/ai`: Candle-powered GGUF model loading and assistant endpoints.
 
+The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) is a purely client-side feature with zero server dependencies. Unit conversions and ciphering (AES, Base64, ROT13, SHA-256, MD5) execute entirely in the browser using the Web Crypto API and standard JavaScript—no API endpoints, no Rust changes.
+
 Downloader timeout centralization:
 - URL download request timeout is sourced from persisted app settings at `settings.modules.downloads.request_timeout_seconds`.
 - On server startup and each `PUT /api/settings`, the server applies this value to `DownloadManager` for future tasks.
