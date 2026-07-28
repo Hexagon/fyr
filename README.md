@@ -13,9 +13,31 @@ It runs as a local web server and works without internet once content is present
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
 
-## One-Minute Start
+## Quick Install
 
-If you have Rust installed and need a quick local launch, you can build Fyr from source:
+The fastest way to try Fyr is with the official hosted installer:
+
+**Linux / macOS**
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh
+```
+
+**Windows PowerShell**
+```powershell
+irm https://fyr.guide/install.ps1 | iex
+```
+
+The installer handles Docker setup, data persistence, and remembers your settings for future upgrades. To update later, add the `update` argument:
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+```
+
+See [fyr.guide/#installation](https://fyr.guide/#installation) for the full installation guide, including manual Docker commands, building from source, and Raspberry Pi deployment.
+
+## One-Minute Start (From Source)
+
+If you have Rust installed and prefer to build locally:
 
 ```bash
 cargo build --release -p server --bin fyr
@@ -23,8 +45,6 @@ cargo build --release -p server --bin fyr
 ```
 
 Open `http://localhost:8080` on the same machine.
-
-Prefer Docker for first-time evaluation? Use the install paths on [fyr.guide/#installation](https://fyr.guide/#installation).
 
 ## Installation & Deployment
 

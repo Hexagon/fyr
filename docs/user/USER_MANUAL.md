@@ -11,6 +11,27 @@ It runs as a local server and is accessed from a browser.
 - Project overview: [README.md](../../README.md)
 - Developer architecture details: [Developer Manual](../developer/DEVELOPER_MANUAL.md)
 
+### 1a. Installer Scripts
+
+Official hosted scripts are available for a guided Docker setup:
+
+| Platform | One-liner |
+|----------|-----------|
+| Linux / macOS | `curl -fsSL https://fyr.guide/install.sh | sh` |
+| Windows PowerShell | `irm https://fyr.guide/install.ps1 | iex` |
+
+The scripts persist settings (port, data volume, admin password) in `~/.config/fyr/install.conf` (Linux/macOS) or `%APPDATA%\fyr\install.conf` (Windows). To upgrade to a newer image, add `update`:
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+```
+
+```powershell
+irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
+```
+
+All arguments are documented inline via `--help` (Linux/macOS) or `-Help` (Windows), and the full reference table is available at [fyr.guide/#installation](https://fyr.guide/#installation).
+
 ## 2. Start Fyr
 For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation). (If viewing this file locally, open `docs/site/index.html` in a browser for the same installation guide.)
 

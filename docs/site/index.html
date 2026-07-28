@@ -243,6 +243,122 @@
                 <p class="mt-6 text-gray-400 text-lg">Open <code class="text-brand-400 bg-gray-800 px-2 py-1 rounded">http://localhost:8080</code> in your browser to begin.</p>
             </div>
 
+            <!-- Hosted Installer Scripts -->
+            <div class="max-w-2xl mx-auto mb-16">
+                <h3 class="text-2xl font-bold text-white mb-4 text-center">Hosted Installer Scripts</h3>
+                <p class="text-gray-400 text-center mb-8">Use the official one-liner for a guided setup with persistent settings and easy upgrades.</p>
+
+                <div class="space-y-6">
+                    <!-- Linux / macOS -->
+                    <div class="bg-gray-950 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+                        <div class="flex items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+                            <div class="flex space-x-2">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                            </div>
+                            <div class="ml-4 text-xs text-gray-500 font-mono">Linux / macOS</div>
+                        </div>
+                        <div class="p-6 overflow-x-auto">
+                            <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Windows PowerShell -->
+                    <div class="bg-gray-950 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+                        <div class="flex items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+                            <div class="flex space-x-2">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                            </div>
+                            <div class="ml-4 text-xs text-gray-500 font-mono">Windows PowerShell</div>
+                        </div>
+                        <div class="p-6 overflow-x-auto">
+                            <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>irm https://fyr.guide/install.ps1 | iex</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-6 not-prose">
+                    <p class="text-sm text-white font-semibold mb-2">🚀 Upgrade to a new version</p>
+                    <p class="text-sm text-gray-300 leading-relaxed">
+                        The installer persists your settings (port, data directory, admin password) in <code class="text-brand-400">~/.config/fyr/install.conf</code> (Linux/macOS) or <code class="text-brand-400">%APPDATA%\fyr\install.conf</code> (Windows). To upgrade, just add <code class="text-brand-400">update</code>:
+                    </p>
+                    <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">curl -fsSL https://fyr.guide/install.sh | sh -s -- update</pre>
+                    <pre class="mt-1 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update</pre>
+                </div>
+
+                <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                    <p class="text-sm text-white font-semibold mb-2">⚙️ All installer arguments</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-gray-300 border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-700 text-gray-400 uppercase tracking-wider">
+                                    <th class="text-left py-2 pr-4">Argument</th>
+                                    <th class="text-left py-2 pr-4">Linux / macOS</th>
+                                    <th class="text-left py-2 pr-4">Windows</th>
+                                    <th class="text-left py-2 pr-4">Default</th>
+                                    <th class="text-left py-2">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Tag</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">latest</code> / <code class="text-brand-400">dev</code> / <code class="text-brand-400">v1.2.3</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-Tag</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">latest</code></td>
+                                    <td class="py-2">Docker image tag</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Update</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">update</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-Update</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Recreate container, preserve data</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Data dir</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">--data-dir</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-DataDir</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Bind-mount host path</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Data volume</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">--data-volume</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-DataVolume</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">fyr-data</code></td>
+                                    <td class="py-2">Named Docker volume</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Port</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">--port</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-Port</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">8080</code></td>
+                                    <td class="py-2">Host port</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Admin password</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">--admin-password</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-AdminPassword</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Enable admin mode</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 pr-4 font-mono text-brand-400">Read-only</td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">--readonly</code></td>
+                                    <td class="py-2 pr-4"><code class="text-brand-400">-ReadOnly</code></td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Strict read-only mode</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-sm text-gray-400 mt-3">Run with <code class="text-brand-400">--help</code> (Linux) or <code class="text-brand-400">-Help</code> (Windows) to see this in the terminal.</p>
+                </div>
+            </div>
+
             <hr class="border-gray-800 my-16">
 
             <!-- Detailed Installation Guide -->

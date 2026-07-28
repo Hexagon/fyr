@@ -1,0 +1,255 @@
+#!/bin/bash
+# Fyr installer — https://fyr.guide/install.sh
+# Usage: curl -fsSL https://fyr.guide/install.sh | sh
+#        curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+#        curl -fsSL https://fyr.guide/install.sh | sh -s -- --data-dir /srv/fyr --port 9090
+set -e
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+CONTAINER_NAME="fyr"
+IMAGE_REPO="hexagon/fyr"
+DEFAULT_TAG="latest"
+DEFAULT_PORT="8080"
+DEFAULT_DATA_VOLUME="fyr-data"
+CONFIG_DIR="${HOME}/.config/fyr"
+CONFIG_FILE="${CONFIG_DIR}/install.conf"
+
+# ---------------------------------------------------------------------------
+# Help
+# ---------------------------------------------------------------------------
+show_help() {
+    cat <<EOF
+Fyr installer — https://fyr.guide/install.sh
+
+Usage:
+  curl -fsSL https://fyr.guide/install.sh | sh
+  curl -fsSL https://fyr.guide/install.sh | sh -s -- [options] [tag]
+
+Arguments:
+  latest|dev|<tag>       Docker image tag (default: latest)
+  update                 Recreate container with latest image (preserves data)
+
+Options:
+  --data-dir <path>      Bind-mount a host directory as the data volume
+  --data-volume <name>   Use a named Docker volume (default: fyr-data)
+  --port <number>        Host port to expose (default: 8080)
+  --admin-password <pw>  Enable admin mode with the given password
+  --readonly             Enable strict read-only mode (no mutations)
+  --help                 Show this help message
+
+Notes:
+  --data-dir and --data-volume are mutually exclusive.
+  If neither is given, a named Docker volume 'fyr-data' is used.
+  Settings are persisted in ~/.config/fyr/install.conf for future updates.
+EOF
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Parse arguments
+# ---------------------------------------------------------------------------
+TAG=""
+IS_UPDATE=false
+DATA_DIR=""
+DATA_VOLUME=""
+PORT=""
+ADMIN_PASSWORD=""
+READONLY=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            ;;
+        update)
+            IS_UPDATE=true
+            shift
+            ;;
+        --data-dir)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "==> ERROR: --data-dir requires a path argument"
+                exit 1
+            fi
+            DATA_DIR="$2"
+            shift 2
+            ;;
+        --data-volume)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "==> ERROR: --data-volume requires a volume name argument"
+                exit 1
+            fi
+            DATA_VOLUME="$2"
+            shift 2
+            ;;
+        --port)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "==> ERROR: --port requires a number argument"
+                exit 1
+            fi
+            PORT="$2"
+            shift 2
+            ;;
+        --admin-password)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "==> ERROR: --admin-password requires a password argument"
+                exit 1
+            fi
+            ADMIN_PASSWORD="$2"
+            shift 2
+            ;;
+        --readonly)
+            READONLY=true
+            shift
+            ;;
+        *)
+            # Treat as tag (any string accepted)
+            TAG="$1"
+            shift
+            ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
+# Config file management
+# ---------------------------------------------------------------------------
+# Read existing config if present
+if [[ -f "$CONFIG_FILE" ]]; then
+    while IFS='=' read -r key value; do
+        # Skip comments and blank lines
+        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+        case "$key" in
+            data_dir)       [[ -z "$DATA_DIR" ]]       && DATA_DIR="$value" ;;
+            data_volume)    [[ -z "$DATA_VOLUME" ]]    && DATA_VOLUME="$value" ;;
+            port)           [[ -z "$PORT" ]]           && PORT="$value" ;;
+            tag)            [[ -z "$TAG" ]]            && TAG="$value" ;;
+            admin_password_set) [[ "$value" == "true" && -z "$ADMIN_PASSWORD" ]] && ADMIN_PASSWORD="<saved>" ;;
+            readonly)       [[ "$value" == "true" && "$READONLY" == false ]] && READONLY=true ;;
+        esac
+    done < "$CONFIG_FILE"
+fi
+
+# Apply defaults for anything still unset
+[[ -z "$TAG" ]]        && TAG="$DEFAULT_TAG"
+[[ -z "$PORT" ]]       && PORT="$DEFAULT_PORT"
+[[ -z "$DATA_VOLUME" ]] && [[ -z "$DATA_DIR" ]] && DATA_VOLUME="$DEFAULT_DATA_VOLUME"
+
+# Validate mutual exclusivity
+if [[ -n "$DATA_DIR" && -n "$DATA_VOLUME" ]]; then
+    echo "==> ERROR: --data-dir and --data-volume are mutually exclusive."
+    echo "==> Use one or the other, not both."
+    exit 1
+fi
+
+# Write config for next run
+mkdir -p "$CONFIG_DIR"
+cat > "$CONFIG_FILE" <<CONFEOF
+# Fyr installer config — auto-generated, edit to persist settings
+data_dir=${DATA_DIR}
+data_volume=${DATA_VOLUME}
+port=${PORT}
+tag=${TAG}
+admin_password_set=$([[ -n "$ADMIN_PASSWORD" ]] && echo "true" || echo "false")
+readonly=$([[ "$READONLY" == true ]] && echo "true" || echo "false")
+CONFEOF
+
+# ---------------------------------------------------------------------------
+# 1. Check if Docker is installed
+# ---------------------------------------------------------------------------
+if ! command -v docker &>/dev/null; then
+    echo "==> ERROR: Docker is required but not installed."
+    echo "==> Please install Docker first: https://docs.docker.com/engine/install/"
+    echo "==> Or run the official convenience script: curl -fsSL https://get.docker.com | sh"
+    exit 1
+fi
+
+# Check if Docker daemon is accessible (may need sudo)
+if ! docker ps &>/dev/null; then
+    echo "==> Docker requires elevated privileges."
+    echo "==> Re-run the script with sudo:"
+    echo "==>   curl -fsSL https://fyr.guide/install.sh | sudo sh"
+    exit 1
+fi
+
+IMAGE="${IMAGE_REPO}:${TAG}"
+
+echo "==> Using Docker image: ${IMAGE}"
+echo "==> Port: ${PORT}"
+
+# ---------------------------------------------------------------------------
+# 2. Prepare data storage
+# ---------------------------------------------------------------------------
+VOLUME_FLAG=""
+if [[ -n "$DATA_DIR" ]]; then
+    # Bind mount mode
+    echo "==> Using host directory: ${DATA_DIR}"
+    if [[ ! -d "$DATA_DIR" ]]; then
+        echo "==> Creating data directory at ${DATA_DIR}..."
+        mkdir -p "$DATA_DIR"
+        # Only chown if we just created it and are running as root
+        if [[ "$(id -u)" -eq 0 ]]; then
+            echo "==> Setting permissions on ${DATA_DIR} to UID 1000..."
+            chown -R 1000:1000 "$DATA_DIR"
+        else
+            echo "==> WARNING: Not running as root — skipping permission fix on ${DATA_DIR}."
+            echo "==> If Fyr encounters permission errors, run: sudo chown -R 1000:1000 ${DATA_DIR}"
+        fi
+    fi
+    VOLUME_FLAG="-v \"${DATA_DIR}:/data\""
+elif [[ -n "$DATA_VOLUME" ]]; then
+    # Named volume mode
+    echo "==> Using Docker volume: ${DATA_VOLUME}"
+    if ! docker volume inspect "$DATA_VOLUME" &>/dev/null; then
+        echo "==> Creating Docker volume ${DATA_VOLUME}..."
+        docker volume create "$DATA_VOLUME" >/dev/null
+    fi
+    VOLUME_FLAG="-v \"${DATA_VOLUME}:/data\""
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Check if container already exists
+# ---------------------------------------------------------------------------
+if [[ "$(docker ps -a -q -f name=^/${CONTAINER_NAME}$)" ]]; then
+    if [[ "$IS_UPDATE" == true ]]; then
+        echo "==> Update flag detected. Stopping and removing old container..."
+        docker stop "$CONTAINER_NAME" 2>/dev/null || true
+        docker rm "$CONTAINER_NAME" 2>/dev/null || true
+    else
+        echo "==> WARNING: Container '${CONTAINER_NAME}' is already installed!"
+        echo "==> If you want to update/recreate it, run this script with the 'update' argument:"
+        echo "==>   curl -fsSL https://fyr.guide/install.sh | sh -s -- update"
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Pre-pull the image
+# ---------------------------------------------------------------------------
+echo "==> Pre-pulling image ${IMAGE}..."
+docker pull "$IMAGE"
+
+# ---------------------------------------------------------------------------
+# 5. Build environment variables
+# ---------------------------------------------------------------------------
+ENV_FLAGS="-e FYR_HOST=0.0.0.0 -e DATA_DIR=/data"
+if [[ -n "$ADMIN_PASSWORD" && "$ADMIN_PASSWORD" != "<saved>" ]]; then
+    ENV_FLAGS="${ENV_FLAGS} -e FYR_ADMIN_PASSWORD=${ADMIN_PASSWORD}"
+fi
+if [[ "$READONLY" == true ]]; then
+    ENV_FLAGS="${ENV_FLAGS} -e FYR_READONLY=true"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Run the container
+# ---------------------------------------------------------------------------
+echo "==> Starting container ${CONTAINER_NAME}..."
+eval docker run -d \
+    --restart unless-stopped \
+    -p "${PORT}:8080" \
+    --name "$CONTAINER_NAME" \
+    ${ENV_FLAGS} \
+    ${VOLUME_FLAG} \
+    "$IMAGE"
+
+echo "==> Success! Container '${CONTAINER_NAME}' is up and running."
+echo "==> Open http://localhost:${PORT} in your browser."
