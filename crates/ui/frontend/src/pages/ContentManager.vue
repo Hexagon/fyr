@@ -336,14 +336,29 @@ const formatApproximateGigabytes = (value) => {
   return `~${size} GB`
 }
 
+const formatArchitectureLabel = (value) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return null
+
+  if (normalized === 'qwen2') return 'Family: Qwen2'
+  if (normalized === 'llama') return 'Family: Llama'
+  if (normalized === 'phi3') return 'Family: Phi-3'
+
+  return `Family: ${value}`
+}
+
 const buildCuratedMeta = (category, item) => {
   if (category === 'models') {
     return [
+      formatArchitectureLabel(item.architecture),
       item.tier ? `Tier: ${item.tier}` : null,
       item.quantization || null,
       formatApproximateGigabytes(item.approx_size_gb),
       item.license ? `License: ${item.license}` : null,
-      item.default_profile ? `Profile: ${item.default_profile}` : null
+      item.default_profile ? `Profile: ${item.default_profile}` : null,
+      typeof item.tested_with_fyr === 'boolean'
+        ? (item.tested_with_fyr ? 'Validated in Fyr' : 'Runtime added in Fyr; local model validation still recommended')
+        : null
     ].filter(Boolean)
   }
 

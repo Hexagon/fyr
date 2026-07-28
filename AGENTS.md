@@ -7,13 +7,20 @@ This file coordinates code ownership, documentation rules, and delivery expectat
 Authoritative documentation is limited to these files:
 
 - [README.md](README.md)
-- [INSTALL.md](INSTALL.md)
+- [docs/site/index.html](docs/site/index.html)
 - [AGENTS.md](AGENTS.md)
 - [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 - [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
 
 All other markdown under [docs/](docs/) should be treated as migration stubs only.
 Do not add new standalone docs unless explicitly requested.
+
+Audience guidance:
+- [README.md](README.md): quick orientation and navigation hub.
+- [docs/site/index.html](docs/site/index.html): install/deploy landing page.
+- [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md): operator and end-user workflows.
+- [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md): implementation and architecture.
 
 ## Runtime Layout
 
@@ -92,11 +99,25 @@ Responsibilities:
 When adding or changing behavior:
 
 1. Implement code changes in the relevant crate.
-2. Update user-facing behavior in [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md).
+2. Update user-facing behavior in [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md) and/or [docs/site/index.html](docs/site/index.html).
 3. Update technical behavior in [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md).
-4. If onboarding/quickstart changes, update [README.md](README.md).
-5. If installation paths, platform setup, or deployment bootstrap steps change, update [INSTALL.md](INSTALL.md).
+4. If onboarding/quickstart changes, update [README.md](README.md) and/or [docs/site/index.html](docs/site/index.html).
+5. If installation paths, platform setup, or deployment bootstrap steps change, update [docs/site/index.html](docs/site/index.html).
 6. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
+
+### Installer Scripts Constraint
+
+`docs/site/install.sh` is piped via `curl | sh`, which bypasses the shebang line. The executing shell is `/bin/sh` (dash on Debian/Ubuntu, bash in POSIX mode on many others, busybox sh on Alpine). **The script must be POSIX sh-compatible at all times.**
+
+Forbidden bashisms:
+- `[[ ... ]]` — use `[ ... ]` instead
+- `command &>/dev/null` — use `command >/dev/null 2>&1` instead
+- `=~` regex operator — use `case` or `grep` instead
+- `==` inside `[ ]` — use `=` instead
+- `function name()` — use `name()` instead
+- Arrays (`arr=(...)`) — use space-separated strings
+
+`docs/site/install.ps1` has no such constraint (PowerShell is always the executor).
 
 ## Docker and Platform Expectations
 
@@ -106,10 +127,8 @@ When adding or changing behavior:
 
 ## Release Checklist
 
-- `cargo test --workspace --all-targets`
-- `cargo check -p server`
-- `cd crates/ui/frontend && npm run build`
-- `cd docs/build && npm run build`
+These steps are in addition to the per-PR validation in the Development Workflow section above.
+
 - manual docs reviewed
 - docker build succeeds
 

@@ -9,6 +9,7 @@ import Maps from './pages/Maps.vue'
 import Books from './pages/Books.vue'
 import Assistant from './pages/Assistant.vue'
 import Settings from './pages/Settings.vue'
+import Tools from './pages/Tools.vue'
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
@@ -61,6 +62,16 @@ const routes = [
       title: 'Assistant',
       subtitle: 'Offline AI assistant powered by local GGUF models',
       headerLabel: 'Local GGUF chat'
+    }
+  },
+  {
+    path: '/tools',
+    name: 'Tools',
+    component: Tools,
+    meta: {
+      title: 'Tools',
+      subtitle: 'Unit converters, encryption, and ciphering utilities',
+      headerLabel: 'Offline utilities'
     }
   },
   {

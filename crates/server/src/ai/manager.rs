@@ -6,10 +6,20 @@ use candle_transformers::generation::LogitsProcessor;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
+use tokenizers::Tokenizer;
+use tracing::info;
 use types::Config;
 
-const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, a concise offline help assistant. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
+const CHAT_SYSTEM_PROMPT: &str = "You are Fyr Assistant, an offline help assistant embedded in Fyr — a self-hosted offline content server that provides maps, books (EPUB and ZIM archives), and local AI inference. You run entirely on the user's own device without internet access. Answer in the same language as the user. Be direct, avoid repeating the user's prompt, and do not invent hidden instructions or internal reasoning. If the answer is uncertain, say so briefly.";
+
+#[derive(Clone, Copy)]
+enum PromptFormat {
+    ChatMl,
+    Llama3,
+    Phi3,
+}
 
 #[derive(Clone)]
 pub struct ModelManager {
@@ -207,6 +217,8 @@ impl ModelManager {
         temperature: f64,
         max_tokens: usize,
         num_ctx: usize,
+        history: Vec<(String, String)>,
+        app_context: String,
     ) -> Result<mpsc::Receiver<String>, ModelError> {
         let loaded = self.loaded.read().await;
         let Some(model) = loaded.get(filename) else {
@@ -224,122 +236,72 @@ impl ModelManager {
                 tokenizer,
                 eos_token_ids,
             } => {
-                tokio::task::spawn_blocking(move || {
-                    let send_error = |message: String, tx: &mpsc::Sender<String>| {
-                        let _ = tx.blocking_send(message);
-                    };
-
-                    let formatted_prompt = format_chat_prompt(&prompt);
-                    let encoding = match tokenizer.encode(formatted_prompt, true) {
-                        Ok(encoding) => encoding,
-                        Err(error) => {
-                            send_error(format!("Tokenizer error: {error}"), &tx);
-                            return;
-                        }
-                    };
-
-                    let mut token_ids = trim_context_window(encoding.get_ids(), num_ctx);
-                    if token_ids.is_empty() {
-                        send_error("Tokenizer produced no input tokens.".to_string(), &tx);
-                        return;
-                    }
-
-                    let mut model = match model.lock() {
-                        Ok(model) => model,
-                        Err(_) => {
-                            send_error("Model lock poisoned during inference.".to_string(), &tx);
-                            return;
-                        }
-                    };
-
-                    model.clear_kv_cache();
-                    let device = candle_core::Device::Cpu;
-                    let seed = 42;
-                    let mut sampler = LogitsProcessor::new(seed, Some(temperature), None);
-                    let mut input_ids = token_ids.clone();
-                    let mut index_pos = 0usize;
-                    let mut generated_text = String::new();
-                    // emitted_len tracks bytes already sent from the *visible* (think-stripped) text
-                    let mut emitted_len = 0usize;
-
-                    for _ in 0..max_tokens {
-                        let input = match Tensor::new(input_ids.as_slice(), &device)
-                            .and_then(|tensor| tensor.unsqueeze(0))
-                        {
-                            Ok(tensor) => tensor,
-                            Err(error) => {
-                                send_error(format!("Tensor setup failed: {error}"), &tx);
-                                return;
-                            }
-                        };
-
-                        let logits = match model.forward(&input, index_pos) {
-                            Ok(logits) => logits,
-                            Err(error) => {
-                                send_error(format!("Inference failed: {error}"), &tx);
-                                return;
-                            }
-                        };
-
-                        let logits = match logits.squeeze(0) {
-                            Ok(logits) => logits,
-                            Err(_) => logits,
-                        };
-
-                        let next_token = match sampler.sample(&logits) {
-                            Ok(token) => token,
-                            Err(error) => {
-                                send_error(format!("Sampling failed: {error}"), &tx);
-                                return;
-                            }
-                        };
-
-                        if eos_token_ids.contains(&next_token) {
-                            break;
-                        }
-
-                        let fragment = match tokenizer.decode(&[next_token], true) {
-                            Ok(text) => text,
-                            Err(error) => {
-                                send_error(format!("Decode failed: {error}"), &tx);
-                                return;
-                            }
-                        };
-
-                        token_ids.push(next_token);
-                        generated_text.push_str(&fragment);
-
-                        // Guard against repetition loops before trying to emit anything
-                        if is_repeating(&token_ids) {
-                            break;
-                        }
-
-                        // Stop if the model starts generating a new conversation turn
-                        let stop_at = first_role_marker_index(&generated_text);
-                        let emit_text = if let Some(stop_at) = stop_at {
-                            &generated_text[..stop_at]
-                        } else {
-                            &generated_text
-                        };
-
-                        // Emit new bytes as-is; <think> content is handled by the client
-                        if emit_text.len() > emitted_len {
-                            let delta = &emit_text[emitted_len..];
-                            if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
-                                return;
-                            }
-                            emitted_len = emit_text.len();
-                        }
-
-                        if stop_at.is_some() {
-                            break;
-                        }
-
-                        index_pos = token_ids.len() - 1;
-                        input_ids.clear();
-                        input_ids.push(next_token);
-                    }
-                });
+                spawn_quantized_inference(
+                    model,
+                    tokenizer,
+                    eos_token_ids,
+                    tx,
+                    format_chat_prompt(&history, &prompt, &app_context),
+                    temperature,
+                    max_tokens,
+                    num_ctx,
+                    |model| model.clear_kv_cache(),
+                    |model, input, index_pos| model.forward(input, index_pos),
+                );
+            }
+            ModelRuntime::QuantizedLlama {
+                model,
+                tokenizer,
+                eos_token_ids,
+            } => {
+                spawn_quantized_inference(
+                    model,
+                    tokenizer,
+                    eos_token_ids,
+                    tx,
+                    format_prompt(&history, &prompt, &app_context, PromptFormat::Llama3),
+                    temperature,
+                    max_tokens,
+                    num_ctx,
+                    |model| model.clear_kv_cache(),
+                    |model, input, index_pos| model.forward(input, index_pos),
+                );
+            }
+            ModelRuntime::QuantizedPhi {
+                model,
+                tokenizer,
+                eos_token_ids,
+            } => {
+                spawn_quantized_inference(
+                    model,
+                    tokenizer,
+                    eos_token_ids,
+                    tx,
+                    format_prompt(&history, &prompt, &app_context, PromptFormat::Phi3),
+                    temperature,
+                    max_tokens,
+                    num_ctx,
+                    |_| {},
+                    |model, input, index_pos| model.forward(input, index_pos),
+                );
+            }
+            ModelRuntime::QuantizedPhi3 {
+                model,
+                tokenizer,
+                eos_token_ids,
+            } => {
+                spawn_quantized_inference(
+                    model,
+                    tokenizer,
+                    eos_token_ids,
+                    tx,
+                    format_prompt(&history, &prompt, &app_context, PromptFormat::Phi3),
+                    temperature,
+                    max_tokens,
+                    num_ctx,
+                    |_| {},
+                    |model, input, index_pos| model.forward(input, index_pos),
+                );
             }
             ModelRuntime::ValidationOnly { reason } => {
                 return Err(ModelError::InferenceFailed(reason.unwrap_or_else(|| {
@@ -350,6 +312,241 @@ impl ModelManager {
 
         Ok(rx)
     }
+}
+
+/// Tracks prefill/decode timing for a single inference run and logs a
+/// tokens-per-second summary when the run ends, regardless of which exit
+/// path (success, error, or early stop) is taken.
+struct InferenceTiming {
+    prefill_started: Instant,
+    prefill_tokens: usize,
+    decode_started: Option<Instant>,
+    decode_tokens: usize,
+}
+
+impl InferenceTiming {
+    fn new() -> Self {
+        Self {
+            prefill_started: Instant::now(),
+            prefill_tokens: 0,
+            decode_started: None,
+            decode_tokens: 0,
+        }
+    }
+
+    /// Call once prompt prefill has finished, with the number of tokens that
+    /// were prefilled (post context-window trimming).
+    fn mark_prefill_done(&mut self, tokens: usize) {
+        self.prefill_tokens = tokens;
+        self.decode_started = Some(Instant::now());
+    }
+}
+
+impl Drop for InferenceTiming {
+    fn drop(&mut self) {
+        let prefill_elapsed = match self.decode_started {
+            Some(decode_started) => decode_started.duration_since(self.prefill_started),
+            None => self.prefill_started.elapsed(),
+        };
+        let prefill_tok_s = tokens_per_second(self.prefill_tokens, prefill_elapsed);
+
+        match self.decode_started {
+            Some(decode_started) => {
+                let decode_elapsed = decode_started.elapsed();
+                let decode_tok_s = tokens_per_second(self.decode_tokens, decode_elapsed);
+                info!(
+                    "AI inference: prefill {} tok in {:.2?} ({:.1} tok/s), decode {} tok in {:.2?} ({:.1} tok/s)",
+                    self.prefill_tokens,
+                    prefill_elapsed,
+                    prefill_tok_s,
+                    self.decode_tokens,
+                    decode_elapsed,
+                    decode_tok_s,
+                );
+            }
+            None => {
+                info!(
+                    "AI inference aborted during prompt prefill: {} tok in {:.2?} ({:.1} tok/s)",
+                    self.prefill_tokens, prefill_elapsed, prefill_tok_s,
+                );
+            }
+        }
+    }
+}
+
+fn tokens_per_second(tokens: usize, elapsed: Duration) -> f64 {
+    let secs = elapsed.as_secs_f64();
+    if secs <= 0.0 {
+        0.0
+    } else {
+        tokens as f64 / secs
+    }
+}
+
+fn spawn_quantized_inference<M, FReset, FForward>(
+    model: Arc<std::sync::Mutex<M>>,
+    tokenizer: Arc<Tokenizer>,
+    eos_token_ids: Vec<u32>,
+    tx: mpsc::Sender<String>,
+    formatted_prompt: String,
+    temperature: f64,
+    max_tokens: usize,
+    num_ctx: usize,
+    reset_cache: FReset,
+    forward: FForward,
+) where
+    M: Send + 'static,
+    FReset: Fn(&mut M) + Send + 'static,
+    FForward: Fn(&mut M, &Tensor, usize) -> candle_core::Result<Tensor> + Send + 'static,
+{
+        const PREFILL_CHUNK_TOKENS: usize = 256;
+
+    tokio::task::spawn_blocking(move || {
+        let send_error = |message: String, tx: &mpsc::Sender<String>| {
+            let _ = tx.blocking_send(message);
+        };
+
+        let encoding = match tokenizer.encode(formatted_prompt, true) {
+            Ok(encoding) => encoding,
+            Err(error) => {
+                send_error(format!("Tokenizer error: {error}"), &tx);
+                return;
+            }
+        };
+
+        let mut token_ids = trim_context_window(encoding.get_ids(), num_ctx);
+        if token_ids.is_empty() {
+            send_error("Tokenizer produced no input tokens.".to_string(), &tx);
+            return;
+        }
+
+        // Logged via Drop regardless of which return path is taken below, so
+        // slow/failed runs still surface prefill and decode tok/s for
+        // performance debugging (see AGENTS.md CPU optimization notes).
+        let mut timing = InferenceTiming::new();
+
+        let mut model = match model.lock() {
+            Ok(model) => model,
+            Err(_) => {
+                send_error("Model lock poisoned during inference.".to_string(), &tx);
+                return;
+            }
+        };
+
+        reset_cache(&mut model);
+
+        let device = candle_core::Device::Cpu;
+        let seed = 42;
+        let mut sampler = LogitsProcessor::new(seed, Some(temperature), None);
+        let mut index_pos = 0usize;
+        let mut generated_ids: Vec<u32> = Vec::new();
+        let mut emitted_len = 0usize;
+        let mut last_logits = None;
+
+        // Prefill the KV cache in chunks to avoid very large one-shot tensors/masks on long prompts.
+        for chunk in token_ids.chunks(PREFILL_CHUNK_TOKENS) {
+            let input = match Tensor::new(chunk, &device).and_then(|tensor| tensor.unsqueeze(0)) {
+                Ok(tensor) => tensor,
+                Err(error) => {
+                    send_error(format!("Tensor setup failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            let logits = match forward(&mut model, &input, index_pos) {
+                Ok(logits) => logits,
+                Err(error) => {
+                    send_error(format!("Inference failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            last_logits = Some(match logits.squeeze(0) {
+                Ok(logits) => logits,
+                Err(_) => logits,
+            });
+
+                        index_pos += chunk.len();
+        }
+
+        timing.mark_prefill_done(token_ids.len());
+
+        for _ in 0..max_tokens {
+            let Some(logits) = last_logits.take() else {
+                send_error("Inference failed: no logits available after prompt prefill.".to_string(), &tx);
+                return;
+            };
+
+            let next_token = match sampler.sample(&logits) {
+                Ok(token) => token,
+                Err(error) => {
+                    send_error(format!("Sampling failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            if eos_token_ids.contains(&next_token) {
+                break;
+            }
+
+            generated_ids.push(next_token);
+            timing.decode_tokens += 1;
+            let decoded_text = match tokenizer.decode(&generated_ids, true) {
+                Ok(text) => text,
+                Err(error) => {
+                    send_error(format!("Decode failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            token_ids.push(next_token);
+
+            if is_repeating(&token_ids) {
+                break;
+            }
+
+            let stop_at = first_role_marker_index(&decoded_text);
+            let emit_text = if let Some(stop_at) = stop_at {
+                &decoded_text[..stop_at]
+            } else {
+                &decoded_text
+            };
+
+            if emit_text.len() > emitted_len {
+                let delta = &emit_text[emitted_len..];
+                if !delta.is_empty() && tx.blocking_send(delta.to_string()).is_err() {
+                    return;
+                }
+                emitted_len = emit_text.len();
+            }
+
+            if stop_at.is_some() {
+                break;
+            }
+
+            let input = match Tensor::new(&[next_token], &device).and_then(|tensor| tensor.unsqueeze(0)) {
+                Ok(tensor) => tensor,
+                Err(error) => {
+                    send_error(format!("Tensor setup failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            let logits = match forward(&mut model, &input, index_pos) {
+                Ok(logits) => logits,
+                Err(error) => {
+                    send_error(format!("Inference failed: {error}"), &tx);
+                    return;
+                }
+            };
+
+            last_logits = Some(match logits.squeeze(0) {
+                Ok(logits) => logits,
+                Err(_) => logits,
+            });
+            index_pos += 1;
+        }
+    });
 }
 
 fn user_facing_model_error(error: &ModelError) -> String {
@@ -366,12 +563,99 @@ fn user_facing_model_error(error: &ModelError) -> String {
     message
 }
 
-fn format_chat_prompt(prompt: &str) -> String {
-    format!(
-        "<|im_start|>system\n{system}\n<|im_end|>\n<|im_start|>user\n{prompt}\n<|im_end|>\n<|im_start|>assistant\n",
-        system = CHAT_SYSTEM_PROMPT,
-        prompt = prompt.trim()
-    )
+fn format_chat_prompt(history: &[(String, String)], prompt: &str, app_context: &str) -> String {
+    format_prompt(history, prompt, app_context, PromptFormat::ChatMl)
+}
+
+fn format_prompt(
+    history: &[(String, String)],
+    prompt: &str,
+    app_context: &str,
+    prompt_format: PromptFormat,
+) -> String {
+    let system_block = if app_context.is_empty() {
+        CHAT_SYSTEM_PROMPT.to_string()
+    } else {
+        format!("{}\n\n{}", CHAT_SYSTEM_PROMPT, app_context)
+    };
+
+    match prompt_format {
+        PromptFormat::ChatMl => format_chatml_prompt(history, prompt, &system_block),
+        PromptFormat::Llama3 => format_llama3_prompt(history, prompt, &system_block),
+        PromptFormat::Phi3 => format_phi3_prompt(history, prompt, &system_block),
+    }
+}
+
+fn format_chatml_prompt(history: &[(String, String)], prompt: &str, system_block: &str) -> String {
+    let mut output = format!(
+        "<|im_start|>system\n{}\n<|im_end|>\n",
+        system_block
+    );
+
+    for (role, text) in history {
+        let role_tag = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        output.push_str(&format!(
+            "<|im_start|>{}\n{}\n<|im_end|>\n",
+            role_tag,
+            text.trim()
+        ));
+    }
+
+    output.push_str(&format!(
+        "<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
+        prompt.trim()
+    ));
+
+    output
+}
+
+fn format_llama3_prompt(history: &[(String, String)], prompt: &str, system_block: &str) -> String {
+    let mut output = String::from("<|begin_of_text|>");
+    output.push_str(&format!(
+        "<|start_header_id|>system<|end_header_id|>\n\n{}<|eot_id|>",
+        system_block
+    ));
+
+    for (role, text) in history {
+        let role_tag = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        output.push_str(&format!(
+            "<|start_header_id|>{}<|end_header_id|>\n\n{}<|eot_id|>",
+            role_tag,
+            text.trim()
+        ));
+    }
+
+    output.push_str(&format!(
+        "<|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+        prompt.trim()
+    ));
+
+    output
+}
+
+fn format_phi3_prompt(history: &[(String, String)], prompt: &str, system_block: &str) -> String {
+    let mut output = format!("<|system|>\n{}\n<|end|>\n", system_block);
+
+    for (role, text) in history {
+        let role_tag = match role.as_str() {
+            "assistant" => "assistant",
+            _ => "user",
+        };
+        output.push_str(&format!("<|{}|>\n{}\n<|end|>\n", role_tag, text.trim()));
+    }
+
+    output.push_str(&format!(
+        "<|user|>\n{}\n<|end|>\n<|assistant|>\n",
+        prompt.trim()
+    ));
+
+    output
 }
 
 fn first_role_marker_index(text: &str) -> Option<usize> {
@@ -387,7 +671,16 @@ fn first_role_marker_index(text: &str) -> Option<usize> {
         "\nUSER:",
     ];
     // ChatML control tokens – stop at any position in the output
-    const CHATML_MARKERS: [&str; 2] = ["<|im_start|>", "<|im_end|>"];
+    const CONTROL_MARKERS: [&str; 8] = [
+        "<|im_start|>",
+        "<|im_end|>",
+        "<|start_header_id|>",
+        "<|end_header_id|>",
+        "<|eot_id|>",
+        "<|user|>",
+        "<|assistant|>",
+        "<|end|>",
+    ];
 
     let line_stop = LINE_MARKERS
         .iter()
@@ -402,7 +695,7 @@ fn first_role_marker_index(text: &str) -> Option<usize> {
         })
         .min();
 
-    let chatml_stop = CHATML_MARKERS
+    let chatml_stop = CONTROL_MARKERS
         .iter()
         .filter_map(|marker| text.find(marker))
         .min();
@@ -438,7 +731,75 @@ fn trim_context_window(tokens: &[u32], num_ctx: usize) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_role_marker_index, is_repeating, trim_context_window};
+    use super::{
+        first_role_marker_index, format_chat_prompt, format_prompt, is_repeating,
+        trim_context_window, PromptFormat,
+    };
+
+    // --- format_chat_prompt ---
+
+    #[test]
+    fn format_chat_prompt_single_turn_has_no_history() {
+        let result = format_chat_prompt(&[], "Hello?", "");
+        assert!(result.contains("<|im_start|>user\nHello?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_includes_history_turns() {
+        let history = vec![
+            ("user".to_string(), "Hi".to_string()),
+            ("assistant".to_string(), "Hello!".to_string()),
+        ];
+        let result = format_chat_prompt(&history, "How are you?", "");
+        assert!(result.contains("<|im_start|>user\nHi\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>assistant\nHello!\n<|im_end|>"));
+        assert!(result.contains("<|im_start|>user\nHow are you?\n<|im_end|>"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_unknown_role_defaults_to_user() {
+        let history = vec![("system".to_string(), "ignored".to_string())];
+        let result = format_chat_prompt(&history, "Hello", "");
+        assert!(result.contains("<|im_start|>user\nignored\n<|im_end|>"));
+    }
+
+    #[test]
+    fn format_chat_prompt_embeds_app_context_in_system_block() {
+        let ctx = "Current local content library:\n- Maps (1): world.pmtiles";
+        let result = format_chat_prompt(&[], "What maps are loaded?", ctx);
+        assert!(result.contains(ctx));
+        assert!(result.starts_with("<|im_start|>system\n"));
+        assert!(result.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn format_chat_prompt_empty_app_context_omits_extra_newline() {
+        let without = format_chat_prompt(&[], "Hi", "");
+        let with_ctx = format_chat_prompt(&[], "Hi", "Context: something");
+        // With context must be longer
+        assert!(with_ctx.len() > without.len());
+        // Without context should not contain double-newline separator
+        assert!(!without.contains("\n\nCurrent"));
+    }
+
+    #[test]
+    fn format_llama_prompt_uses_llama3_headers() {
+        let result = format_prompt(&[], "Hello", "", PromptFormat::Llama3);
+        assert!(result.starts_with("<|begin_of_text|><|start_header_id|>system<|end_header_id|>"));
+        assert!(result.contains("<|start_header_id|>user<|end_header_id|>\n\nHello<|eot_id|>"));
+        assert!(result.ends_with("<|start_header_id|>assistant<|end_header_id|>\n\n"));
+    }
+
+    #[test]
+    fn format_phi_prompt_uses_phi_chat_tags() {
+        let history = vec![("assistant".to_string(), "Hi back".to_string())];
+        let result = format_prompt(&history, "Hello", "", PromptFormat::Phi3);
+        assert!(result.starts_with("<|system|>\n"));
+        assert!(result.contains("<|assistant|>\nHi back\n<|end|>"));
+        assert!(result.ends_with("<|assistant|>\n"));
+    }
 
     // --- first_role_marker_index ---
 
@@ -465,6 +826,18 @@ mod tests {
     fn role_marker_detects_im_start_anywhere() {
         let text = "Partial response<|im_start|>user";
         assert_eq!(first_role_marker_index(text), Some(16));
+    }
+
+    #[test]
+    fn role_marker_detects_llama_control_tokens() {
+        let text = "Visible text<|eot_id|><|start_header_id|>assistant";
+        assert_eq!(first_role_marker_index(text), Some(12));
+    }
+
+    #[test]
+    fn role_marker_detects_phi_control_tokens() {
+        let text = "Visible text<|assistant|>";
+        assert_eq!(first_role_marker_index(text), Some(12));
     }
 
     #[test]

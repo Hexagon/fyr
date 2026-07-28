@@ -63,6 +63,29 @@
         <span class="badge inactive">{{ moduleCount }} modules</span>
       </div>
 
+      <div class="module-editor">
+        <h4>Downloads</h4>
+        <p class="body-copy">Set the HTTP request timeout used for large URL downloads in Content Manager.</p>
+        <div class="grid-2">
+          <label>
+            Request timeout (seconds)
+            <input
+              v-model="downloadTimeoutSeconds"
+              type="number"
+              min="30"
+              max="86400"
+              step="1"
+              placeholder="300"
+            />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" @click="handleSaveDownloadTimeout" :disabled="saving">
+            Save download timeout
+          </button>
+        </div>
+      </div>
+
       <div v-if="moduleEntries.length" class="module-list">
         <article v-for="entry in moduleEntries" :key="entry.name" class="module-item">
           <div class="module-item-header">
@@ -117,6 +140,7 @@ const moduleForm = reactive({
   name: 'location',
   payload: '{"source":"settings-page","updatedAt":""}'
 })
+const downloadTimeoutSeconds = ref('300')
 
 const browserGeoNote = computed(() => {
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
@@ -130,6 +154,12 @@ const browserGeoNote = computed(() => {
 const browserLocationAvailable = computed(() => browserGeoNote.value === '')
 const moduleEntries = computed(() => Object.entries(settingsState.settings.modules || {}).map(([name, value]) => ({ name, value: JSON.stringify(value, null, 2) })))
 const moduleCount = computed(() => moduleEntries.value.length)
+
+const hydrateDownloadTimeout = () => {
+  const value = settingsState.settings.modules?.downloads?.request_timeout_seconds
+  const fallback = Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 300
+  downloadTimeoutSeconds.value = String(Math.trunc(fallback))
+}
 
 const hydrateForm = () => {
   const location = settingsState.settings.location
@@ -148,6 +178,7 @@ onMounted(async () => {
   }
 
   hydrateForm()
+  hydrateDownloadTimeout()
 })
 
 const handleSave = async () => {
@@ -261,6 +292,31 @@ const handleSaveModuleState = async () => {
     error.value = moduleError instanceof SyntaxError
       ? 'Module payload must be valid JSON.'
       : apiService.handleError(moduleError)
+  } finally {
+    saving.value = false
+  }
+}
+
+const handleSaveDownloadTimeout = async () => {
+  message.value = ''
+  error.value = ''
+  saving.value = true
+
+  try {
+    const parsed = Number.parseInt(String(downloadTimeoutSeconds.value || '').trim(), 10)
+    if (!Number.isFinite(parsed)) {
+      throw new Error('Download timeout must be a valid integer number of seconds.')
+    }
+
+    const bounded = Math.min(86400, Math.max(30, parsed))
+    await updateModuleState('downloads', {
+      ...(settingsState.settings.modules?.downloads || {}),
+      request_timeout_seconds: bounded
+    })
+    downloadTimeoutSeconds.value = String(bounded)
+    message.value = `Download timeout saved: ${bounded}s.`
+  } catch (downloadSettingsError) {
+    error.value = apiService.handleError(downloadSettingsError)
   } finally {
     saving.value = false
   }

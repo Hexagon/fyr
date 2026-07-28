@@ -32,6 +32,7 @@ zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"
+memmap2 = "0.9"
 
 [[bin]]
 name = "fyr"

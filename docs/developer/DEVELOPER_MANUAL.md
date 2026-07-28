@@ -3,12 +3,28 @@
 ## 1. Overview
 Fyr is a Rust workspace with a Vue frontend.
 
+> **Project status:** Fyr is currently in **preview**; prefer additive and backward-compatible changes where practical.
+
+Documentation map:
+- Product overview and quick navigation: [README.md](../../README.md)
+- Installation/deployment site: [docs/site/index.html](../../docs/site/index.html)
+- End-user behavior reference: [User Manual](../user/USER_MANUAL.md)
+- Contributor workflow and validation requirements: [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- Governance and ownership boundaries: [AGENTS.md](../../AGENTS.md)
+
 Workspace modules:
 - `crates/types`: shared types and configuration.
 - `crates/downloader`: task management and routing.
 - `crates/server`: Axum HTTP API and static serving.
 - `crates/ui/frontend`: Vue 3 application built into `public/static/`.
 - `crates/server/src/ai`: Candle-powered GGUF model loading and assistant endpoints.
+
+The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) is a purely client-side feature with zero server dependencies. Unit conversions and ciphering (AES, Base64, ROT13, SHA-256, MD5) execute entirely in the browser using the Web Crypto API and standard JavaScript—no API endpoints, no Rust changes.
+
+Downloader timeout centralization:
+- URL download request timeout is sourced from persisted app settings at `settings.modules.downloads.request_timeout_seconds`.
+- On server startup and each `PUT /api/settings`, the server applies this value to `DownloadManager` for future tasks.
+- Valid range is clamped to `30..=86400` seconds; default is `300` seconds.
 
 ## 1.1 AI Integration with Candle
 
@@ -31,6 +47,14 @@ Performance recommendation:
 RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 ```
 
+### CPU optimization and thread pool sizing
+
+- GGUF weights are loaded via `memmap2` (`crates/server/src/ai/loader.rs`) instead of being read fully into a `Vec<u8>`. The OS pages weight data in on demand and can evict it under memory pressure, which matters on RAM-constrained boards such as a Raspberry Pi.
+- At startup, `configure_ai_runtime()` in `crates/server/src/main.rs` logs detected CPU SIMD capabilities (NEON/fp16/dotprod/fcma on aarch64, AVX2/FMA on x86_64), comparing what the running binary was compiled with against what the hardware actually supports. This check runs on the real deployment hardware at process startup, so it stays accurate even when the Docker image itself was built under QEMU emulation for a foreign architecture (see Docker section below).
+- The same function sizes Candle's CPU thread pool via `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS`, defaulting to `std::thread::available_parallelism()` (cgroup/quota-aware, unlike a naive core count). Override with `FYR_AI_THREADS=<n>`, or set `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS` directly for full manual control; Fyr will not overwrite either variable if already set.
+- Each inference run logs a `tracing::info!` summary of prefill and decode throughput (tokens and tok/s, separately) from `spawn_quantized_inference()` in `crates/server/src/ai/manager.rs`, regardless of how the run ends (success, error, or early stop), to make performance regressions and slow hardware easy to spot in server logs.
+- For aarch64 self-builds targeting known hardware, use the Dockerfile's `RUST_TARGET_FEATURES` build arg (e.g. `+dotprod` for Raspberry Pi 5 / Cortex-A75 and newer) to compile in optional ARMv8.2+ kernels. Do not set this for the published multi-arch `hexagon/fyr:*` image, since it must keep running on older boards (Raspberry Pi 3/4, Cortex-A53/A72) that lack these extensions. Baseline NEON is always enabled on aarch64 and does not require this flag.
+
 ### Inference hardening
 
 The streaming inference loop in `crates/server/src/ai/manager.rs` applies two server-side guards before sending tokens to the client:
@@ -39,11 +63,13 @@ The streaming inference loop in `crates/server/src/ai/manager.rs` applies two se
 
 2. **ChatML stop markers** — `first_role_marker_index()` catches `<|im_start|>` and `<|im_end|>` tokens in addition to plain-text role prefixes such as `ASSISTANT:` and `USER:`. Generation stops and the visible prefix is flushed when any marker is detected.
 
-`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. Think content is shown in a collapsible `<details>` element that streams live while the model reasons and collapses automatically when `</think>` arrives.
+`<think>…</think>` blocks are passed through to the client as-is. The Vue frontend (`crates/ui/frontend/src/pages/Assistant.vue`) splits incoming tokens into response text and think-block content using `parseThinkAndText()`. The assistant now shows a generic thinking placeholder immediately on send, then upgrades that block with live `<think>` content if the model emits it.
+
+The browser streaming client in `crates/ui/frontend/src/services/api.js` reads the SSE response body with `fetch()` and a `ReadableStream` reader rather than relying on `EventSource`. This avoids the chunked final-render behavior seen in some environments and keeps stop/error handling explicit.
 
 ### Recommended model files
 
-Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with embedded tokenizer metadata.
+Fyr's inference runtime currently supports GGUF files for the **Qwen2**, **Llama**, and **Phi-3 / Phi-3.5** architecture families when tokenizer metadata is embedded. For Phi-3/Phi-3.5 specifically, a sidecar tokenizer JSON may be required for reliable generation quality.
 
 | Tier | Suggested model | Quantization | Approx. size | Notes |
 |---|---|---|---|---|
@@ -52,16 +78,23 @@ Fyr's inference runtime requires GGUF files for the **Qwen2** architecture with 
 | Large | `Qwen2.5-7B-Instruct` | Q4_K_M | ~4.5 GB | Intended for 8 GB Raspberry Pi 5 systems |
 | Extra large | `Qwen2.5-14B-Instruct` | Q4_K_M | ~9.8 GB | Desktop-grade RAG quality on 16 GB+ systems |
 | Extra large (alt) | `Qwen2.5-7B-Instruct` | Q8_0 | ~8.5 GB | Smaller desktop alternative when 14B is too heavy |
+| Llama alternative | `Llama-3.2-3B-Instruct` | Q4_K_M | ~2.0 GB | Good cross-domain instruct model; some downloads require Hugging Face license acceptance |
+| Phi alternative | `Phi-3.5-mini-instruct` | Q4_K_M | ~2.4 GB | Compact reasoning-oriented option with `phi3` GGUF architecture |
 
-GGUF files for these models are published under the **Qwen** organisation on [Hugging Face](https://huggingface.co/Qwen). Example repositories: `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, and `Qwen/Qwen2.5-14B-Instruct-GGUF`.
+GGUF files for these models are commonly published on [Hugging Face](https://huggingface.co/models?library=gguf). Examples used by Fyr's curated catalog include `Qwen/Qwen2.5-3B-Instruct-GGUF`, `bartowski/Llama-3.2-3B-Instruct-GGUF`, and `bartowski/Phi-3.5-mini-instruct-GGUF`.
 
-Default assistant profile used by Fyr:
+Default assistant profiles used by Fyr:
 
-- `temperature = 0.2`
-- `max_tokens = 512`
-- `num_ctx = 2048`
-- Auto-upgrade to `num_ctx = 8192` when the host reports more than 16 GB of RAM
+| Mode | temperature | max_tokens | Notes |
+|------|-------------|------------|-------|
+| Precise | 0.1 | 512 | Focused, factual answers |
+| Balanced | 0.2 | 512 | Default, concise and reliable |
+| Creative | 0.7 | 1024 | More elaborate, varied responses |
+
+- `num_ctx = 2048` — auto-upgrade to `8192` when host RAM > 16 GB
 - Manual override: set `settings.modules.assistant.high_ram_context = true` or `settings.modules.assistant.num_ctx` to an explicit value
+
+Conversation context: the SSE endpoint accepts an optional `history` query parameter — a JSON array of `{"role":"user"|"assistant","text":"..."}` objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.
 
 Catalog file:
 
@@ -70,22 +103,26 @@ Catalog file:
 - The frontend content manager reads `/data/curated-content.json`, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.
 - Curated entries may include an optional `download_url` field that queues a direct download from the content manager UI.
 
-Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block.
+Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block above the live response stream.
+
+Prompt formatting is architecture-specific:
+- `qwen2` uses ChatML-style `<|im_start|>...<|im_end|>` prompts.
+- `llama` uses the Llama 3 instruct header template with `<|start_header_id|>` and `<|eot_id|>` markers.
+- `phi3` uses the Phi chat template with `<|system|>`, `<|user|>`, `<|assistant|>`, and `<|end|>` delimiters.
 
 Extending model support:
 - Current integration uses GGUF metadata parsing plus quantized variable loading.
-- Add architecture-specific runtime in `crates/server/src/ai/loader.rs` when introducing new generation backends.
+- Add architecture-specific runtime and prompt formatting in `crates/server/src/ai/loader.rs` and `crates/server/src/ai/manager.rs` when introducing new generation backends.
 - Keep unsupported architectures failing with explicit error messages instead of fallback panics.
 
 ## 2. Local Development
 ### Prerequisites
 - Rust 1.70+
-- Node.js 18+
+- Node.js 24
 - npm 9+
 
 CI-pinned versions for parity:
 - Rust stable (Docker build uses `rust:bookworm`)
-- Node.js 24
 
 ### Build frontend
 1. `cd crates/ui/frontend`
@@ -105,6 +142,8 @@ CI-pinned versions for parity:
 - `DATA_DIR` (default `./public/data`)
 - `FYR_HOST` (default `127.0.0.1`)
 - `FYR_PORT` (default `8080`)
+- `FYR_ADMIN_PASSWORD` (optional; enables password-protected admin mode)
+- `FYR_READONLY` (optional; enables strict read-only mode; all mutating endpoints return 403)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
 ## 3. Docker
@@ -113,26 +152,7 @@ Reference image name in all docs/examples:
 
 - `hexagon/fyr:latest`
 
-Run prebuilt image:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-```
-
-Build locally and run:
-
-```bash
-docker build -t hexagon/fyr:latest .
-docker run --rm -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest
-```
+For complete Docker installation and configuration (including persistence, bind mounts, and platform-specific notes), see the canonical installation guide at [docs/site/index.html](../site/index.html) or [fyr.guide/#installation](https://fyr.guide/#installation).
 
 Container expectations:
 
@@ -143,6 +163,18 @@ Container expectations:
 - Healthcheck uses `GET /api/status`.
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
+
+### Multi-arch builds and CPU features
+
+- `docker/setup-qemu-action` + `buildx` are used in CI to produce `linux/arm64` images on `x86_64` GitHub-hosted runners. This is QEMU-emulated user-mode execution of `rustc`/`cargo`, not true cross-compilation (host and target triple both resolve to `aarch64-unknown-linux-gnu` from Cargo's point of view), so build correctness is unaffected. The main practical costs are much slower CI build times for the `arm64` leg and no reliable build-time signal for optional ARMv8.2+ CPU feature probing under emulation.
+- The Dockerfile accepts an optional `RUST_TARGET_FEATURES` build arg (default empty) that is threaded into `RUSTFLAGS` as `-C target-feature=<value>`. Use it only for self-builds targeting known hardware, e.g.:
+
+```bash
+docker build --build-arg RUST_TARGET_FEATURES=+dotprod -t fyr:rpi5 .
+```
+
+- Never set `RUST_TARGET_FEATURES` when building the published multi-arch `hexagon/fyr:*` tags — it would silently break older aarch64 boards (Raspberry Pi 3/4, Cortex-A53/A72) that do not implement `dotprod`/`i8mm`/`fp16` and would crash with an illegal-instruction fault. Baseline NEON is part of the mandatory ARMv8-A instruction set and is always available regardless of this flag.
+- Because build-time feature negotiation is unreliable under emulation, Fyr instead detects and logs real CPU capabilities at process startup on the actual deployment hardware (`configure_ai_runtime()` in `crates/server/src/main.rs`; see § 1.1 above). Check the startup logs after deploying to a new device to confirm whether a rebuild with `RUST_TARGET_FEATURES` would help.
 
 ## 3.5 Access Control Architecture
 
@@ -227,7 +259,16 @@ Generic local import flow:
 Current inference path:
 - Fyr now has a real `qwen2` inference path based on `candle_transformers::models::quantized_qwen2::ModelWeights` plus `LogitsProcessor` sampling.
 - The runtime currently requires tokenizer metadata embedded in the GGUF file.
+- Loader tokenizer resolution order is: `<model>.tokenizer.json`, `<model>.json`, `tokenizer.json` in the model directory, then GGUF tokenizer metadata fallback.
+- Phi/Phi-3.5 models should prefer the official tokenizer JSON sidecar when available.
 - If tokenizer metadata is missing, model loading fails with a clear validation error.
+
+Unified Library API endpoints (read-only, always public):
+- `GET /api/library/books/:filename` — Unified book metadata (title, author, format, file size, MIME type, TOC/search availability)
+- `GET /api/library/books/:filename/toc` — Unified table of contents (EPUB nav/ncx, ZIM articles, PDF outline, Markdown headings)
+- `GET /api/library/books/:filename/search?q=...&limit=20` — Unified full-text search (ZIM articles, EPUB spine items, Markdown lines)
+
+The library module (`crates/server/src/library.rs`) implements format-agnostic extraction for metadata, TOC, and search. Each format handler (EPUB, ZIM, PDF, Markdown) is isolated in its own helper section within the module.
 
 Reader and ZIM endpoints:
 - `GET /api/reader/capabilities`
@@ -260,7 +301,7 @@ Download lifecycle notes:
 - Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
 - Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h).
 
-## 5. Platform Support Guidance
+## 4. Platform Support Guidance
 
 Primary support targets:
 
@@ -283,7 +324,7 @@ docker buildx build \
 - For native releases, cross-compile with explicit Rust targets.
 - Keep ARM runtime memory/storage constraints in mind for large map/ZIM archives.
 
-## 6. Release Process (dev/main)
+## 5. Release Process (dev/main)
 
 Branch model:
 - `dev` is the integration branch and produces dev releases.
@@ -327,13 +368,13 @@ git push origin v0.4.1
 
 4. Confirm workflow `Stable Release` completed and images were published.
 
-## 7. Documentation Rules
+## 6. Documentation Rules
 1. Keep implementation details in developer docs, not user docs.
 2. Keep transient delivery/status reports out of permanent docs.
 3. Update docs in the same change set as endpoint or behavior changes.
 4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
 
-## 8. Building Documentation Artifacts
+## 7. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`
 - Outputs:
   - `public/data/books/user-manual.md`
@@ -346,11 +387,11 @@ Run:
 1. `cd docs/build`
 2. `npm run build`
 
-## 9. Current Known Gaps
+## 8. Current Known Gaps
 - Download resume/range continuation is not yet implemented for interrupted transfers.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
-## 10. Recommended Validation Sequence
+## 9. Recommended Validation Sequence
 Run from repository root unless noted:
 
 1. `cargo test --workspace --all-targets`
@@ -359,11 +400,11 @@ Run from repository root unless noted:
 4. `cd docs/build && npm ci && npm run build`
 5. Validate native ZIM flow by opening a `.zim` file in Books and confirming article payload retrieval.
 
-## 11. Native ZIM Reader Notes
+## 10. Native ZIM Reader Notes
 1. Keep server-side reader contracts stable:
   - `/api/reader/zim/:filename/meta`
   - `/api/reader/zim/:filename/capabilities`
   - `/api/reader/zim/:filename/native/article`
   - `/api/reader/zim/:filename/native/content/*path`
-2. Maintain clean-room implementation boundaries (no third-party reader bundle code).
+2. Maintain clean-room implementation boundaries: all ZIM reader logic must be implemented directly in Fyr's Rust server code using the `zim` crate. Do not bundle or wrap third-party reader JavaScript bundles.
 3. Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.

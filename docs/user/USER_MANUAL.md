@@ -4,8 +4,36 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local server and is accessed from a browser.
 
+> **Project status:** Fyr is currently in **preview**. UI details may evolve as features are refined.
+
+### Related documentation
+- Installation and deployment paths: [fyr.guide/#installation](https://fyr.guide/#installation)
+- Project overview: [README.md](../../README.md)
+- Developer architecture details: [Developer Manual](../developer/DEVELOPER_MANUAL.md)
+
+### 1a. Installer Scripts
+
+Official hosted scripts are available for a guided Docker setup:
+
+| Platform | One-liner |
+|----------|-----------|
+| Linux / macOS | `curl -fsSL https://fyr.guide/install.sh | sh` |
+| Windows PowerShell | `irm https://fyr.guide/install.ps1 | iex` |
+
+The scripts persist settings (port, data volume, admin password) in `~/.config/fyr/install.conf` (Linux/macOS) or `%APPDATA%\fyr\install.conf` (Windows). To upgrade to a newer image, add `update`:
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+```
+
+```powershell
+irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
+```
+
+All arguments are documented inline via `--help` (Linux/macOS) or `-Help` (Windows), and the full reference table is available at [fyr.guide/#installation](https://fyr.guide/#installation).
+
 ## 2. Start Fyr
-For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—please refer to the authoritative [INSTALL.md](/INSTALL.md).
+For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation). (If viewing this file locally, open `docs/site/index.html` in a browser for the same installation guide.)
 
 Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
 
@@ -18,8 +46,9 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
+- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
-## 3b. Access Control and Admin Login
+## 3a. Access Control and Admin Login
 
 Fyr can run in three access modes:
 
@@ -63,18 +92,19 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 - The top header shows the current page context together with the clock, weekday, and date.
 - Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
 
-## 3a. Using the AI Assistant
+## 3b. Using the AI Assistant
 - Open the Assistant tab from the top navigation.
 - Use **Open Content Manager** from the Assistant sidebar to jump to the Models section for `.gguf` uploads.
 - For text generation, use GGUF files that include tokenizer metadata.
-- Select a model and press **Load Model**.
-- Enter a prompt and send it to start token streaming.
+- Select a model; Fyr loads it automatically when possible.
+- Enter a prompt and send it to start live token streaming.
 
 > **Model choice notes:**
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
-> * Fyr's inference runtime currently supports the **Qwen2** model family for text generation. The curated defaults focus on `Qwen2.5-1.5B`, `Qwen2.5-3B`, `Qwen2.5-7B`, and `Qwen2.5-14B` GGUF builds.
-> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays this reasoning in a collapsible **Thinking** section above the response — it streams live while the model reasons and collapses automatically when reasoning is complete.
+> * Fyr's inference runtime currently supports GGUF models with **Qwen2**, **Llama**, and **Phi-3/Phi-3.5** architectures.
+> * The assistant shows a **Thinking** block immediately after you send a prompt, then streams the visible reply as it arrives.
+> * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays that reasoning in the same collapsible **Thinking** section and streams it live while the model reasons.
 
 ### Where to find compatible models
 
@@ -86,16 +116,37 @@ Recommended model tiers from that catalog:
 - **Standard / Recommended** — `Qwen2.5-3B-Instruct` in `Q6_K` (~2.6 GB) for the best balance on Raspberry Pi 5.
 - **Large** — `Qwen2.5-7B-Instruct` in `Q4_K_M` (~4.5 GB) for Raspberry Pi 5 systems with 8 GB RAM.
 - **Extra large / Desktop** — `Qwen2.5-14B-Instruct` in `Q4_K_M` (~9.8 GB), or `Qwen2.5-7B-Instruct` in `Q8_0` (~8.5 GB), for 16 GB+ systems.
+- **Llama alternative** — `Llama-3.2-3B-Instruct` in `Q4_K_M` (~2.0 GB) when you want a broadly compatible multilingual instruct model.
+- **Phi alternative** — `Phi-3.5-mini-instruct` in `Q4_K_M` (~2.4 GB) when you want a compact reasoning-oriented model.
 
 GGUF files can be downloaded from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending). Recommended search:
 
 - Search: `Qwen2.5 GGUF` — filter by library `GGUF`
 - Well-known publisher: **Qwen** org (`Qwen/Qwen2.5-1.5B-Instruct-GGUF`, `Qwen/Qwen2.5-3B-Instruct-GGUF`, `Qwen/Qwen2.5-7B-Instruct-GGUF`, `Qwen/Qwen2.5-14B-Instruct-GGUF`)
-- Fyr's default RAG profile uses `temperature=0.2` and `max_tokens=512`
+- Search: `Llama 3.2 3B Instruct GGUF` — a common mirror is `bartowski/Llama-3.2-3B-Instruct-GGUF`
+- Search: `Phi-3.5 mini instruct GGUF` — common sources are `bartowski/Phi-3.5-mini-instruct-GGUF` and Microsoft's official `Phi-3` GGUF repositories
+- Fyr's **Balanced** mode uses `temperature=0.2` and `max_tokens=512`; the **Precise** mode uses `temperature=0.1`; the **Creative** mode uses `temperature=0.7` and `max_tokens=1024`
 - Fyr defaults to a `num_ctx` of `2048`; on systems with more than 16 GB of RAM it automatically expands to `8192`
 - Advanced users can force the larger context window by setting `settings.modules.assistant.high_ram_context` to `true`
+- Some Llama-family downloads are gated by Hugging Face license acceptance. In those cases, Content Manager may link you to the source page rather than providing a one-click direct download.
 
 Once downloaded, upload the `.gguf` file through Content Manager → Models.
+
+### Conversation context and modes
+
+The Assistant keeps track of recent conversation turns and sends the last six messages as context when inferring, so the model can reference what was discussed earlier in the session.
+
+Three response modes are available:
+
+| Mode | Behaviour |
+|------|-----------|
+| **Precise** | temperature=0.1, max_tokens=512 — focused, factual answers |
+| **Balanced** | temperature=0.2, max_tokens=512 — default, concise and reliable |
+| **Creative** | temperature=0.7, max_tokens=1024 — more elaborate, varied responses |
+
+### Persisting the default model
+
+The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.
 
 ## 4. Add Content
 ### Data directories and supported file types
@@ -127,10 +178,10 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ### Models
 - Open **Content Manager** and upload a `.gguf` file in the Models section.
 - Fyr validates the GGUF header, stores the upload in `public/data/inbox/`, then imports it into `public/data/models/`.
-- Current inference runtime is implemented for GGUF models with `qwen2` architecture.
-- Other GGUF architectures can still be loaded for validation/health checks but may not support text generation yet.
+- Current inference runtime is implemented for GGUF models with `qwen2`, `llama`, and `phi3` architectures.
 - Prefer models that include tokenizer metadata in GGUF.
-- The bundled curated catalog (`public/data/curated-content.json`) lists the recommended Qwen 2.5 GGUF tiers and their default RAG settings.
+- For `phi3`/`phi-3.5` models, keep a tokenizer sidecar in the same folder (preferred: `public/data/models/Phi-3.5-mini-instruct-Q4_K_M.tokenizer.json`; fallback names: `tokenizer.json` or `<model>.json`).
+- The bundled curated catalog (`public/data/curated-content.json`) lists recommended Qwen2.5, Llama 3.2, and Phi-3.5 GGUF tiers together with their default RAG settings.
 
 ### Misc
 - Use `public/data/misc/` for generic files that are not map/book/poi/model types.
@@ -138,6 +189,8 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 
 ### Downloads
 - Use **Content Manager** to queue URL downloads.
+- Large URL download timeout is centrally configurable from **Settings → Downloads** as **Request timeout (seconds)**.
+- Advanced path: the same value is persisted in `settings.modules.downloads.request_timeout_seconds`.
 - When a content folder is empty, Content Manager shows curated recommendations from `curated-content.json` instead of a blank listing.
 - When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
@@ -156,11 +209,6 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
-## 5c. Reader Shell
-- Books uses a unified reader shell with format badges and open/loading/error status badges.
-- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
-- On narrow screens, the library list stacks above the reader panel automatically.
-
 ## 5a. Markdown Reading
 - Select a `.md` file in Books to open it in the built-in markdown reader.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
@@ -168,6 +216,10 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 ## 5b. PDF Reading
 - Select a `.pdf` file in Books to open it inline in the built-in reader panel.
 - If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
+
+## 5c. Reader Shell
+- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:
@@ -194,6 +246,9 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `DATA_DIR`
 - `FYR_HOST`
 - `FYR_PORT`
+- `FYR_ADMIN_PASSWORD` — enables password-protected admin mode (see §3a)
+- `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 (see §3a)
+- `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
 
@@ -232,9 +287,54 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 ### Assistant inference fails after load
 - Confirm the model architecture is currently supported by Fyr inference.
 - Confirm the `.gguf` model includes tokenizer metadata.
+- For `phi3`/`phi-3.5`, confirm a sidecar tokenizer JSON exists next to the `.gguf` model.
 - If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.
 
 ### Assistant load fails or runs slowly
 - Check model health in the assistant status line.
 - If memory is limited, use a smaller quantized model.
 - If tokenizer metadata is missing, re-export the model with tokenizer fields included.
+- For `phi3`/`phi-3.5`, use the original `tokenizer.json` from the model repository and place it beside the model file.
+- On constrained hardware (e.g. Raspberry Pi), check the server startup logs for CPU feature information. If the log shows `dotprod` is available at runtime but not compiled in, rebuild the Docker image with `--build-arg RUST_TARGET_FEATURES=+dotprod` for faster quantized inference. You can also adjust the inference thread pool by setting `FYR_AI_THREADS=<n>` (default: number of available CPU cores).
+
+## 9. Tools
+
+The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations run entirely in your browser—no data is sent to the server or over the network.
+
+### Unit Converters
+
+The **Unit Converters** tab supports seven conversion categories, each with its own card:
+
+| Category | Units |
+|----------|-------|
+| Length | mm, cm, m, km, in, ft, yd, mi |
+| Mass | mg, g, kg, oz, lb |
+| Temperature | C, F, K |
+| Area | mm², cm², m², km², ha, in², ft², ac |
+| Volume | mL, L, m³, fl_oz, gal, cup |
+| Speed | m/s, km/h, mph, knot |
+| Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
+| Angle | deg, rad, grad |
+
+**How to use a converter:** Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.
+
+### Encryption & Ciphers
+
+The **Encryption & Ciphers** tab provides four tools:
+
+- **AES-256-CBC:** Encrypt or decrypt text with a password using AES-256 in CBC mode. Encryption produces a hex-encoded string containing the salt, IV, and ciphertext. Decryption requires the same password used during encryption. Uses PBKDF2 with 100,000 iterations for key derivation.
+
+- **Base64:** Encode plain text to Base64 or decode Base64 back to plain text. Handles Unicode text correctly.
+
+- **ROT13:** Apply the classic ROT13 letter substitution cipher (A↔N, B↔O, etc.). Non-letter characters pass through unchanged. Applying ROT13 twice recovers the original text.
+
+- **Hash / Checksum:** Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: **SHA-256**, **SHA-512**, **SHA-1**, and **MD5**. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.
+
+> **Algorithm implementation notes:**
+> * **AES-256-CBC** uses the browser's Web Crypto API with PBKDF2 key derivation (SHA-256, 100,000 iterations) and a random IV per encryption. The hex output format is Fyr-specific and cannot be directly decrypted by standard tools without extracting the salt and IV.
+> * **Base64** uses the browser's built-in `btoa`/`atob` with UTF-8 safe encoding via `encodeURIComponent`. Results match the standard Base64 alphabet.
+> * **ROT13** applies the classic single-pass rotation; non-letter characters are unaffected.
+> * **SHA-256, SHA-512, and SHA-1** use the browser's Web Crypto digest API and produce standard lowercase hex digests identical to `sha256sum`, `sha512sum`, and `sha1sum` command-line tools.
+> * **MD5** uses a self-contained JavaScript implementation that produces standard lowercase hex digests. It has been verified against the reference RFC 1321 test vectors and matches the output of `md5sum`.
+>
+> **Security note:** The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.

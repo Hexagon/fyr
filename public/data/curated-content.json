@@ -8,7 +8,11 @@
   ],
   "assistant": {
     "supported_model_format": "gguf",
-    "tested_architecture": "qwen2",
+    "supported_architectures": [
+      "qwen2",
+      "llama",
+      "phi3"
+    ],
     "default_profile": {
       "id": "rag-balanced",
       "temperature": 0.2,
@@ -26,6 +30,7 @@
     "models": [
       {
         "id": "qwen2.5-1.5b-instruct-q8_0",
+        "architecture": "qwen2",
         "tier": "small",
         "recommended_for": "Raspberry Pi 5 with 4 GB RAM or fast, simple answers",
         "model": "Qwen2.5-1.5B-Instruct",
@@ -40,6 +45,7 @@
       },
       {
         "id": "qwen2.5-3b-instruct-q6_k",
+        "architecture": "qwen2",
         "tier": "standard",
         "recommended_for": "Recommended default for Raspberry Pi 5",
         "model": "Qwen2.5-3B-Instruct",
@@ -54,6 +60,7 @@
       },
       {
         "id": "qwen2.5-7b-instruct-q4_k_m",
+        "architecture": "qwen2",
         "tier": "large",
         "recommended_for": "Raspberry Pi 5 with 8 GB RAM",
         "model": "Qwen2.5-7B-Instruct",
@@ -68,6 +75,7 @@
       },
       {
         "id": "qwen2.5-14b-instruct-q4_k_m",
+        "architecture": "qwen2",
         "tier": "extra-large",
         "recommended_for": "Desktop systems with 16 GB+ RAM",
         "model": "Qwen2.5-14B-Instruct",
@@ -82,6 +90,7 @@
       },
       {
         "id": "qwen2.5-7b-instruct-q8_0",
+        "architecture": "qwen2",
         "tier": "extra-large-alternative",
         "recommended_for": "Desktop systems with 16 GB+ RAM that prefer a smaller footprint than 14B",
         "model": "Qwen2.5-7B-Instruct",
@@ -93,6 +102,35 @@
         "download_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q8_0.gguf",
         "default_profile": "rag-balanced",
         "tested_with_fyr": true
+      },
+      {
+        "id": "llama-3.2-3b-instruct-q4_k_m",
+        "architecture": "llama",
+        "tier": "standard-alternative",
+        "recommended_for": "A broadly compatible multilingual alternative around the Raspberry Pi 5 8 GB and small-desktop class. Some Hugging Face mirrors require license acceptance, so Fyr links to the source page.",
+        "model": "Llama-3.2-3B-Instruct",
+        "format": "gguf",
+        "quantization": "Q4_K_M",
+        "approx_size_gb": 2.02,
+        "license": "Llama-3.2",
+        "source": "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": false
+      },
+      {
+        "id": "phi-3.5-mini-instruct-q4_k_m",
+        "architecture": "phi3",
+        "tier": "small-reasoning",
+        "recommended_for": "Compact reasoning-focused alternative for 4 GB to 8 GB systems, especially when you want a smaller model than Qwen 3B.",
+        "model": "Phi-3.5-mini-instruct",
+        "format": "gguf",
+        "quantization": "Q4_K_M",
+        "approx_size_gb": 2.39,
+        "license": "MIT",
+        "source": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF",
+        "download_url": "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
+        "default_profile": "rag-balanced",
+        "tested_with_fyr": false
       }
     ],
     "books": [

@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fyr | The Offline-First Content Platform</title>
+    <meta name="description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
+    <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, ZIM reader, Docker, Raspberry Pi">
+    <meta name="robots" content="index,follow">
+    <link rel="canonical" href="https://fyr.guide/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://fyr.guide/">
+    <meta property="og:title" content="Fyr | The Offline-First Content Platform">
+    <meta property="og:description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
+    <meta property="og:image" content="https://fyr.guide/img/screenshot-1.png">
+    <meta property="og:site_name" content="Fyr">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://fyr.guide/">
+    <meta name="twitter:title" content="Fyr | The Offline-First Content Platform">
+    <meta name="twitter:description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
+    <meta name="twitter:image" content="https://fyr.guide/img/screenshot-1.png">
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Fyr",
+      "url": "https://fyr.guide/",
+      "description": "Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Linux, Docker",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "codeRepository": "https://github.com/Hexagon/fyr",
+      "license": "https://github.com/Hexagon/fyr/blob/main/LICENSE"
+    }
+    </script>
+
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            900: '#7c2d12',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full bg-white/85 backdrop-blur-md border-b border-gray-200 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl">F</div>
+                    <span class="font-bold text-xl tracking-tight text-gray-900">Fyr<span class="text-brand-500">.guide</span></span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#features" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Features</a>
+                    <a href="#preview" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Interface</a>
+                    <a href="#installation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Installation</a>
+                    <a href="#documentation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" class="text-gray-500 hover:text-gray-900 transition-colors">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
+            <p class="inline-flex items-center px-3 py-1 rounded-full bg-brand-100 text-brand-900 text-sm font-semibold mb-6">Preview release</p>
+            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 mb-6">
+                The <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600">offline-first</span><br/> content platform.
+            </h1>
+            <p class="mt-4 text-xl text-gray-600 max-w-3xl mx-auto mb-10">
+                Fyr runs as a local web server for maps, books, AI, and knowledge archives. It works completely without internet once content is present — ideal for homes, field use, air-gapped networks, or low-bandwidth environments.
+            </p>
+            <div class="flex justify-center gap-4">
+                <a href="#installation" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/30">Get Started</a>
+                <a href="#preview" class="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-3 rounded-lg font-medium transition-all shadow-sm">View Interface</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div id="features" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-bold text-gray-900">Everything you need, completely offline.</h2>
+                <p class="mt-4 text-lg text-gray-600">Access and manage a vast library of knowledge from a single local interface.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Offline Maps</h3>
+                    <p class="text-gray-600">Render vector maps locally using PMTiles, with absolutely no external tile server required.</p>
+                </div>
+                <!-- Feature 2 -->
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Native Library</h3>
+                    <p class="text-gray-600">Read EPUB, PDF, Markdown, and natively parse ZIM files (Wikipedia & Kiwix-format) entirely on-device.</p>
+                </div>
+                <!-- Feature 3 -->
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Local AI Assistant</h3>
+                    <p class="text-gray-600">Load and chat with GGUF language models like Qwen2.5, Llama 3.2, and Phi-3.5 without sending a single byte of data to the cloud.</p>
+                </div>
+                <!-- Feature 4 -->
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Download Queue</h3>
+                    <p class="text-gray-600">Fetch maps, books, AI models, POI data, and misc files from curated or custom sources directly via the UI.</p>
+                </div>
+                <!-- Feature 5 -->
+                <a href="#installation" class="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-500 hover:shadow-md transition-all group block">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors">Raspberry Pi Ready</h3>
+                    <p class="text-gray-600">Native <code>linux/arm64</code> support. Deploy Fyr on a Raspberry Pi and optionally turn it into a standalone Wi-Fi hotspot for fully off-grid access. <span class="text-brand-600 font-medium">See the guide →</span></p>
+                </a>
+                <!-- Feature 6 -->
+                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Offline Utilities</h3>
+                    <p class="text-gray-600">Built-in unit converters (length, mass, temperature, area, volume, speed, data) and encryption tools (AES-256, Base64, ROT13, SHA-256, MD5) — all running locally in your browser.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screenshot Showcase / Interactive Slider Section -->
+    <div id="preview" class="py-24 bg-gray-50 border-y border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-900">Designed for speed and clarity.</h2>
+                <p class="mt-4 text-lg text-gray-600">Explore the clean local dashboard and workspace interfaces.</p>
+                
+                <!-- Tab Controls Slider -->
+                <div class="mt-8 inline-flex p-1.5 bg-gray-200 rounded-xl space-x-1 shadow-inner">
+                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm">Maps</button>
+                    <button onclick="switchTab(2)" id="tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Library</button>
+                    <button onclick="switchTab(3)" id="tab-btn-3" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Assistant</button>
+                    <button onclick="switchTab(4)" id="tab-btn-4" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Tools</button>
+                </div>
+            </div>
+
+            <!-- Simulated Browser Window Container -->
+            <div class="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden max-w-5xl mx-auto">
+                <div class="flex items-center justify-between px-4 py-3 bg-gray-100 border-b border-gray-200">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                    </div>
+                    <div class="bg-white px-4 py-1 rounded-md text-xs text-gray-500 font-mono border border-gray-200 w-96 text-center truncate shadow-xs">
+                        http://localhost:8080
+                    </div>
+                    <div class="w-12"></div>
+                </div>
+
+                <!-- Screenshot Display Viewport -->
+                <div class="relative bg-gray-900 aspect-[1628/734] overflow-hidden">
+                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Maps Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
+                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Library Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                    <img id="screenshot-3" src="img/screenshot-3.png" alt="Fyr Assistant Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                    <img id="screenshot-4" src="img/screenshot-4.png" alt="Fyr Tools Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installation Section -->
+    <div id="installation" class="py-24 bg-gray-900 text-gray-300 border-b border-gray-800">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+
+            <!-- Section Header -->
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-bold text-white mb-4">Get Fyr Running</h2>
+                <p class="text-lg text-gray-400">Choose the setup path that fits your environment.</p>
+            </div>
+
+            <!-- Tab Controls -->
+            <div class="flex justify-center mb-12">
+                <div class="inline-flex p-1.5 bg-gray-800 rounded-xl space-x-1 shadow-inner">
+                    <button onclick="switchInstallTab(1)" id="install-tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-gray-700 text-white shadow-sm">Installation</button>
+                    <button onclick="switchInstallTab(2)" id="install-tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-400 hover:text-gray-200">Platform Setup</button>
+                    <button onclick="switchInstallTab(3)" id="install-tab-btn-3" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-400 hover:text-gray-200">Advanced Setup</button>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- Tab 1: Installation -->
+            <!-- ============================================================ -->
+            <div id="install-tab-1" class="transition-opacity duration-300 opacity-100">
+
+                <!-- Installer Scripts -->
+                <div class="max-w-2xl mx-auto mb-12">
+                    <h3 class="text-2xl font-bold text-white mb-4 text-center">Hosted Installer Scripts</h3>
+                    <p class="text-gray-400 text-center mb-8">The recommended way to install Fyr. A guided setup with persistent settings and easy upgrades.</p>
+
+                    <div class="space-y-6">
+                        <!-- Linux / macOS -->
+                        <div class="bg-gray-950 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+                            <div class="flex items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+                                <div class="flex space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
+                                <div class="ml-4 text-xs text-gray-500 font-mono">Linux / macOS</div>
+                            </div>
+                            <div class="p-6 overflow-x-auto">
+                                <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+                            </div>
+                        </div>
+
+                        <!-- Windows PowerShell -->
+                        <div class="bg-gray-950 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+                            <div class="flex items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+                                <div class="flex space-x-2">
+                                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                </div>
+                                <div class="ml-4 text-xs text-gray-500 font-mono">Windows PowerShell</div>
+                            </div>
+                            <div class="p-6 overflow-x-auto">
+                                <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>irm https://fyr.guide/install.ps1 | iex</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="mt-6 text-gray-400 text-center">Open <code class="text-brand-400 bg-gray-800 px-2 py-1 rounded">http://localhost:8080</code> in your browser to begin.</p>
+
+                    <!-- Upgrade -->
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-6 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🚀 Upgrade to a new version</p>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            The installer persists your settings (port, data directory, admin password) in <code class="text-brand-400">~/.config/fyr/install.conf</code> (Linux/macOS) or <code class="text-brand-400">%APPDATA%\fyr\install.conf</code> (Windows). To upgrade, just add <code class="text-brand-400">update</code>:
+                        </p>
+                        <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">curl -fsSL https://fyr.guide/install.sh | sh -s -- update</pre>
+                        <pre class="mt-1 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update</pre>
+                    </div>
+
+                    <!-- Arguments Table -->
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">⚙️ All installer arguments</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs text-gray-300 border-collapse">
+                                <thead>
+                                    <tr class="border-b border-gray-700 text-gray-400 uppercase tracking-wider">
+                                        <th class="text-left py-2 pr-4">Argument</th>
+                                        <th class="text-left py-2 pr-4">Linux / macOS</th>
+                                        <th class="text-left py-2 pr-4">Windows</th>
+                                        <th class="text-left py-2 pr-4">Default</th>
+                                        <th class="text-left py-2">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Tag</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">latest</code> / <code class="text-brand-400">dev</code> / <code class="text-brand-400">v1.2.3</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-Tag</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">latest</code></td>
+                                        <td class="py-2">Docker image tag</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Update</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">update</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-Update</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Recreate container, preserve data</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Data dir</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--data-dir</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-DataDir</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Bind-mount host path</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Data volume</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--data-volume</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-DataVolume</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">fyr-data</code></td>
+                                        <td class="py-2">Named Docker volume</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Port</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--port</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-Port</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">8080</code></td>
+                                        <td class="py-2">Host port</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Admin password</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--admin-password</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-AdminPassword</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Enable admin mode</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Read-only</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--readonly</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-ReadOnly</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Strict read-only mode</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-sm text-gray-400 mt-3">Run with <code class="text-brand-400">--help</code> (Linux) or <code class="text-brand-400">-Help</code> (Windows) to see this in the terminal.</p>
+                    </div>
+                </div>
+
+                <!-- Manual Docker Run -->
+                <hr class="border-gray-800 my-12">
+                <div class="max-w-2xl mx-auto">
+                    <h3 class="text-2xl font-bold text-white mb-4 text-center">Manual Docker Run</h3>
+                    <p class="text-gray-400 text-center mb-8">Prefer to control the container directly? Use the raw <code class="text-brand-400">docker run</code> command.</p>
+
+                    <div class="bg-gray-950 rounded-xl overflow-hidden shadow-2xl border border-gray-800 text-left">
+                        <div class="flex items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+                            <div class="flex space-x-2">
+                                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                            </div>
+                            <div class="ml-4 text-xs text-gray-500 font-mono">Terminal</div>
+                        </div>
+                        <div class="p-6 overflow-x-auto">
+                            <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>docker run -d --restart unless-stopped --name fyr \
+  -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 \
+  -e DATA_DIR=/data \
+  -v fyr-data:/data \
+  hexagon/fyr:latest</code></pre>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-6 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🔧 What each flag does</p>
+                        <ul class="text-sm text-gray-300 space-y-1.5">
+                            <li><code class="text-brand-400">-d --restart unless-stopped --name fyr</code> — Run in detached mode as a persistent service that restarts automatically on boot.</li>
+                            <li><code class="text-brand-400">-p 8080:8080</code> — Map host port 8080 to the container's port 8080.</li>
+                            <li><code class="text-brand-400">-e FYR_HOST=0.0.0.0</code> — Bind to all network interfaces so other devices on the LAN can connect.</li>
+                            <li><code class="text-brand-400">-e DATA_DIR=/data</code> — Set the data directory inside the container.</li>
+                            <li><code class="text-brand-400">-v fyr-data:/data</code> — Persist all content (maps, books, models, downloads) in a named Docker volume.</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">📦 Environment Variables</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs text-gray-300 border-collapse">
+                                <thead>
+                                    <tr class="border-b border-gray-700 text-gray-400 uppercase tracking-wider">
+                                        <th class="text-left py-2 pr-4">Variable</th>
+                                        <th class="text-left py-2 pr-4">Default</th>
+                                        <th class="text-left py-2">Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_HOST</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">127.0.0.1</code></td>
+                                        <td class="py-2">Bind address (use <code class="text-brand-400">0.0.0.0</code> for LAN access)</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_PORT</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">8080</code></td>
+                                        <td class="py-2">Listening port</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">DATA_DIR</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">./public/data</code></td>
+                                        <td class="py-2">Content storage path</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_ADMIN_PASSWORD</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Enable password-protected admin mode</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_READONLY</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Set to <code class="text-brand-400">true</code> for strict read-only mode</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">💾 Data Persistence Options</p>
+                        <p class="text-sm text-gray-300 leading-relaxed mb-3">
+                            Fyr stores all user data in <code class="text-brand-400">DATA_DIR</code> (<code class="text-brand-400">/data</code> in the container). Choose one of these strategies to keep data across container restarts:
+                        </p>
+                        <p class="text-sm text-white font-semibold mb-1">Named volume (simplest):</p>
+                        <pre class="mb-3 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">-v fyr-data:/data</pre>
+                        <p class="text-sm text-white font-semibold mb-1">Host bind-mount (direct filesystem access):</p>
+                        <pre class="mb-3 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">-v /path/to/fyr-data:/data</pre>
+                        <p class="text-sm text-white font-semibold mb-1">Windows bind-mount:</p>
+                        <pre class="p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">-v C:\fyr-data:/data</pre>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🏷️ Image Tags</p>
+                        <ul class="text-sm text-gray-300 space-y-1">
+                            <li><code class="text-brand-400">hexagon/fyr:latest</code> — Stable production image.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:dev</code> — Development/testing image.</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🐧 Linux bind-mount permissions</p>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            On Linux-based systems, if you use a host directory bind-mount instead of a named volume, ensure the directory is writable by the container's user (UID <code>1000</code>):
+                        </p>
+                        <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">sudo chown -R 1000:1000 /path/to/fyr-data</pre>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- Tab 2: Platform Setup -->
+            <!-- ============================================================ -->
+            <div id="install-tab-2" class="transition-opacity duration-300 opacity-0 hidden">
+
+                <div class="prose prose-invert prose-brand prose-pre:bg-gray-950 prose-pre:border prose-pre:border-gray-800 prose-headings:text-white mx-auto">
+
+                    <h2 class="text-3xl font-bold border-b border-gray-800 pb-4">Platform Setup</h2>
+                    <p class="text-lg text-gray-400">Configure Fyr for Debian-based systems, including Raspberry Pi.</p>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                        <p class="text-sm text-white font-semibold mb-1">💡 Before you begin</p>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            Run through the <strong>Installation</strong> tab first — it handles Docker and the initial Fyr deployment.
+                        </p>
+                    </div>
+
+                    <h3 id="wifi-hotspot" class="text-2xl text-white">Wi-Fi Hotspot</h3>
+                    <p>Turn a Debian-based system with a Wi-Fi adapter (including Raspberry Pi) into a standalone hotspot so phones, tablets, and laptops can connect directly to Fyr — no existing router or internet connection required. Ideal for field use, classrooms, or off-grid deployments.</p>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                        <ul class="text-sm text-gray-300 space-y-1">
+                            <li><strong>Requires:</strong> A system with a Wi-Fi adapter (built-in or USB). Raspberry Pi 3B+ and newer include built-in Wi-Fi.</li>
+                            <li><strong>OS:</strong> Debian-based distribution with <code>NetworkManager</code> (the default on Raspberry Pi OS Bookworm, Ubuntu Desktop, and many others).</li>
+                            <li><strong>Architecture:</strong> Fyr images natively support <code>linux/arm64</code>, matching Raspberry Pi 64-bit OS.</li>
+                        </ul>
+                    </div>
+
+                    <p>Create the hotspot (replace <code>Fyr</code> and <code>offline-fyr</code> with your preferred SSID and password):</p>
+                    <pre><code>sudo nmcli device wifi hotspot \
+  ifname wlan0 \
+  con-name fyr-hotspot \
+  ssid "Fyr" \
+  password "offline-fyr"</code></pre>
+
+                    <p>Enable the hotspot to start automatically on every boot:</p>
+                    <pre><code>sudo nmcli connection modify fyr-hotspot connection.autoconnect yes
+sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</code></pre>
+
+                    <p>Bring it up immediately without rebooting:</p>
+                    <pre><code>sudo nmcli connection up fyr-hotspot</code></pre>
+
+                    <p>Once devices connect to the <strong>Fyr</strong> Wi-Fi network, they can reach Fyr at <code>http://10.42.0.1:8080</code> (the default hotspot gateway address assigned by NetworkManager).</p>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
+                        <p class="text-sm text-white font-semibold mb-1">💡 Tip: Sharing an Ethernet Connection</p>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            If the device is also connected via Ethernet (<code>eth0</code>), NetworkManager will automatically share that connection through the hotspot, giving connected devices internet access when available.
+                        </p>
+                    </div>
+
+                    <hr class="border-gray-800 my-10">
+
+                    <h3 class="text-2xl text-white">Quick Verification Checklist</h3>
+                    <ul>
+                        <li><code>docker ps</code> shows the Fyr container as running.</li>
+                        <li>Your browser can open <code>/api/status</code> on your target host and port.</li>
+                        <li>The <code>DATA_DIR</code> location is writable by the system.</li>
+                        <li>Port <code>8080</code> is not blocked by a firewall or occupied by another service.</li>
+                    </ul>
+
+                </div>
+
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- Tab 3: Advanced Setup -->
+            <!-- ============================================================ -->
+            <div id="install-tab-3" class="transition-opacity duration-300 opacity-0 hidden">
+
+                <div class="prose prose-invert prose-brand prose-pre:bg-gray-950 prose-pre:border prose-pre:border-gray-800 prose-headings:text-white mx-auto">
+
+                    <h2 class="text-3xl font-bold border-b border-gray-800 pb-4">Advanced Setup</h2>
+                    <p class="text-lg text-gray-400">Build Fyr from source when you want to develop, customize, or run local code changes.</p>
+
+                    <h3 class="text-2xl text-white mt-10">Prerequisites</h3>
+                    <ul>
+                        <li>Rust stable toolchain</li>
+                        <li>Node.js 24 (recommended to match CI)</li>
+                        <li>npm</li>
+                    </ul>
+
+                    <h3 class="text-2xl text-white mt-10">Checkout from Git</h3>
+                    <p>Clone the repository and check out the tag or branch you want to build:</p>
+                    <pre><code>git clone https://github.com/hexagon/fyr.git
+cd fyr
+git checkout main   # or dev, or a specific tag</code></pre>
+
+                    <h3 class="text-2xl text-white mt-10">Build and Run</h3>
+
+                    <p><strong>1. Build frontend assets:</strong></p>
+                    <pre><code>cd crates/ui/frontend
+npm ci
+npm run build
+cd ../../..</code></pre>
+
+                    <p><strong>2. Build backend binary:</strong></p>
+                    <pre><code>cargo build --release -p server --bin fyr</code></pre>
+
+                    <p><strong>3. Run Fyr:</strong></p>
+                    <pre><code>./target/release/fyr</code></pre>
+                    <p><em>Note: For Windows PowerShell use <code>.\target\release\fyr.exe</code></em></p>
+
+                    <h3 class="text-2xl text-white mt-10">Runtime Environment Overrides</h3>
+                    <div class="overflow-x-auto not-prose">
+                        <table class="w-full text-sm text-gray-300 border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-700 text-gray-400 uppercase tracking-wider">
+                                    <th class="text-left py-2 pr-4">Variable</th>
+                                    <th class="text-left py-2 pr-4">Default</th>
+                                    <th class="text-left py-2">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">DATA_DIR</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">./public/data</code></td>
+                                    <td class="py-2">Content storage path</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_HOST</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">127.0.0.1</code></td>
+                                    <td class="py-2">Bind address (use <code class="text-brand-400">0.0.0.0</code> for LAN access)</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_PORT</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">8080</code></td>
+                                    <td class="py-2">Listening port</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_ADMIN_PASSWORD</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Enable password-protected admin mode</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_READONLY</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Set to <code class="text-brand-400">true</code> for strict read-only mode</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Documentation External Links -->
+    <div id="documentation" class="py-24 bg-white border-b border-gray-200">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-3xl font-bold text-gray-900 mb-6">Full Documentation</h2>
+            <p class="text-lg text-gray-600 mb-10">Use the docs below for role-specific guidance. Fyr is currently in preview, so check docs with each upgrade.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                <a href="https://github.com/Hexagon/fyr/blob/main/README.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                    <div class="text-brand-500 mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5h14v14H5zM9 9h6m-6 4h6"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 group-hover:text-brand-600 transition-colors">README</h3>
+                    <p class="mt-2 text-gray-600 text-sm">Project overview, quick start, and a navigation hub for all canonical docs.</p>
+                </a>
+
+                <a href="https://github.com/Hexagon/fyr/blob/main/CONTRIBUTING.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                    <div class="text-brand-500 mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6M4 6h16v12H4z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 group-hover:text-brand-600 transition-colors">Contributing</h3>
+                    <p class="mt-2 text-gray-600 text-sm">Branching strategy, validation checklist, and documentation update requirements.</p>
+                </a>
+
+                <a href="https://github.com/Hexagon/fyr/blob/main/docs/user/USER_MANUAL.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                    <div class="text-brand-500 mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 group-hover:text-brand-600 transition-colors">User Manual</h3>
+                    <p class="mt-2 text-gray-600 text-sm">Detailed usage reference for access control, AI setup, data directories, and troubleshooting.</p>
+                </a>
+                
+                <a href="https://github.com/Hexagon/fyr/blob/main/docs/developer/DEVELOPER_MANUAL.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                    <div class="text-brand-500 mb-3">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 group-hover:text-brand-600 transition-colors">Developer Manual</h3>
+                    <p class="mt-2 text-gray-600 text-sm">Architecture diagrams, API endpoints, project structure, and contribution guidelines.</p>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Screenshot Switcher Script -->
+    <script>
+        function switchTab(tabIndex) {
+            const TABS = 4;
+            const btnActive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm';
+            const btnInactive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900';
+
+            // Update button styles
+            for (let i = 1; i <= TABS; i++) {
+                const btn = document.getElementById('tab-btn-' + i);
+                if (btn) {
+                    btn.className = i === tabIndex ? btnActive : btnInactive;
+                }
+            }
+
+            // Show/hide screenshots
+            for (let i = 1; i <= TABS; i++) {
+                const img = document.getElementById('screenshot-' + i);
+                if (img) {
+                    if (i === tabIndex) {
+                        img.classList.remove('opacity-0', 'pointer-events-none');
+                        img.classList.add('opacity-100');
+                    } else {
+                        img.classList.add('opacity-0', 'pointer-events-none');
+                        img.classList.remove('opacity-100');
+                    }
+                }
+            }
+        }
+
+        function switchInstallTab(tabIndex) {
+            const TABS = 3;
+            const btnActive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-gray-700 text-white shadow-sm';
+            const btnInactive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-400 hover:text-gray-200';
+
+            // Update button styles
+            for (let i = 1; i <= TABS; i++) {
+                const btn = document.getElementById('install-tab-btn-' + i);
+                if (btn) {
+                    btn.className = i === tabIndex ? btnActive : btnInactive;
+                }
+            }
+
+            // Show/hide tab content
+            for (let i = 1; i <= TABS; i++) {
+                const panel = document.getElementById('install-tab-' + i);
+                if (panel) {
+                    if (i === tabIndex) {
+                        panel.classList.remove('hidden', 'opacity-0');
+                        panel.classList.add('opacity-100');
+                    } else {
+                        panel.classList.add('hidden', 'opacity-0');
+                        panel.classList.remove('opacity-100');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

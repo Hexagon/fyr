@@ -69,6 +69,47 @@ const encodePathPreservingSlashes = (path) => {
     .join('/')
 }
 
+const parseSseFrame = (frame) => {
+  const lines = String(frame || '').split(/\r?\n/)
+  let event = 'message'
+  const data = []
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd()
+    if (!line || line.startsWith(':')) {
+      continue
+    }
+
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim() || 'message'
+      continue
+    }
+
+    if (line.startsWith('data:')) {
+      const value = line.slice(5)
+      data.push(value.startsWith(' ') ? value.slice(1) : value)
+    }
+  }
+
+  return {
+    event,
+    data: data.join('\n')
+  }
+}
+
+const extractNextSseFrame = (buffer) => {
+  const match = /\r?\n\r?\n/.exec(buffer)
+  if (!match || match.index == null) {
+    return null
+  }
+
+  const boundaryIndex = match.index
+  return {
+    frame: buffer.slice(0, boundaryIndex),
+    remainder: buffer.slice(boundaryIndex + match[0].length)
+  }
+}
+
 export const apiService = {
   getReaderCapabilities: async () => {
     const response = await api.get('/reader/capabilities')
@@ -229,7 +270,7 @@ export const apiService = {
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
-  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx }, handlers = {}) => {
+  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [] }, handlers = {}) => {
     const params = new URLSearchParams({
       prompt,
       temperature: String(temperature),
@@ -238,21 +279,98 @@ export const apiService = {
     if (numCtx != null) {
       params.set('num_ctx', String(numCtx))
     }
-    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
-    const source = new EventSource(url)
-
-    source.addEventListener('token', (event) => {
-      handlers.onToken?.(event.data)
-    })
-    source.addEventListener('done', () => {
-      handlers.onDone?.()
-      source.close()
-    })
-    source.onerror = (error) => {
-      handlers.onError?.(error)
-      source.close()
+    if (history.length > 0) {
+      params.set('history', JSON.stringify(history))
     }
-    return source
+    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
+    const controller = new AbortController()
+    let closed = false
+
+    const close = () => {
+      if (closed) return
+      closed = true
+      controller.abort()
+    }
+
+    ;(async () => {
+      let completed = false
+
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Accept: 'text/event-stream'
+          },
+          cache: 'no-store',
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw {
+            response: {
+              status: response.status,
+              data: { message: await response.text() }
+            }
+          }
+        }
+
+        if (!response.body) {
+          throw new Error('Streaming response body is unavailable.')
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (!closed) {
+          const { value, done } = await reader.read()
+          if (done) {
+            break
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+
+          let extracted = extractNextSseFrame(buffer)
+          while (extracted) {
+            const { frame, remainder } = extracted
+            buffer = remainder
+
+            const parsed = parseSseFrame(frame)
+            if (parsed.event === 'token') {
+              handlers.onToken?.(parsed.data)
+            } else if (parsed.event === 'done') {
+              completed = true
+              handlers.onDone?.()
+              close()
+              return
+            }
+
+            extracted = extractNextSseFrame(buffer)
+          }
+        }
+
+        const trailing = buffer + decoder.decode()
+        if (!closed && trailing.trim()) {
+          const parsed = parseSseFrame(trailing)
+          if (parsed.event === 'token') {
+            handlers.onToken?.(parsed.data)
+          } else if (parsed.event === 'done') {
+            completed = true
+            handlers.onDone?.()
+          }
+        }
+
+        if (!closed && !completed) {
+          handlers.onDone?.()
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handlers.onError?.(error)
+        }
+      }
+    })()
+
+    return { close }
   },
 
   // Download Management
@@ -262,6 +380,25 @@ export const apiService = {
   getDownloadStatus: (taskId) => api.get(`/download/${taskId}/status`),
   listDownloads: () => api.get('/downloads'),
   deleteContentFile: (contentType, filename) => api.delete(`/content/${encodeURIComponent(contentType)}/${encodeURIComponent(filename)}`),
+
+  // Unified Library API
+  getLibraryBookMetadata: async (filename) => {
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}`)
+    return response.data
+  },
+
+  getLibraryBookToc: async (filename) => {
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}/toc`)
+    return response.data
+  },
+
+  getLibraryBookSearch: async (filename, q, limit = 20) => {
+    const params = new URLSearchParams()
+    params.set('q', String(q || ''))
+    params.set('limit', String(limit))
+    const response = await api.get(`/library/books/${encodeURIComponent(filename)}/search?${params.toString()}`)
+    return response.data
+  },
 
   // Error handler
   handleError: (error) => {

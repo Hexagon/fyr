@@ -7,13 +7,15 @@ This guide is intentionally short and points to canonical docs for details.
 
 Prerequisites:
 - Rust 1.70+
-- Node.js 18+ (CI uses Node 24)
-- npm 9+
+- Node.js 24
 
 Helpful references:
-- Project overview and validation commands: [README.md](README.md)
-- Development governance and module map: [AGENTS.md](AGENTS.md)
-- Full dev workflow and release process: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- Project overview and install options: [README.md](README.md)
+- Development governance and module boundaries: [AGENTS.md](AGENTS.md)
+- Full technical workflow and release process: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- End-user behavior reference (for UX-impacting changes): [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
+
+> **Project status:** Fyr is currently in **preview**, so behavior and tooling may change between releases.
 
 ## 2. Branch and PR Flow
 
@@ -35,19 +37,14 @@ cargo check -p server
 
 ## 4. Documentation Update Rules
 
-When behavior changes, update docs in the same change:
+When behavior changes, update docs in the same PR:
 - User-facing behavior: [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 - Technical behavior: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
 - Onboarding/quickstart changes: [README.md](README.md)
-
-Canonical docs are limited to:
-- [README.md](README.md)
-- [AGENTS.md](AGENTS.md)
-- [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
-- [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
+- Governance/policy updates: [AGENTS.md](AGENTS.md)
+- Website install flow updates: [docs/site/index.html](docs/site/index.html)
 
 ## 5. Scope and Licensing Notes
 
-- Keep Fyr naming consistent (`Fyr`, `FYR_HOST`, `FYR_PORT`).
 - Respect module ownership in [AGENTS.md](AGENTS.md).
 - Source code is MIT licensed (see [LICENSE](LICENSE)).

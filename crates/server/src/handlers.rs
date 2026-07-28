@@ -1,7 +1,7 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ChatMessage, ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
     ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
@@ -14,6 +14,9 @@ use axum::{
         Html, IntoResponse, Response,
     },
     Json,
+};
+use downloader::{
+    DEFAULT_REQUEST_TIMEOUT_SECS, MAX_REQUEST_TIMEOUT_SECS, MIN_REQUEST_TIMEOUT_SECS,
 };
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
@@ -258,6 +261,12 @@ pub async fn update_settings(
             warn!("Failed to persist settings: {}", error);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    let timeout_secs = resolve_download_request_timeout_secs(&updated);
+    state
+        .download_manager
+        .set_request_timeout_secs(timeout_secs)
+        .await;
 
     Ok(Json(updated))
 }
@@ -670,9 +679,20 @@ pub async fn ai_infer_stream(
         .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
         .clamp(256, 32768);
 
+    let history: Vec<(String, String)> = query
+        .history
+        .as_deref()
+        .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| (m.role, m.text))
+        .collect();
+
+    let app_context = build_content_catalog_summary(&state.config);
+
     let rx = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx)
+        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history, app_context)
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
@@ -1299,6 +1319,69 @@ fn count_files(dir: std::path::PathBuf) -> usize {
         .count()
 }
 
+/// Return a sorted list of filenames present directly inside `dir`.
+fn list_dir_filenames(dir: std::path::PathBuf) -> Vec<String> {
+    if !dir.exists() {
+        return Vec::new();
+    }
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let path = e.path();
+            if path.is_file() {
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// Build a human-readable summary of the locally installed content library for
+/// use in the assistant's system prompt.
+fn build_content_catalog_summary(config: &types::Config) -> String {
+    let mut lines: Vec<String> = Vec::new();
+
+    let maps = list_dir_filenames(config.maps_dir());
+    if !maps.is_empty() {
+        lines.push(format!("- Maps ({}): {}", maps.len(), maps.join(", ")));
+    }
+
+    let books = list_dir_filenames(config.books_dir());
+    if !books.is_empty() {
+        // Use extracted titles when available, fall back to filenames
+        let books_dir = config.books_dir();
+        let book_descriptions: Vec<String> = books
+            .iter()
+            .map(|filename| {
+                let format = crate::library::detect_format(filename);
+                match format.and_then(|fmt| crate::library::extract_title(&books_dir.join(filename), fmt)) {
+                    Some(title) => format!("{} ({})", title, filename),
+                    None => filename.clone(),
+                }
+            })
+            .collect();
+        lines.push(format!("- Books ({}): {}", books.len(), book_descriptions.join(", ")));
+    }
+
+    let models = list_dir_filenames(config.models_dir());
+    if !models.is_empty() {
+        lines.push(format!("- Models ({}): {}", models.len(), models.join(", ")));
+    }
+
+    if lines.is_empty() {
+        return String::new();
+    }
+
+    format!("Current local content library:\n{}", lines.join("\n"))
+}
+
 fn list_content_files(
     dir: std::path::PathBuf,
     content_type: ContentType,
@@ -1849,6 +1932,19 @@ fn default_assistant_num_ctx() -> usize {
     }
 }
 
+pub(crate) fn resolve_download_request_timeout_secs(settings: &AppSettings) -> u64 {
+    download_request_timeout_override(settings).unwrap_or(DEFAULT_REQUEST_TIMEOUT_SECS)
+}
+
+fn download_request_timeout_override(settings: &AppSettings) -> Option<u64> {
+    let downloads = settings.modules.get("downloads")?.as_object()?;
+    let timeout = downloads
+        .get("request_timeout_seconds")
+        .and_then(|value| value.as_u64())?;
+
+    Some(timeout.clamp(MIN_REQUEST_TIMEOUT_SECS, MAX_REQUEST_TIMEOUT_SECS))
+}
+
 fn detect_total_memory_kib() -> Option<u64> {
     let raw = std::fs::read_to_string("/proc/meminfo").ok()?;
     parse_total_memory_kib(&raw)
@@ -1861,12 +1957,106 @@ fn parse_total_memory_kib(meminfo: &str) -> Option<u64> {
     })
 }
 
+/// GET /api/library/books/:filename — Unified book metadata
+pub async fn library_book_metadata(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<types::BookMetadata>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    match crate::library::extract_book_metadata(&books_dir, &sanitized) {
+        Ok(metadata) => Ok(Json(metadata)),
+        Err(error) => {
+            warn!("Failed to extract book metadata for {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+/// GET /api/library/books/:filename/toc — Unified book table of contents
+pub async fn library_book_toc(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<Vec<types::TocEntry>>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    match crate::library::extract_toc(&books_dir, &sanitized) {
+        Ok(toc) => Ok(Json(toc)),
+        Err(error) => {
+            warn!("Failed to extract TOC for {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+/// GET /api/library/books/:filename/search?q=...&limit=20 — Unified book search
+pub async fn library_book_search(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Query(query): Query<LibrarySearchQuery>,
+) -> Result<Json<types::BookSearchResponse>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let books_dir = state.config.books_dir();
+
+    let exists = tokio::fs::try_exists(books_dir.join(&sanitized))
+        .await
+        .map_err(|error| {
+            error!("Failed to check book file {}: {}", sanitized, error);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let limit = query.limit.unwrap_or(20).clamp(1, 100);
+
+    match crate::library::search_book(&books_dir, &sanitized, &query.q, limit) {
+        Ok(response) => Ok(Json(response)),
+        Err(error) => {
+            warn!("Failed to search book {}: {}", sanitized, error);
+            Err(StatusCode::BAD_REQUEST)
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct LibrarySearchQuery {
+    pub q: String,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
-        resolve_assistant_num_ctx, sanitize_upload_filename, DEFAULT_ASSISTANT_NUM_CTX,
-        HIGH_RAM_ASSISTANT_NUM_CTX,
+        resolve_assistant_num_ctx, resolve_download_request_timeout_secs, sanitize_upload_filename,
+        DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS, HIGH_RAM_ASSISTANT_NUM_CTX,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1947,6 +2137,30 @@ mod tests {
         let settings = AppSettings::default();
         let resolved = resolve_assistant_num_ctx(&settings);
         assert!(resolved == DEFAULT_ASSISTANT_NUM_CTX || resolved == HIGH_RAM_ASSISTANT_NUM_CTX);
+    }
+
+    #[test]
+    fn resolve_download_timeout_uses_default_without_override() {
+        let settings = AppSettings::default();
+        assert_eq!(resolve_download_request_timeout_secs(&settings), DEFAULT_REQUEST_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn resolve_download_timeout_uses_override() {
+        let mut modules = HashMap::new();
+        modules.insert(
+            "downloads".to_string(),
+            json!({
+                "request_timeout_seconds": 900
+            }),
+        );
+
+        let settings = AppSettings {
+            location: None,
+            modules,
+        };
+
+        assert_eq!(resolve_download_request_timeout_secs(&settings), 900);
     }
 }
 

@@ -13,13 +13,19 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 use tracing::{error, info, warn};
 
+pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
+pub const MIN_REQUEST_TIMEOUT_SECS: u64 = 30;
+pub const MAX_REQUEST_TIMEOUT_SECS: u64 = 86_400;
+const CONNECT_TIMEOUT_SECS: u64 = 15;
+const MAX_DOWNLOAD_ATTEMPTS: u8 = 3;
+
 /// Manages active and completed download tasks
 pub struct DownloadManager {
     tasks: Arc<RwLock<HashMap<String, DownloadTask>>>,
     cancel_flags: Arc<RwLock<HashMap<String, Arc<AtomicBool>>>>,
     persistence_path: PathBuf,
     data_dir: PathBuf,
-    client: reqwest::Client,
+    client: Arc<RwLock<reqwest::Client>>,
 }
 
 #[derive(Clone)]
@@ -30,8 +36,6 @@ struct DownloadRuntime {
     data_dir: PathBuf,
     client: reqwest::Client,
 }
-
-const MAX_DOWNLOAD_ATTEMPTS: u8 = 3;
 
 impl DownloadManager {
     pub fn new(data_dir: impl AsRef<Path>) -> Self {
@@ -47,22 +51,31 @@ impl DownloadManager {
             HashMap::new()
         });
 
-        let client = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(15))
-            .timeout(Duration::from_secs(300))
-            .build()
-            .unwrap_or_else(|error| {
-                warn!("Failed to build HTTP client with custom timeouts: {}", error);
-                reqwest::Client::new()
-            });
+        let client = Self::build_http_client(DEFAULT_REQUEST_TIMEOUT_SECS);
 
         Self {
             tasks: Arc::new(RwLock::new(tasks)),
             cancel_flags: Arc::new(RwLock::new(HashMap::new())),
             persistence_path,
             data_dir: root,
-            client,
+            client: Arc::new(RwLock::new(client)),
         }
+    }
+
+    pub async fn set_request_timeout_secs(&self, timeout_secs: u64) {
+        let bounded = timeout_secs.clamp(MIN_REQUEST_TIMEOUT_SECS, MAX_REQUEST_TIMEOUT_SECS);
+        let next_client = Self::build_http_client(bounded);
+
+        {
+            let mut guard = self.client.write().await;
+            *guard = next_client;
+        }
+
+        info!(
+            "Download HTTP timeout configured to {}s (requested {}s)",
+            bounded,
+            timeout_secs
+        );
     }
 
     /// Create a new download task
@@ -98,7 +111,10 @@ impl DownloadManager {
             cancel_flags: self.cancel_flags.clone(),
             persistence_path: self.persistence_path.clone(),
             data_dir: self.data_dir.clone(),
-            client: self.client.clone(),
+            client: {
+                let guard = self.client.read().await;
+                guard.clone()
+            },
         };
 
         match source {
@@ -935,6 +951,17 @@ impl DownloadManager {
         status == reqwest::StatusCode::REQUEST_TIMEOUT
             || status == reqwest::StatusCode::TOO_MANY_REQUESTS
             || status.is_server_error()
+    }
+
+    fn build_http_client(timeout_secs: u64) -> reqwest::Client {
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()
+            .unwrap_or_else(|error| {
+                warn!("Failed to build HTTP client with custom timeouts: {}", error);
+                reqwest::Client::new()
+            })
     }
 
     fn load_tasks(path: &Path) -> anyhow::Result<HashMap<String, DownloadTask>> {

@@ -59,6 +59,43 @@ pub struct ContentMetadata {
     pub created_at: String,
 }
 
+/// Unified book metadata returned by the library API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookMetadata {
+    pub filename: String,
+    pub format: String,
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub file_size: u64,
+    pub mime_type: String,
+    pub toc_available: bool,
+    pub search_available: bool,
+}
+
+/// A single entry in a book's table of contents.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TocEntry {
+    pub id: String,
+    pub title: String,
+    pub depth: u32,
+}
+
+/// A single search result within a book.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub path: String,
+    pub title: String,
+    pub snippet: Option<String>,
+}
+
+/// Response wrapper for book search.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookSearchResponse {
+    pub filename: String,
+    pub query: String,
+    pub results: Vec<SearchResult>,
+}
+
 /// Status of a download task
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -18,6 +18,7 @@
           <li><router-link to="/books" :class="{ active: $route.name === 'Books' }">Library</router-link></li>
           <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }">Content Manager</router-link></li>
           <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }">Assistant</router-link></li>
+          <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }">Tools</router-link></li>
           <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }">Settings</router-link></li>
         </ul>
       </div>
@@ -48,7 +49,7 @@
     </main>
 
     <footer class="app-footer">
-      <p>Fyr v0.3.0</p>
+      <p>Fyr v0.5.0</p>
     </footer>
   </div>
 </template>

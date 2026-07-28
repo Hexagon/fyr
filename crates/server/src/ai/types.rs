@@ -52,6 +52,15 @@ pub struct InferStreamQuery {
     pub temperature: Option<f64>,
     pub max_tokens: Option<usize>,
     pub num_ctx: Option<usize>,
+    /// JSON-encoded array of `{"role":"user"|"assistant","text":"..."}` objects
+    /// representing prior conversation turns (most recent last).
+    pub history: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub text: String,
 }
 
 #[derive(Debug, Serialize)]
