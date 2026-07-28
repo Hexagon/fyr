@@ -208,7 +208,8 @@ const converterCategories = [
   { id: 'area', label: 'Area' },
   { id: 'volume', label: 'Volume' },
   { id: 'speed', label: 'Speed' },
-  { id: 'data', label: 'Data' }
+  { id: 'data', label: 'Data' },
+  { id: 'angle', label: 'Angle' }
 ]
 
 const cipherTools = [
@@ -253,7 +254,12 @@ const unitSets = {
   data: ['B', 'KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB']
 }
 
-const currentConverterUnits = computed(() => unitSets[activeConverter.value] || [])
+const angleUnits = ['deg', 'rad', 'grad']
+
+const currentConverterUnits = computed(() => {
+  if (activeConverter.value === 'angle') return angleUnits
+  return unitSets[activeConverter.value] || []
+})
 
 function makeConverterState(units) {
   return reactive({
@@ -271,7 +277,8 @@ const converters = reactive({
   area: makeConverterState(unitSets.area),
   volume: makeConverterState(unitSets.volume),
   speed: makeConverterState(unitSets.speed),
-  data: makeConverterState(unitSets.data)
+  data: makeConverterState(unitSets.data),
+  angle: makeConverterState(angleUnits)
 })
 
 const currentConverter = computed(() => converters[activeConverter.value])
@@ -312,13 +319,18 @@ const DATA_TO_B = {
   KiB: 1024, MiB: 1048576, GiB: 1073741824
 }
 
+const ANGLE_TO_DEG = {
+  deg: 1, rad: 180 / Math.PI, grad: 0.9
+}
+
 const tables = {
   length: LENGTH_TO_M,
   mass: MASS_TO_KG,
   area: AREA_TO_M2,
   volume: VOLUME_TO_L,
   speed: SPEED_TO_MS,
-  data: DATA_TO_B
+  data: DATA_TO_B,
+  angle: ANGLE_TO_DEG
 }
 
 function convert(value, table, fromUnit, toUnit) {
