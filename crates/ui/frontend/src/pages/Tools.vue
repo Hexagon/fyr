@@ -12,15 +12,16 @@
         <div v-if="!sidebarCollapsed" class="sidebar-content">
           <div class="sidebar-section">
             <h4 class="sidebar-section-title">Unit Converters</h4>
-            <button
+            <a
               v-for="cat in converterCategories"
               :key="cat.id"
+              :href="'#' + cat.id"
               class="sidebar-item"
               :class="{ active: activeConverter === cat.id }"
-              @click="selectConverter(cat.id)"
+              @click.prevent="scrollToConverter(cat.id)"
             >
               {{ cat.label }}
-            </button>
+            </a>
           </div>
 
           <div class="sidebar-section">
@@ -39,30 +40,43 @@
       </aside>
 
       <section class="tools-panel">
-        <!-- Unit Converter Panel -->
+        <!-- Unit Converters Panel -->
         <template v-if="activeTab === 'converters'">
           <div class="panel-header">
-            <h2>{{ currentConverterLabel }}</h2>
+            <h2>Unit Converters</h2>
           </div>
-          <div class="converter-card">
+
+          <div
+            v-for="cat in converterCategories"
+            :key="cat.id"
+            :id="cat.id"
+            class="converter-card"
+          >
+            <div class="card-header">
+              <h3>{{ cat.label }}</h3>
+            </div>
             <div class="converter-body">
-              <input
-                v-model.number="currentConverter.value"
-                type="number"
-                step="any"
-                placeholder="Enter value"
-                class="tool-input"
-                @input="convertCurrent"
-              />
-              <select v-model="currentConverter.from" class="tool-select" @change="convertCurrent">
-                <option v-for="u in currentConverterUnits" :key="u" :value="u">{{ u }}</option>
-              </select>
-              <span class="arrow">→</span>
-              <select v-model="currentConverter.to" class="tool-select" @change="convertCurrent">
-                <option v-for="u in currentConverterUnits" :key="u" :value="u">{{ u }}</option>
-              </select>
-              <div class="tool-result" v-if="currentConverter.result !== null">
-                <span class="result-value">{{ formatNumber(currentConverter.result) }}</span>
+              <div class="converter-input-row">
+                <input
+                  v-model.number="converters[cat.id].value"
+                  type="number"
+                  step="any"
+                  placeholder="Enter value"
+                  class="tool-input"
+                  @input="convertCurrent(cat.id)"
+                />
+                <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                  <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                </select>
+                <span class="arrow">→</span>
+                <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                  <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                </select>
+              </div>
+              <div class="converter-result-row">
+                <div class="tool-result" v-if="converters[cat.id].result !== null">
+                  <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -76,113 +90,141 @@
 
           <!-- AES -->
           <div v-if="activeCipher === 'aes'" class="cipher-card">
+            <div class="card-header">
+              <h3>AES-256-CBC</h3>
+            </div>
             <div class="cipher-body">
-              <label class="tool-label">
-                Mode
-                <select v-model="ciphers.aes.mode" class="tool-select">
-                  <option value="encrypt">Encrypt</option>
-                  <option value="decrypt">Decrypt</option>
-                </select>
-              </label>
-              <label class="tool-label">
-                Password
-                <input v-model="ciphers.aes.password" type="text" class="tool-input" placeholder="Enter password" />
-              </label>
-              <label class="tool-label">
-                {{ ciphers.aes.mode === 'encrypt' ? 'Plaintext' : 'Ciphertext (hex)' }}
-                <textarea
-                  v-model="ciphers.aes.text"
-                  class="tool-textarea"
-                  rows="4"
-                  :placeholder="ciphers.aes.mode === 'encrypt' ? 'Text to encrypt' : 'Hex string to decrypt'"
-                ></textarea>
-              </label>
-              <div class="cipher-actions">
-                <button class="btn btn-primary" @click="handleAes" :disabled="cipherWorking">
-                  {{ ciphers.aes.mode === 'encrypt' ? 'Encrypt' : 'Decrypt' }}
-                </button>
+              <div class="cipher-input-row">
+                <label class="tool-label">
+                  Mode
+                  <select v-model="ciphers.aes.mode" class="tool-select">
+                    <option value="encrypt">Encrypt</option>
+                    <option value="decrypt">Decrypt</option>
+                  </select>
+                </label>
+                <label class="tool-label">
+                  Password
+                  <input v-model="ciphers.aes.password" type="text" class="tool-input" placeholder="Enter password" />
+                </label>
+                <label class="tool-label tool-label-wide">
+                  {{ ciphers.aes.mode === 'encrypt' ? 'Plaintext' : 'Ciphertext (hex)' }}
+                  <textarea
+                    v-model="ciphers.aes.text"
+                    class="tool-textarea"
+                    rows="4"
+                    :placeholder="ciphers.aes.mode === 'encrypt' ? 'Text to encrypt' : 'Hex string to decrypt'"
+                  ></textarea>
+                </label>
+                <div class="cipher-actions">
+                  <button class="btn btn-primary" @click="handleAes" :disabled="cipherWorking">
+                    {{ ciphers.aes.mode === 'encrypt' ? 'Encrypt' : 'Decrypt' }}
+                  </button>
+                </div>
               </div>
-              <div class="tool-result" v-if="ciphers.aes.result !== null">
-                <span class="result-label">Result:</span>
-                <code class="result-code">{{ ciphers.aes.result }}</code>
+              <div class="cipher-result-row">
+                <div class="tool-result" v-if="ciphers.aes.result !== null">
+                  <span class="result-label">Result:</span>
+                  <code class="result-code">{{ ciphers.aes.result }}</code>
+                </div>
+                <p v-if="ciphers.aes.error" class="cipher-error">{{ ciphers.aes.error }}</p>
               </div>
-              <p v-if="ciphers.aes.error" class="cipher-error">{{ ciphers.aes.error }}</p>
             </div>
           </div>
 
           <!-- Base64 -->
           <div v-if="activeCipher === 'base64'" class="cipher-card">
+            <div class="card-header">
+              <h3>Base64</h3>
+            </div>
             <div class="cipher-body">
-              <label class="tool-label">
-                Mode
-                <select v-model="ciphers.base64.mode" class="tool-select">
-                  <option value="encode">Encode</option>
-                  <option value="decode">Decode</option>
-                </select>
-              </label>
-              <label class="tool-label">
-                {{ ciphers.base64.mode === 'encode' ? 'Plaintext' : 'Base64 string' }}
-                <textarea
-                  v-model="ciphers.base64.text"
-                  class="tool-textarea"
-                  rows="4"
-                  :placeholder="ciphers.base64.mode === 'encode' ? 'Text to encode' : 'Base64 string to decode'"
-                  @input="handleBase64"
-                ></textarea>
-              </label>
-              <div class="tool-result" v-if="ciphers.base64.result !== null">
-                <span class="result-label">Result:</span>
-                <code class="result-code">{{ ciphers.base64.result }}</code>
+              <div class="cipher-input-row">
+                <label class="tool-label">
+                  Mode
+                  <select v-model="ciphers.base64.mode" class="tool-select">
+                    <option value="encode">Encode</option>
+                    <option value="decode">Decode</option>
+                  </select>
+                </label>
+                <label class="tool-label tool-label-wide">
+                  {{ ciphers.base64.mode === 'encode' ? 'Plaintext' : 'Base64 string' }}
+                  <textarea
+                    v-model="ciphers.base64.text"
+                    class="tool-textarea"
+                    rows="4"
+                    :placeholder="ciphers.base64.mode === 'encode' ? 'Text to encode' : 'Base64 string to decode'"
+                    @input="handleBase64"
+                  ></textarea>
+                </label>
               </div>
-              <p v-if="ciphers.base64.error" class="cipher-error">{{ ciphers.base64.error }}</p>
+              <div class="cipher-result-row">
+                <div class="tool-result" v-if="ciphers.base64.result !== null">
+                  <span class="result-label">Result:</span>
+                  <code class="result-code">{{ ciphers.base64.result }}</code>
+                </div>
+                <p v-if="ciphers.base64.error" class="cipher-error">{{ ciphers.base64.error }}</p>
+              </div>
             </div>
           </div>
 
           <!-- ROT13 -->
           <div v-if="activeCipher === 'rot13'" class="cipher-card">
+            <div class="card-header">
+              <h3>ROT13</h3>
+            </div>
             <div class="cipher-body">
-              <label class="tool-label">
-                Input
-                <textarea
-                  v-model="ciphers.rot13.text"
-                  class="tool-textarea"
-                  rows="4"
-                  placeholder="Text to apply ROT13"
-                  @input="handleRot13"
-                ></textarea>
-              </label>
-              <div class="tool-result" v-if="ciphers.rot13.result !== null">
-                <span class="result-label">Result:</span>
-                <code class="result-code">{{ ciphers.rot13.result }}</code>
+              <div class="cipher-input-row">
+                <label class="tool-label tool-label-wide">
+                  Input
+                  <textarea
+                    v-model="ciphers.rot13.text"
+                    class="tool-textarea"
+                    rows="4"
+                    placeholder="Text to apply ROT13"
+                    @input="handleRot13"
+                  ></textarea>
+                </label>
+              </div>
+              <div class="cipher-result-row">
+                <div class="tool-result" v-if="ciphers.rot13.result !== null">
+                  <span class="result-label">Result:</span>
+                  <code class="result-code">{{ ciphers.rot13.result }}</code>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Hash / Checksum -->
           <div v-if="activeCipher === 'hash'" class="cipher-card">
+            <div class="card-header">
+              <h3>Hash / Checksum</h3>
+            </div>
             <div class="cipher-body">
-              <label class="tool-label">
-                Algorithm
-                <select v-model="ciphers.hash.algo" class="tool-select" @change="handleHash">
-                  <option value="sha256">SHA-256</option>
-                  <option value="sha512">SHA-512</option>
-                  <option value="sha1">SHA-1</option>
-                  <option value="md5">MD5</option>
-                </select>
-              </label>
-              <label class="tool-label">
-                Input
-                <textarea
-                  v-model="ciphers.hash.text"
-                  class="tool-textarea"
-                  rows="4"
-                  placeholder="Text to hash"
-                  @input="handleHash"
-                ></textarea>
-              </label>
-              <div class="tool-result" v-if="ciphers.hash.result !== null">
-                <span class="result-label">Hash:</span>
-                <code class="result-code">{{ ciphers.hash.result }}</code>
+              <div class="cipher-input-row">
+                <label class="tool-label">
+                  Algorithm
+                  <select v-model="ciphers.hash.algo" class="tool-select" @change="handleHash">
+                    <option value="sha256">SHA-256</option>
+                    <option value="sha512">SHA-512</option>
+                    <option value="sha1">SHA-1</option>
+                    <option value="md5">MD5</option>
+                  </select>
+                </label>
+                <label class="tool-label tool-label-wide">
+                  Input
+                  <textarea
+                    v-model="ciphers.hash.text"
+                    class="tool-textarea"
+                    rows="4"
+                    placeholder="Text to hash"
+                    @input="handleHash"
+                  ></textarea>
+                </label>
+              </div>
+              <div class="cipher-result-row">
+                <div class="tool-result" v-if="ciphers.hash.result !== null">
+                  <span class="result-label">Hash:</span>
+                  <code class="result-code">{{ ciphers.hash.result }}</code>
+                </div>
               </div>
             </div>
           </div>
@@ -219,11 +261,6 @@ const cipherTools = [
   { id: 'hash', label: 'Hash / Checksum' }
 ]
 
-const currentConverterLabel = computed(() => {
-  const cat = converterCategories.find(c => c.id === activeConverter.value)
-  return cat ? cat.label + ' Converter' : 'Converter'
-})
-
 const currentCipherLabel = computed(() => {
   const tool = cipherTools.find(t => t.id === activeCipher.value)
   return tool ? tool.label : 'Cipher'
@@ -233,9 +270,13 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
-const selectConverter = (id) => {
+const scrollToConverter = (id) => {
   activeTab.value = 'converters'
   activeConverter.value = id
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 const selectCipher = (id) => {
@@ -256,10 +297,10 @@ const unitSets = {
 
 const angleUnits = ['deg', 'rad', 'grad']
 
-const currentConverterUnits = computed(() => {
-  if (activeConverter.value === 'angle') return angleUnits
-  return unitSets[activeConverter.value] || []
-})
+function getUnits(catId) {
+  if (catId === 'angle') return angleUnits
+  return unitSets[catId] || []
+}
 
 function makeConverterState(units) {
   return reactive({
@@ -280,8 +321,6 @@ const converters = reactive({
   data: makeConverterState(unitSets.data),
   angle: makeConverterState(angleUnits)
 })
-
-const currentConverter = computed(() => converters[activeConverter.value])
 
 // --- Cipher state ---
 const ciphers = reactive({
@@ -351,19 +390,19 @@ function convertTemperature(value, fromUnit, toUnit) {
   return null
 }
 
-function convertCurrent() {
-  const state = currentConverter.value
+function convertCurrent(catId) {
+  const state = converters[catId]
   if (state.value == null || isNaN(state.value) || state.value === '') {
     state.result = null
     return
   }
 
-  if (activeConverter.value === 'temperature') {
+  if (catId === 'temperature') {
     state.result = convertTemperature(Number(state.value), state.from, state.to)
     return
   }
 
-  state.result = convert(Number(state.value), tables[activeConverter.value], state.from, state.to)
+  state.result = convert(Number(state.value), tables[catId], state.from, state.to)
 }
 
 function formatNumber(num) {
@@ -591,6 +630,9 @@ async function handleHash() {
   display: flex;
   flex-direction: column;
   transition: width 0.2s ease;
+  position: sticky;
+  top: 1rem;
+  align-self: start;
 }
 
 .tools-sidebar.collapsed {
@@ -627,7 +669,6 @@ async function handleHash() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow-y: auto;
 }
 
 .sidebar-section {
@@ -656,6 +697,7 @@ async function handleHash() {
   color: #c0c0c0;
   cursor: pointer;
   font-size: 0.88rem;
+  text-decoration: none;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
@@ -676,6 +718,7 @@ async function handleHash() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -694,7 +737,7 @@ async function handleHash() {
   background: #1a1a1a;
   border: 1px solid #3a3a3a;
   border-radius: 10px;
-  padding: 1.5rem;
+  overflow: hidden;
   border-left: 4px solid #667eea;
 }
 
@@ -702,12 +745,40 @@ async function handleHash() {
   border-left-color: #7b5cff;
 }
 
+.card-header {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #3a3a3a;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.card-header h3 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .converter-body,
 .cipher-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.converter-input-row,
+.cipher-input-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.converter-result-row,
+.cipher-result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .tool-label {
@@ -718,6 +789,11 @@ async function handleHash() {
   font-size: 0.82rem;
   flex: 1;
   min-width: 180px;
+}
+
+.tool-label-wide {
+  flex: 2;
+  min-width: 240px;
 }
 
 .tool-input {
@@ -850,14 +926,19 @@ async function handleHash() {
     grid-template-columns: 1fr;
   }
 
+  .tools-sidebar {
+    position: static;
+    max-height: none;
+  }
+
   .tools-sidebar.collapsed {
     width: 100%;
   }
 }
 
 @media (max-width: 768px) {
-  .converter-body,
-  .cipher-body {
+  .converter-input-row,
+  .cipher-input-row {
     flex-direction: column;
     align-items: stretch;
   }

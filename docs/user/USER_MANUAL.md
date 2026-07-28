@@ -314,6 +314,7 @@ The **Unit Converters** tab supports seven conversion categories, each with its 
 | Volume | mL, L, m³, fl_oz, gal, cup |
 | Speed | m/s, km/h, mph, knot |
 | Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
+| Angle | deg, rad, grad |
 
 **How to use a converter:** Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.
 
