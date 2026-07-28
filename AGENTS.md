@@ -105,6 +105,20 @@ When adding or changing behavior:
 5. If installation paths, platform setup, or deployment bootstrap steps change, update [docs/site/index.html](docs/site/index.html).
 6. Run validation (`cargo test --workspace --all-targets`, `cargo check -p server`, frontend build, docs build when relevant).
 
+### Installer Scripts Constraint
+
+`docs/site/install.sh` is piped via `curl | sh`, which bypasses the shebang line. The executing shell is `/bin/sh` (dash on Debian/Ubuntu, bash in POSIX mode on many others, busybox sh on Alpine). **The script must be POSIX sh-compatible at all times.**
+
+Forbidden bashisms:
+- `[[ ... ]]` — use `[ ... ]` instead
+- `command &>/dev/null` — use `command >/dev/null 2>&1` instead
+- `=~` regex operator — use `case` or `grep` instead
+- `==` inside `[ ]` — use `=` instead
+- `function name()` — use `name()` instead
+- Arrays (`arr=(...)`) — use space-separated strings
+
+`docs/site/install.ps1` has no such constraint (PowerShell is always the executor).
+
 ## Docker and Platform Expectations
 
 - Docker image name for docs/examples: `hexagon/fyr:latest`.

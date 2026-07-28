@@ -1,8 +1,12 @@
-#!/bin/bash
+#!/bin/sh
 # Fyr installer — https://fyr.guide/install.sh
 # Usage: curl -fsSL https://fyr.guide/install.sh | sh
 #        curl -fsSL https://fyr.guide/install.sh | sh -s -- update
 #        curl -fsSL https://fyr.guide/install.sh | sh -s -- --data-dir /srv/fyr --port 9090
+#
+# NOTE: This script is POSIX sh-compatible. It is piped via `curl | sh` which
+# bypasses the shebang, so it must work under /bin/sh (dash, bash, busybox sh).
+# No bashisms allowed: no [[, no &>, no =~, no == inside [ ].
 set -e
 
 # ---------------------------------------------------------------------------
@@ -57,7 +61,8 @@ DATA_VOLUME=""
 PORT=""
 ADMIN_PASSWORD=""
 READONLY=false
-while [[ $# -gt 0 ]]; do
+
+while [ $# -gt 0 ]; do
     case "$1" in
         --help|-h)
             show_help
@@ -67,7 +72,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --data-dir)
-            if [[ -z "$2" || "$2" == --* ]]; then
+            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
                 echo "==> ERROR: --data-dir requires a path argument"
                 exit 1
             fi
@@ -75,7 +80,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --data-volume)
-            if [[ -z "$2" || "$2" == --* ]]; then
+            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
                 echo "==> ERROR: --data-volume requires a volume name argument"
                 exit 1
             fi
@@ -83,7 +88,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --port)
-            if [[ -z "$2" || "$2" == --* ]]; then
+            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
                 echo "==> ERROR: --port requires a number argument"
                 exit 1
             fi
@@ -91,7 +96,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --admin-password)
-            if [[ -z "$2" || "$2" == --* ]]; then
+            if [ -z "$2" ] || echo "$2" | grep -q '^--'; then
                 echo "==> ERROR: --admin-password requires a password argument"
                 exit 1
             fi
@@ -114,28 +119,49 @@ done
 # Config file management
 # ---------------------------------------------------------------------------
 # Read existing config if present
-if [[ -f "$CONFIG_FILE" ]]; then
+if [ -f "$CONFIG_FILE" ]; then
     while IFS='=' read -r key value; do
         # Skip comments and blank lines
-        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
         case "$key" in
-            data_dir)       [[ -z "$DATA_DIR" ]]       && DATA_DIR="$value" ;;
-            data_volume)    [[ -z "$DATA_VOLUME" ]]    && DATA_VOLUME="$value" ;;
-            port)           [[ -z "$PORT" ]]           && PORT="$value" ;;
-            tag)            [[ -z "$TAG" ]]            && TAG="$value" ;;
-            admin_password_set) [[ "$value" == "true" && -z "$ADMIN_PASSWORD" ]] && ADMIN_PASSWORD="<saved>" ;;
-            readonly)       [[ "$value" == "true" && "$READONLY" == false ]] && READONLY=true ;;
+            \#*) continue ;;
+            "") continue ;;
+        esac
+        case "$key" in
+            data_dir)
+                [ -z "$DATA_DIR" ] && DATA_DIR="$value"
+                ;;
+            data_volume)
+                [ -z "$DATA_VOLUME" ] && DATA_VOLUME="$value"
+                ;;
+            port)
+                [ -z "$PORT" ] && PORT="$value"
+                ;;
+            tag)
+                [ -z "$TAG" ] && TAG="$value"
+                ;;
+            admin_password_set)
+                if [ "$value" = "true" ] && [ -z "$ADMIN_PASSWORD" ]; then
+                    ADMIN_PASSWORD="<saved>"
+                fi
+                ;;
+            readonly)
+                if [ "$value" = "true" ] && [ "$READONLY" = false ]; then
+                    READONLY=true
+                fi
+                ;;
         esac
     done < "$CONFIG_FILE"
 fi
 
 # Apply defaults for anything still unset
-[[ -z "$TAG" ]]        && TAG="$DEFAULT_TAG"
-[[ -z "$PORT" ]]       && PORT="$DEFAULT_PORT"
-[[ -z "$DATA_VOLUME" ]] && [[ -z "$DATA_DIR" ]] && DATA_VOLUME="$DEFAULT_DATA_VOLUME"
+[ -z "$TAG" ]  && TAG="$DEFAULT_TAG"
+[ -z "$PORT" ] && PORT="$DEFAULT_PORT"
+if [ -z "$DATA_VOLUME" ] && [ -z "$DATA_DIR" ]; then
+    DATA_VOLUME="$DEFAULT_DATA_VOLUME"
+fi
 
 # Validate mutual exclusivity
-if [[ -n "$DATA_DIR" && -n "$DATA_VOLUME" ]]; then
+if [ -n "$DATA_DIR" ] && [ -n "$DATA_VOLUME" ]; then
     echo "==> ERROR: --data-dir and --data-volume are mutually exclusive."
     echo "==> Use one or the other, not both."
     exit 1
@@ -149,14 +175,14 @@ data_dir=${DATA_DIR}
 data_volume=${DATA_VOLUME}
 port=${PORT}
 tag=${TAG}
-admin_password_set=$([[ -n "$ADMIN_PASSWORD" ]] && echo "true" || echo "false")
-readonly=$([[ "$READONLY" == true ]] && echo "true" || echo "false")
+admin_password_set=$( [ -n "$ADMIN_PASSWORD" ] && echo "true" || echo "false" )
+readonly=$( [ "$READONLY" = true ] && echo "true" || echo "false" )
 CONFEOF
 
 # ---------------------------------------------------------------------------
 # 1. Check if Docker is installed
 # ---------------------------------------------------------------------------
-if ! command -v docker &>/dev/null; then
+if ! command -v docker >/dev/null 2>&1; then
     echo "==> ERROR: Docker is required but not installed."
     echo "==> Please install Docker first: https://docs.docker.com/engine/install/"
     echo "==> Or run the official convenience script: curl -fsSL https://get.docker.com | sh"
@@ -164,7 +190,7 @@ if ! command -v docker &>/dev/null; then
 fi
 
 # Check if Docker daemon is accessible (may need sudo)
-if ! docker ps &>/dev/null; then
+if ! docker ps >/dev/null 2>&1; then
     echo "==> Docker requires elevated privileges."
     echo "==> Re-run the script with sudo:"
     echo "==>   curl -fsSL https://fyr.guide/install.sh | sudo sh"
@@ -180,14 +206,14 @@ echo "==> Port: ${PORT}"
 # 2. Prepare data storage
 # ---------------------------------------------------------------------------
 VOLUME_FLAG=""
-if [[ -n "$DATA_DIR" ]]; then
+if [ -n "$DATA_DIR" ]; then
     # Bind mount mode
     echo "==> Using host directory: ${DATA_DIR}"
-    if [[ ! -d "$DATA_DIR" ]]; then
+    if [ ! -d "$DATA_DIR" ]; then
         echo "==> Creating data directory at ${DATA_DIR}..."
         mkdir -p "$DATA_DIR"
         # Only chown if we just created it and are running as root
-        if [[ "$(id -u)" -eq 0 ]]; then
+        if [ "$(id -u)" -eq 0 ]; then
             echo "==> Setting permissions on ${DATA_DIR} to UID 1000..."
             chown -R 1000:1000 "$DATA_DIR"
         else
@@ -196,10 +222,10 @@ if [[ -n "$DATA_DIR" ]]; then
         fi
     fi
     VOLUME_FLAG="-v \"${DATA_DIR}:/data\""
-elif [[ -n "$DATA_VOLUME" ]]; then
+elif [ -n "$DATA_VOLUME" ]; then
     # Named volume mode
     echo "==> Using Docker volume: ${DATA_VOLUME}"
-    if ! docker volume inspect "$DATA_VOLUME" &>/dev/null; then
+    if ! docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
         echo "==> Creating Docker volume ${DATA_VOLUME}..."
         docker volume create "$DATA_VOLUME" >/dev/null
     fi
@@ -209,8 +235,9 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Check if container already exists
 # ---------------------------------------------------------------------------
-if [[ "$(docker ps -a -q -f name=^/${CONTAINER_NAME}$)" ]]; then
-    if [[ "$IS_UPDATE" == true ]]; then
+EXISTING=$(docker ps -a -q -f name="^/${CONTAINER_NAME}$" 2>/dev/null)
+if [ -n "$EXISTING" ]; then
+    if [ "$IS_UPDATE" = true ]; then
         echo "==> Update flag detected. Stopping and removing old container..."
         docker stop "$CONTAINER_NAME" 2>/dev/null || true
         docker rm "$CONTAINER_NAME" 2>/dev/null || true
@@ -232,10 +259,10 @@ docker pull "$IMAGE"
 # 5. Build environment variables
 # ---------------------------------------------------------------------------
 ENV_FLAGS="-e FYR_HOST=0.0.0.0 -e DATA_DIR=/data"
-if [[ -n "$ADMIN_PASSWORD" && "$ADMIN_PASSWORD" != "<saved>" ]]; then
+if [ -n "$ADMIN_PASSWORD" ] && [ "$ADMIN_PASSWORD" != "<saved>" ]; then
     ENV_FLAGS="${ENV_FLAGS} -e FYR_ADMIN_PASSWORD=${ADMIN_PASSWORD}"
 fi
-if [[ "$READONLY" == true ]]; then
+if [ "$READONLY" = true ]; then
     ENV_FLAGS="${ENV_FLAGS} -e FYR_READONLY=true"
 fi
 
