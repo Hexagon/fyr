@@ -191,6 +191,14 @@ fi
 
 # Check if Docker daemon is accessible (may need sudo)
 if ! docker ps >/dev/null 2>&1; then
+    # Check if the error is because the user isn't in the docker group
+    if groups "$(id -un)" 2>/dev/null | grep -qv '\bdocker\b'; then
+        echo "==> ERROR: The current user '$(id -un)' is not in the 'docker' group."
+        echo "==> To fix this, run:"
+        echo "==>   sudo usermod -aG docker $(id -un)"
+        echo "==> Then log out and back in, and re-run this installer."
+        exit 1
+    fi
     echo "==> Docker requires elevated privileges."
     echo "==> Re-run the script with sudo:"
     echo "==>   curl -fsSL https://fyr.guide/install.sh | sudo sh"
