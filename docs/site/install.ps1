@@ -138,7 +138,7 @@ try {
 } catch {
     Write-Host "==> ERROR: Docker is required but not installed."
     Write-Host "==> Please install Docker Desktop first: https://docs.docker.com/desktop/setup/install/windows-install/"
-    exit 1
+    return
 }
 
 # ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ if ($existingContainer) {
         Write-Host "==> WARNING: Container '${ContainerName}' is already installed!"
         Write-Host "==> If you want to update/recreate it, run this script with the -Update parameter:"
         Write-Host "==>   irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update"
-        exit 1
+        return
     }
 }
 
@@ -222,5 +222,5 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "==> Access Fyr at http://localhost:${Port} (replace localhost with the server's IP if connecting remotely)."
 } else {
     Write-Host "==> ERROR: Failed to start container. Check Docker logs for details."
-    exit 1
+    return
 }
