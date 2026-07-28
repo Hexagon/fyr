@@ -287,4 +287,4 @@ eval docker run -d \
     "$IMAGE"
 
 echo "==> Success! Container '${CONTAINER_NAME}' is up and running."
-echo "==> Open http://localhost:${PORT} in your browser."
+echo "==> Access Fyr at http://localhost:${PORT} (replace localhost with the server's IP if connecting remotely)."
