@@ -156,10 +156,10 @@ if ($DataDir) {
 } elseif ($DataVolume) {
     # Named volume mode
     Write-Host "==> Using Docker volume: ${DataVolume}"
-    $volumeExists = docker volume inspect $DataVolume 2>&1 | Out-Null
+    docker volume inspect $DataVolume 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "==> Creating Docker volume ${DataVolume}..."
-        docker volume create $DataVolume | Out-Null
+        docker volume create $DataVolume 2>&1 | Out-Null
     }
     $VolumeArg = "${DataVolume}:/data"
 }
