@@ -107,7 +107,7 @@ if (-not $DataVolume -and -not $DataDir) {
 # Validate mutual exclusivity
 if ($DataDir -and $DataVolume) {
     Write-Error "-DataDir and -DataVolume are mutually exclusive. Use one or the other, not both."
-    exit 1
+    return
 }
 
 # Write config for next run
