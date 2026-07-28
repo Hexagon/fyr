@@ -155,14 +155,6 @@
                     <p class="text-gray-600">Fetch maps, books, AI models, POI data, and misc files from curated or custom sources directly via the UI.</p>
                 </div>
                 <!-- Feature 5 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                    <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Central Content Management</h3>
-                    <p class="text-gray-600">Import local files, inspect the content inventory, manage roles (Open, Password-protected, or Read-only kiosks), and organize all assets in one place.</p>
-                </div>
-                <!-- Feature 6 -->
                 <a href="#installation" class="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-500 hover:shadow-md transition-all group block">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path></svg>
@@ -170,7 +162,7 @@
                     <h3 class="text-xl font-semibold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors">Raspberry Pi Ready</h3>
                     <p class="text-gray-600">Native <code>linux/arm64</code> support. Deploy Fyr on a Raspberry Pi and optionally turn it into a standalone Wi-Fi hotspot for fully off-grid access. <span class="text-brand-600 font-medium">See the guide →</span></p>
                 </a>
-                <!-- Feature 7 -->
+                <!-- Feature 6 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -191,8 +183,8 @@
                 
                 <!-- Tab Controls Slider -->
                 <div class="mt-8 inline-flex p-1.5 bg-gray-200 rounded-xl space-x-1 shadow-inner">
-                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm">Library</button>
-                    <button onclick="switchTab(2)" id="tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Maps</button>
+                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm">Maps</button>
+                    <button onclick="switchTab(2)" id="tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Library</button>
                     <button onclick="switchTab(3)" id="tab-btn-3" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Assistant</button>
                     <button onclick="switchTab(4)" id="tab-btn-4" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Tools</button>
                 </div>
@@ -213,9 +205,9 @@
                 </div>
 
                 <!-- Screenshot Display Viewport -->
-                <div class="relative bg-gray-900 aspect-[1557/773] overflow-hidden">
-                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Dashboard Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
-                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Workspace Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                <div class="relative bg-gray-900 aspect-[1628/734] overflow-hidden">
+                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Maps Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
+                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Library Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
                     <img id="screenshot-3" src="img/screenshot-3.png" alt="Fyr Assistant Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
                     <img id="screenshot-4" src="img/screenshot-4.png" alt="Fyr Tools Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
                 </div>
@@ -383,7 +375,8 @@
                             <div class="ml-4 text-xs text-gray-500 font-mono">Terminal</div>
                         </div>
                         <div class="p-6 overflow-x-auto">
-                            <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>docker run --rm -p 8080:8080 \
+                            <pre class="text-gray-300 font-mono text-sm leading-relaxed text-left m-0"><code>docker run -d --restart unless-stopped --name fyr \
+  -p 8080:8080 \
   -e FYR_HOST=0.0.0.0 \
   -e DATA_DIR=/data \
   -v fyr-data:/data \
@@ -394,7 +387,7 @@
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-6 not-prose">
                         <p class="text-sm text-white font-semibold mb-2">🔧 What each flag does</p>
                         <ul class="text-sm text-gray-300 space-y-1.5">
-                            <li><code class="text-brand-400">--rm</code> — Remove the container when it stops (use <code class="text-brand-400">-d --restart unless-stopped</code> for a persistent service).</li>
+                            <li><code class="text-brand-400">-d --restart unless-stopped --name fyr</code> — Run in detached mode as a persistent service that restarts automatically on boot.</li>
                             <li><code class="text-brand-400">-p 8080:8080</code> — Map host port 8080 to the container's port 8080.</li>
                             <li><code class="text-brand-400">-e FYR_HOST=0.0.0.0</code> — Bind to all network interfaces so other devices on the LAN can connect.</li>
                             <li><code class="text-brand-400">-e DATA_DIR=/data</code> — Set the data directory inside the container.</li>
@@ -464,6 +457,14 @@
                             <li><code class="text-brand-400">hexagon/fyr:dev</code> — Development/testing image.</li>
                         </ul>
                     </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🐧 Linux bind-mount permissions</p>
+                        <p class="text-sm text-gray-300 leading-relaxed">
+                            On Linux-based systems, if you use a host directory bind-mount instead of a named volume, ensure the directory is writable by the container's user (UID <code>1000</code>):
+                        </p>
+                        <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">sudo chown -R 1000:1000 /path/to/fyr-data</pre>
+                    </div>
                 </div>
 
             </div>
@@ -476,52 +477,22 @@
                 <div class="prose prose-invert prose-brand prose-pre:bg-gray-950 prose-pre:border prose-pre:border-gray-800 prose-headings:text-white mx-auto">
 
                     <h2 class="text-3xl font-bold border-b border-gray-800 pb-4">Platform Setup</h2>
-                    <p class="text-lg text-gray-400">Deploy Fyr as a persistent system service on Debian-based Linux distributions, including Raspberry Pi OS.</p>
-
-                    <h3 class="text-2xl text-white mt-10">1) Install Docker</h3>
-                    <p>Fyr runs in Docker. Install it with the official convenience script:</p>
-                    <pre><code>curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-newgrp docker
-docker --version</code></pre>
-
-                    <h3 class="text-2xl text-white mt-10">2) Run Fyr as a System Daemon</h3>
-                    <p>Start Fyr in detached mode with automatic restart on boot:</p>
-                    <pre><code>docker run -d --restart unless-stopped --name fyr \
-  -p 8080:8080 \
-  -e FYR_HOST=0.0.0.0 \
-  -e DATA_DIR=/data \
-  -v fyr-data:/data \
-  hexagon/fyr:latest</code></pre>
+                    <p class="text-lg text-gray-400">Configure Fyr for Debian-based systems, including Raspberry Pi.</p>
 
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
-                        <ul class="text-sm text-gray-300 space-y-2">
-<li><strong>Access:</strong> Open <code>http://localhost:8080</code> on the same machine, or <code>http://&lt;host-ip&gt;:8080</code> from another device on the LAN.</li>
-                            <li><strong>Persistence:</strong> The <code>-v fyr-data:/data</code> flag preserves all maps, books, models, and downloads across container restarts and upgrades.</li>
-                            <li><strong>Management:</strong> Use <code>docker stop fyr</code>, <code>docker start fyr</code>, and <code>docker logs fyr</code> to control the service.</li>
-                        </ul>
-                    </div>
-
-                    <h3 class="text-2xl text-white mt-10">3) Bind-Mount Permissions</h3>
-                    <p>If you use a host directory bind-mount instead of a named volume, ensure the directory is writable by the container's user (UID <code>1000</code>):</p>
-                    <pre><code>sudo chown -R 1000:1000 /path/to/fyr-data</code></pre>
-
-                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
-                        <p class="text-sm text-white font-semibold mb-1">⚠️ Permission Denied?</p>
+                        <p class="text-sm text-white font-semibold mb-1">💡 Before you begin</p>
                         <p class="text-sm text-gray-300 leading-relaxed">
-                            If Fyr cannot write downloads or user data, the host directory ownership likely doesn't match UID <code>1000</code>. Run the <code>chown</code> command above to fix it.
+                            Run through the <strong>Installation</strong> tab first — it handles Docker and the initial Fyr deployment.
                         </p>
                     </div>
 
-                    <hr class="border-gray-800 my-10">
-
-                    <h3 id="raspberry-pi" class="text-2xl text-white">4) Raspberry Pi: Wi-Fi Hotspot</h3>
-                    <p>Turn your Raspberry Pi into a standalone Wi-Fi hotspot so phones, tablets, and laptops can connect directly to Fyr — no existing router or internet connection required. Ideal for field use, classrooms, or off-grid deployments.</p>
+                    <h3 id="wifi-hotspot" class="text-2xl text-white">Wi-Fi Hotspot</h3>
+                    <p>Turn a Debian-based system with a Wi-Fi adapter (including Raspberry Pi) into a standalone hotspot so phones, tablets, and laptops can connect directly to Fyr — no existing router or internet connection required. Ideal for field use, classrooms, or off-grid deployments.</p>
 
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
                         <ul class="text-sm text-gray-300 space-y-1">
-                            <li><strong>Requires:</strong> Raspberry Pi 3B+ or newer (built-in Wi-Fi), or a supported USB Wi-Fi adapter.</li>
-                            <li><strong>OS:</strong> Raspberry Pi OS Bookworm (64-bit) — NetworkManager (<code>nmcli</code>) is the default.</li>
+                            <li><strong>Requires:</strong> A system with a Wi-Fi adapter (built-in or USB). Raspberry Pi 3B+ and newer include built-in Wi-Fi.</li>
+                            <li><strong>OS:</strong> Debian-based distribution with <code>NetworkManager</code> (the default on Raspberry Pi OS Bookworm, Ubuntu Desktop, and many others).</li>
                             <li><strong>Architecture:</strong> Fyr images natively support <code>linux/arm64</code>, matching Raspberry Pi 64-bit OS.</li>
                         </ul>
                     </div>
@@ -545,7 +516,7 @@ sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</cod
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
                         <p class="text-sm text-white font-semibold mb-1">💡 Tip: Sharing an Ethernet Connection</p>
                         <p class="text-sm text-gray-300 leading-relaxed">
-                            If the Raspberry Pi is also connected via Ethernet (<code>eth0</code>), NetworkManager will automatically share that connection through the hotspot, giving connected devices internet access when available.
+                            If the device is also connected via Ethernet (<code>eth0</code>), NetworkManager will automatically share that connection through the hotspot, giving connected devices internet access when available.
                         </p>
                     </div>
 
@@ -579,6 +550,12 @@ sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</cod
                         <li>Node.js 24 (recommended to match CI)</li>
                         <li>npm</li>
                     </ul>
+
+                    <h3 class="text-2xl text-white mt-10">Checkout from Git</h3>
+                    <p>Clone the repository and check out the tag or branch you want to build:</p>
+                    <pre><code>git clone https://github.com/hexagon/fyr.git
+cd fyr
+git checkout main   # or dev, or a specific tag</code></pre>
 
                     <h3 class="text-2xl text-white mt-10">Build and Run</h3>
 
