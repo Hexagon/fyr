@@ -219,7 +219,7 @@ $dockerArgs = @(
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "==> Success! Container '${ContainerName}' is up and running."
-    Write-Host "==> Open http://localhost:${Port} in your browser."
+    Write-Host "==> Access Fyr at http://localhost:${Port} (replace localhost with the server's IP if connecting remotely)."
 } else {
     Write-Host "==> ERROR: Failed to start container. Check Docker logs for details."
     exit 1
