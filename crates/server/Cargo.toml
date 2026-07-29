@@ -33,6 +33,12 @@ zip = { version = "0.6", default-features = false, features = ["deflate"] }
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"
 memmap2 = "0.9"
+ring.workspace = true
+hex.workspace = true
+md-5.workspace = true
+digest.workspace = true
+aes.workspace = true
+cbc.workspace = true
 
 [[bin]]
 name = "fyr"

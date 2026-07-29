@@ -356,17 +356,19 @@ const addVectorLayers = (availableLayers) => {
     return lowerMap.get(String(fallback).toLowerCase()) || fallback
   }
 
-  const earthSource = pickLayer(['earth'], 'earth')
-  const landcoverSource = pickLayer(['landcover', 'landuse'], 'landcover', [/landcover/i, /landuse/i])
-  const landuseSource = pickLayer(['landuse', 'landcover'], 'landuse', [/landuse/i, /landcover/i])
-  const waterSource = pickLayer(['water'], 'water', [/^water$/i, /hydro/i, /water/i])
-  const waterLineSource = pickLayer(['waterway', 'physical_line', 'water'], 'waterway', [/waterway/i, /river/i, /stream/i, /canal/i, /physical_line/i])
+  const earthSource = pickLayer(['land', 'earth'], 'land', [/^land$/i, /^earth$/i])
+  const oceanSource = pickLayer(['ocean'], 'ocean', [/^ocean$/i])
+  const landcoverSource = pickLayer(['landcover', 'landuse', 'land'], 'land', [/landcover/i, /landuse/i, /^land$/i])
+  const landuseSource = pickLayer(['landuse', 'landcover', 'land'], 'land', [/landuse/i, /landcover/i, /^land$/i])
+  const waterSource = pickLayer(['water_polygons', 'water'], 'water_polygons', [/water_polygon/i, /^water$/i, /hydro/i])
+  const waterLineSource = pickLayer(['water_lines', 'waterway', 'physical_line', 'water'], 'water_lines', [/waterway/i, /river/i, /stream/i, /canal/i, /physical_line/i, /water_line/i])
   const buildingSource = pickLayer(['buildings', 'building'], 'buildings', [/building/i])
-  const roadsSource = pickLayer(['roads', 'transportation', 'road'], 'roads', [/transport/i, /road/i, /street/i, /highway/i])
+  const roadsSource = pickLayer(['streets', 'roads', 'transportation', 'road'], 'streets', [/transport/i, /road/i, /street/i, /highway/i])
   const transitSource = pickLayer(['transit', 'transportation', 'roads', 'railway'], 'transit', [/rail/i, /transit/i, /transport/i])
   const boundarySource = pickLayer(['boundaries', 'boundary', 'admin'], 'boundaries', [/boundar/i, /admin/i])
   const placesSource = pickLayer(['places', 'place'], 'places', [/places?/i, /settlement/i])
   const poisSource = pickLayer(['pois', 'poi'], 'pois', [/pois?/i, /point/i])
+  const sitesSource = pickLayer(['sites'], 'sites', [/^sites$/i])
 
   const roadClassExpr = ['coalesce', ['get', 'class'], ['get', 'kind'], ['get', 'type'], ['get', 'highway']]
   const roadDetailExpr = ['coalesce', ['get', 'kind_detail'], ['get', 'detail'], ['get', 'subclass']]
@@ -463,6 +465,16 @@ const addVectorLayers = (availableLayers) => {
       }
     },
     {
+      id: 'ocean-layer',
+      layer: oceanSource,
+      type: 'fill',
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'fill-color': '#b3d9ff',
+        'fill-opacity': 0.9
+      }
+    },
+    {
       id: 'landcover-layer',
       layer: landcoverSource,
       type: 'fill',
@@ -494,6 +506,17 @@ const addVectorLayers = (availableLayers) => {
       paint: {
         'fill-color': '#c6ddb0',
         'fill-opacity': 0.75
+      }
+    },
+    {
+      id: 'sites-layer',
+      layer: sitesSource,
+      type: 'fill',
+      minzoom: 14,
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'fill-color': '#e2ddd2',
+        'fill-opacity': 0.7
       }
     },
     {
@@ -656,7 +679,11 @@ const addVectorLayers = (availableLayers) => {
           '#8ea474'
         ],
         'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.45, 14, 1.2, 16, 1.8],
-        'line-dasharray': [1.5, 1.6],
+        'line-dasharray': ['match', roadClassExpr,
+          'track', ['literal', [3, 2]],
+          'path', ['literal', [1, 3]],
+          ['literal', [1.5, 1.6]]
+        ],
         'line-opacity': 0.88
       },
       layout: {

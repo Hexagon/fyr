@@ -400,6 +400,18 @@ export const apiService = {
     return response.data
   },
 
+  // Tools: AES-256-GCM encrypt/decrypt
+  toolsAes: async (payload) => {
+    const response = await api.post('/tools/aes', payload)
+    return response.data
+  },
+
+  // Tools: Hash / Checksum
+  toolsHash: async (payload) => {
+    const response = await api.post('/tools/hash', payload)
+    return response.data
+  },
+
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)

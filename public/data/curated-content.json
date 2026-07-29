@@ -165,13 +165,22 @@
     ],
     "maps": [
       {
-        "id": "protomaps-downloads",
-        "label": "Protomaps PMTiles downloads",
+        "id": "bbbike-osm-pmtiles",
+        "label": "BBBike OSM PMTiles downloads",
         "formats": [
           "pmtiles"
         ],
-        "source": "https://protomaps.com/",
-        "notes": "Good default source for PMTiles extracts that Fyr can serve directly from /data/maps."
+        "source": "https://data.bbbike.org/osm/region/",
+        "notes": "Pre-generated PMTiles extracts from OpenStreetMap that Fyr can serve directly from /data/maps."
+      },
+      {
+        "id": "protomaps-cli",
+        "label": "Protomaps CLI",
+        "formats": [
+          "pmtiles"
+        ],
+        "source": "https://docs.protomaps.com/pmtiles/cli",
+        "notes": "CLI tool to extract regional PMTiles archives from a global planet file."
       }
     ]
   }
