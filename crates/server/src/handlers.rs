@@ -2051,6 +2051,625 @@ pub struct LibrarySearchQuery {
     pub limit: Option<usize>,
 }
 
+// --- Tools: AES (CBC, ECB, GCM) with configurable key type and bits ---
+
+#[derive(Deserialize)]
+pub struct ToolsAesRequest {
+    pub mode: String,        // "encrypt" or "decrypt"
+    pub key_type: String,    // "password" or "raw"
+    pub key_source: String,  // password string or hex key
+    pub bits: u32,           // 128, 192, or 256
+    pub cipher_mode: String, // "cbc", "ecb", or "gcm"
+    pub text: String,        // plaintext or hex ciphertext
+}
+
+#[derive(Serialize)]
+pub struct ToolsAesResponse {
+    pub result: String,
+}
+
+/// PKCS7-pad buf to a multiple of 16 bytes.
+/// Returns the number of bytes that contain valid data.
+fn pkcs7_pad(buf: &mut [u8; 4096], len: usize) -> usize {
+    let pad_len = 16 - (len % 16);
+    let padded = len + pad_len;
+    for i in len..padded {
+        buf[i] = pad_len as u8;
+    }
+    padded
+}
+
+/// PKCS7-unpad a buffer that is a multiple of 16 bytes.
+/// Returns the unpadded length, or None if padding is invalid.
+fn pkcs7_unpad(buf: &[u8]) -> Option<usize> {
+    if buf.is_empty() || buf.len() % 16 != 0 {
+        return None;
+    }
+    let pad_len = *buf.last()? as usize;
+    if pad_len == 0 || pad_len > 16 || pad_len > buf.len() {
+        return None;
+    }
+    let start = buf.len() - pad_len;
+    for &b in &buf[start..] {
+        if b as usize != pad_len {
+            return None;
+        }
+    }
+    Some(buf.len() - pad_len)
+}
+
+/// POST /api/tools/aes — AES encrypt/decrypt with configurable key type, bits, and mode
+pub async fn tools_aes(
+    Json(req): Json<ToolsAesRequest>,
+) -> Result<Json<ToolsAesResponse>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+    use ring::pbkdf2;
+    use ring::rand::{SecureRandom, SystemRandom};
+    use std::num::NonZeroU32;
+
+    const SALT_LEN: usize = 16;
+    const IV_LEN: usize = 16;   // CBC IV
+    const NONCE_LEN: usize = 12; // GCM nonce
+    const PBKDF2_ITERATIONS: u32 = 100_000;
+
+    // Validate bits
+    let key_byte_len = match req.bits {
+        128 => 16,
+        192 => 24,
+        256 => 32,
+        _ => return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Bits must be 128, 192, or 256".to_string(),
+        }))),
+    };
+
+    // Validate cipher_mode
+    if !matches!(req.cipher_mode.as_str(), "cbc" | "ecb" | "gcm") {
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "cipher_mode must be 'cbc', 'ecb', or 'gcm'".to_string(),
+        })));
+    }
+
+    // GCM only supports 256-bit via ring
+    if req.cipher_mode == "gcm" && req.bits != 256 {
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "GCM mode only supports 256-bit keys".to_string(),
+        })));
+    }
+
+    let rng = SystemRandom::new();
+
+    /// Derive or parse the key, returning (key_bytes, optional_salt_prefix)
+    fn resolve_key(
+        key_type: &str,
+        key_source: &str,
+        key_byte_len: usize,
+        rng: &SystemRandom,
+    ) -> Result<(Vec<u8>, Vec<u8>), (StatusCode, Json<ErrorMessageResponse>)> {
+        match key_type {
+            "password" => {
+                let mut salt = [0u8; SALT_LEN];
+                rng.fill(&mut salt).map_err(|_| {
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                        message: "Failed to generate random salt".to_string(),
+                    }))
+                })?;
+                let mut key = vec![0u8; key_byte_len];
+                pbkdf2::derive(
+                    pbkdf2::PBKDF2_HMAC_SHA256,
+                    NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+                    &salt,
+                    key_source.as_bytes(),
+                    &mut key,
+                );
+                Ok((key, salt.to_vec()))
+            }
+            "raw" => {
+                let key = hex::decode(key_source).map_err(|_| {
+                    (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                        message: "Invalid hex key".to_string(),
+                    }))
+                })?;
+                if key.len() != key_byte_len {
+                    return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                        message: format!("Raw key must be {} hex chars ({} bytes)", key_byte_len * 2, key_byte_len),
+                    })));
+                }
+                Ok((key, Vec::new()))
+            }
+            _ => Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                message: "key_type must be 'password' or 'raw'".to_string(),
+            }))),
+        }
+    }
+
+    match req.mode.as_str() {
+        "encrypt" => {
+            let (key_bytes, salt_prefix) = resolve_key(&req.key_type, &req.key_source, key_byte_len, &rng)?;
+
+            let result = match req.cipher_mode.as_str() {
+                "cbc" => {
+                    // Generate random IV
+                    let mut iv = [0u8; IV_LEN];
+                    rng.fill(&mut iv).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to generate IV".to_string(),
+                        }))
+                    })?;
+
+                    // Pad plaintext
+                    let plaintext = req.text.as_bytes();
+                    let mut buf = [0u8; 4096];
+                    if plaintext.len() > 4000 {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Plaintext too long (max 4000 bytes)".to_string(),
+                        })));
+                    }
+                    buf[..plaintext.len()].copy_from_slice(plaintext);
+                    let padded_len = pkcs7_pad(&mut buf, plaintext.len());
+
+                    // Encrypt using the appropriate AES key size
+                    let ct = cbc_encrypt(&key_bytes, &iv, &buf[..padded_len])?;
+
+                    // Output: hex(salt_prefix) + hex(iv) + hex(ct)
+                    hex::encode(&salt_prefix) + &hex::encode(iv) + &hex::encode(ct)
+                }
+                "ecb" => {
+                    // Pad plaintext
+                    let plaintext = req.text.as_bytes();
+                    let mut buf = [0u8; 4096];
+                    if plaintext.len() > 4000 {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Plaintext too long (max 4000 bytes)".to_string(),
+                        })));
+                    }
+                    buf[..plaintext.len()].copy_from_slice(plaintext);
+                    let padded_len = pkcs7_pad(&mut buf, plaintext.len());
+
+                    // Encrypt block by block
+                    let ct = ecb_encrypt(&key_bytes, &buf[..padded_len])?;
+
+                    // Output: hex(salt_prefix) + hex(ct) (no IV)
+                    hex::encode(&salt_prefix) + &hex::encode(ct)
+                }
+                "gcm" => {
+                    // GCM is only supported for 256-bit via ring
+                    let unbound_key = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to create encryption key".to_string(),
+                        }))
+                    })?;
+                    let key = LessSafeKey::new(unbound_key);
+
+                    // Generate random nonce
+                    let mut nonce_bytes = [0u8; NONCE_LEN];
+                    rng.fill(&mut nonce_bytes).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to generate nonce".to_string(),
+                        }))
+                    })?;
+                    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+                    // Encrypt
+                    let mut plaintext = req.text.as_bytes().to_vec();
+                    key.seal_in_place_append_tag(nonce, Aad::empty(), &mut plaintext).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Encryption failed".to_string(),
+                        }))
+                    })?;
+
+                    // Output: hex(salt_prefix) + hex(nonce) + hex(ct)
+                    hex::encode(&salt_prefix) + &hex::encode(nonce_bytes) + &hex::encode(plaintext)
+                }
+                _ => unreachable!(),
+            };
+
+            Ok(Json(ToolsAesResponse { result }))
+        }
+        "decrypt" => {
+            let bytes = hex::decode(&req.text).map_err(|_| {
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Invalid hex input".to_string(),
+                }))
+            })?;
+
+            let (key_bytes, payload) = match req.key_type.as_str() {
+                "password" => {
+                    if bytes.len() < SALT_LEN {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Input too short: expected salt + payload".to_string(),
+                        })));
+                    }
+                    let salt = &bytes[..SALT_LEN];
+                    let mut key = vec![0u8; key_byte_len];
+                    pbkdf2::derive(
+                        pbkdf2::PBKDF2_HMAC_SHA256,
+                        NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+                        salt,
+                        req.key_source.as_bytes(),
+                        &mut key,
+                    );
+                    (key, &bytes[SALT_LEN..])
+                }
+                "raw" => {
+                    let key = hex::decode(&req.key_source).map_err(|_| {
+                        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Invalid hex key".to_string(),
+                        }))
+                    })?;
+                    if key.len() != key_byte_len {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: format!("Raw key must be {} hex chars ({} bytes)", key_byte_len * 2, key_byte_len),
+                        })));
+                    }
+                    (key, &bytes[..])
+                }
+                _ => return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "key_type must be 'password' or 'raw'".to_string(),
+                }))),
+            };
+
+            let result = match req.cipher_mode.as_str() {
+                "cbc" => {
+                    if payload.len() < IV_LEN {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext too short: missing IV".to_string(),
+                        })));
+                    }
+                    let iv = &payload[..IV_LEN];
+                    let ct = &payload[IV_LEN..];
+
+                    let plaintext = cbc_decrypt(&key_bytes, iv, ct)?;
+                    String::from_utf8(plaintext).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
+                    })?
+                }
+                "ecb" => {
+                    if payload.is_empty() {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext is empty".to_string(),
+                        })));
+                    }
+
+                    let plaintext = ecb_decrypt(&key_bytes, payload)?;
+                    String::from_utf8(plaintext).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
+                    })?
+                }
+                "gcm" => {
+                    if payload.len() < NONCE_LEN {
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext too short: missing nonce".to_string(),
+                        })));
+                    }
+                    let nonce_bytes: [u8; NONCE_LEN] = {
+                        let arr = &payload[..NONCE_LEN];
+                        arr.try_into().unwrap()
+                    };
+                    let ct = &payload[NONCE_LEN..];
+
+                    let unbound_key = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to create decryption key".to_string(),
+                        }))
+                    })?;
+                    let key = LessSafeKey::new(unbound_key);
+
+                    let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+                    let mut ct_vec = ct.to_vec();
+                    let plaintext_slice = key.open_in_place(nonce, Aad::empty(), &mut ct_vec).map_err(|_| {
+                        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Decryption failed. Check your password and ciphertext.".to_string(),
+                        }))
+                    })?;
+
+                    String::from_utf8(plaintext_slice.to_vec()).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
+                    })?
+                }
+                _ => unreachable!(),
+            };
+
+            Ok(Json(ToolsAesResponse { result }))
+        }
+        _ => Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Mode must be 'encrypt' or 'decrypt'".to_string(),
+        }))),
+    }
+}
+
+/// Helper: CBC encrypt with the appropriate AES key size.
+fn cbc_encrypt(key_bytes: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{KeyIvInit, BlockEncryptMut};
+    use aes::cipher::block_padding::Pkcs7;
+
+    let ct = match key_bytes.len() {
+        16 => {
+            use aes::Aes128;
+            let cipher = cbc::Encryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = plaintext.to_vec();
+            buf.extend_from_slice(&[0u8; 32]); // room for padding
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
+            pos.to_vec()
+        }
+        24 => {
+            use aes::Aes192;
+            let cipher = cbc::Encryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = plaintext.to_vec();
+            buf.extend_from_slice(&[0u8; 32]);
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
+            pos.to_vec()
+        }
+        32 => {
+            use aes::Aes256;
+            let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = plaintext.to_vec();
+            buf.extend_from_slice(&[0u8; 32]);
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
+            pos.to_vec()
+        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
+    };
+    Ok(ct)
+}
+
+/// Helper: CBC decrypt with the appropriate AES key size.
+fn cbc_decrypt(key_bytes: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{KeyIvInit, BlockDecryptMut};
+    use aes::cipher::block_padding::Pkcs7;
+
+    let plaintext = match key_bytes.len() {
+        16 => {
+            use aes::Aes128;
+            let cipher = cbc::Decryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = ciphertext.to_vec();
+            let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
+            })?;
+            pt.to_vec()
+        }
+        24 => {
+            use aes::Aes192;
+            let cipher = cbc::Decryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = ciphertext.to_vec();
+            let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
+            })?;
+            pt.to_vec()
+        }
+        32 => {
+            use aes::Aes256;
+            let cipher = cbc::Decryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
+            let mut buf = ciphertext.to_vec();
+            let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
+            })?;
+            pt.to_vec()
+        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
+    };
+    Ok(plaintext)
+}
+
+/// Helper: ECB encrypt with the appropriate AES key size.
+/// Each 16-byte block is encrypted independently.
+fn ecb_encrypt(key_bytes: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{BlockEncrypt, KeyInit};
+    use aes::cipher::generic_array::GenericArray;
+
+    let ct: Vec<u8> = match key_bytes.len() {
+        16 => {
+            use aes::Aes128;
+            let cipher = Aes128::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        24 => {
+            use aes::Aes192;
+            let cipher = Aes192::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        32 => {
+            use aes::Aes256;
+            let cipher = Aes256::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
+    };
+    Ok(ct)
+}
+
+/// Helper: ECB decrypt with the appropriate AES key size.
+fn ecb_decrypt(key_bytes: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{BlockDecrypt, KeyInit};
+    use aes::cipher::generic_array::GenericArray;
+
+    if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "ECB ciphertext must be a non-empty multiple of 16 bytes".to_string(),
+        })));
+    }
+
+    let mut decrypted: Vec<u8> = match key_bytes.len() {
+        16 => {
+            use aes::Aes128;
+            let cipher = Aes128::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        24 => {
+            use aes::Aes192;
+            let cipher = Aes192::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        32 => {
+            use aes::Aes256;
+            let cipher = Aes256::new_from_slice(key_bytes).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
+            })?;
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
+        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
+    };
+
+    // Remove PKCS7 padding
+    let unpadded_len = pkcs7_unpad(&decrypted).ok_or_else(|| {
+        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Invalid PKCS7 padding in decrypted data".to_string(),
+        }))
+    })?;
+    decrypted.truncate(unpadded_len);
+
+    Ok(decrypted)
+}
+
+// --- Tools: Hash / Checksum ---
+
+#[derive(Deserialize)]
+pub struct ToolsHashRequest {
+    pub algo: String, // "sha256", "sha512", "sha1", "md5"
+    pub text: String,
+}
+
+#[derive(Serialize)]
+pub struct ToolsHashResponse {
+    pub result: String,
+}
+
+/// POST /api/tools/hash — Hash text using SHA-256, SHA-512, SHA-1, or MD5
+pub async fn tools_hash(
+    Json(req): Json<ToolsHashRequest>,
+) -> Json<ToolsHashResponse> {
+    let result = match req.algo.as_str() {
+        "sha256" => {
+            let digest = ring::digest::digest(&ring::digest::SHA256, req.text.as_bytes());
+            hex::encode(digest.as_ref())
+        }
+        "sha512" => {
+            let digest = ring::digest::digest(&ring::digest::SHA512, req.text.as_bytes());
+            hex::encode(digest.as_ref())
+        }
+        "sha1" => {
+            let digest = ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, req.text.as_bytes());
+            hex::encode(digest.as_ref())
+        }
+        "md5" => {
+            use md5::Md5;
+            use digest::Digest;
+            let mut hasher = Md5::new();
+            hasher.update(req.text.as_bytes());
+            let digest = hasher.finalize();
+            hex::encode(digest)
+        }
+        _ => {
+            // Default to SHA-256 for unknown algorithms
+            let digest = ring::digest::digest(&ring::digest::SHA256, req.text.as_bytes());
+            hex::encode(digest.as_ref())
+        }
+    };
+
+    Json(ToolsHashResponse { result })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

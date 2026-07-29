@@ -91,7 +91,7 @@
           <!-- AES -->
           <div v-if="activeCipher === 'aes'" class="cipher-card">
             <div class="card-header">
-              <h3>AES-256-CBC</h3>
+              <h3>AES-{{ ciphers.aes.bits }}-{{ ciphers.aes.cipher_mode.toUpperCase() }}</h3>
             </div>
             <div class="cipher-body">
               <div class="cipher-input-row">
@@ -103,8 +103,50 @@
                   </select>
                 </label>
                 <label class="tool-label">
-                  Password
-                  <input v-model="ciphers.aes.password" type="text" class="tool-input" placeholder="Enter password" />
+                  Key Source
+                  <select v-model="ciphers.aes.key_type" class="tool-select">
+                    <option value="password">Password (PBKDF2)</option>
+                    <option value="raw">Raw Key (hex)</option>
+                  </select>
+                </label>
+                <label class="tool-label">
+                  Bits
+                  <select v-model="ciphers.aes.bits" class="tool-select">
+                    <option value="128">128</option>
+                    <option value="192">192</option>
+                    <option value="256">256</option>
+                  </select>
+                </label>
+                <label class="tool-label">
+                  Cipher Mode
+                  <select v-model="ciphers.aes.cipher_mode" class="tool-select">
+                    <option value="gcm">GCM</option>
+                    <option value="cbc">CBC</option>
+                    <option value="ecb">ECB</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="cipher-info" v-if="ciphers.aes.key_type === 'password'">
+                Key derivation: <strong>PBKDF2-HMAC-SHA256, 100,000 iterations</strong>.
+                Salt is prepended to the output.
+              </div>
+              <div class="cipher-info cipher-warning" v-if="ciphers.aes.cipher_mode === 'ecb'">
+                ⚠ ECB is not authenticated and reveals plaintext patterns. Use CBC or GCM for sensitive data.
+              </div>
+              <div class="cipher-info cipher-warning" v-if="ciphers.aes.cipher_mode === 'gcm' && ciphers.aes.bits !== '256'">
+                ⚠ GCM mode only supports 256-bit keys.
+              </div>
+
+              <div class="cipher-input-row">
+                <label class="tool-label">
+                  {{ ciphers.aes.key_type === 'password' ? 'Password' : 'Key (hex)' }}
+                  <input
+                    v-model="ciphers.aes.key_source"
+                    type="text"
+                    class="tool-input"
+                    :placeholder="ciphers.aes.key_type === 'password' ? 'Enter password' : 'Enter hex key'"
+                  />
                 </label>
                 <label class="tool-label tool-label-wide">
                   {{ ciphers.aes.mode === 'encrypt' ? 'Plaintext' : 'Ciphertext (hex)' }}
@@ -236,6 +278,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { apiService } from '../services/api.js'
 
 const sidebarCollapsed = ref(false)
 const activeTab = ref('converters')
@@ -324,7 +367,7 @@ const converters = reactive({
 
 // --- Cipher state ---
 const ciphers = reactive({
-  aes: { mode: 'encrypt', password: '', text: '', result: null, error: null },
+  aes: { mode: 'encrypt', key_type: 'password', key_source: '', bits: '256', cipher_mode: 'gcm', text: '', result: null, error: null },
   base64: { mode: 'encode', text: '', result: null, error: null },
   rot13: { text: '', result: null },
   hash: { algo: 'sha256', text: '', result: null }
@@ -413,68 +456,27 @@ function formatNumber(num) {
 }
 
 // --- AES ---
-async function aesEncrypt(plaintext, password) {
-  const encoder = new TextEncoder()
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']
-  )
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-CBC', length: 256 },
-    false,
-    ['encrypt']
-  )
-  const iv = crypto.getRandomValues(new Uint8Array(16))
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-CBC', iv },
-    key,
-    encoder.encode(plaintext)
-  )
-  const saltHex = [...salt].map(b => b.toString(16).padStart(2, '0')).join('')
-  const ivHex = [...iv].map(b => b.toString(16).padStart(2, '0')).join('')
-  const ctHex = [...new Uint8Array(encrypted)].map(b => b.toString(16).padStart(2, '0')).join('')
-  return saltHex + ivHex + ctHex
-}
-
-async function aesDecrypt(ciphertextHex, password) {
-  const encoder = new TextEncoder()
-  const bytes = new Uint8Array(ciphertextHex.match(/.{1,2}/g).map(b => parseInt(b, 16)))
-  const salt = bytes.slice(0, 16)
-  const iv = bytes.slice(16, 32)
-  const ct = bytes.slice(32)
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']
-  )
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-CBC', length: 256 },
-    false,
-    ['decrypt']
-  )
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, key, ct)
-  return new TextDecoder().decode(decrypted)
-}
-
 async function handleAes() {
   ciphers.aes.error = null
-  if (!ciphers.aes.text || !ciphers.aes.password) {
+  if (!ciphers.aes.text || !ciphers.aes.key_source) {
     ciphers.aes.result = null
     return
   }
 
   cipherWorking.value = true
   try {
-    if (ciphers.aes.mode === 'encrypt') {
-      ciphers.aes.result = await aesEncrypt(ciphers.aes.text, ciphers.aes.password)
-    } else {
-      ciphers.aes.result = await aesDecrypt(ciphers.aes.text, ciphers.aes.password)
-    }
+    const result = await apiService.toolsAes({
+      mode: ciphers.aes.mode,
+      key_type: ciphers.aes.key_type,
+      key_source: ciphers.aes.key_source,
+      bits: parseInt(ciphers.aes.bits),
+      cipher_mode: ciphers.aes.cipher_mode,
+      text: ciphers.aes.text
+    })
+    ciphers.aes.result = result.result
   } catch (e) {
-    ciphers.aes.error = e.message || 'Decryption failed. Check your password and ciphertext.'
+    const msg = e?.response?.data?.message || e.message || ''
+    ciphers.aes.error = msg || 'Operation failed. Check your password and input.'
     ciphers.aes.result = null
   } finally {
     cipherWorking.value = false
@@ -518,90 +520,20 @@ function handleRot13() {
 }
 
 // --- Hash / Checksum ---
-async function sha1(text) {
-  const encoder = new TextEncoder()
-  const hash = await crypto.subtle.digest('SHA-1', encoder.encode(text))
-  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function sha256(text) {
-  const encoder = new TextEncoder()
-  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(text))
-  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function sha512(text) {
-  const encoder = new TextEncoder()
-  const hash = await crypto.subtle.digest('SHA-512', encoder.encode(text))
-  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-function md5(text) {
-  function r(value, count) { return (value << count) | (value >>> (32 - count)) }
-
-  const str = unescape(encodeURIComponent(text))
-  const len = str.length
-  const words = new Array(len + 8)
-  let i = 0
-  for (; i < len; i++) { words[i] = str.charCodeAt(i) }
-  words[i++] = 0x80
-  while (i % 64 !== 56) { words[i++] = 0 }
-  const bitLenLo = len * 8
-  words[i++] = bitLenLo & 0xff
-  words[i++] = (bitLenLo >>> 8) & 0xff
-  words[i++] = (bitLenLo >>> 16) & 0xff
-  words[i++] = (bitLenLo >>> 24) & 0xff
-
-  let a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476
-
-  for (let j = 0; j < words.length; j += 64) {
-    const chunk = words.slice(j, j + 64)
-    const x = new Array(16)
-    for (let k = 0; k < 16; k++) {
-      x[k] = (chunk[k * 4] | (chunk[k * 4 + 1] << 8) | (chunk[k * 4 + 2] << 16) | (chunk[k * 4 + 3] << 24)) >>> 0
-    }
-    let aa = a, bb = b, cc = c, dd = d
-    for (let k = 0; k < 64; k++) {
-      let f, g
-      if (k < 16) { f = (bb & cc) | (~bb & dd); g = k }
-      else if (k < 32) { f = (dd & bb) | (~dd & cc); g = (5 * k + 1) % 16 }
-      else if (k < 48) { f = bb ^ cc ^ dd; g = (3 * k + 5) % 16 }
-      else { f = cc ^ (bb | ~dd); g = (7 * k) % 16 }
-      const temp = dd
-      dd = cc
-      cc = bb
-      const tVal = ([0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-        0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-        0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
-        0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-        0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-        0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-        0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-        0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391][k])
-      bb = (bb + r((aa + f + (x[g] >>> 0) + (tVal >>> 0)) >>> 0, [7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21][k % 16])) >>> 0
-      aa = temp
-    }
-    a = (a + aa) >>> 0; b = (b + bb) >>> 0; c = (c + cc) >>> 0; d = (d + dd) >>> 0
-  }
-
-  return [a, b, c, d].map(v => ('0000000' + v.toString(16)).slice(-8)).join('')
-}
-
 async function handleHash() {
   if (!ciphers.hash.text) {
     ciphers.hash.result = null
     return
   }
 
-  const algo = ciphers.hash.algo
-  if (algo === 'sha256') {
-    ciphers.hash.result = await sha256(ciphers.hash.text)
-  } else if (algo === 'sha512') {
-    ciphers.hash.result = await sha512(ciphers.hash.text)
-  } else if (algo === 'sha1') {
-    ciphers.hash.result = await sha1(ciphers.hash.text)
-  } else {
-    ciphers.hash.result = md5(ciphers.hash.text)
+  try {
+    const result = await apiService.toolsHash({
+      algo: ciphers.hash.algo,
+      text: ciphers.hash.text
+    })
+    ciphers.hash.result = result.result
+  } catch (e) {
+    ciphers.hash.result = null
   }
 }
 </script>
@@ -912,6 +844,21 @@ async function handleHash() {
   word-break: break-all;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.cipher-info {
+  padding: 0.5rem 0.75rem;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #b0b0b0;
+  font-size: 0.82rem;
+}
+
+.cipher-warning {
+  border-color: #8a6a00;
+  background: #2a2200;
+  color: #d4a843;
 }
 
 .cipher-error {

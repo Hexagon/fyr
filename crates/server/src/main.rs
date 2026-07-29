@@ -193,6 +193,9 @@ fn create_router(state: AppState) -> Router {
         .route("/api/library/books/:filename", get(handlers::library_book_metadata))
         .route("/api/library/books/:filename/toc", get(handlers::library_book_toc))
         .route("/api/library/books/:filename/search", get(handlers::library_book_search))
+        // Tools endpoints (read-only computation, no state mutation)
+        .route("/api/tools/aes", post(handlers::tools_aes))
+        .route("/api/tools/hash", post(handlers::tools_hash))
         // Auth endpoints
         .route("/api/auth/status", get(auth::auth_status_handler))
         .route("/api/auth/login", post(auth::login_handler))

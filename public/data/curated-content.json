@@ -165,13 +165,13 @@
     ],
     "maps": [
       {
-        "id": "protomaps-downloads",
-        "label": "Protomaps PMTiles downloads",
+        "id": "bbbike-osm-pmtiles",
+        "label": "BBBike OSM PMTiles downloads",
         "formats": [
           "pmtiles"
         ],
-        "source": "https://protomaps.com/",
-        "notes": "Good default source for PMTiles extracts that Fyr can serve directly from /data/maps."
+        "source": "https://data.bbbike.org/osm/region/",
+        "notes": "Pre-generated PMTiles extracts from OpenStreetMap that Fyr can serve directly from /data/maps."
       }
     ]
   }
