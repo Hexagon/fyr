@@ -168,8 +168,21 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - For ZIM archives, use trusted OpenZIM-compatible sources.
 
 ### Maps
-- Put `.pmtiles` files in `public/data/maps/`.
-- A practical source is OpenStreetMap-derived extracts packaged as PMTiles from trusted providers.
+- Fyr serves vector and raster map tiles from `.pmtiles` archives in `public/data/maps/`.
+- PMTiles is a single-file archive format for map tiles, readable directly by the browser without a tile server.
+
+**Obtaining PMTiles maps:**
+
+**Pre-compiled Shortbread maps (BBBike):**
+Download ready-to-use `.pmtiles` files from [data.bbbike.org](https://data.bbbike.org/osm/region/).
+
+**Extract from Protomaps (CLI):**
+Install the `pmtiles` CLI ([docs.protomaps.com/pmtiles/cli](https://docs.protomaps.com/pmtiles/cli)) and extract a region from a global PMTiles archive:
+
+```
+pmtiles extract https://build.protomaps.com/20260716.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
+pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
+```
 
 ### POI
 - Put `.geojson`, `.fgb`, or `.json` POI datasets in `public/data/poi/`.

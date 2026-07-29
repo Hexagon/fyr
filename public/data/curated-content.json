@@ -172,6 +172,15 @@
         ],
         "source": "https://data.bbbike.org/osm/region/",
         "notes": "Pre-generated PMTiles extracts from OpenStreetMap that Fyr can serve directly from /data/maps."
+      },
+      {
+        "id": "protomaps-cli",
+        "label": "Protomaps CLI",
+        "formats": [
+          "pmtiles"
+        ],
+        "source": "https://docs.protomaps.com/pmtiles/cli",
+        "notes": "CLI tool to extract regional PMTiles archives from a global planet file."
       }
     ]
   }
