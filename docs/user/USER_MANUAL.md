@@ -46,7 +46,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
 - **Assistant:** browse local `.gguf` models and chat offline.
-- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
+- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
 ## 3a. Access Control and Admin Login
 
@@ -316,18 +316,22 @@ The **Tools** page (accessible from the top navigation bar) provides common offl
 
 ### Unit Converters
 
-The **Unit Converters** tab supports seven conversion categories, each with its own card:
+The **Unit Converters** tab supports twelve conversion categories, grouped into logical sections:
 
-| Category | Units |
-|----------|-------|
-| Length | mm, cm, m, km, in, ft, yd, mi |
-| Mass | mg, g, kg, oz, lb |
-| Temperature | C, F, K |
-| Area | mm², cm², m², km², ha, in², ft², ac |
-| Volume | mL, L, m³, fl_oz, gal, cup |
-| Speed | m/s, km/h, mph, knot |
-| Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
-| Angle | deg, rad, grad |
+| Section | Category | Units |
+|---------|----------|-------|
+| Length & Speed | Length | mm, cm, m, km, in, ft, yd, mi |
+| | Speed | m/s, km/h, mph, knot |
+| Weight & Volume | Mass | mg, g, kg, oz, lb |
+| | Volume | mL, L, m³, fl_oz, gal, cup |
+| Area & Angle | Area | mm², cm², m², km², ha, in², ft², ac |
+| | Angle | deg, rad, grad |
+| Temperature | Temperature | C, F, K |
+| Digital Storage | Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
+| Energy & Power | Energy | J, kJ, cal, kcal, Wh, kWh |
+| | Power | W, kW, MW, HP, BTU/h |
+| Pressure & Time | Pressure | Pa, kPa, MPa, bar, psi, atm, mmHg |
+| | Time | ms, s, min, h, day |
 
 **How to use a converter:** Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.
 

@@ -11,9 +11,93 @@
 
         <div v-if="!sidebarCollapsed" class="sidebar-content">
           <div class="sidebar-section">
-            <h4 class="sidebar-section-title">Unit Converters</h4>
+            <h4 class="sidebar-section-title">Length & Speed</h4>
             <a
-              v-for="cat in converterCategories"
+              v-for="cat in converterGroups.length_speed"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Weight & Volume</h4>
+            <a
+              v-for="cat in converterGroups.weight_volume"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Area & Angle</h4>
+            <a
+              v-for="cat in converterGroups.area_angle"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Temperature</h4>
+            <a
+              v-for="cat in converterGroups.temperature"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Digital Storage</h4>
+            <a
+              v-for="cat in converterGroups.digital"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Energy & Power</h4>
+            <a
+              v-for="cat in converterGroups.energy_power"
+              :key="cat.id"
+              :href="'#' + cat.id"
+              class="sidebar-item"
+              :class="{ active: activeConverter === cat.id }"
+              @click.prevent="scrollToConverter(cat.id)"
+            >
+              {{ cat.label }}
+            </a>
+          </div>
+
+          <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Pressure & Time</h4>
+            <a
+              v-for="cat in converterGroups.pressure_time"
               :key="cat.id"
               :href="'#' + cat.id"
               class="sidebar-item"
@@ -30,7 +114,7 @@
               v-for="tool in cipherTools"
               :key="tool.id"
               class="sidebar-item"
-              :class="{ active: activeCipher === tool.id }"
+              :class="{ active: activeTab === 'ciphers' && activeCipher === tool.id }"
               @click="selectCipher(tool.id)"
             >
               {{ tool.label }}
@@ -46,36 +130,267 @@
             <h2>Unit Converters</h2>
           </div>
 
-          <div
-            v-for="cat in converterCategories"
-            :key="cat.id"
-            :id="cat.id"
-            class="converter-card"
-          >
-            <div class="card-header">
-              <h3>{{ cat.label }}</h3>
-            </div>
-            <div class="converter-body">
-              <div class="converter-input-row">
-                <input
-                  v-model.number="converters[cat.id].value"
-                  type="number"
-                  step="any"
-                  placeholder="Enter value"
-                  class="tool-input"
-                  @input="convertCurrent(cat.id)"
-                />
-                <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
-                  <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
-                </select>
-                <span class="arrow">→</span>
-                <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
-                  <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
-                </select>
+          <div class="converter-group">
+            <h3 class="group-heading">Length & Speed</h3>
+            <div
+              v-for="cat in converterGroups.length_speed"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
               </div>
-              <div class="converter-result-row">
-                <div class="tool-result" v-if="converters[cat.id].result !== null">
-                  <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Weight & Volume</h3>
+            <div
+              v-for="cat in converterGroups.weight_volume"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Area & Angle</h3>
+            <div
+              v-for="cat in converterGroups.area_angle"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Temperature</h3>
+            <div
+              v-for="cat in converterGroups.temperature"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Digital Storage</h3>
+            <div
+              v-for="cat in converterGroups.digital"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Energy & Power</h3>
+            <div
+              v-for="cat in converterGroups.energy_power"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="converter-group">
+            <h3 class="group-heading">Pressure & Time</h3>
+            <div
+              v-for="cat in converterGroups.pressure_time"
+              :key="cat.id"
+              :id="cat.id"
+              class="converter-card"
+            >
+              <div class="card-header">
+                <h3>{{ cat.label }}</h3>
+              </div>
+              <div class="converter-body">
+                <div class="converter-input-row">
+                  <input
+                    v-model.number="converters[cat.id].value"
+                    type="number"
+                    step="any"
+                    placeholder="Enter value"
+                    class="tool-input"
+                    @input="convertCurrent(cat.id)"
+                  />
+                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                  <span class="arrow">→</span>
+                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                <div class="converter-result-row">
+                  <div class="tool-result" v-if="converters[cat.id].result !== null">
+                    <span class="result-value">{{ formatNumber(converters[cat.id].result) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -286,16 +601,34 @@ const activeConverter = ref('length')
 const activeCipher = ref('aes')
 const cipherWorking = ref(false)
 
-const converterCategories = [
-  { id: 'length', label: 'Length' },
-  { id: 'mass', label: 'Mass' },
-  { id: 'temperature', label: 'Temperature' },
-  { id: 'area', label: 'Area' },
-  { id: 'volume', label: 'Volume' },
-  { id: 'speed', label: 'Speed' },
-  { id: 'data', label: 'Data' },
-  { id: 'angle', label: 'Angle' }
-]
+const converterGroups = {
+  length_speed: [
+    { id: 'length', label: 'Length' },
+    { id: 'speed', label: 'Speed' }
+  ],
+  weight_volume: [
+    { id: 'mass', label: 'Mass' },
+    { id: 'volume', label: 'Volume' }
+  ],
+  area_angle: [
+    { id: 'area', label: 'Area' },
+    { id: 'angle', label: 'Angle' }
+  ],
+  temperature: [
+    { id: 'temperature', label: 'Temperature' }
+  ],
+  digital: [
+    { id: 'data', label: 'Data' }
+  ],
+  energy_power: [
+    { id: 'energy', label: 'Energy' },
+    { id: 'power', label: 'Power' }
+  ],
+  pressure_time: [
+    { id: 'pressure', label: 'Pressure' },
+    { id: 'time', label: 'Time' }
+  ]
+}
 
 const cipherTools = [
   { id: 'aes', label: 'AES-256-CBC' },
@@ -335,13 +668,15 @@ const unitSets = {
   area: ['mm²', 'cm²', 'm²', 'km²', 'ha', 'in²', 'ft²', 'ac'],
   volume: ['mL', 'L', 'm³', 'fl_oz', 'gal', 'cup'],
   speed: ['m/s', 'km/h', 'mph', 'knot'],
-  data: ['B', 'KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB']
+  data: ['B', 'KB', 'MB', 'GB', 'TB', 'KiB', 'MiB', 'GiB'],
+  angle: ['deg', 'rad', 'grad'],
+  pressure: ['Pa', 'kPa', 'MPa', 'bar', 'psi', 'atm', 'mmHg'],
+  energy: ['J', 'kJ', 'cal', 'kcal', 'Wh', 'kWh'],
+  power: ['W', 'kW', 'MW', 'HP', 'BTU/h'],
+  time: ['ms', 's', 'min', 'h', 'day']
 }
 
-const angleUnits = ['deg', 'rad', 'grad']
-
 function getUnits(catId) {
-  if (catId === 'angle') return angleUnits
   return unitSets[catId] || []
 }
 
@@ -349,7 +684,7 @@ function makeConverterState(units) {
   return reactive({
     value: null,
     from: units[0],
-    to: units[1],
+    to: units.length > 1 ? units[1] : units[0],
     result: null
   })
 }
@@ -362,7 +697,11 @@ const converters = reactive({
   volume: makeConverterState(unitSets.volume),
   speed: makeConverterState(unitSets.speed),
   data: makeConverterState(unitSets.data),
-  angle: makeConverterState(angleUnits)
+  angle: makeConverterState(unitSets.angle),
+  pressure: makeConverterState(unitSets.pressure),
+  energy: makeConverterState(unitSets.energy),
+  power: makeConverterState(unitSets.power),
+  time: makeConverterState(unitSets.time)
 })
 
 // --- Cipher state ---
@@ -405,6 +744,23 @@ const ANGLE_TO_DEG = {
   deg: 1, rad: 180 / Math.PI, grad: 0.9
 }
 
+const PRESSURE_TO_PA = {
+  Pa: 1, kPa: 1000, MPa: 1000000, bar: 100000,
+  psi: 6894.76, atm: 101325, mmHg: 133.322
+}
+
+const ENERGY_TO_J = {
+  J: 1, kJ: 1000, cal: 4.184, kcal: 4184, Wh: 3600, kWh: 3600000
+}
+
+const POWER_TO_W = {
+  W: 1, kW: 1000, MW: 1000000, HP: 745.7, 'BTU/h': 0.293071
+}
+
+const TIME_TO_S = {
+  ms: 0.001, s: 1, min: 60, h: 3600, day: 86400
+}
+
 const tables = {
   length: LENGTH_TO_M,
   mass: MASS_TO_KG,
@@ -412,7 +768,11 @@ const tables = {
   volume: VOLUME_TO_L,
   speed: SPEED_TO_MS,
   data: DATA_TO_B,
-  angle: ANGLE_TO_DEG
+  angle: ANGLE_TO_DEG,
+  pressure: PRESSURE_TO_PA,
+  energy: ENERGY_TO_J,
+  power: POWER_TO_W,
+  time: TIME_TO_S
 }
 
 function convert(value, table, fromUnit, toUnit) {
@@ -662,6 +1022,21 @@ async function handleHash() {
   margin: 0;
   color: #e0e0e0;
   font-size: 1.15rem;
+}
+
+.converter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.group-heading {
+  margin: 0.5rem 0 0 0;
+  color: #8d8d8d;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 0.25rem;
 }
 
 .converter-card,

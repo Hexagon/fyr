@@ -323,14 +323,6 @@ const syncZimFrameHeight = () => {
 
   const body = doc.body
   const docEl = doc.documentElement
-  if (body) {
-    body.style.overflowY = 'hidden'
-    body.style.overflowX = 'hidden'
-  }
-  if (docEl) {
-    docEl.style.overflowY = 'hidden'
-    docEl.style.overflowX = 'hidden'
-  }
 
   const measured = Math.max(
     body?.scrollHeight || 0,
@@ -343,10 +335,9 @@ const syncZimFrameHeight = () => {
   const current = zimFrameHeight.value || 0
   const next = Math.min(12000, Math.ceil(measured + 8))
 
-  // Tolerance guard: only update if the change is more than 10px to prevent
-  // infinite height growth when min-height makes the frame height feed back
-  // into the content measurement.
-  if (Math.abs(next - current) > 10) {
+  // Tolerance guard: only update if the change is more than 2px to prevent
+  // jitter from sub-pixel rounding differences.
+  if (Math.abs(next - current) > 2) {
     zimFrameHeight.value = next
   }
 }
