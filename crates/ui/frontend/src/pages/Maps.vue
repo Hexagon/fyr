@@ -14,7 +14,7 @@
         >
           {{ showSelector ? '🗺️' : '📂' }}
         </button>
-        <div id="maps-selector-panel" v-if="showSelector" class="overlay-content">
+        <div id="maps-selector-panel" v-show="showSelector" class="overlay-content">
           <h3>Available Maps</h3>
           <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
           <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
@@ -47,7 +47,7 @@
         >
           {{ showLayers ? '🎨' : '🧩' }}
         </button>
-        <div id="maps-layers-panel" v-if="showLayers" class="overlay-content">
+        <div id="maps-layers-panel" v-show="showLayers" class="overlay-content">
           <h3>Map Layers</h3>
           <p class="overlay-meta" v-if="renderMode === 'raster'">
             Raster mode detected. Vector layer controls are disabled.
@@ -140,7 +140,7 @@
         >
           {{ showInfo ? 'ℹ️' : '📍' }}
         </button>
-        <div id="maps-info-panel" v-if="showInfo" class="overlay-content">
+        <div id="maps-info-panel" v-show="showInfo" class="overlay-content">
           <h3>{{ selectedMap.filename }}</h3>
           <p class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
