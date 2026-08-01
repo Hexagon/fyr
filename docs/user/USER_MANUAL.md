@@ -316,7 +316,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 
 ## 9. Tools
 
-The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations run entirely in your browser—no data is sent to the server or over the network.
+The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations stay local to your Fyr deployment (offline-safe): some run in-browser, and some are processed by Fyr's local API.
 
 ### Unit Converters
 
@@ -351,11 +351,9 @@ The **Encryption & Ciphers** tab provides four tools:
 
 - **Hash / Checksum:** Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: **SHA-256**, **SHA-512**, **SHA-1**, and **MD5**. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.
 
-> **Algorithm implementation notes:**
-> * **AES-256-CBC** uses the browser's Web Crypto API with PBKDF2 key derivation (SHA-256, 100,000 iterations) and a random IV per encryption. The hex output format is Fyr-specific and cannot be directly decrypted by standard tools without extracting the salt and IV.
-> * **Base64** uses the browser's built-in `btoa`/`atob` with UTF-8 safe encoding via `encodeURIComponent`. Results match the standard Base64 alphabet.
-> * **ROT13** applies the classic single-pass rotation; non-letter characters are unaffected.
-> * **SHA-256, SHA-512, and SHA-1** use the browser's Web Crypto digest API and produce standard lowercase hex digests identical to `sha256sum`, `sha512sum`, and `sha1sum` command-line tools.
-> * **MD5** uses a self-contained JavaScript implementation that produces standard lowercase hex digests. It has been verified against the reference RFC 1321 test vectors and matches the output of `md5sum`.
+> **Implementation notes:**
+> * Unit converters, Base64, and ROT13 run directly in the browser.
+> * AES and hash/checksum operations are handled by Fyr's local server API.
+> * Outputs use standard text encodings and hash formats shown in the UI.
 >
 > **Security note:** The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.
