@@ -137,3 +137,14 @@ These steps are in addition to the per-PR validation in the Development Workflow
 - Rust: use stable toolchain (Docker uses `rust:bookworm`).
 - Node.js: CI workflows use Node `24`.
 - Prefer matching CI toolchain versions locally when troubleshooting build drift.
+
+### Automatic Frontend Build
+
+`crates/server/build.rs` automatically runs `npm ci && npm run build` in `crates/ui/frontend/` before compiling the Rust server binary. This means a single command builds everything:
+
+```sh
+cargo build -p server          # debug build
+cargo build --release -p server  # release build
+```
+
+The frontend output goes to `public/static/` (configured in `vite.config.js`). The build script only re-runs when frontend source files change, thanks to `cargo:rerun-if-changed` directives.

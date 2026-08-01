@@ -286,9 +286,17 @@ Static content aliases:
 Native ZIM integration notes:
 - Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.
 - `.zim` archives are opened through the native ZIM module, which fetches metadata/capabilities from server endpoints and renders article HTML in a sandboxed iframe (`srcdoc`) with same-origin navigation bridged via `postMessage`.
+- Native ZIM rendering preserves sanitized archive root attributes (`html`/`body` class, id, lang, dir, style) so archive-authored layout systems (for example Wikipedia main-page mosaic rules) can apply without Fyr-specific fallback selectors.
+- The ZIM sandbox document does not inject Fyr fallback theme CSS; rendering uses archive-provided CSS plus browser defaults.
 - Server-side article resolution uses the Rust `zim` crate and returns article payloads through `/api/reader/zim/:filename/native/article`.
 - Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`, and rewritten asset links in the frontend target this endpoint.
 - Native mode is always active for `.zim` archives. The `FYR_ZIM_NATIVE_EXPERIMENTAL` toggle has been removed.
+
+Reader shell layout notes:
+- `Books.vue` uses a unified reader viewport where each format surface owns its own scroll behavior.
+- Read mode uses a single consolidated top toolbar that merges title, filename, status, ZIM search controls, and compact ZIM metadata chips (adapter/archive/article).
+- The Library panel auto-collapses whenever a book is opened; collapsed mode hides the panel entirely so the reader owns the full stage, and the state remains session-local (no persistence).
+- Legacy dynamic iframe height synchronization for ZIM and cross-surface resize plumbing were removed to avoid nested scrollbar complexity.
 
 Licensing and distribution notes:
 - Fyr source code remains MIT-licensed at repository root.

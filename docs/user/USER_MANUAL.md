@@ -44,7 +44,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
 - **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
 - **Maps:** map selection and viewer controls.
-- **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
+- **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
 - **Tools:** unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
@@ -217,8 +217,9 @@ pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbo
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.
-- Use the search input above the article panel to find entries by title or path, then open results directly in the same reader view.
+- Use the search input in the top reader toolbar to find entries by title or path, then open results directly in the same reader view.
 - Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.
+- ZIM pages use archive-provided styles and default browser styles only; Fyr does not inject fallback theme styles.
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
@@ -231,8 +232,11 @@ pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbo
 - If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
 
 ## 5c. Reader Shell
-- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- Books uses a unified reader shell with a single top toolbar.
+- The toolbar includes back-to-library, title + filename, format/status badges, and compact metadata chips.
 - EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
+- Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.
+- Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:

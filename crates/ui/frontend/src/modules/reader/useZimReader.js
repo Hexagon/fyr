@@ -79,81 +79,122 @@ const sanitizeNativeZimBodyHtml = (html) => {
   })
 }
 
-// Moderate fallback styles for ZIM content that lacks its own CSS.
-// These provide Wikipedia-compatible defaults (blue links, mosaic grid,
-// thumbnails, infoboxes) while being low-specificity so ZIM's own extracted
-// CSS (injected AFTER this) naturally overrides them.
-// No !important (except overflow-x which is structural), no universal selectors.
-const ZIM_SANDBOX_BASE_CSS = [
-  'html,body{background:#fff;margin:0;padding:0;overflow-x:hidden!important;overflow-y:visible;overscroll-behavior:contain}',
-  'body{font-family:sans-serif;font-size:1rem;line-height:1.6;color:#202122}',
-  'a{color:#3366cc;text-decoration:none}',
-  'a:visited{color:#6b4ba1}',
-  'a:hover{text-decoration:underline}',
-  'h1,h2,h3,h4{font-family:"Linux Libertine","Times New Roman",Times,serif;font-weight:500;line-height:1.25;border-bottom:1px solid #eaecf0;margin:1rem 0 0.6rem;padding-bottom:0.15rem}',
-  'p{margin:0.45rem 0 0.7rem}',
-  'ul,ol{margin:0.55rem 0 0.85rem 1.25rem}',
-  'li{margin-bottom:0.25rem}',
-  'img{max-width:100%;height:auto}',
-  'figure{margin:0}',
-  'figcaption{font-size:0.78rem;line-height:1.3;color:#3b3f45}',
-  'table{max-width:100%;border-collapse:collapse}',
-  'td,th{border:1px solid #d8dde3;padding:0.32rem 0.45rem;vertical-align:top}',
-  '.thumb{max-width:100%}',
-  '.thumb img{border:1px solid #c8ccd1;padding:2px;background:#fff}',
-  '.infobox{float:right;max-width:min(320px,100%);margin:0 0 0.8rem 0.9rem;font-size:0.86rem;background:#f8f9fa;border-spacing:0}',
-  '.infobox td,.infobox th{border:1px solid #c8ccd1;padding:0.32rem 0.45rem}'
-].join('')
+const ALLOWED_ROOT_ATTRS = new Set(['class', 'id', 'lang', 'dir', 'style'])
 
-const buildZimSandboxDocument = (headHtml, bodyHtml) => {
+const escapeHtmlAttribute = (value) => {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+const sanitizeRootStyleValue = (value) => {
+  const escaped = escapeHtmlAttribute(value)
+  const sanitized = DOMPurify.sanitize(`<div style="${escaped}"></div>`, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['style'],
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: [
+      'onerror', 'onload', 'onclick', 'onmouseover',
+      'onfocus', 'onblur', 'onchange', 'onsubmit',
+      'onreset', 'onselect', 'onkeydown', 'onkeypress', 'onkeyup'
+    ]
+  })
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(sanitized, 'text/html')
+  return doc.body.firstElementChild?.getAttribute('style') || ''
+}
+
+const extractSanitizedRootAttributes = (element) => {
+  const attrs = {}
+  if (!element?.attributes) return attrs
+
+  Array.from(element.attributes).forEach((attr) => {
+    const name = String(attr.name || '').toLowerCase()
+    if (!ALLOWED_ROOT_ATTRS.has(name)) return
+
+    const rawValue = String(attr.value || '').trim()
+    if (!rawValue) return
+
+    if (name === 'style') {
+      const styleValue = sanitizeRootStyleValue(rawValue)
+      if (styleValue) attrs[name] = styleValue
+      return
+    }
+
+    attrs[name] = rawValue
+  })
+
+  return attrs
+}
+
+const buildRootAttributeString = (attrs) => {
+  const entries = Object.entries(attrs || {})
+  if (!entries.length) return ''
+  return entries.map(([name, value]) => ` ${name}="${escapeHtmlAttribute(value)}"`).join('')
+}
+
+const buildZimSandboxDocument = (headHtml, bodyHtml, rootAttrs = {}) => {
+  const readerDefaults =
+    '<style>' +
+    'a:any-link{color:#0000ee;text-decoration:underline}' +
+    'a:visited{color:#551a8b}' +
+    '</style>'
+
+  const readerStructure =
+    '<style>' +
+    'html{height:100%;overflow-x:auto;overflow-y:auto!important;scrollbar-width:auto}' +
+    'body{min-height:100%;overflow-x:visible;overflow-y:auto!important;scrollbar-width:auto}' +
+    'body,main,article,section,div{scrollbar-width:auto}' +
+    'body *{scrollbar-width:auto}' +
+    '::-webkit-scrollbar{width:12px;height:12px}' +
+    'body *::-webkit-scrollbar{width:12px!important;height:12px!important}' +
+    '::-webkit-scrollbar-track{background:#f1f1f1!important}' +
+    'body *::-webkit-scrollbar-track{background:#f1f1f1!important}' +
+    '::-webkit-scrollbar-thumb{background:#767676!important;border:3px solid #f1f1f1;border-radius:6px}' +
+    'body *::-webkit-scrollbar-thumb{background:#767676!important;border:3px solid #f1f1f1;border-radius:6px}' +
+    '</style>'
+
   const navScript =
     '<script>' +
-    'function fyrNotifyHeight() {' +
-    '  var body = document.body;' +
-    '  var docEl = document.documentElement;' +
-    '  var height = Math.max(' +
-    '    body ? body.scrollHeight : 0,' +
-    '    body ? body.offsetHeight : 0,' +
-    '    docEl ? docEl.scrollHeight : 0,' +
-    '    docEl ? docEl.offsetHeight : 0' +
-    '  );' +
-    '  window.parent.postMessage({ type: "zim-height", height: height }, "*");' +
-    '}' +
     'document.addEventListener("click", function(e) {' +
     '  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;' +
     '  var el = e.target;' +
     '  while (el && el.tagName !== "A") { el = el.parentElement; }' +
     '  if (!el) return;' +
     '  var href = el.getAttribute("href");' +
-    '  if (!href || href.charAt(0) === "#") return;' +
+    '  if (!href) return;' +
+    '  if (href.charAt(0) === "#") {' +
+    '    e.preventDefault();' +
+    '    e.stopPropagation();' +
+    '    var targetId;' +
+    '    try { targetId = decodeURIComponent(href.slice(1)); } catch (ex) { targetId = href.slice(1); }' +
+    '    var target = document.getElementById(targetId) || document.getElementsByName(targetId)[0];' +
+    '    if (target) target.scrollIntoView();' +
+    '    return;' +
+    '  }' +
     '  var lower = href.toLowerCase();' +
-    '  if (lower.indexOf("mailto:") === 0 || lower.indexOf("javascript:") === 0' +
-    '      || lower.indexOf("data:") === 0 || lower.indexOf("vbscript:") === 0) return;' +
-    '  try {' +
-    '    var url = new URL(href, location.href);' +
-    '    if (url.origin !== location.origin) return;' +
-    '  } catch (ex) { return; }' +
+    '  if (href.indexOf("//") === 0 || /^[a-z][a-z0-9+.-]*:/i.test(href)' +
+    '      || lower.indexOf("javascript:") === 0 || lower.indexOf("data:") === 0' +
+    '      || lower.indexOf("vbscript:") === 0) return;' +
     '  e.preventDefault();' +
     '  e.stopPropagation();' +
     '  window.parent.postMessage({ type: "zim-navigate", href: href }, "*");' +
     '}, true);' +
-    'window.addEventListener("load", fyrNotifyHeight);' +
-    'window.addEventListener("resize", fyrNotifyHeight);' +
-    'new MutationObserver(function() { fyrNotifyHeight(); }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });' +
-    'setTimeout(fyrNotifyHeight, 0);' +
-    'setTimeout(fyrNotifyHeight, 300);' +
-    'setTimeout(fyrNotifyHeight, 1200);' +
     '</script>'
 
-  // Order: base reset/fallback first, then ZIM's own extracted CSS.
-  // This lets the ZIM's styles naturally override the fallback.
+  const htmlAttrs = buildRootAttributeString(rootAttrs.html)
+  const bodyAttrs = buildRootAttributeString(rootAttrs.body)
+
   return (
-    '<!DOCTYPE html><html><head>' +
+    `<!DOCTYPE html><html${htmlAttrs}><head>` +
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    `<style>${ZIM_SANDBOX_BASE_CSS}</style>` +
+    readerDefaults +
     headHtml +
+    readerStructure +
     navScript +
-    '</head><body>' +
+    `</head><body${bodyAttrs}>` +
     bodyHtml +
     '</body></html>'
   )
@@ -240,6 +281,11 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     node.setAttribute('srcset', rewriteSrcset(srcset, mapAssetUrl))
   })
 
+  const rootAttrs = {
+    html: extractSanitizedRootAttributes(doc.documentElement),
+    body: extractSanitizedRootAttributes(doc.body)
+  }
+
   // Step 2: Serialize the body with XMLSerializer to preserve DOM structure
   // (whitespace text nodes, attribute quoting, self-closing tags).
   // doc.body.innerHTML normalizes the HTML, which breaks layouts that depend on
@@ -254,7 +300,8 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
 
   return {
     headHtml: injectedHeadAssets.join(''),
-    bodyHtml
+    bodyHtml,
+    rootAttrs
   }
 }
 
@@ -313,7 +360,7 @@ export const useZimReader = () => {
 
     nativeArticle.value = {
       ...native,
-      content: buildZimSandboxDocument(rendered.headHtml, rendered.bodyHtml)
+      content: buildZimSandboxDocument(rendered.headHtml, rendered.bodyHtml, rendered.rootAttrs)
     }
 
     return nativeArticle.value

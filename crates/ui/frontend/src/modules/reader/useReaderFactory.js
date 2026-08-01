@@ -15,11 +15,7 @@ const inferDescriptorFromSelection = (book) => {
   return {
     filename: book?.filename || '',
     format,
-    content_url: `/docs/books/${encoded}`,
-    meta_url: format === 'zim' ? `/api/reader/zim/${encoded}/meta` : null,
-    supports_search: format === 'zim',
-    supports_navigation: ['zim', 'epub', 'md', 'pdf'].includes(format),
-    supports_inline_render: ['epub', 'md', 'pdf'].includes(format)
+    content_url: `/docs/books/${encoded}`
   }
 }
 
