@@ -130,6 +130,31 @@
       </aside>
 
       <section class="tools-panel">
+        <div class="tools-topbar">
+          <div class="tools-tabs" role="tablist" aria-label="Tool category tabs">
+            <button
+              type="button"
+              role="tab"
+              class="tools-tab"
+              :class="{ active: activeTab === 'converters' }"
+              :aria-selected="String(activeTab === 'converters')"
+              @click="showConverters"
+            >
+              Converters
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="tools-tab"
+              :class="{ active: activeTab === 'ciphers' }"
+              :aria-selected="String(activeTab === 'ciphers')"
+              @click="showCiphers"
+            >
+              Encryption & Ciphers
+            </button>
+          </div>
+        </div>
+
         <!-- Unit Converters Panel -->
         <template v-if="activeTab === 'converters'">
           <div class="panel-header">
@@ -652,6 +677,14 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
+const showConverters = () => {
+  activeTab.value = 'converters'
+}
+
+const showCiphers = () => {
+  activeTab.value = 'ciphers'
+}
+
 const scrollToConverter = (id) => {
   activeTab.value = 'converters'
   activeConverter.value = id
@@ -906,6 +939,13 @@ async function handleHash() {
 
 <style scoped>
 .tools-page {
+  --panel: #1f2428;
+  --panel-soft: #252d33;
+  --panel-ink: #12161a;
+  --line: #39434c;
+  --text: #e7edf3;
+  --muted: #a8b2bc;
+
   height: 100%;
 }
 
@@ -918,10 +958,10 @@ async function handleHash() {
 
 .tools-sidebar,
 .tools-panel {
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-ink) 100%);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
 }
 
 .tools-sidebar {
@@ -942,19 +982,19 @@ async function handleHash() {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid var(--line);
 }
 
 .sidebar-header h3 {
   margin: 0;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 1rem;
 }
 
 .icon-btn {
-  background: #1a1a1a;
-  color: #d9d9d9;
-  border: 1px solid #4a4a4a;
+  background: #141a1f;
+  color: var(--text);
+  border: 1px solid #4f5d68;
   border-radius: 6px;
   width: 32px;
   height: 32px;
@@ -977,7 +1017,7 @@ async function handleHash() {
 
 .sidebar-section-title {
   margin: 0 0 0.25rem;
-  color: #8d8d8d;
+  color: var(--muted);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -992,7 +1032,7 @@ async function handleHash() {
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
-  color: #c0c0c0;
+  color: #d0d8e0;
   cursor: pointer;
   font-size: 0.88rem;
   text-decoration: none;
@@ -1000,14 +1040,14 @@ async function handleHash() {
 }
 
 .sidebar-item:hover {
-  background: #1a1a1a;
-  color: #e0e0e0;
+  background: #11161a;
+  color: var(--text);
 }
 
 .sidebar-item.active {
-  background: #253025;
-  border-color: #77b255;
-  color: #8fd28f;
+  background: #1a3f44;
+  border-color: #40c0b5;
+  color: #b9fff6;
   font-weight: 600;
 }
 
@@ -1019,14 +1059,50 @@ async function handleHash() {
   overflow-y: auto;
 }
 
+.tools-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.tools-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem;
+  background: rgba(17, 22, 26, 0.75);
+}
+
+.tools-tab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.tools-tab:hover {
+  color: var(--text);
+}
+
+.tools-tab.active {
+  border-color: rgba(64, 192, 181, 0.5);
+  background: rgba(64, 192, 181, 0.2);
+  color: #b9fff6;
+}
+
 .panel-header {
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid var(--line);
   padding-bottom: 0.75rem;
 }
 
 .panel-header h2 {
   margin: 0;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 1.15rem;
 }
 
@@ -1038,7 +1114,7 @@ async function handleHash() {
 
 .group-heading {
   margin: 0.5rem 0 0 0;
-  color: #8d8d8d;
+  color: var(--muted);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1047,8 +1123,8 @@ async function handleHash() {
 
 .converter-card,
 .cipher-card {
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: #141a1f;
+  border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
   border-left: 4px solid #667eea;
@@ -1060,13 +1136,13 @@ async function handleHash() {
 
 .card-header {
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.2);
 }
 
 .card-header h3 {
   margin: 0;
-  color: #e0e0e0;
+  color: var(--text);
   font-size: 0.95rem;
   font-weight: 600;
 }
@@ -1098,7 +1174,7 @@ async function handleHash() {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  color: #b0b0b0;
+  color: var(--muted);
   font-size: 0.82rem;
   flex: 1;
   min-width: 180px;
@@ -1111,9 +1187,9 @@ async function handleHash() {
 
 .tool-input {
   width: 160px;
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border: 1px solid #3a3a3a;
+  background: #11161a;
+  color: var(--text);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
@@ -1125,9 +1201,9 @@ async function handleHash() {
 }
 
 .tool-select {
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border: 1px solid #3a3a3a;
+  background: #11161a;
+  color: var(--text);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   font-size: 0.9rem;
@@ -1148,9 +1224,9 @@ async function handleHash() {
 .tool-textarea {
   width: 100%;
   min-width: 240px;
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border: 1px solid #3a3a3a;
+  background: #11161a;
+  color: var(--text);
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   font-size: 0.88rem;
@@ -1194,8 +1270,8 @@ async function handleHash() {
 
 .tool-result {
   width: 100%;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  background: #11161a;
+  border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   display: flex;
@@ -1205,7 +1281,7 @@ async function handleHash() {
 }
 
 .result-label {
-  color: #8d8d8d;
+  color: var(--muted);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1229,10 +1305,10 @@ async function handleHash() {
 
 .cipher-info {
   padding: 0.5rem 0.75rem;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  background: #11161a;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  color: #b0b0b0;
+  color: var(--muted);
   font-size: 0.82rem;
 }
 
@@ -1265,6 +1341,11 @@ async function handleHash() {
 }
 
 @media (max-width: 768px) {
+  .tools-tab {
+    font-size: 0.75rem;
+    padding: 0.32rem 0.6rem;
+  }
+
   .converter-input-row,
   .cipher-input-row {
     flex-direction: column;
