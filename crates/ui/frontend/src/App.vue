@@ -1,5 +1,6 @@
 <template>
   <div class="app-container">
+    <a href="#page-content" class="skip-link">Skip to main content</a>
     <nav class="navbar">
       <div class="navbar-left">
         <div class="navbar-brand">
@@ -11,15 +12,24 @@
           <h2>{{ pageTitle }}</h2>
         </div>
       </div>
+      <button
+        class="mobile-menu-toggle"
+        :aria-expanded="String(mobileMenuOpen)"
+        aria-controls="primary-navigation"
+        aria-label="Toggle navigation menu"
+        @click="mobileMenuOpen = !mobileMenuOpen"
+      >
+        ☰
+      </button>
       <div class="navbar-center">
-        <ul class="navbar-menu">
-          <li><router-link to="/" :class="{ active: $route.name === 'Home' }">Overview</router-link></li>
-          <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }">Maps</router-link></li>
-          <li><router-link to="/books" :class="{ active: $route.name === 'Books' }">Library</router-link></li>
-          <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }">Content Manager</router-link></li>
-          <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }">Assistant</router-link></li>
-          <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }">Tools</router-link></li>
-          <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }">Settings</router-link></li>
+        <ul id="primary-navigation" class="navbar-menu" :class="{ 'mobile-open': mobileMenuOpen }">
+          <li><router-link to="/" :class="{ active: $route.name === 'Home' }" :aria-current="$route.name === 'Home' ? 'page' : undefined">Overview</router-link></li>
+          <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }" :aria-current="$route.name === 'Maps' ? 'page' : undefined">Maps</router-link></li>
+          <li><router-link to="/books" :class="{ active: $route.name === 'Books' }" :aria-current="$route.name === 'Books' ? 'page' : undefined">Library</router-link></li>
+          <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }" :aria-current="$route.name === 'ContentManager' ? 'page' : undefined">Content Manager</router-link></li>
+          <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }" :aria-current="$route.name === 'Assistant' ? 'page' : undefined">Assistant</router-link></li>
+          <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }" :aria-current="$route.name === 'Tools' ? 'page' : undefined">Tools</router-link></li>
+          <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }" :aria-current="$route.name === 'Settings' ? 'page' : undefined">Settings</router-link></li>
         </ul>
       </div>
       <div class="navbar-right">
@@ -44,7 +54,7 @@
       </div>
     </nav>
 
-    <main class="page-content">
+    <main id="page-content" class="page-content">
       <router-view />
     </main>
 
@@ -55,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadAppSettings } from './services/settings'
 import { useLocationState } from './services/location'
@@ -67,6 +77,7 @@ const locationState = useLocationState()
 const authState = useAuthState()
 const now = ref(new Date())
 let timer = null
+const mobileMenuOpen = ref(false)
 
 const pageTitle = computed(() => route.meta?.title || 'Fyr')
 const pageSubtitle = computed(() => route.meta?.subtitle || 'Offline-first content platform')
@@ -115,6 +126,10 @@ onBeforeUnmount(() => {
     window.clearInterval(timer)
   }
 })
+
+watch(() => route.fullPath, () => {
+  mobileMenuOpen.value = false
+})
 </script>
 
 <style scoped>
@@ -135,6 +150,21 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1000;
+  background: #111827;
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0 0 0.35rem 0.35rem;
+}
+
+.skip-link:focus {
+  left: 0.75rem;
 }
 
 .navbar {
@@ -170,6 +200,17 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 0.75rem;
   min-width: 0;
+}
+
+.mobile-menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 1.1rem;
+  cursor: pointer;
 }
 
 .auth-badge {
@@ -357,10 +398,20 @@ onBeforeUnmount(() => {
     justify-content: flex-start;
   }
 
+  .mobile-menu-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
   .navbar-menu {
+    display: none;
     flex-wrap: wrap;
     gap: 1rem;
-    justify-content: center;
+    justify-content: flex-start;
+  }
+
+  .navbar-menu.mobile-open {
+    display: flex;
   }
 
   .clock-panel {

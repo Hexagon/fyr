@@ -29,8 +29,8 @@
 
         <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
 
-        <p v-if="booksLoading" class="status-card status-loading">Loading books...</p>
-        <p v-else-if="booksError" class="status-card status-error">{{ booksError }}</p>
+        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">Loading books...</p>
+        <p v-else-if="booksError" class="status-card status-error" role="alert" aria-live="assertive">{{ booksError }}</p>
 
         <div v-else-if="filteredBooks.length" class="books-list">
           <button
@@ -103,7 +103,7 @@
             </div>
           </header>
 
-          <div v-if="readerError" class="status-card status-error">{{ readerError }}</div>
+          <div v-if="readerError" class="status-card status-error" role="alert" aria-live="assertive">{{ readerError }}</div>
 
           <div class="reader-canvas">
             <div v-if="isEpubSelected && epubBook" id="book-viewer" class="reader-surface epub-viewer"></div>
