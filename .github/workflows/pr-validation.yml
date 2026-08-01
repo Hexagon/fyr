@@ -5,65 +5,13 @@ on:
     branches:
       - "**"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  backend-tests:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cargo Test (workspace)
-        run: cargo test --workspace --all-targets
-
-      - name: Cargo Check (server)
-        run: cargo check -p server
-
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: crates/ui/frontend
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: crates/ui/frontend/package-lock.json
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Frontend
-        run: npm run build
-
-  docs-build:
-    name: Documentation Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: docs/build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: docs/build/package-lock.json
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Documentation
-        run: npm run build
+  validate:
+    uses: ./.github/workflows/validation-reusable.yml
