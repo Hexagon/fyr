@@ -7,7 +7,7 @@ It runs as a local web server and works without internet once content is present
 
 ## Features
 
-- Single binary — no external database, cache server, or runtime services required
+- Single-service deployment — no external database, cache server, or sidecar services required
 - Offline maps with PMTiles
 - Library with EPUB, PDF, Markdown, and ZIM reading
 - Native Fyr ZIM reader service with server-side archive access
