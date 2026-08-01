@@ -2,6 +2,7 @@
 
 ## 1. What Fyr Is
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
+It ships as a single binary — no external database, cache server, or other services required.
 It runs as a local server and is accessed from a browser.
 
 > **Project status:** Fyr is currently in **preview**. UI details may evolve as features are refined.
