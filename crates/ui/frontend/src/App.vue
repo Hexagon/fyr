@@ -54,7 +54,7 @@
       </div>
     </nav>
 
-    <main id="page-content" class="page-content">
+    <main id="page-content" class="page-content" tabindex="-1">
       <router-view />
     </main>
 

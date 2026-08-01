@@ -131,23 +131,21 @@
 
       <section class="tools-panel">
         <div class="tools-topbar">
-          <div class="tools-tabs" role="tablist" aria-label="Tool category tabs">
+          <div class="tools-tabs" aria-label="Tool category tabs">
             <button
               type="button"
-              role="tab"
               class="tools-tab"
               :class="{ active: activeTab === 'converters' }"
-              :aria-selected="String(activeTab === 'converters')"
+              :aria-pressed="String(activeTab === 'converters')"
               @click="showConverters"
             >
               Converters
             </button>
             <button
               type="button"
-              role="tab"
               class="tools-tab"
               :class="{ active: activeTab === 'ciphers' }"
-              :aria-selected="String(activeTab === 'ciphers')"
+              :aria-pressed="String(activeTab === 'ciphers')"
               @click="showCiphers"
             >
               Encryption & Ciphers
