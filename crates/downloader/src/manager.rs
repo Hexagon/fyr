@@ -1056,7 +1056,11 @@ impl DownloadManager {
             return default;
         };
 
-        let sanitized: String = segment
+        // Percent-decode the segment so that filenames like "file%20name.epub"
+        // become "file_name.epub" rather than "file_20name.epub".
+        let decoded = Self::percent_decode_segment(&segment);
+
+        let sanitized: String = decoded
             .chars()
             .map(|ch| {
                 if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
@@ -1072,6 +1076,30 @@ impl DownloadManager {
         } else {
             sanitized
         }
+    }
+
+    /// Decode a percent-encoded URL path segment into a UTF-8 string.
+    fn percent_decode_segment(segment: &str) -> String {
+        let bytes = segment.as_bytes();
+        let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+
+        while i < bytes.len() {
+            if bytes[i] == b'%' && i + 2 < bytes.len() {
+                if let (Some(h1), Some(h2)) = (
+                    (bytes[i + 1] as char).to_digit(16),
+                    (bytes[i + 2] as char).to_digit(16),
+                ) {
+                    decoded.push((h1 * 16 + h2) as u8);
+                    i += 3;
+                    continue;
+                }
+            }
+            decoded.push(bytes[i]);
+            i += 1;
+        }
+
+        String::from_utf8(decoded).unwrap_or_else(|_| segment.to_string())
     }
 }
 

@@ -25,6 +25,10 @@
       </aside>
 
       <section class="manager-main">
+        <div v-if="loading" class="loading-overlay">
+          <p class="loading">Loading content...</p>
+        </div>
+
         <div class="toolbar">
           <div class="search-wrap">
             <input v-model="searchQuery" type="text" placeholder="Search files..." class="search-input" />
@@ -102,7 +106,7 @@
                   :disabled="urlDownloadPending"
                   @click="startCuratedDownload(item)"
                 >
-                  {{ urlDownloadPending && downloadUrl === item.downloadUrl ? 'Downloading...' : 'Download now' }}
+                  {{ activeDownloadUrl === item.downloadUrl ? 'Downloading...' : 'Download now' }}
                 </button>
                 <a
                   v-if="item.source"
@@ -167,6 +171,9 @@
                 <p class="download-status">
                   <span class="badge" :class="downloadBadgeClass(dl.status)">{{ dl.status }}</span>
                 </p>
+                <div v-if="showDownloadProgress(dl)" class="progress-bar-wrap">
+                  <div class="progress-bar-fill" :class="downloadBadgeClass(dl.status)" :style="{ width: Math.round(Number(dl.progress) || 0) + '%' }"></div>
+                </div>
                 <p class="download-progress" v-if="showDownloadProgress(dl)">
                   {{ formatDownloadProgress(dl) }}
                 </p>
@@ -213,8 +220,6 @@
       </section>
     </div>
 
-    <div v-if="loading" class="loading">Loading content...</div>
-
     <div v-if="confirmDeleteFile" class="confirm-overlay">
       <div class="confirm-dialog">
         <p class="confirm-warning">⚠️ Permanent deletion</p>
@@ -252,6 +257,7 @@ const sortDir = ref('asc')
 
 const downloadUrl = ref('')
 const urlDownloadPending = ref(false)
+const activeDownloadUrl = ref(null)
 const urlDownloadStatus = ref(null)
 const urlDownloadError = ref(null)
 const importing = ref(false)
@@ -274,6 +280,7 @@ const confirmDeleteFile = ref(null)
 const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
+let importStatusTimer = null
 let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
 
@@ -434,25 +441,34 @@ const buildContentDownloadUrl = (category, filename) => {
 const handleDownload = async () => {
   if (!downloadUrl.value) return
 
+  const url = downloadUrl.value.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    urlDownloadError.value = 'URL must start with http:// or https://'
+    return
+  }
+
   urlDownloadPending.value = true
+  activeDownloadUrl.value = url
   urlDownloadStatus.value = 'Starting download...'
   urlDownloadError.value = null
 
   try {
-    const response = await apiService.createDownload(downloadUrl.value)
-    urlDownloadStatus.value = `Download queued: ${response.data.task_id}`
+    await apiService.createDownload(url)
+    urlDownloadStatus.value = 'Download queued. Monitoring progress...'
     downloadUrl.value = ''
     await loadDownloads()
   } catch (err) {
     urlDownloadError.value = apiService.handleError(err)
   } finally {
     urlDownloadPending.value = false
+    activeDownloadUrl.value = null
   }
 }
 
 const startCuratedDownload = async (item) => {
   if (!item?.downloadUrl || urlDownloadPending.value) return
   downloadUrl.value = item.downloadUrl
+  urlDownloadError.value = null
   await handleDownload()
 }
 
@@ -463,20 +479,20 @@ const isDownloadDismissible = (status) => ['completed', 'failed', 'cancelled'].i
 const cancelDownload = async (taskId) => {
   try {
     await apiService.cancelDownload(taskId)
-    urlDownloadStatus.value = `Cancelled download: ${taskId}`
-    urlDownloadError.value = null
+    downloadsError.value = null
     await loadDownloads()
   } catch (err) {
-    urlDownloadError.value = apiService.handleError(err)
+    downloadsError.value = apiService.handleError(err)
   }
 }
 
 const dismissDownload = async (taskId) => {
   try {
     await apiService.dismissDownload(taskId)
+    downloadsError.value = null
     await loadDownloads()
   } catch (err) {
-    urlDownloadError.value = apiService.handleError(err)
+    downloadsError.value = apiService.handleError(err)
   }
 }
 
@@ -565,6 +581,8 @@ const importLocalFile = async (file, index, total) => {
       importStatus.value = total > 1
         ? `Imported ${index + 1} of ${total}: ${uploadedFilename}.`
         : `Imported ${uploadedFilename} successfully.`
+      if (importStatusTimer) clearTimeout(importStatusTimer)
+      importStatusTimer = setTimeout(() => { importStatus.value = null }, 5000)
       await loadDownloads()
       return
     }
@@ -777,6 +795,10 @@ onUnmounted(() => {
     clearTimeout(downloadRefreshTimer)
     downloadRefreshTimer = null
   }
+  if (importStatusTimer) {
+    clearTimeout(importStatusTimer)
+    importStatusTimer = null
+  }
 })
 </script>
 
@@ -867,6 +889,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  position: relative;
 }
 
 .toolbar {
@@ -1168,6 +1191,44 @@ onUnmounted(() => {
   color: #9d9d9d;
   font-style: italic;
   margin: 0;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.progress-bar-wrap {
+  height: 4px;
+  background: #2a2a2a;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 3px 0 2px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  background: #5cadc4;
+}
+
+.progress-bar-fill.completed {
+  background: #90ee90;
+}
+
+.progress-bar-fill.failed {
+  background: #ff6b6b;
+}
+
+.progress-bar-fill.cancelled {
+  background: #b0b0b0;
 }
 
 .btn-danger {
