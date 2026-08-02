@@ -398,6 +398,16 @@ pub async fn save_poi_file(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    if let Ok(meta) = tokio::fs::symlink_metadata(&file_path).await {
+        if meta.file_type().is_symlink() {
+            error!(
+                "Refusing to write POI file via symlink {}",
+                file_path.display()
+            );
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     tokio::fs::write(&file_path, content).await.map_err(|e| {
         error!("Failed to write POI file {}: {}", file_path.display(), e);
         StatusCode::INTERNAL_SERVER_ERROR
