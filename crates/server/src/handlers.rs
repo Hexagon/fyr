@@ -376,6 +376,10 @@ pub async fn save_poi_file(
 ) -> Result<StatusCode, StatusCode> {
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
 
+    if sanitized == "." || sanitized == ".." {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     if sanitized.contains('/') || sanitized.contains('\\') {
         return Err(StatusCode::BAD_REQUEST);
     }
