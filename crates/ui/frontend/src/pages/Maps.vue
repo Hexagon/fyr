@@ -642,6 +642,11 @@ const activateTool = (tool) => {
     mapInstance.on('click', onMeasureClick)
   } else if (tool === 'poi') {
     loadPoiFiles()
+    if (selectedPoiFile.value && poiData.value) {
+      mapInstance.off('click', onPoiClick)
+      mapInstance.on('click', onPoiClick)
+      mapInstance.getCanvas().style.cursor = 'crosshair'
+    }
   }
 }
 
