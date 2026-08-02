@@ -555,6 +555,7 @@ const onPoiFileChange = async () => {
     poiDirty.value = false
     addPoiLayersToMap()
     if (mapInstance) {
+      mapInstance.off('click', onPoiClick)
       mapInstance.on('click', onPoiClick)
       mapInstance.getCanvas().style.cursor = 'crosshair'
     }
