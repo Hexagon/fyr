@@ -390,7 +390,7 @@ pub async fn save_poi_file(
     }
 
     let dir = state.config.poi_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| {
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
         error!("Failed to create poi directory {}: {}", dir.display(), e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
