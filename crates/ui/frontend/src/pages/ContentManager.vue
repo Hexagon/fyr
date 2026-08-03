@@ -106,7 +106,7 @@
                   :disabled="urlDownloadPending"
                   @click="startCuratedDownload(item)"
                 >
-                  {{ activeDownloadUrl === item.downloadUrl ? 'Downloading...' : 'Download now' }}
+                  {{ activeDownloadUrl === String(item.downloadUrl).trim() ? 'Downloading...' : 'Download now' }}
                 </button>
                 <a
                   v-if="item.source"
