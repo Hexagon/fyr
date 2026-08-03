@@ -1071,7 +1071,7 @@ impl DownloadManager {
             })
             .collect();
 
-        if sanitized.is_empty() {
+        if sanitized.is_empty() || sanitized == "." || sanitized == ".." {
             default
         } else {
             sanitized
@@ -1201,5 +1201,49 @@ mod tests {
         let ids: Vec<_> = tasks.into_iter().map(|task| task.id).collect();
 
         assert_eq!(ids, vec!["newer".to_string(), "older".to_string()]);
+    }
+
+    #[test]
+    fn percent_decode_segment_decodes_space() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("file%20name.epub"),
+            "file name.epub"
+        );
+    }
+
+    #[test]
+    fn percent_decode_segment_passes_through_plain() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("plain.epub"),
+            "plain.epub"
+        );
+    }
+
+    #[test]
+    fn filename_from_url_decodes_percent_encoded_space() {
+        let name = DownloadManager::filename_from_url(
+            "https://example.com/file%20name.epub",
+            "task-id",
+        );
+        assert_eq!(name, "file_name.epub");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dot() {
+        let name = DownloadManager::filename_from_url("https://example.com/.", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dotdot() {
+        let name = DownloadManager::filename_from_url("https://example.com/..", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_percent_encoded_dotdot() {
+        let name =
+            DownloadManager::filename_from_url("https://example.com/%2e%2e", "task-id");
+        assert_eq!(name, "task-id.bin");
     }
 }
