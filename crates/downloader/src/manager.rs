@@ -1078,7 +1078,7 @@ impl DownloadManager {
         }
     }
 
-    /// Decode a percent-encoded URL path segment into a UTF-8 string.
+    /// Decode a percent-encoded URL path segment into a UTF-8 string (falls back to the original segment if decoding fails).
     fn percent_decode_segment(segment: &str) -> String {
         let bytes = segment.as_bytes();
         let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
