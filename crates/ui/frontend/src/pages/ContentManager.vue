@@ -172,7 +172,7 @@
                   <span class="badge" :class="downloadBadgeClass(dl.status)">{{ dl.status }}</span>
                 </p>
                 <div v-if="showDownloadProgress(dl)" class="progress-bar-wrap">
-                  <div class="progress-bar-fill" :class="downloadBadgeClass(dl.status)" :style="{ width: Math.round(Number(dl.progress) || 0) + '%' }"></div>
+                  <div class="progress-bar-fill" :class="downloadBadgeClass(dl.status)" :style="{ width: Math.max(0, Math.min(100, Math.round(Number(dl.progress) || 0))) + '%' }"></div>
                 </div>
                 <p class="download-progress" v-if="showDownloadProgress(dl)">
                   {{ formatDownloadProgress(dl) }}
