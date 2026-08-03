@@ -443,6 +443,7 @@ const handleDownload = async () => {
 
   const url = downloadUrl.value.trim()
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    urlDownloadStatus.value = null
     urlDownloadError.value = 'URL must start with http:// or https://'
     return
   }
