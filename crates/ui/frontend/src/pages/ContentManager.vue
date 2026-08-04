@@ -583,7 +583,11 @@ const importLocalFile = async (file, index, total) => {
         ? `Imported ${index + 1} of ${total}: ${uploadedFilename}.`
         : `Imported ${uploadedFilename} successfully.`
       if (importStatusTimer) clearTimeout(importStatusTimer)
-      importStatusTimer = setTimeout(() => { importStatus.value = null }, 5000)
+      importStatusTimer = setTimeout(() => {
+        if (!importing.value) {
+          importStatus.value = null
+        }
+      }, 5000)
       await loadDownloads()
       return
     }

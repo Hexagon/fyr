@@ -526,7 +526,8 @@ pub async fn upload_file_to_import(
             import_err(
                 StatusCode::BAD_REQUEST,
                 "Unsupported file type. Accepted: .pmtiles, .epub, .pdf, .mobi, .md, .zim, \
-                 .fgb, .geojson, .json, .gguf, .txt, .csv, .zip, .7z, .log, and common installers.",
+                 .fgb, .geojson, .json, .gguf, .txt, .csv, .zip, .7z, .log, .exe, .msi, .deb, \
+                 .rpm, .apk, .dmg, .pkg, and .appimage.",
             )
         })?;
 
