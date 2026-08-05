@@ -190,11 +190,11 @@
                 >
                   Dismiss
                 </button>
-                <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+                <p v-if="dl.error" class="error-text" role="alert" aria-live="assertive">{{ dl.error }}</p>
               </div>
             </div>
             <p v-else-if="!downloadsLoading" class="empty-state">No download tasks</p>
-            <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
+            <p v-if="downloadsLoading" class="status-text" role="status" aria-live="polite">Refreshing downloads...</p>
             <p v-if="downloadsError" class="error-text" role="alert" aria-live="assertive">{{ downloadsError }}</p>
 
             <div class="download-create">

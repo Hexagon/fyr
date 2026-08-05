@@ -9,13 +9,14 @@
             :aria-label="sidebarCollapsed ? 'Expand tools navigation panel' : 'Collapse tools navigation panel'"
             :title="sidebarCollapsed ? 'Expand panel' : 'Collapse panel'"
             :aria-expanded="String(!sidebarCollapsed)"
+            aria-controls="tools-sidebar-content"
             @click="toggleSidebar"
           >
             {{ sidebarCollapsed ? '»' : '«' }}
           </button>
         </div>
 
-        <div v-if="!sidebarCollapsed" class="sidebar-content">
+        <div v-if="!sidebarCollapsed" id="tools-sidebar-content" class="sidebar-content">
           <div class="sidebar-section">
             <h4 class="sidebar-section-title">Length & Speed</h4>
             <a
@@ -131,7 +132,7 @@
 
       <section class="tools-panel">
         <div class="tools-topbar">
-          <div class="tools-tabs" aria-label="Tool category tabs">
+          <div class="tools-tabs" role="group" aria-label="Tool category tabs">
             <button
               type="button"
               class="tools-tab"
