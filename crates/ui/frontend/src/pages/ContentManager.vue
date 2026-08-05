@@ -45,7 +45,7 @@
         </div>
 
         <div class="file-table-wrap">
-          <p v-if="contentError" class="error-text">{{ contentError }}</p>
+          <p v-if="contentError" class="error-text" role="alert" aria-live="assertive">{{ contentError }}</p>
           <table class="file-table" v-else-if="visibleFiles.length">
             <thead>
               <tr>
@@ -76,7 +76,7 @@
           <div v-else class="empty-panel">
             <p class="empty-state">No files in {{ currentFolderLabel }}.</p>
             <p v-if="!showCuratedPanel" class="status-text">Import files or queue a URL download to get started.</p>
-            <p v-if="curatedContentError" class="error-text">{{ curatedContentError }}</p>
+            <p v-if="curatedContentError" class="error-text" role="alert" aria-live="assertive">{{ curatedContentError }}</p>
           </div>
         </div>
 
@@ -155,8 +155,8 @@
               <small>Supported in this folder: {{ currentFolderHint }}</small>
             </div>
 
-            <p v-if="importStatus" class="status-text">{{ importStatus }}</p>
-            <p v-if="importError" class="error-text">{{ importError }}</p>
+            <p v-if="importStatus" class="status-text" role="status" aria-live="polite">{{ importStatus }}</p>
+            <p v-if="importError" class="error-text" role="alert" aria-live="assertive">{{ importError }}</p>
           </div>
 
           <div class="downloads-panel">
@@ -191,12 +191,12 @@
                 >
                   Dismiss
                 </button>
-                <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+                <p v-if="dl.error" class="error-text" role="alert" aria-live="assertive">{{ dl.error }}</p>
               </div>
             </div>
             <p v-else-if="!downloadsLoading" class="empty-state">No download tasks</p>
-            <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
-            <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
+            <p v-if="downloadsLoading" class="status-text" role="status" aria-live="polite">Refreshing downloads...</p>
+            <p v-if="downloadsError" class="error-text" role="alert" aria-live="assertive">{{ downloadsError }}</p>
 
             <div class="download-create">
               <p class="status-text">
@@ -213,8 +213,8 @@
               </button>
             </div>
 
-            <p v-if="urlDownloadStatus" class="status-text">{{ urlDownloadStatus }}</p>
-            <p v-if="urlDownloadError" class="error-text">{{ urlDownloadError }}</p>
+            <p v-if="urlDownloadStatus" class="status-text" role="status" aria-live="polite">{{ urlDownloadStatus }}</p>
+            <p v-if="urlDownloadError" class="error-text" role="alert" aria-live="assertive">{{ urlDownloadError }}</p>
           </div>
         </div>
       </section>
@@ -228,7 +228,7 @@
           <strong>{{ confirmDeleteFile.filename }}</strong>?
           This action cannot be undone.
         </p>
-        <p v-if="deleteFileError" class="error-text">{{ deleteFileError }}</p>
+        <p v-if="deleteFileError" class="error-text" role="alert" aria-live="assertive">{{ deleteFileError }}</p>
         <div class="confirm-actions">
           <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
           <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">

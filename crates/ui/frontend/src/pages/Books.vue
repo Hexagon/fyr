@@ -29,8 +29,8 @@
 
         <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
 
-        <p v-if="booksLoading" class="status-card status-loading">Loading books...</p>
-        <p v-else-if="booksError" class="status-card status-error">{{ booksError }}</p>
+        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">Loading books...</p>
+        <p v-else-if="booksError" class="status-card status-error" role="alert" aria-live="assertive">{{ booksError }}</p>
 
         <div v-else-if="filteredBooks.length" class="books-list">
           <button
@@ -55,8 +55,8 @@
         </p>
       </aside>
 
-      <section class="reader-stage">
-        <div v-if="selectedBook" class="reader-shell">
+      <section class="reader-stage" :class="{ 'reader-stage-focused': readerFocusMode }">
+        <div v-if="selectedBook" class="reader-shell" :class="{ 'reader-shell-focused': readerFocusMode }">
           <header class="reader-toolbar">
             <div class="reader-toolbar-main">
               <button
@@ -80,6 +80,15 @@
                 <span v-if="shouldUseNativeZimAdapter && zimNativeArticle?.title" class="badge" :title="zimNativeArticle.title">
                   Article: {{ zimNativeArticle.title }}
                 </span>
+                <button
+                  type="button"
+                  class="reader-focus-toggle"
+                  :aria-pressed="String(readerFocusMode)"
+                  :title="readerFocusMode ? 'Exit focused reader mode (Esc)' : 'Enter focused reader mode'"
+                  @click="toggleReaderFocus"
+                >
+                  {{ readerFocusMode ? 'Exit focus' : 'Focus mode' }}
+                </button>
               </div>
             </div>
 
@@ -103,7 +112,7 @@
             </div>
           </header>
 
-          <div v-if="readerError" class="status-card status-error">{{ readerError }}</div>
+          <div v-if="readerError" class="status-card status-error" role="alert" aria-live="assertive">{{ readerError }}</div>
 
           <div class="reader-canvas">
             <div v-if="isEpubSelected && epubBook" id="book-viewer" class="reader-surface epub-viewer"></div>
@@ -187,6 +196,7 @@ const booksLoading = ref(false)
 const booksError = ref(null)
 const selectedBook = ref(null)
 const libraryCollapsed = ref(false)
+const readerFocusMode = ref(false)
 const searchQuery = ref('')
 const zimSearchQuery = ref('')
 const zimSearchLoading = ref(false)
@@ -269,11 +279,23 @@ const toggleLibrary = () => {
 }
 
 const returnToLibrary = () => {
+  readerFocusMode.value = false
   libraryCollapsed.value = false
   selectedBook.value = null
   zimSearchQuery.value = ''
   zimSearchResults.value = []
   zimSearchRan.value = false
+}
+
+const setReaderFocus = (enabled) => {
+  readerFocusMode.value = enabled
+  if (enabled) {
+    libraryCollapsed.value = true
+  }
+}
+
+const toggleReaderFocus = () => {
+  setReaderFocus(!readerFocusMode.value)
 }
 
 const normalizePathKey = (value) => {
@@ -455,6 +477,12 @@ const selectBook = async (book) => {
   await selectWithUnifiedReader(book, apiService)
 }
 
+const handleReaderKeyboard = (event) => {
+  if (event.key === 'Escape' && readerFocusMode.value) {
+    setReaderFocus(false)
+  }
+}
+
 const loadBooks = async () => {
   booksLoading.value = true
   booksError.value = null
@@ -470,11 +498,13 @@ const loadBooks = async () => {
 
 onMounted(async () => {
   window.addEventListener('message', handleZimMessage)
+  window.addEventListener('keydown', handleReaderKeyboard)
   await loadBooks()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('message', handleZimMessage)
+  window.removeEventListener('keydown', handleReaderKeyboard)
   disposeUnifiedReader()
 })
 </script>
@@ -771,6 +801,25 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.reader-focus-toggle {
+  border-radius: 999px;
+  border: 1px solid #2f8277;
+  background: #16534c;
+  color: #d8fff9;
+  font-size: 0.7rem;
+  padding: 0.12rem 0.55rem;
+  cursor: pointer;
+}
+
+.reader-focus-toggle:hover {
+  background: #1f6a62;
+}
+
+.reader-focus-toggle:focus-visible {
+  outline: 2px solid #40c0b5;
+  outline-offset: 2px;
+}
+
 .badge {
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -828,6 +877,17 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   display: flex;
+}
+
+.reader-stage-focused {
+  padding: 0.35rem;
+}
+
+.reader-shell-focused .reader-toolbar {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.45rem;
 }
 
 .reader-canvas > * {

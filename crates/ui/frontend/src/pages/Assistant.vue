@@ -4,7 +4,13 @@
       <aside class="model-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
           <h3>Model Library</h3>
-          <button class="icon-btn" @click="toggleSidebar" :title="sidebarCollapsed ? 'Expand panel' : 'Collapse panel'">
+          <button
+            class="icon-btn"
+            :aria-label="sidebarCollapsed ? 'Expand model library panel' : 'Collapse model library panel'"
+            :title="sidebarCollapsed ? 'Expand panel' : 'Collapse panel'"
+            :aria-expanded="String(!sidebarCollapsed)"
+            @click="toggleSidebar"
+          >
             {{ sidebarCollapsed ? '»' : '«' }}
           </button>
         </div>
@@ -918,4 +924,3 @@ details.think-block[open] .think-summary::before {
   }
 }
 </style>
-

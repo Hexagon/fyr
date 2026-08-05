@@ -4,10 +4,17 @@
       <div id="map" class="map-canvas"></div>
 
       <div class="overlay overlay-selector" :class="{ collapsed: !showSelector }">
-        <button class="overlay-toggle" @click="showSelector = !showSelector" :title="showSelector ? 'Hide maps' : 'Show maps'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showSelector ? 'Hide available maps panel' : 'Show available maps panel'"
+          :aria-expanded="String(showSelector)"
+          aria-controls="maps-selector-panel"
+          @click="showSelector = !showSelector"
+          :title="showSelector ? 'Hide maps' : 'Show maps'"
+        >
           {{ showSelector ? '🗺️' : '📂' }}
         </button>
-        <div v-if="showSelector" class="overlay-content">
+        <div id="maps-selector-panel" v-show="showSelector" class="overlay-content">
           <h3>Available Maps</h3>
           <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
           <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
@@ -30,10 +37,17 @@
       </div>
 
       <div v-if="selectedMap" class="overlay overlay-layers" :class="{ collapsed: !showLayers }">
-        <button class="overlay-toggle" @click="showLayers = !showLayers" :title="showLayers ? 'Hide layers' : 'Show layers'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showLayers ? 'Hide layers panel' : 'Show layers panel'"
+          :aria-expanded="String(showLayers)"
+          aria-controls="maps-layers-panel"
+          @click="showLayers = !showLayers"
+          :title="showLayers ? 'Hide layers' : 'Show layers'"
+        >
           {{ showLayers ? '🎨' : '🧩' }}
         </button>
-        <div v-if="showLayers" class="overlay-content">
+        <div id="maps-layers-panel" v-show="showLayers" class="overlay-content">
           <h3>Map Layers</h3>
           <p class="overlay-meta" v-if="renderMode === 'raster'">
             Raster mode detected. Vector layer controls are disabled.
@@ -116,10 +130,17 @@
       </div>
 
       <div v-if="selectedMap" class="overlay overlay-info" :class="{ collapsed: !showInfo }">
-        <button class="overlay-toggle" @click="showInfo = !showInfo" :title="showInfo ? 'Hide info' : 'Show info'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showInfo ? 'Hide map info panel' : 'Show map info panel'"
+          :aria-expanded="String(showInfo)"
+          aria-controls="maps-info-panel"
+          @click="showInfo = !showInfo"
+          :title="showInfo ? 'Hide info' : 'Show info'"
+        >
           {{ showInfo ? 'ℹ️' : '📍' }}
         </button>
-        <div v-if="showInfo" class="overlay-content">
+        <div id="maps-info-panel" v-show="showInfo" class="overlay-content">
           <h3>{{ selectedMap.filename }}</h3>
           <p class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
@@ -135,10 +156,17 @@
       <div v-if="mapError" class="map-error-banner">{{ mapError }}</div>
 
       <div v-if="selectedMap" class="overlay overlay-tools" :class="{ collapsed: !showTools }">
-        <button class="overlay-toggle" @click="showTools = !showTools" :title="showTools ? 'Hide tools' : 'Show tools'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showTools ? 'Hide tools panel' : 'Show tools panel'"
+          :aria-expanded="String(showTools)"
+          aria-controls="maps-tools-panel"
+          @click="showTools = !showTools"
+          :title="showTools ? 'Hide tools' : 'Show tools'"
+        >
           {{ showTools ? '🔧' : '⚙️' }}
         </button>
-        <div v-if="showTools" class="overlay-content">
+        <div id="maps-tools-panel" v-show="showTools" class="overlay-content">
           <h3>Tools</h3>
 
           <div class="tool-group">
