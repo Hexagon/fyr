@@ -130,7 +130,7 @@ CI-pinned versions for parity:
 3. `npm run build`
 
 ### Build backend
-1. From workspace root: `cargo build --release`
+1. From workspace root: `cargo build --release -p server`
 2. Run: `./target/release/fyr`
 
 ### Dev mode
@@ -370,8 +370,8 @@ Operator release commands:
 ```bash
 git checkout main
 git pull
-git tag v0.4.1
-git push origin v0.4.1
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 4. Confirm workflow `Stable Release` completed and images were published.
@@ -405,7 +405,7 @@ Run from repository root unless noted:
 1. `cargo test --workspace --all-targets`
 2. `cargo check -p server`
 3. `cd crates/ui/frontend && npm ci && npm run build`
-4. `cd docs/build && npm ci && npm run build`
+4. `cd docs/build && npm run build`
 5. Validate native ZIM flow by opening a `.zim` file in Books and confirming article payload retrieval.
 
 ## 10. Native ZIM Reader Notes
