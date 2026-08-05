@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fyr | Self-Hosted Offline Maps, Books, and Local AI</title>
-    <meta name="description" content="Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.">
+    <title>Fyr | Offline Maps, Books, and Local AI — Self-Hosted</title>
+    <meta name="description" content="Fyr is a self-hosted offline knowledge server for maps, books, and local AI. Runs on a Raspberry Pi, a homelab, or any Linux box — no internet required once content is loaded.">
     <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, ZIM reader, Docker, Raspberry Pi, edge devices, air-gapped">
     <meta name="robots" content="index,follow,max-image-preview:large">
     <link rel="canonical" href="https://fyr.guide/">
@@ -18,8 +18,8 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://fyr.guide/">
-    <meta property="og:title" content="Fyr | Self-Hosted Offline Maps, Books, and Local AI">
-    <meta property="og:description" content="Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.">
+    <meta property="og:title" content="Fyr | Offline Maps, Books, and Local AI — Self-Hosted">
+    <meta property="og:description" content="Fyr is a self-hosted offline knowledge server for maps, books, and local AI. Runs on a Raspberry Pi, homelab, or any Linux box — no internet required once content is loaded.">
     <meta property="og:image" content="https://fyr.guide/img/screenshot-1.png">
     <meta property="og:image:alt" content="Fyr local dashboard showing offline map rendering and content tools">
     <meta property="og:image:width" content="1629">
@@ -29,8 +29,8 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://fyr.guide/">
-    <meta name="twitter:title" content="Fyr | Self-Hosted Offline Maps, Books, and Local AI">
-    <meta name="twitter:description" content="Self-hosted offline platform for maps, books, and local AI. Built for edge devices, air-gapped, and low-bandwidth setups.">
+    <meta name="twitter:title" content="Fyr | Offline Maps, Books, and Local AI — Self-Hosted">
+    <meta name="twitter:description" content="Self-hosted offline knowledge server for maps, books, and local AI. Runs on Raspberry Pi, homelab, or any Linux box — no internet needed once content is loaded.">
     <meta name="twitter:image" content="https://fyr.guide/img/screenshot-1.png">
     <meta name="twitter:image:alt" content="Fyr local dashboard with offline map and content management interface">
 
@@ -43,7 +43,7 @@
           "@type": "SoftwareApplication",
           "name": "Fyr",
           "url": "https://fyr.guide/",
-          "description": "Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.",
+          "description": "Fyr is a self-hosted offline knowledge server for maps, books, and local AI. Runs on a Raspberry Pi, homelab, or any Linux box — no internet required once content is loaded.",
           "applicationCategory": "UtilitiesApplication",
           "operatingSystem": "Linux, Docker",
           "offers": {
@@ -55,15 +55,7 @@
             "@id": "https://github.com/Hexagon#organization"
           },
           "codeRepository": "https://github.com/Hexagon/fyr",
-          "license": "https://github.com/Hexagon/fyr/blob/main/LICENSE",
-          "publisher": {
-            "@type": "Organization",
-            "name": "Hexagon",
-            "url": "https://github.com/Hexagon",
-            "sameAs": [
-              "https://github.com/Hexagon/fyr"
-            ]
-          }
+          "license": "https://github.com/Hexagon/fyr/blob/main/LICENSE"
         },
         {
           "@id": "https://github.com/Hexagon#organization",
@@ -141,10 +133,10 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
             <p class="inline-flex items-center px-3 py-1 rounded-full bg-brand-100 text-brand-900 text-sm font-semibold mb-6">Preview release</p>
             <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 mb-6">
-                The <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600">offline-first</span><br/> content platform.
+                Maps, books, and AI —<br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600">offline, on your own hardware.</span>
             </h1>
             <p class="mt-4 text-xl text-gray-600 max-w-3xl mx-auto mb-10">
-                Fyr runs as a local web server for maps, books, AI, and knowledge archives. No database or cache server required — just run it and go. It works completely without internet once content is present, making it ideal for homes, field use, air-gapped networks, or low-bandwidth environments.
+                No signal? No cloud? No problem. Fyr runs on a Raspberry Pi, your homelab, or any Linux box and serves offline maps, Wikipedia-scale archives, and local AI — all from a browser, with no subscription or telemetry.
             </p>
             <div class="flex justify-center gap-4">
                 <a href="#installation" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/30">Get Started</a>
@@ -176,7 +168,7 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                     </div>
                     <h3 class="text-xl font-semibold text-gray-900 mb-2">Native Library</h3>
-                    <p class="text-gray-600">Read EPUB, PDF, Markdown, and natively parse ZIM files (Wikipedia & Kiwix-format) entirely on-device.</p>
+                    <p class="text-gray-600">Read EPUB, PDF, Markdown, and natively parse ZIM files (Wikipedia & Kiwix-format) entirely on-device. Download maps, books, and AI models directly from the UI.</p>
                 </div>
                 <!-- Feature 3 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
@@ -189,10 +181,10 @@
                 <!-- Feature 4 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     </div>
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Download Queue</h3>
-                    <p class="text-gray-600">Fetch maps, books, AI models, POI data, and misc files from curated or custom sources directly via the UI.</p>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Private by Design</h3>
+                    <p class="text-gray-600">No accounts, no subscriptions, no telemetry. What you read, search, and ask stays inside your own network — always.</p>
                 </div>
                 <!-- Feature 5 -->
                 <a href="#installation" class="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-500 hover:shadow-md transition-all group block">
@@ -205,10 +197,10 @@
                 <!-- Feature 6 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
                     </div>
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Offline Utilities</h3>
-                    <p class="text-gray-600">Built-in unit converters and encryption/ciphering utilities — all running locally in your browser. See the User Manual for the full capability list.</p>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Serve Your Whole Network</h3>
+                    <p class="text-gray-600">Bind to your LAN or turn a Raspberry Pi into a Wi-Fi hotspot. Every device on the network gets access to maps, books, and AI — no app installs needed.</p>
                 </div>
                 <!-- Feature 7 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
@@ -682,6 +674,14 @@ git checkout main   # or dev, or a specific tag</code></pre>
                 <div class="bg-white border border-gray-200 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Is my data sent to cloud AI services?</h3>
                     <p class="mt-2 text-gray-600">No. Fyr’s local AI workflow is built around on-device GGUF models, so prompts and data can stay inside your own network.</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">What content can I load into Fyr?</h3>
+                    <p class="mt-2 text-gray-600">OpenStreetMap vector tiles (PMTiles), Wikipedia and Kiwix ZIM archives, Project Gutenberg and other EPUB books, PDF and Markdown documents, and GGUF language models (Qwen2.5, Llama 3.2, Phi-3.5, and others). Fyr includes a curated catalog to help you get started.</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Can multiple devices on my network use Fyr at the same time?</h3>
+                    <p class="mt-2 text-gray-600">Yes. Bind Fyr to your LAN interface (<code>FYR_HOST=0.0.0.0</code>) and any phone, tablet, or laptop on the same network can access it through a browser — no app installs required. On a Raspberry Pi you can also set up a standalone Wi-Fi hotspot so devices connect directly.</p>
                 </div>
             </div>
         </div>
