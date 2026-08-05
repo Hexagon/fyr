@@ -147,7 +147,7 @@
             <h2>Unit Converters</h2>
           </div>
 
-          <div v-for="(group, groupKey) in converterGroups" :key="groupKey" class="converter-group">
+          <div v-for="(group, groupKey) in converterGroups" v-if="groupKey !== 'nav_weather'" :key="groupKey" class="converter-group">
             <h3 class="group-heading">{{ groupLabels[groupKey] }}</h3>
             <div v-for="cat in group" :key="cat.id" :id="cat.id" class="converter-card">
               <div class="card-header"><h3>{{ cat.label }}</h3></div>
@@ -1288,8 +1288,9 @@ function handleBaseConv() {
   const val = textTools_state.baseconv.value.trim()
   if (!val) return
   try {
-    const n = parseInt(val, parseInt(textTools_state.baseconv.from))
-    if (isNaN(n)) throw new Error('Invalid number for selected base.')
+    const fromBase = parseInt(textTools_state.baseconv.from)
+    const prefixed = fromBase === 16 ? '0x' + val : fromBase === 8 ? '0o' + val : fromBase === 2 ? '0b' + val : val
+    const n = BigInt(fromBase === 10 ? val : prefixed)
     textTools_state.baseconv.results = {
       bin: n.toString(2),
       oct: n.toString(8),
@@ -1297,7 +1298,7 @@ function handleBaseConv() {
       hex: n.toString(16).toUpperCase()
     }
   } catch (e) {
-    textTools_state.baseconv.error = e.message
+    textTools_state.baseconv.error = 'Invalid number for selected base.'
   }
 }
 
@@ -1307,16 +1308,21 @@ function handleAsciiLookup() {
   const v = textTools_state.ascii.value.trim()
   if (!v) return
   let code
-  if (v.length === 1) {
-    code = v.charCodeAt(0)
+  if ([...v].length === 1) {
+    code = v.codePointAt(0)
   } else {
-    code = parseInt(v)
-    if (isNaN(code)) { textTools_state.ascii.error = 'Enter a single character or a decimal code.'; return }
+    let parsed
+    if (/^0x[0-9a-fA-F]+$/.test(v)) parsed = parseInt(v, 16)
+    else if (/^0b[01]+$/.test(v)) parsed = parseInt(v.slice(2), 2)
+    else if (/^0o[0-7]+$/.test(v)) parsed = parseInt(v.slice(2), 8)
+    else parsed = parseInt(v, 10)
+    if (isNaN(parsed) || parsed < 0) { textTools_state.ascii.error = 'Enter a single character or a dec/hex/bin/oct code.'; return }
+    code = parsed
   }
   textTools_state.ascii.result = {
-    char: String.fromCharCode(code),
+    char: String.fromCodePoint(code),
     dec: code,
-    hex: '0x' + code.toString(16).toUpperCase().padStart(2, '0'),
+    hex: '0x' + code.toString(16).toUpperCase().padStart(4, '0'),
     bin: code.toString(2).padStart(8, '0'),
     oct: '0' + code.toString(8)
   }
@@ -1378,10 +1384,13 @@ function calcDayOfYear() {
   const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
   const daysInYear = isLeap ? 366 : 365
   // ISO week number
-  const jan4 = new Date(year, 0, 4)
+  const dayOfWeek = (d.getDay() + 6) % 7 // Mon=0 … Sun=6
+  const nearestThursday = new Date(d)
+  nearestThursday.setDate(d.getDate() - dayOfWeek + 3) // set to Thursday of this week
+  const jan4 = new Date(nearestThursday.getFullYear(), 0, 4)
   const startOfWeek1 = new Date(jan4)
   startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7))
-  const week = Math.floor((d - startOfWeek1) / (7 * 86400000)) + 1
+  const week = Math.round((nearestThursday - startOfWeek1) / (7 * 86400000)) + 1
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   dt.dayofyear.result = {
     doy,
