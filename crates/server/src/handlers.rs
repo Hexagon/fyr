@@ -368,6 +368,58 @@ pub async fn list_poi(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMet
     list_content_files(state.config.poi_dir(), ContentType::Poi)
 }
 
+/// PUT /api/poi/:filename — Create or overwrite a GeoJSON POI file
+pub async fn save_poi_file(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Result<StatusCode, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    if sanitized == "." || sanitized == ".." {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let lower = sanitized.to_lowercase();
+    if !lower.ends_with(".geojson") && !lower.ends_with(".json") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = state.config.poi_dir();
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+        error!("Failed to create poi directory {}: {}", dir.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let file_path = dir.join(&sanitized);
+
+    let content = serde_json::to_vec_pretty(&body).map_err(|e| {
+        error!("Failed to serialize POI data: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Ok(meta) = tokio::fs::symlink_metadata(&file_path).await {
+        if meta.file_type().is_symlink() {
+            error!(
+                "Refusing to write POI file via symlink {}",
+                file_path.display()
+            );
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    tokio::fs::write(&file_path, content).await.map_err(|e| {
+        error!("Failed to write POI file {}: {}", file_path.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// GET /api/content/models — List available local GGUF models
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
     list_content_files(state.config.models_dir(), ContentType::Model)
@@ -505,21 +557,31 @@ pub async fn ai_upload_model(
 pub async fn upload_file_to_import(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<UploadFileResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<UploadFileResponse>), (StatusCode, Json<ErrorMessageResponse>)> {
     while let Some(mut field) = multipart.next_field().await.map_err(|error| {
         warn!(
             "Invalid multipart payload while uploading import file: {}",
             error
         );
-        StatusCode::BAD_REQUEST
+        import_err(StatusCode::BAD_REQUEST, "Invalid upload request.")
     })? {
         if field.name() != Some("file") {
             continue;
         }
 
-        let raw_name = field.file_name().ok_or(StatusCode::BAD_REQUEST)?;
-        let filename = sanitize_upload_filename(raw_name).ok_or(StatusCode::BAD_REQUEST)?;
-        let detected_type = detect_content_type(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+        let raw_name = field
+            .file_name()
+            .ok_or_else(|| import_err(StatusCode::BAD_REQUEST, "No filename provided."))?;
+        let filename = sanitize_upload_filename(raw_name)
+            .ok_or_else(|| import_err(StatusCode::BAD_REQUEST, "Invalid filename."))?;
+        let detected_type = detect_content_type(&filename).ok_or_else(|| {
+            import_err(
+                StatusCode::BAD_REQUEST,
+                "Unsupported file type. Accepted: .pmtiles, .epub, .pdf, .mobi, .md, .zim, \
+                 .fgb, .geojson, .json, .gguf, .txt, .csv, .zip, .7z, .log, .exe, .msi, .deb, \
+                 .rpm, .apk, .dmg, .pkg, and .appimage.",
+            )
+        })?;
 
         let target_path = state.config.inbox_dir().join(&filename);
         if tokio::fs::try_exists(&target_path).await.map_err(|error| {
@@ -528,7 +590,7 @@ pub async fn upload_file_to_import(
                 target_path.display(),
                 error
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
         })? {
             tokio::fs::remove_file(&target_path)
                 .await
@@ -538,7 +600,7 @@ pub async fn upload_file_to_import(
                         target_path.display(),
                         error
                     );
-                    StatusCode::INTERNAL_SERVER_ERROR
+                    import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
                 })?;
         }
 
@@ -550,7 +612,7 @@ pub async fn upload_file_to_import(
                     target_path.display(),
                     error
                 );
-                StatusCode::INTERNAL_SERVER_ERROR
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
 
         let mut size_bytes = 0u64;
@@ -558,7 +620,7 @@ pub async fn upload_file_to_import(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
-            StatusCode::BAD_REQUEST
+            import_err(StatusCode::BAD_REQUEST, "Upload stream failed. Please retry.")
         })? {
             let needed = 8usize.saturating_sub(magic.len());
             if needed > 0 {
@@ -571,19 +633,23 @@ pub async fn upload_file_to_import(
                     target_path.display(),
                     error
                 );
-                StatusCode::INTERNAL_SERVER_ERROR
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if size_bytes == 0 {
             let _ = tokio::fs::remove_file(&target_path).await;
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(import_err(StatusCode::BAD_REQUEST, "The uploaded file is empty."));
         }
 
         if !validate_upload_magic(&filename, detected_type, &magic) {
             let _ = tokio::fs::remove_file(&target_path).await;
-            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+            return Err(import_err(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "File content does not match the expected format for this file type. \
+                 The file may be corrupt or have the wrong extension.",
+            ));
         }
 
         file.flush().await.map_err(|error| {
@@ -592,7 +658,7 @@ pub async fn upload_file_to_import(
                 target_path.display(),
                 error
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
         })?;
 
         return Ok((
@@ -606,7 +672,16 @@ pub async fn upload_file_to_import(
         ));
     }
 
-    Err(StatusCode::BAD_REQUEST)
+    Err(import_err(StatusCode::BAD_REQUEST, "No file field found in upload request."))
+}
+
+fn import_err(status: StatusCode, msg: &str) -> (StatusCode, Json<ErrorMessageResponse>) {
+    (
+        status,
+        Json(ErrorMessageResponse {
+            message: msg.to_string(),
+        }),
+    )
 }
 
 /// POST /api/models/import — Import a model from inbox/misc into models with GGUF validation

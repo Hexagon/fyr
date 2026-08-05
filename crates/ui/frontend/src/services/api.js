@@ -182,6 +182,17 @@ export const apiService = {
     const response = await api.get('/content/poi')
     return { data: mapContentArray(response.data.value || response.data) }
   },
+  readPoi: async (filename) => {
+    const response = await axios.get(`/data/poi/${encodeURIComponent(filename)}`, {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: { Accept: 'application/json' }
+    })
+    return response.data
+  },
+  savePoi: async (filename, data) => {
+    const response = await api.put(`/poi/${encodeURIComponent(filename)}`, data)
+    return response.data
+  },
   getModels: async () => {
     const response = await api.get('/content/models')
     return { data: mapContentArray(response.data.value || response.data) }

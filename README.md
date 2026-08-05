@@ -7,12 +7,13 @@ It runs as a local web server and works without internet once content is present
 
 ## Features
 
+- Single-service deployment — no external database, cache server, or sidecar services required
 - Offline maps with PMTiles
 - Library with EPUB, PDF, Markdown, and ZIM reading
 - Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
-- Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline, client-side
+- Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline on your local Fyr deployment
 
 ## Quick Install
 
@@ -67,13 +68,6 @@ The canonical installation guide lives at [fyr.guide/#installation](https://fyr.
 
 Fyr stores user content in a persistent data directory (`./public/data` by default, `/data` in Docker).
 See [fyr.guide/#installation](https://fyr.guide/#installation) for persistence setup and the [User Manual data layout section](/docs/user/USER_MANUAL.md#6-data-storage-layout) for folder-level details.
-
-## Documentation
-
-- Installation guide: [fyr.guide/#installation](https://fyr.guide/#installation)
-- User guide: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
-- Developer guide: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
-- Contributing: [/CONTRIBUTING.md](/CONTRIBUTING.md)
 
 ## License
 

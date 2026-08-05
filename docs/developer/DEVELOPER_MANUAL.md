@@ -19,7 +19,7 @@ Workspace modules:
 - `crates/ui/frontend`: Vue 3 application built into `public/static/`.
 - `crates/server/src/ai`: Candle-powered GGUF model loading and assistant endpoints.
 
-The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) is a purely client-side feature with zero server dependencies. Unit conversions and ciphering (AES, Base64, ROT13, SHA-256, MD5) execute entirely in the browser using the Web Crypto API and standard JavaScript—no API endpoints, no Rust changes.
+The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) mixes client-only and API-backed behavior. Unit converters, Base64, and ROT13 run entirely in-browser, while AES and hash/checksum operations call backend endpoints (`POST /api/tools/aes`, `POST /api/tools/hash`) implemented in `crates/server/src/handlers.rs`.
 
 Downloader timeout centralization:
 - URL download request timeout is sourced from persisted app settings at `settings.modules.downloads.request_timeout_seconds`.
@@ -380,7 +380,7 @@ git push origin v0.4.1
 1. Keep implementation details in developer docs, not user docs.
 2. Keep transient delivery/status reports out of permanent docs.
 3. Update docs in the same change set as endpoint or behavior changes.
-4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
+4. Canonical docs are restricted to `README.md`, `docs/site/index.html`, `AGENTS.md`, `docs/user/USER_MANUAL.md`, `docs/developer/DEVELOPER_MANUAL.md`, and `CONTRIBUTING.md`.
 
 ## 7. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`
