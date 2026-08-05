@@ -156,7 +156,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 | Folder | Supported file types | Typical use |
 | --- | --- | --- |
 | `curated-content.json` | structured JSON catalog | Manually editable list of recommended model, book, and map downloads |
-| `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives |
+| `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives (`.mobi` files are accepted for storage but have no in-browser reader) |
 | `maps/` | `.pmtiles` | Offline map tiles |
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
@@ -178,11 +178,11 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 Download ready-to-use `.pmtiles` files from [data.bbbike.org](https://data.bbbike.org/osm/region/).
 
 **Extract from Protomaps (CLI):**
-Install the `pmtiles` CLI ([docs.protomaps.com/pmtiles/cli](https://docs.protomaps.com/pmtiles/cli)) and extract a region from a global PMTiles archive:
+Install the `pmtiles` CLI ([docs.protomaps.com/pmtiles/cli](https://docs.protomaps.com/pmtiles/cli)) and extract a region from a global PMTiles archive. Find the latest dated build at [maps.protomaps.com/builds](https://maps.protomaps.com/builds/) and substitute it into the URL below:
 
 ```
-pmtiles extract https://build.protomaps.com/20260716.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
-pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
+pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
+pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
 ```
 
 ### POI
