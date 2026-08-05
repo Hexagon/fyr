@@ -3,44 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fyr | The Offline-First Content Platform</title>
-    <meta name="description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
-    <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, ZIM reader, Docker, Raspberry Pi">
-    <meta name="robots" content="index,follow">
+    <title>Fyr | Self-Hosted Offline Maps, Books, and Local AI</title>
+    <meta name="description" content="Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.">
+    <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, ZIM reader, Docker, Raspberry Pi, edge devices, air-gapped">
+    <meta name="robots" content="index,follow,max-image-preview:large">
     <link rel="canonical" href="https://fyr.guide/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://fyr.guide/">
-    <meta property="og:title" content="Fyr | The Offline-First Content Platform">
-    <meta property="og:description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
+    <meta property="og:title" content="Fyr | Self-Hosted Offline Maps, Books, and Local AI">
+    <meta property="og:description" content="Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.">
     <meta property="og:image" content="https://fyr.guide/img/screenshot-1.png">
+    <meta property="og:image:alt" content="Fyr local dashboard showing offline map rendering and content tools">
+    <meta property="og:image:width" content="1629">
+    <meta property="og:image:height" content="734">
     <meta property="og:site_name" content="Fyr">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://fyr.guide/">
-    <meta name="twitter:title" content="Fyr | The Offline-First Content Platform">
-    <meta name="twitter:description" content="Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.">
+    <meta name="twitter:title" content="Fyr | Self-Hosted Offline Maps, Books, and Local AI">
+    <meta name="twitter:description" content="Self-hosted offline platform for maps, books, and local AI. Built for edge devices, air-gapped, and low-bandwidth setups.">
     <meta name="twitter:image" content="https://fyr.guide/img/screenshot-1.png">
+    <meta name="twitter:image:alt" content="Fyr local dashboard with offline map and content management interface">
 
     <!-- JSON-LD structured data -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Fyr",
-      "url": "https://fyr.guide/",
-      "description": "Fyr is an offline-first content platform for maps, books, and knowledge archives. Ideal for air-gapped networks or low-bandwidth environments.",
-      "applicationCategory": "UtilitiesApplication",
-      "operatingSystem": "Linux, Docker",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "codeRepository": "https://github.com/Hexagon/fyr",
-      "license": "https://github.com/Hexagon/fyr/blob/main/LICENSE"
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "Fyr",
+          "url": "https://fyr.guide/",
+          "description": "Fyr is a self-hosted, offline-first content platform for maps, books, and local AI. Built for edge devices, air-gapped networks, and low-bandwidth environments.",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "Linux, Docker",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "publisher": {
+            "@id": "https://github.com/Hexagon#organization"
+          },
+          "codeRepository": "https://github.com/Hexagon/fyr",
+          "license": "https://github.com/Hexagon/fyr/blob/main/LICENSE",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Hexagon",
+            "url": "https://github.com/Hexagon",
+            "sameAs": [
+              "https://github.com/Hexagon/fyr"
+            ]
+          }
+        },
+        {
+          "@id": "https://github.com/Hexagon#organization",
+          "@type": "Organization",
+          "name": "Hexagon",
+          "url": "https://github.com/Hexagon",
+          "sameAs": [
+            "https://github.com/Hexagon/fyr"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "name": "Fyr Guide",
+          "url": "https://fyr.guide/"
+        }
+      ]
     }
     </script>
 
@@ -85,6 +124,7 @@
                     <a href="#features" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Features</a>
                     <a href="#preview" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Interface</a>
                     <a href="#installation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Installation</a>
+                    <a href="#faq" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">FAQ</a>
                     <a href="#documentation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Documentation</a>
                 </div>
                 <div>
@@ -213,11 +253,11 @@
                 </div>
 
                 <!-- Screenshot Display Viewport -->
-                <div class="relative bg-gray-900 aspect-[1628/734] overflow-hidden">
-                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Maps Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
-                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Library Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
-                    <img id="screenshot-3" src="img/screenshot-3.png" alt="Fyr Assistant Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
-                    <img id="screenshot-4" src="img/screenshot-4.png" alt="Fyr Tools Screenshot" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                <div class="relative bg-gray-900 aspect-[1629/734] overflow-hidden">
+                    <img id="screenshot-1" src="img/screenshot-1.png" alt="Fyr Maps Screenshot" width="1629" height="734" fetchpriority="high" decoding="async" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-100">
+                    <img id="screenshot-2" src="img/screenshot-2.png" alt="Fyr Library Screenshot" width="1629" height="734" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                    <img id="screenshot-3" src="img/screenshot-3.png" alt="Fyr Assistant Screenshot" width="1629" height="734" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
+                    <img id="screenshot-4" src="img/screenshot-4.png" alt="Fyr Tools Screenshot" width="1629" height="734" loading="lazy" decoding="async" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 opacity-0 pointer-events-none">
                 </div>
             </div>
         </div>
@@ -619,6 +659,31 @@ git checkout main   # or dev, or a specific tag</code></pre>
 
             </div>
 
+        </div>
+    </div>
+
+    <!-- FAQ Section -->
+    <div id="faq" class="py-24 bg-gray-50 border-b border-gray-200">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-gray-900 text-center mb-10">Frequently Asked Questions</h2>
+            <div class="space-y-6">
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Can Fyr run fully offline?</h3>
+                    <p class="mt-2 text-gray-600">Yes. Fyr is designed for offline-first operation. Once your content is downloaded, maps, books, local AI models, and utilities can be used without internet connectivity.</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Does Fyr work on Raspberry Pi?</h3>
+                    <p class="mt-2 text-gray-600">Yes. Fyr supports <code>linux/arm64</code> and is suitable for Raspberry Pi 64-bit deployments, including standalone hotspot-style setups for off-grid access.</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Can Fyr read ZIM archives like Wikipedia dumps?</h3>
+                    <p class="mt-2 text-gray-600">Yes. Fyr includes native ZIM parsing for Kiwix/Wikipedia-style offline archives, alongside EPUB, PDF, and Markdown reading support.</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-900">Is my data sent to cloud AI services?</h3>
+                    <p class="mt-2 text-gray-600">No. Fyr’s local AI workflow is built around on-device GGUF models, so prompts and data can stay inside your own network.</p>
+                </div>
+            </div>
         </div>
     </div>
 
