@@ -160,6 +160,7 @@ fn create_router(state: AppState) -> Router {
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/settings", put(handlers::update_settings))
+        .route("/api/poi/:filename", put(handlers::save_poi_file))
         .route_layer(admin_mw);
 
     Router::new()

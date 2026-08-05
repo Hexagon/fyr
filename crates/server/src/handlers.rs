@@ -368,6 +368,58 @@ pub async fn list_poi(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMet
     list_content_files(state.config.poi_dir(), ContentType::Poi)
 }
 
+/// PUT /api/poi/:filename — Create or overwrite a GeoJSON POI file
+pub async fn save_poi_file(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Result<StatusCode, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    if sanitized == "." || sanitized == ".." {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let lower = sanitized.to_lowercase();
+    if !lower.ends_with(".geojson") && !lower.ends_with(".json") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let dir = state.config.poi_dir();
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+        error!("Failed to create poi directory {}: {}", dir.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let file_path = dir.join(&sanitized);
+
+    let content = serde_json::to_vec_pretty(&body).map_err(|e| {
+        error!("Failed to serialize POI data: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Ok(meta) = tokio::fs::symlink_metadata(&file_path).await {
+        if meta.file_type().is_symlink() {
+            error!(
+                "Refusing to write POI file via symlink {}",
+                file_path.display()
+            );
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    tokio::fs::write(&file_path, content).await.map_err(|e| {
+        error!("Failed to write POI file {}: {}", file_path.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// GET /api/content/models — List available local GGUF models
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
     list_content_files(state.config.models_dir(), ContentType::Model)
