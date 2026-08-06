@@ -395,8 +395,13 @@ pub async fn serve_mbtile(
             )
             .unwrap_or_else(|_| "pbf".to_string());
 
-        // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention
-        let tms_y = (1u32 << z).saturating_sub(1).saturating_sub(y);
+        // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention.
+        // Use checked_shl to avoid panicking on oversized zoom values.
+        let zoom_size = 1u32.checked_shl(z)?;
+        if x >= zoom_size || y >= zoom_size {
+            return None;
+        }
+        let tms_y = zoom_size - 1 - y;
         let data: Option<Vec<u8>> = conn
             .query_row(
                 "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
