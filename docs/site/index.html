@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fyr | Offline Maps, Books, and Local AI — Self-Hosted</title>
     <meta name="description" content="Fyr is a self-hosted offline knowledge server for maps, books, and local AI. Runs on a Raspberry Pi, a homelab, or any Linux box — no internet required once content is loaded.">
-    <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, ZIM reader, Docker, Raspberry Pi, edge devices, air-gapped">
+    <meta name="keywords" content="Fyr, offline-first, self-hosted, local AI, PMTiles, MBTiles, ZIM reader, Docker, Raspberry Pi, edge devices, air-gapped">
     <meta name="robots" content="index,follow,max-image-preview:large">
     <link rel="canonical" href="https://fyr.guide/">
     <meta name="theme-color" content="#ea580c">
@@ -160,7 +160,7 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     </div>
                     <h3 class="text-xl font-semibold text-gray-900 mb-2">Offline Maps</h3>
-                    <p class="text-gray-600">Render vector maps locally using PMTiles, with absolutely no external tile server required.</p>
+                    <p class="text-gray-600">Render vector and raster maps locally using PMTiles and MBTiles, with absolutely no external tile server required.</p>
                 </div>
                 <!-- Feature 2 -->
                 <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
@@ -677,7 +677,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
                 </div>
                 <div class="bg-white border border-gray-200 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">What content can I load into Fyr?</h3>
-                    <p class="mt-2 text-gray-600">OpenStreetMap vector tiles (PMTiles), Wikipedia and Kiwix ZIM archives, Project Gutenberg and other EPUB books, PDF and Markdown documents, and GGUF language models (Qwen2.5, Llama 3.2, Phi-3.5, and others). Fyr includes a curated catalog to help you get started.</p>
+                    <p class="mt-2 text-gray-600">OpenStreetMap vector and raster tiles (PMTiles and MBTiles), Wikipedia and Kiwix ZIM archives, Project Gutenberg and other EPUB books, PDF and Markdown documents, and GGUF language models (Qwen2.5, Llama 3.2, Phi-3.5, and others). Fyr includes a curated catalog to help you get started.</p>
                 </div>
                 <div class="bg-white border border-gray-200 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Can multiple devices on my network use Fyr at the same time?</h3>

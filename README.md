@@ -8,7 +8,7 @@ It runs as a local web server and works without internet once content is present
 ## Features
 
 - Single-service deployment — no external database, cache server, or sidecar services required
-- Offline maps with PMTiles
+- Offline maps with PMTiles and MBTiles
 - Library with EPUB, PDF, Markdown, and ZIM reading
 - Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
