@@ -157,7 +157,7 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 | --- | --- | --- |
 | `curated-content.json` | structured JSON catalog | Manually editable list of recommended model, book, and map downloads |
 | `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives (`.mobi` files are accepted for storage but have no in-browser reader) |
-| `maps/` | `.pmtiles` | Offline map tiles |
+| `maps/` | `.pmtiles`, `.mbtiles` | Offline map tiles |
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
 | `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
@@ -169,8 +169,9 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - For ZIM archives, use trusted OpenZIM-compatible sources.
 
 ### Maps
-- Fyr serves vector and raster map tiles from `.pmtiles` archives in `public/data/maps/`.
-- PMTiles is a single-file archive format for map tiles, readable directly by the browser without a tile server.
+- Fyr serves vector and raster map tiles from `.pmtiles` and `.mbtiles` archives in `public/data/maps/`.
+- PMTiles archives are read directly by the browser without a tile server.
+- MBTiles archives (SQLite-based) are served tile-by-tile through the built-in tile endpoint (`/api/maps/tiles/{filename}/{z}/{x}/{y}`).
 
 **Obtaining PMTiles maps:**
 

@@ -32,7 +32,7 @@ impl ContentType {
 
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext.to_lowercase().as_str() {
-            "pmtiles" => Some(ContentType::Map),
+            "pmtiles" | "mbtiles" => Some(ContentType::Map),
             "epub" | "pdf" | "mobi" | "md" | "zim" => Some(ContentType::Book),
             "fgb" | "geojson" | "json" => Some(ContentType::Poi),
             "gguf" => Some(ContentType::Model),

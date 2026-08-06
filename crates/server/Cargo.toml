@@ -27,6 +27,7 @@ candle-transformers.workspace = true
 tokenizers = "0.22"
 zim = "0.5"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"
