@@ -11,6 +11,16 @@ fn main() {
     // On Windows, npm is npm.cmd; on Unix it's just npm
     let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
 
+    // If the static output directory already contains built assets (e.g. Docker
+    // multi-stage build where the frontend stage ran separately), skip the npm
+    // build entirely when npm is not available (e.g. Node.js is missing).
+    let static_out = std::path::Path::new("../../public/static");
+    let has_built_assets = static_out.exists()
+        && std::fs::read_dir(static_out).map_or(false, |mut d| d.next().is_some());
+    let npm_available = Command::new(npm).arg("--version").output().is_ok();
+    if has_built_assets && !npm_available {
+        return;
+    }
     // Install dependencies if node_modules is missing
     let node_modules = frontend_dir.join("node_modules");
     if !node_modules.exists() {
