@@ -104,6 +104,7 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
 > * Fyr's inference runtime currently supports GGUF models with **Qwen2**, **Llama**, and **Phi-3/Phi-3.5** architectures.
+> * Inference runs entirely on CPU with SIMD acceleration: **NEON** on ARM (aarch64, including Raspberry Pi 4/5) and **AVX2/FMA** on x86\_64. No GPU is needed.
 > * The assistant shows a **Thinking** block immediately after you send a prompt, then streams the visible reply as it arrives.
 > * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays that reasoning in the same collapsible **Thinking** section and streams it live while the model reasons.
 
