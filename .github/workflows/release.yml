@@ -119,17 +119,71 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push Stable Multi-Arch Image
+      - name: Build and Push Stable amd64 AVX2/FMA Image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=fyr-docker
-          cache-to: type=gha,mode=max,scope=fyr-docker
+          platforms: linux/amd64
+          build-args: |
+            RUST_TARGET_FEATURES=+avx2,+fma
+          cache-from: type=gha,scope=fyr-docker-amd64-avx2
+          cache-to: type=gha,mode=max,scope=fyr-docker-amd64-avx2
           tags: |
-            hexagon/fyr:${{ steps.release_tag.outputs.tag }}
-            hexagon/fyr:latest
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-amd64-avx2
+
+      - name: Build and Push Stable arm64 dotprod Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          build-args: |
+            RUST_TARGET_FEATURES=+dotprod
+          cache-from: type=gha,scope=fyr-docker-arm64-dotprod
+          cache-to: type=gha,mode=max,scope=fyr-docker-arm64-dotprod
+          tags: |
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-arm64-dotprod
+
+      - name: Build and Push Stable pc legacy Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=fyr-docker-pc-legacy
+          cache-to: type=gha,mode=max,scope=fyr-docker-pc-legacy
+          tags: |
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-pc-legacy
+            hexagon/fyr:pc-legacy
+
+      - name: Build and Push Stable rpi legacy Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          cache-from: type=gha,scope=fyr-docker-rpi-legacy
+          cache-to: type=gha,mode=max,scope=fyr-docker-rpi-legacy
+          tags: |
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-rpi-legacy
+            hexagon/fyr:rpi-legacy
+
+      - name: Publish Stable Optimized Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:${{ steps.release_tag.outputs.tag }} \
+            -t hexagon/fyr:latest \
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-amd64-avx2 \
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-arm64-dotprod
+
+      - name: Publish Stable Legacy Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:${{ steps.release_tag.outputs.tag }}-legacy \
+            -t hexagon/fyr:legacy \
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-pc-legacy \
+            hexagon/fyr:${{ steps.release_tag.outputs.tag }}-rpi-legacy
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

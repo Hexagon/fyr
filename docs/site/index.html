@@ -345,10 +345,10 @@
                                 <tbody>
                                     <tr class="border-b border-gray-700/50">
                                         <td class="py-2 pr-4 font-mono text-brand-400">Tag</td>
-                                        <td class="py-2 pr-4"><code class="text-brand-400">latest</code> / <code class="text-brand-400">dev</code> / <code class="text-brand-400">v1.2.3</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">latest</code> / <code class="text-brand-400">dev</code> / <code class="text-brand-400">v1.2.3</code> / <code class="text-brand-400">legacy</code> / <code class="text-brand-400">pc-legacy</code> / <code class="text-brand-400">rpi-legacy</code></td>
                                         <td class="py-2 pr-4"><code class="text-brand-400">-Tag</code></td>
                                         <td class="py-2 pr-4"><code class="text-gray-500">latest</code></td>
-                                        <td class="py-2">Docker image tag</td>
+                                        <td class="py-2">Docker image tag. Default tags are optimized.</td>
                                     </tr>
                                     <tr class="border-b border-gray-700/50">
                                         <td class="py-2 pr-4 font-mono text-brand-400">Update</td>
@@ -392,10 +392,24 @@
                                         <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
                                         <td class="py-2">Strict read-only mode</td>
                                     </tr>
+                                    <tr>
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Legacy shortcut</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--legacy</code> / <code class="text-brand-400">--pc-legacy</code> / <code class="text-brand-400">--rpi-legacy</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-Legacy</code> / <code class="text-brand-400">-PcLegacy</code> / <code class="text-brand-400">-RpiLegacy</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Switch to compatibility-first legacy tags</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
                         <p class="text-sm text-gray-400 mt-3">Run with <code class="text-brand-400">--help</code> (Linux) or <code class="text-brand-400">-Help</code> (Windows) to see this in the terminal.</p>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🧯 Legacy hardware shortcuts</p>
+                        <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy</pre>
+                        <pre class="mt-2 p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy</pre>
+                        <p class="text-sm text-gray-300 mt-3">Use <code class="text-brand-400">--pc-legacy</code> / <code class="text-brand-400">-PcLegacy</code> or <code class="text-brand-400">--rpi-legacy</code> / <code class="text-brand-400">-RpiLegacy</code> when you want to force a specific legacy image family.</p>
                     </div>
                 </div>
 
@@ -493,9 +507,15 @@
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
                         <p class="text-sm text-white font-semibold mb-2">🏷️ Image Tags</p>
                         <ul class="text-sm text-gray-300 space-y-1">
-                            <li><code class="text-brand-400">hexagon/fyr:latest</code> — Stable production image.</li>
-                            <li><code class="text-brand-400">hexagon/fyr:dev</code> — Development/testing image.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:latest</code> — Stable production image, optimized by default.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:dev</code> — Development/testing image, also optimized by default.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:legacy</code> — Stable multi-arch legacy build for maximum compatibility.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:pc-legacy</code> — Generic x86_64 build for older PCs without AVX2/FMA.</li>
+                            <li><code class="text-brand-400">hexagon/fyr:rpi-legacy</code> — Generic arm64 build for older Raspberry Pi-class hardware without dotprod.</li>
                         </ul>
+                        <p class="text-sm text-amber-300 mt-3">
+                            Default tags are optimized for newer CPUs and can fail on older hardware with illegal instruction errors. Use <code class="text-brand-400">legacy</code>, <code class="text-brand-400">pc-legacy</code>, or <code class="text-brand-400">rpi-legacy</code> when you need broader compatibility.
+                        </p>
                     </div>
 
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
@@ -602,9 +622,14 @@ git checkout main   # or dev, or a specific tag</code></pre>
                     <p><strong>1. Build backend binary (includes frontend build automatically):</strong></p>
                     <pre><code>cargo build --release -p server --bin fyr</code></pre>
 
+                    <p><strong>Optional: build with auto-detected CPU optimizations for the current machine:</strong></p>
+                    <pre><code>RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr</code></pre>
+                    <p><em>PowerShell: <code>$env:RUSTFLAGS="-C target-cpu=native"; cargo build --release -p server --bin fyr</code></em></p>
+
                     <p><strong>2. Run Fyr:</strong></p>
                     <pre><code>./target/release/fyr</code></pre>
                     <p><em>Note: For Windows PowerShell use <code>.\target\release\fyr.exe</code></em></p>
+                    <p><em>Use the optimized build only on the same class of CPU that built it; for portable binaries across older or mixed hardware, keep the generic build command above.</em></p>
                     <p>That's all — Fyr is a single self-contained binary. No database, cache server, or other services to start.</p>
 
                     <h3 class="text-2xl text-white mt-10">Runtime Environment Overrides</h3>

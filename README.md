@@ -35,6 +35,16 @@ The installer handles Docker setup, data persistence, and remembers your setting
 curl -fsSL https://fyr.guide/install.sh | sh -s -- update
 ```
 
+If you need the compatibility-first legacy image on older hardware, use the installer shortcut:
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy
+```
+
+```powershell
+irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy
+```
+
 See [fyr.guide/#installation](https://fyr.guide/#installation) for the full installation guide, including manual Docker commands, building from source, and Raspberry Pi deployment.
 
 ## One-Minute Start (From Source)
@@ -46,6 +56,22 @@ cargo build --release -p server --bin fyr
 ./target/release/fyr
 ```
 
+For a CPU-tuned local build on the same machine that will run Fyr, enable Rust's auto-detected native target features:
+
+```bash
+RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
+./target/release/fyr
+```
+
+PowerShell:
+
+```powershell
+$env:RUSTFLAGS="-C target-cpu=native"
+cargo build --release -p server --bin fyr
+.\target\release\fyr.exe
+Remove-Item Env:RUSTFLAGS
+```
+
 Open `http://localhost:8080` on the same machine.
 
 ## Installation & Deployment
@@ -55,6 +81,12 @@ The canonical installation guide lives at [fyr.guide/#installation](https://fyr.
 * Building from source for development workflows.
 * Running with Docker (both Production and Dev releases) on an existing system.
 * Installing and running Fyr on a clean Raspberry Pi OS setup.
+
+Docker release tags are intentionally simple:
+
+* `hexagon/fyr:latest` and `hexagon/fyr:vX.Y.Z` are optimized defaults.
+* `hexagon/fyr:legacy` and `hexagon/fyr:vX.Y.Z-legacy` are compatibility-first fallbacks.
+* `hexagon/fyr:pc-legacy` and `hexagon/fyr:rpi-legacy` are explicit legacy targets for older PCs and older Raspberry Pi-class arm64 hardware.
 
 ## Documentation Map
 
