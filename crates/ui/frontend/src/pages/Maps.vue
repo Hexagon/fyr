@@ -770,7 +770,7 @@ const tryLoadMbtilesSource = async (filename) => {
     const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
 
     if (isVector) {
-      mapInstance.addSource('map-source', {
+      mapInstance.addSource('pmtiles-source', {
         type: 'vector',
         tiles: [tileUrl],
         minzoom: 0,
@@ -779,7 +779,7 @@ const tryLoadMbtilesSource = async (filename) => {
       addVectorLayers([])
       renderMode.value = 'vector'
     } else {
-      mapInstance.addSource('map-source', {
+      mapInstance.addSource('pmtiles-source', {
         type: 'raster',
         tiles: [tileUrl],
         tileSize: 256,
@@ -789,7 +789,7 @@ const tryLoadMbtilesSource = async (filename) => {
       mapInstance.addLayer({
         id: 'raster-layer',
         type: 'raster',
-        source: 'map-source',
+        source: 'pmtiles-source',
         paint: { 'raster-opacity': 1 }
       })
       renderMode.value = 'raster'
