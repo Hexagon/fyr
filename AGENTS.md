@@ -129,7 +129,7 @@ Forbidden bashisms:
 
 These steps are in addition to the per-PR validation in the Development Workflow section above.
 
-- bump `version` in the workspace `Cargo.toml`; update `crates/ui/frontend/package.json` `version` to match
+- bump `version` in the workspace `Cargo.toml`; update `crates/ui/frontend/package.json` `version` to match; update any version references in [docs/site/index.html](docs/site/index.html)
 - manual docs reviewed
 - docker build succeeds
 

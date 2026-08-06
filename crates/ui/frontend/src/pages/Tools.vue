@@ -147,9 +147,9 @@
             <h2>Unit Converters</h2>
           </div>
 
-          <div v-for="(group, groupKey) in converterGroups" v-if="groupKey !== 'nav_weather'" :key="groupKey" class="converter-group">
-            <h3 class="group-heading">{{ groupLabels[groupKey] }}</h3>
-            <div v-for="cat in group" :key="cat.id" :id="cat.id" class="converter-card">
+          <div v-for="group in converterCardGroups" :key="group.key" class="converter-group">
+            <h3 class="group-heading">{{ group.label }}</h3>
+            <div v-for="cat in group.categories" :key="cat.id" :id="cat.id" class="converter-card">
               <div class="card-header"><h3>{{ cat.label }}</h3></div>
               <div class="converter-body">
                 <div class="converter-input-row">
@@ -869,6 +869,16 @@ const converters = reactive({
   time: makeConverterState(unitSets.time)
 })
 
+const converterCardGroups = computed(() => {
+  return Object.entries(converterGroups)
+    .filter(([groupKey]) => groupKey !== 'nav_weather')
+    .map(([groupKey, group]) => ({
+      key: groupKey,
+      label: groupLabels[groupKey] || groupKey,
+      categories: group.filter((cat) => Boolean(converters[cat.id]))
+    }))
+})
+
 // --- Cipher state ---
 const ciphers = reactive({
   aes: { mode: 'encrypt', key_type: 'password', key_source: '', bits: '256', cipher_mode: 'gcm', text: '', result: null, error: null },
@@ -989,6 +999,7 @@ function convertTemperature(value, fromUnit, toUnit) {
 
 function convertCurrent(catId) {
   const state = converters[catId]
+  if (!state) return
   if (state.value == null || isNaN(state.value) || state.value === '') {
     state.result = null
     return
