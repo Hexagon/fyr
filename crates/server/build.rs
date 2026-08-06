@@ -8,6 +8,14 @@ fn main() {
 
     let frontend_dir = std::path::Path::new("../ui/frontend");
 
+    // If the static output directory already contains built assets (e.g. Docker
+    // multi-stage build where the frontend stage ran separately), skip the npm
+    // build entirely — Node.js may not be available in the Rust builder image.
+    let static_out = std::path::Path::new("../../public/static");
+    if static_out.exists() && std::fs::read_dir(static_out).map_or(false, |mut d| d.next().is_some()) {
+        return;
+    }
+
     // On Windows, npm is npm.cmd; on Unix it's just npm
     let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
 
