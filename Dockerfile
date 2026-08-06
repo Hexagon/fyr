@@ -15,13 +15,12 @@ RUN npm run build
 # Stage 1: Builder
 FROM rust:bookworm AS builder
 
-# Optional, opt-in CPU feature targeting for self-builds on known hardware
-# (e.g. `--build-arg RUST_TARGET_FEATURES=+dotprod` for Raspberry Pi 5 /
-# Cortex-A76 and newer). Left empty by default so the published multi-arch
-# `hexagon/fyr:*` image stays compatible with older aarch64 boards (e.g.
-# Raspberry Pi 3/4, Cortex-A53/A72) that lack these optional ARMv8.2+
-# extensions. Baseline NEON is always enabled by the aarch64 target and
-# does not require this flag. See docs/developer/DEVELOPER_MANUAL.md.
+# Optional CPU feature targeting for release variants and self-builds on known
+# hardware (e.g. `--build-arg RUST_TARGET_FEATURES=+dotprod` for Raspberry Pi 5 /
+# Cortex-A76 and newer, or `+avx2,+fma` on newer x86_64 CPUs). Leaving this
+# empty produces the generic compatibility build used for legacy tags such as
+# `pc-legacy` and `rpi-legacy`. Baseline NEON is always enabled by the aarch64
+# target and does not require this flag. See docs/developer/DEVELOPER_MANUAL.md.
 ARG RUST_TARGET_FEATURES=""
 
 WORKDIR /build

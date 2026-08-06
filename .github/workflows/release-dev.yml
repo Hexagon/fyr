@@ -83,14 +83,68 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push Multi-Arch Dev Image
+      - name: Build and Push Dev amd64 AVX2/FMA Image
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=fyr-docker
-          cache-to: type=gha,mode=max,scope=fyr-docker
+          platforms: linux/amd64
+          build-args: |
+            RUST_TARGET_FEATURES=+avx2,+fma
+          cache-from: type=gha,scope=fyr-docker-dev-amd64-avx2
+          cache-to: type=gha,mode=max,scope=fyr-docker-dev-amd64-avx2
           tags: |
-            hexagon/fyr:dev
-            hexagon/fyr:dev-${{ github.sha }}
+            hexagon/fyr:dev-${{ github.sha }}-amd64-avx2
+
+      - name: Build and Push Dev arm64 dotprod Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          build-args: |
+            RUST_TARGET_FEATURES=+dotprod
+          cache-from: type=gha,scope=fyr-docker-dev-arm64-dotprod
+          cache-to: type=gha,mode=max,scope=fyr-docker-dev-arm64-dotprod
+          tags: |
+            hexagon/fyr:dev-${{ github.sha }}-arm64-dotprod
+
+      - name: Build and Push Dev pc legacy Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=fyr-docker-dev-pc-legacy
+          cache-to: type=gha,mode=max,scope=fyr-docker-dev-pc-legacy
+          tags: |
+            hexagon/fyr:dev-pc-legacy
+            hexagon/fyr:dev-${{ github.sha }}-pc-legacy
+
+      - name: Build and Push Dev rpi legacy Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          cache-from: type=gha,scope=fyr-docker-dev-rpi-legacy
+          cache-to: type=gha,mode=max,scope=fyr-docker-dev-rpi-legacy
+          tags: |
+            hexagon/fyr:dev-rpi-legacy
+            hexagon/fyr:dev-${{ github.sha }}-rpi-legacy
+
+      - name: Publish Dev Optimized Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:dev \
+            -t hexagon/fyr:dev-${{ github.sha }} \
+            hexagon/fyr:dev-${{ github.sha }}-amd64-avx2 \
+            hexagon/fyr:dev-${{ github.sha }}-arm64-dotprod
+
+      - name: Publish Dev Legacy Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:dev-legacy \
+            -t hexagon/fyr:dev-${{ github.sha }}-legacy \
+            hexagon/fyr:dev-${{ github.sha }}-pc-legacy \
+            hexagon/fyr:dev-${{ github.sha }}-rpi-legacy

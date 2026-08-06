@@ -292,13 +292,22 @@ fn log_cpu_feature_support() {
 
     #[cfg(target_arch = "x86_64")]
     {
+        let compiled_avx2 = cfg!(target_feature = "avx2");
+        let compiled_fma = cfg!(target_feature = "fma");
+        let runtime_avx2 = std::arch::is_x86_feature_detected!("avx2");
+        let runtime_fma = std::arch::is_x86_feature_detected!("fma");
+
         info!(
             "CPU features (x86_64): compiled[avx2={} fma={}] runtime[avx2={} fma={}]",
-            cfg!(target_feature = "avx2"),
-            cfg!(target_feature = "fma"),
-            std::arch::is_x86_feature_detected!("avx2"),
-            std::arch::is_x86_feature_detected!("fma"),
+            compiled_avx2,
+            compiled_fma,
+            runtime_avx2,
+            runtime_fma,
         );
+
+        if runtime_avx2 && runtime_fma && (!compiled_avx2 || !compiled_fma) {
+            info!("This CPU supports AVX2/FMA, but this binary was not compiled with those features, so quantized inference may run slower. For x86_64 self-builds on known-compatible hardware, rebuild with --build-arg RUST_TARGET_FEATURES=+avx2,+fma. Do not use this flag for images that must also run on older x86_64 CPUs without AVX2/FMA.");
+        }
     }
 }
 
