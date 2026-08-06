@@ -274,9 +274,9 @@
 
       <p class="map-note" v-if="selectedMap">
         {{ renderMode === 'vector'
-          ? 'Vector PMTiles mode. Layers can be styled and toggled.'
+          ? 'Vector tile mode. Layers can be styled and toggled.'
           : renderMode === 'raster'
-            ? 'Raster PMTiles mode. Tiles are pre-rendered and styling controls are limited.'
+            ? 'Raster tile mode. Tiles are pre-rendered and styling controls are limited.'
             : 'Detecting tile mode.' }}
       </p>
     </div>
@@ -369,10 +369,15 @@ const locationState = useLocationState()
 
 const isVectorMode = computed(() => renderMode.value === 'vector')
 const renderModeLabel = computed(() => {
-  if (renderMode.value === 'vector') return 'Vector PMTiles'
-  if (renderMode.value === 'raster') return 'Raster PMTiles'
+  if (renderMode.value === 'vector') return 'Vector tiles'
+  if (renderMode.value === 'raster') return 'Raster tiles'
   return 'Unknown'
 })
+
+const getMapFormat = (filename) => {
+  const ext = String(filename || '').split('.').pop().toLowerCase()
+  return ext
+}
 
 const formatBytes = (bytes) => {
   if (bytes === 0) return '0 B'
@@ -747,6 +752,53 @@ const getMapDiagnostics = async (filename) => {
   })
 
   return { header, vectorLayers }
+}
+
+const tryLoadMbtilesSource = async (filename) => {
+  try {
+    const metaUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/metadata`
+    let tileFormat = 'png'
+    try {
+      const res = await fetch(metaUrl)
+      if (res.ok) {
+        const meta = await res.json()
+        tileFormat = meta.format || 'png'
+      }
+    } catch (_) { /* use default */ }
+
+    const tileUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/{z}/{x}/{y}`
+    const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
+
+    if (isVector) {
+      mapInstance.addSource('map-source', {
+        type: 'vector',
+        tiles: [tileUrl],
+        minzoom: 0,
+        maxzoom: 14
+      })
+      addVectorLayers([])
+      renderMode.value = 'vector'
+    } else {
+      mapInstance.addSource('map-source', {
+        type: 'raster',
+        tiles: [tileUrl],
+        tileSize: 256,
+        minzoom: 0,
+        maxzoom: 19
+      })
+      mapInstance.addLayer({
+        id: 'raster-layer',
+        type: 'raster',
+        source: 'map-source',
+        paint: { 'raster-opacity': 1 }
+      })
+      renderMode.value = 'raster'
+    }
+    return true
+  } catch (error) {
+    console.warn(`MBTiles load failed: ${error.message}`)
+    return false
+  }
 }
 
 const tryLoadVectorSource = (pmtilesUrl, header, availableLayers) => {
@@ -1343,38 +1395,45 @@ const initializeMap = async () => {
     mapInstance.on('load', async () => {
       try {
         const filename = selectedMap.value.filename
-        const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
-
-        let header = null
-        let vectorLayers = []
-        let tileType = null
-
-        try {
-          const diagnostics = await getMapDiagnostics(filename)
-          header = diagnostics.header
-          vectorLayers = diagnostics.vectorLayers
-          tileType = diagnostics.header?.tileType
-        } catch (diagError) {
-          console.warn(`PMTiles diagnostics failed, using fallback loading: ${diagError.message}`)
-        }
+        const format = getMapFormat(filename)
 
         let loaded = false
 
-        if (tileType === 1 || tileType === 6) {
-          loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-          if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
-        } else if (tileType >= 2 && tileType <= 5) {
-          loaded = tryLoadRasterSource(pmtilesUrl, header)
-          if (!loaded) loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+        if (format === 'mbtiles') {
+          loaded = await tryLoadMbtilesSource(filename)
         } else {
-          loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-          if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          // PMTiles path
+          const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
+
+          let header = null
+          let vectorLayers = []
+          let tileType = null
+
+          try {
+            const diagnostics = await getMapDiagnostics(filename)
+            header = diagnostics.header
+            vectorLayers = diagnostics.vectorLayers
+            tileType = diagnostics.header?.tileType
+          } catch (diagError) {
+            console.warn(`PMTiles diagnostics failed, using fallback loading: ${diagError.message}`)
+          }
+
+          if (tileType === 1 || tileType === 6) {
+            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          } else if (tileType >= 2 && tileType <= 5) {
+            loaded = tryLoadRasterSource(pmtilesUrl, header)
+            if (!loaded) loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+          } else {
+            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          }
         }
 
         if (!loaded) {
           renderMode.value = 'unknown'
-          mapError.value = 'Unable to render the selected PMTiles archive.'
-          console.warn(`Unable to load PMTiles source as either vector or raster for ${filename}`)
+          mapError.value = 'Unable to render the selected map.'
+          console.warn(`Unable to load map source for ${filename}`)
         }
 
         updateLocationMarker(locationState.location)

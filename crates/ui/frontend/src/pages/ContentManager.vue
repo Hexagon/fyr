@@ -200,7 +200,7 @@
 
             <div class="download-create">
               <p class="status-text">
-                URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+                URL downloads auto-route by extension: maps (.pmtiles, .mbtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
               </p>
               <input
                 type="text"
@@ -285,7 +285,7 @@ let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
 
 const folderEntries = computed(() => [
-  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles files.' },
+  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles and .mbtiles files.' },
   { key: 'books', label: 'Books', icon: '📚', count: books.value.length, hint: 'Books accepts .epub, .pdf, .mobi, .md, and .zim files.' },
   { key: 'poi', label: 'POI', icon: '📍', count: pois.value.length, hint: 'POI accepts .geojson, .json, and .fgb files.' },
   { key: 'models', label: 'Models', icon: '🤖', count: models.value.length, hint: 'Models accepts .gguf files (import flow).' },

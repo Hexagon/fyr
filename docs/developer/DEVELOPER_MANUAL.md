@@ -218,6 +218,8 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/storage`
 - `GET /api/settings`
 - `GET /api/content/maps`
+- `GET /api/maps/tiles/:filename/metadata` — MBTiles metadata as JSON
+- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention)
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`

@@ -29,6 +29,7 @@ use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
 use walkdir::WalkDir;
+use rusqlite;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
 const DEFAULT_ASSISTANT_TEMPERATURE: f64 = 0.2;
@@ -358,6 +359,125 @@ pub async fn list_maps(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMe
     list_content_files(state.config.maps_dir(), ContentType::Map)
 }
 
+/// GET /api/maps/tiles/:filename/:z/:x/:y — Serve a single tile from an MBTiles archive
+pub async fn serve_mbtile(
+    State(state): State<Arc<AppState>>,
+    Path((filename, z, x, y)): Path<(String, u32, u32, u32)>,
+) -> Result<Response, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let ext = FsPath::new(&sanitized)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext != "mbtiles" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let path = state.config.maps_dir().join(&sanitized);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Open the SQLite database on a blocking thread
+    let tile_data: Option<(Vec<u8>, String)> = tokio::task::spawn_blocking(move || {
+        let conn = rusqlite::Connection::open_with_flags(
+            &path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .ok()?;
+
+        // Detect tile format from metadata
+        let tile_mime: String = conn
+            .query_row(
+                "SELECT value FROM metadata WHERE name = 'format' LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap_or_else(|_| "pbf".to_string());
+
+        // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention
+        let tms_y = (1u32 << z).saturating_sub(1).saturating_sub(y);
+        let data: Option<Vec<u8>> = conn
+            .query_row(
+                "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
+                rusqlite::params![z, x, tms_y],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .ok();
+
+        data.map(|d| (d, tile_mime))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match tile_data {
+        None => Err(StatusCode::NOT_FOUND),
+        Some((data, format)) => {
+            let content_type = match format.as_str() {
+                "pbf" | "mvt" => "application/x-protobuf",
+                "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
+                _ => "application/octet-stream",
+            };
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
+                .header(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"))
+                .body(Body::from(data))
+                .unwrap())
+        }
+    }
+}
+
+/// GET /api/maps/tiles/:filename/metadata — Return MBTiles metadata as JSON
+pub async fn serve_mbtiles_metadata(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let ext = FsPath::new(&sanitized)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext != "mbtiles" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let path = state.config.maps_dir().join(&sanitized);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let metadata = tokio::task::spawn_blocking(move || {
+        let conn = rusqlite::Connection::open_with_flags(
+            &path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .ok()?;
+        let mut stmt = conn
+            .prepare("SELECT name, value FROM metadata")
+            .ok()?;
+        let mut map = serde_json::Map::new();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .ok()?;
+        for row in rows.flatten() {
+            map.insert(row.0, serde_json::Value::String(row.1));
+        }
+        Some(serde_json::Value::Object(map))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(metadata))
+}
+
 /// GET /api/content/books — List available books
 pub async fn list_books(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
     list_content_files(state.config.books_dir(), ContentType::Book)
@@ -577,7 +697,7 @@ pub async fn upload_file_to_import(
         let detected_type = detect_content_type(&filename).ok_or_else(|| {
             import_err(
                 StatusCode::BAD_REQUEST,
-                "Unsupported file type. Accepted: .pmtiles, .epub, .pdf, .mobi, .md, .zim, \
+                "Unsupported file type. Accepted: .pmtiles, .mbtiles, .epub, .pdf, .mobi, .md, .zim, \
                  .fgb, .geojson, .json, .gguf, .txt, .csv, .zip, .7z, .log, .exe, .msi, .deb, \
                  .rpm, .apk, .dmg, .pkg, and .appimage.",
             )
@@ -2861,7 +2981,19 @@ mod tests {
 fn validate_upload_magic(filename: &str, content_type: ContentType, magic: &[u8]) -> bool {
     match content_type {
         ContentType::Model => magic.len() >= 4 && &magic[0..4] == b"GGUF",
-        ContentType::Map => magic.len() >= 7 && &magic[0..7] == b"PMTiles",
+        ContentType::Map => {
+            let ext = FsPath::new(filename)
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if ext == "mbtiles" {
+                // MBTiles are SQLite databases; magic is "SQLite format 3\0"
+                magic.len() >= 16 && magic[0..16] == *b"SQLite format 3\0"
+            } else {
+                magic.len() >= 7 && &magic[0..7] == b"PMTiles"
+            }
+        }
         ContentType::Book => {
             let ext = FsPath::new(filename)
                 .extension()

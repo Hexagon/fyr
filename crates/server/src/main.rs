@@ -170,6 +170,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/settings", get(handlers::get_settings))
         .route("/api/storage", get(handlers::get_storage))
         .route("/api/content/maps", get(handlers::list_maps))
+        .route("/api/maps/tiles/:filename/metadata", get(handlers::serve_mbtiles_metadata))
+        .route("/api/maps/tiles/:filename/:z/:x/:y", get(handlers::serve_mbtile))
         .route("/api/content/books", get(handlers::list_books))
         .route("/api/content/poi", get(handlers::list_poi))
         .route("/api/content/models", get(handlers::list_models))
