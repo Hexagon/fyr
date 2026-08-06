@@ -37,7 +37,7 @@ RUN mkdir -p crates/types/src crates/downloader/src crates/server/src crates/ui/
   && touch crates/types/src/lib.rs crates/downloader/src/lib.rs crates/ui/src/lib.rs \
   && printf 'fn main() {}\n' > crates/server/src/main.rs
 
-RUN RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
+RUN FYR_USE_PREBUILT_FRONTEND=1 RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
 
 # Copy the real project contents after dependencies are cached.
 COPY crates crates
