@@ -29,7 +29,6 @@ use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
 use walkdir::WalkDir;
-use rusqlite;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
 const DEFAULT_ASSISTANT_TEMPERATURE: f64 = 0.2;
