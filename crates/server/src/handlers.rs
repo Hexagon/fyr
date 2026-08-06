@@ -210,7 +210,7 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> 
     let misc_count = count_files(state.config.misc_dir());
 
     Json(StatusResponse {
-        version: "0.1.0".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         status: "running".to_string(),
         data_dir: state.config.data_dir.display().to_string(),
         content_count: ContentCountResponse {
@@ -1022,7 +1022,7 @@ pub async fn download_content_file(
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {
         module: "fyr-unified-reader".to_string(),
-        version: "0.1".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         formats: vec![
             ReaderFormatCapabilities {
                 format: "zim".to_string(),
