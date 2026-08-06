@@ -116,9 +116,7 @@ export const apiService = {
     return response.data || {
       module: 'fyr-unified-reader',
       version: '0.1',
-      formats: [],
-      legacy_bridge_available: false,
-      legacy_bridge_url: ''
+      formats: []
     }
   },
 

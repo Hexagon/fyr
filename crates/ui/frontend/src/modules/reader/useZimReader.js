@@ -327,8 +327,6 @@ export const useZimReader = () => {
         mode: 'native',
         supports_native_render: true,
         supports_search: true,
-        legacy_bridge_available: false,
-        legacy_bridge_url: '',
         archive_url: descriptor.content_url
       }))
 
