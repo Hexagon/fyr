@@ -155,7 +155,7 @@ pub fn extract_author(path: &Path, format: &str) -> Option<String> {
 // EPUB helpers
 // ---------------------------------------------------------------------------
 
-fn extract_epub_title(path: &Path) -> Option<String> {
+pub(crate) fn extract_epub_title(path: &Path) -> Option<String> {
     use std::io::Read;
 
     let file = std::fs::File::open(path).ok()?;
@@ -479,7 +479,7 @@ fn resolve_manifest_href(opf_xml: &str, idref: &str) -> Option<String> {
 // ZIM helpers
 // ---------------------------------------------------------------------------
 
-fn extract_zim_title(path: &Path) -> Option<String> {
+pub(crate) fn extract_zim_title(path: &Path) -> Option<String> {
     use std::panic::AssertUnwindSafe;
 
     let zim = std::panic::catch_unwind(AssertUnwindSafe(|| zim::Zim::new(path)))
@@ -745,7 +745,7 @@ fn search_markdown(path: &Path, needle: &str, limit: usize) -> Result<Vec<Search
 // Shared XML helpers
 // ---------------------------------------------------------------------------
 
-fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
+pub(crate) fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
     let attr_start = xml.find(attr)?;
     let after_attr = xml[attr_start + attr.len()..].trim_start();
     let after_eq = after_attr.strip_prefix('=')?;
@@ -766,7 +766,7 @@ fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
     }
 }
 
-fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
+pub(crate) fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
     let open_tag = format!("<{}", tag);
     let close_tag = format!("</{}>", tag);
     let tag_start = xml.find(&open_tag)?;
@@ -879,7 +879,7 @@ fn strip_html_tags(html: &str) -> String {
     collapsed.trim().to_string()
 }
 
-fn normalize_zim_url(value: &str) -> String {
+pub(crate) fn normalize_zim_url(value: &str) -> String {
     let raw = value
         .trim()
         .split('#')
@@ -902,7 +902,7 @@ fn normalize_zim_url(value: &str) -> String {
     out
 }
 
-fn decode_percent_once(value: &str) -> String {
+pub(crate) fn decode_percent_once(value: &str) -> String {
     let bytes = value.as_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut i = 0usize;

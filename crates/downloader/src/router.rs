@@ -23,15 +23,6 @@ impl ContentRouter {
 
         Some(destination)
     }
-
-    /// Check if a file type is recognized
-    pub fn is_supported_type(file_path: &Path) -> bool {
-        let extension = file_path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
-        ContentType::from_extension(extension).is_some()
-    }
 }
 
 #[cfg(test)]

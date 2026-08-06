@@ -1,7 +1,7 @@
 //! Download task manager
 
 use crate::router::ContentRouter;
-use futures::StreamExt;
+use tokio_stream::StreamExt;
 use tokio::io::AsyncWriteExt;
 use types::{ContentType, DownloadSource, DownloadStatus, DownloadTask};
 use std::collections::HashMap;
