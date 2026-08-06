@@ -168,6 +168,7 @@ Container expectations:
 
 - App static assets live under `/app/public`.
 - Docker image builds frontend assets during image build and bundles generated files under `/app/public/static`.
+- The final Rust image build uses `FYR_USE_PREBUILT_FRONTEND=1` so `crates/server/build.rs` reuses those prebuilt assets instead of running `npm ci` again in the Rust builder stage.
 - Writable content directory is mounted to `/data`.
 - Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
 - Healthcheck uses `GET /api/status`.
