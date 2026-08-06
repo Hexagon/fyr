@@ -47,7 +47,7 @@ COPY --from=frontend-builder /build/public/static /build/public/static
 # Ensure Cargo sees copied sources as newer than the priming stub files.
 RUN find crates -type f -exec touch {} +
 
-RUN RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
+RUN FYR_USE_PREBUILT_FRONTEND=1 RUSTFLAGS="${RUST_TARGET_FEATURES:+-C target-feature=$RUST_TARGET_FEATURES}" cargo build --release --locked -p server --bin fyr
 
 # Stage 2: Runtime (minimal base image)
 FROM debian:bookworm-slim

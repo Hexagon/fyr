@@ -17,6 +17,7 @@ fn main() {
     let static_out = std::path::Path::new("../../public/static");
     let has_built_assets = static_out.exists()
         && std::fs::read_dir(static_out).map_or(false, |mut d| d.next().is_some());
+    println!("cargo:rerun-if-env-changed=FYR_USE_PREBUILT_FRONTEND");
     let use_prebuilt_assets = std::env::var("FYR_USE_PREBUILT_FRONTEND")
         .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "on"))
         .unwrap_or(false);
