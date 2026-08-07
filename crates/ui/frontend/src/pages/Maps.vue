@@ -2052,9 +2052,7 @@ onBeforeUnmount(() => {
   }
 
   .overlay-selector,
-  .overlay-info,
-  .overlay-layers,
-  .overlay-tools {
+  .overlay-layers {
     width: auto;
     left: 0.5rem;
     right: 0.5rem;
@@ -2068,12 +2066,27 @@ onBeforeUnmount(() => {
     top: 7rem;
   }
 
+  /* On mobile, info and tools sit side-by-side at the bottom (left vs right)
+     to avoid the collapsed toggles (46 px tall) overlapping each other.
+     When expanded they grow to full width like the other overlays. */
   .overlay-info {
-    bottom: 4.5rem;
+    bottom: 2.2rem;
+    left: 0.5rem;
+    width: auto;
+  }
+
+  .overlay-info:not(.collapsed) {
+    right: 0.5rem;
   }
 
   .overlay-tools {
     bottom: 2.2rem;
+    right: 0.5rem;
+    width: auto;
+  }
+
+  .overlay-tools:not(.collapsed) {
+    left: 0.5rem;
   }
 
   .overlay-content {
