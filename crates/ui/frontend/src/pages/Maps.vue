@@ -582,8 +582,10 @@ const onPoiFileChange = async () => {
     }
     return
   }
+  const requestedFile = selectedPoiFile.value
   try {
-    const data = await apiService.readPoi(selectedPoiFile.value)
+    const data = await apiService.readPoi(requestedFile)
+    if (selectedPoiFile.value !== requestedFile) return
     poiData.value = (data && data.features) ? data : emptyGeoJSON()
     poiDirty.value = false
     addPoiLayersToMap()
@@ -593,6 +595,7 @@ const onPoiFileChange = async () => {
       mapInstance.getCanvas().style.cursor = 'crosshair'
     }
   } catch (err) {
+    if (selectedPoiFile.value !== requestedFile) return
     console.error('Error loading POI file:', err)
     poiData.value = emptyGeoJSON()
   }
@@ -770,13 +773,23 @@ const tryLoadMbtilesSource = async (filename) => {
     const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
 
     if (isVector) {
+      let vectorLayers = []
+      try {
+        const vectorLayersRaw = meta?.vector_layers
+        if (typeof vectorLayersRaw === 'string' && vectorLayersRaw) {
+          const parsed = JSON.parse(vectorLayersRaw)
+          if (Array.isArray(parsed)) {
+            vectorLayers = parsed.map((l) => (typeof l === 'object' && l.id ? l.id : l)).filter(Boolean)
+          }
+        }
+      } catch (_) { /* use empty fallback */ }
       mapInstance.addSource('pmtiles-source', {
         type: 'vector',
         tiles: [tileUrl],
         minzoom: 0,
         maxzoom: 14
       })
-      addVectorLayers([])
+      addVectorLayers(vectorLayers)
       renderMode.value = 'vector'
     } else {
       mapInstance.addSource('pmtiles-source', {
@@ -2056,7 +2069,7 @@ onBeforeUnmount(() => {
   }
 
   .overlay-info {
-    bottom: 2.2rem;
+    bottom: 4.5rem;
   }
 
   .overlay-tools {

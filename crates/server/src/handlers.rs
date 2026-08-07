@@ -374,6 +374,33 @@ pub async fn serve_mbtile(
         return Err(StatusCode::NOT_FOUND);
     }
 
+    // Look up the cached tile format, falling back to querying the archive.
+    let cached_format = state.mbtiles_format_cache.read().await.get(&path).cloned();
+    let tile_mime_cached = if let Some(fmt) = cached_format {
+        fmt
+    } else {
+        let path_clone = path.clone();
+        let fmt = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open_with_flags(
+                &path_clone,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+            .ok()?;
+            conn.query_row(
+                "SELECT value FROM metadata WHERE name = 'format' LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+        })
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_else(|| "pbf".to_string());
+        state.mbtiles_format_cache.write().await.insert(path.clone(), fmt.clone());
+        fmt
+    };
+
     // Open the SQLite database on a blocking thread
     let tile_data: Option<(Vec<u8>, String)> = tokio::task::spawn_blocking(move || {
         let conn = rusqlite::Connection::open_with_flags(
@@ -382,14 +409,7 @@ pub async fn serve_mbtile(
         )
         .ok()?;
 
-        // Detect tile format from metadata
-        let tile_mime: String = conn
-            .query_row(
-                "SELECT value FROM metadata WHERE name = 'format' LIMIT 1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .unwrap_or_else(|_| "pbf".to_string());
+        let tile_mime = tile_mime_cached;
 
         // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention.
         // Use checked_shl to avoid panicking on oversized zoom values.
@@ -421,12 +441,16 @@ pub async fn serve_mbtile(
                 "webp" => "image/webp",
                 _ => "application/octet-stream",
             };
-            Ok(Response::builder()
+            let is_vector = matches!(format.as_str(), "pbf" | "mvt");
+            let is_gzip = data.len() >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+            let mut builder = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
-                .header(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"))
-                .body(Body::from(data))
-                .unwrap())
+                .header(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"));
+            if is_vector && is_gzip {
+                builder = builder.header(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            }
+            Ok(builder.body(Body::from(data)).unwrap())
         }
     }
 }
@@ -507,6 +531,18 @@ pub async fn save_poi_file(
     let lower = sanitized.to_lowercase();
     if !lower.ends_with(".geojson") && !lower.ends_with(".json") {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate that the body is a GeoJSON FeatureCollection with an array features field.
+    let is_feature_collection = body.get("type")
+        .and_then(|v| v.as_str())
+        .map(|t| t == "FeatureCollection")
+        .unwrap_or(false);
+    let has_features_array = body.get("features")
+        .map(|v| v.is_array())
+        .unwrap_or(false);
+    if !is_feature_collection || !has_features_array {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     let dir = state.config.poi_dir();
@@ -736,13 +772,13 @@ pub async fn upload_file_to_import(
             })?;
 
         let mut size_bytes = 0u64;
-        let mut magic = Vec::with_capacity(8);
+        let mut magic = Vec::with_capacity(16);
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
             import_err(StatusCode::BAD_REQUEST, "Upload stream failed. Please retry.")
         })? {
-            let needed = 8usize.saturating_sub(magic.len());
+            let needed = 16usize.saturating_sub(magic.len());
             if needed > 0 {
                 magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
             }

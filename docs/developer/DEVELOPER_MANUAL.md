@@ -451,7 +451,7 @@ Run from repository root unless noted:
 1. `cargo test --workspace --all-targets`
 2. `cargo check -p server`
 3. `cd crates/ui/frontend && npm ci && npm run build`
-4. `cd docs/build && npm run build`
+4. `cd docs/build && npm ci && npm run build`
 5. Validate native ZIM flow by opening a `.zim` file in Books and confirming article payload retrieval.
 
 ## 10. Native ZIM Reader Notes

@@ -4,6 +4,8 @@ fn main() {
     // Only rebuild frontend when its source changes
     println!("cargo:rerun-if-changed=../ui/frontend/src");
     println!("cargo:rerun-if-changed=../ui/frontend/package.json");
+    println!("cargo:rerun-if-changed=../ui/frontend/package-lock.json");
+    println!("cargo:rerun-if-changed=../ui/frontend/index.html");
     println!("cargo:rerun-if-changed=../ui/frontend/vite.config.js");
 
     let frontend_dir = std::path::Path::new("../ui/frontend");

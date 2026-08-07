@@ -82,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
+        mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
 
     // Build router
