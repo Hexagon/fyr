@@ -1,6 +1,16 @@
 <template>
   <div class="books-page">
     <div class="books-layout" :class="{ 'library-collapsed': libraryCollapsed }">
+      <button
+        v-if="libraryCollapsed"
+        type="button"
+        class="library-toggle library-expand"
+        aria-label="Expand Library panel"
+        title="Expand library panel"
+        @click="toggleLibrary"
+      >
+        »
+      </button>
       <aside v-if="!libraryCollapsed" class="books-library">
         <header class="library-header">
           <div class="library-header-copy">
@@ -279,6 +289,7 @@ const toggleLibrary = () => {
 }
 
 const returnToLibrary = () => {
+  disposeUnifiedReader()
   readerFocusMode.value = false
   libraryCollapsed.value = false
   selectedBook.value = null
@@ -555,6 +566,7 @@ onBeforeUnmount(() => {
   gap: 1rem;
   height: 100%;
   min-height: 0;
+  position: relative;
 }
 
 .books-layout.library-collapsed {
@@ -618,6 +630,14 @@ onBeforeUnmount(() => {
   font-weight: 700;
   line-height: 1;
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.library-expand {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  flex-shrink: 0;
 }
 
 .library-toggle:hover {
