@@ -102,25 +102,25 @@
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
 
     <!-- Navigation -->
-    <nav class="fixed w-full bg-white/85 backdrop-blur-md border-b border-gray-200 z-50">
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
                 <div class="flex-shrink-0 flex items-center gap-2">
                     <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl">F</div>
-                    <span class="font-bold text-xl tracking-tight text-gray-900">Fyr<span class="text-brand-500">.guide</span></span>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
                 </div>
                 <div class="hidden md:flex space-x-8">
-                    <a href="#features" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Features</a>
-                    <a href="#preview" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Interface</a>
-                    <a href="#installation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Installation</a>
-                    <a href="#faq" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">FAQ</a>
-                    <a href="#documentation" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Documentation</a>
+                    <a href="#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="#preview" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Interface</a>
+                    <a href="#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="#faq" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">FAQ</a>
+                    <a href="#documentation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Documentation</a>
                 </div>
                 <div>
-                    <a href="https://github.com/Hexagon/fyr" target="_blank" class="text-gray-500 hover:text-gray-900 transition-colors">
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" class="text-gray-400 hover:text-white transition-colors">
                         <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
                     </a>
                 </div>
@@ -130,23 +130,28 @@
 
     <!-- Hero Section -->
     <div class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative text-center">
-            <p class="inline-flex items-center px-3 py-1 rounded-full bg-brand-100 text-brand-900 text-sm font-semibold mb-6">Preview release</p>
-            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 mb-6">
-                Maps, books, and AI —<br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600">offline, on your own hardware.</span>
+        <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+            <img src="img/hero.png" alt="" fetchpriority="high" decoding="async" class="w-full h-full object-cover object-center scale-110 saturate-170 contrast-120 brightness-95">
+        </div>
+        <div class="absolute inset-0 pointer-events-none bg-black/12" aria-hidden="true"></div>
+        <div class="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/25 via-black/32 to-black/40" aria-hidden="true"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+            <p class="inline-flex items-center px-3 py-1 rounded-full bg-white/15 border border-white/35 text-white text-sm font-semibold mb-6">Preview release</p>
+            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-6 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
+                Knowledge, tools, maps, AI<br/><span class="block mt-3 text-brand-100/80">Off-grid. Offline.</span>
             </h1>
-            <p class="mt-4 text-xl text-gray-600 max-w-3xl mx-auto mb-10">
-                No signal? No cloud? No problem. Fyr runs on a Raspberry Pi, your homelab, or any Linux box and serves offline maps, Wikipedia-scale archives, and local AI — all from a browser, with no subscription or telemetry.
+            <p class="mt-4 text-xl text-gray-100 max-w-3xl mx-auto mb-10 drop-shadow-[0_1px_6px_rgba(0,0,0,0.5)]">
+                Fyr helps you preload maps, encyclopedias, books, and practical utilities for off-grid use. Run it on a Raspberry Pi, homelab, or Linux host, and add optional on-device AI inference so your system stays useful when the internet goes down.
             </p>
             <div class="flex justify-center gap-4">
-                <a href="#installation" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/30">Get Started</a>
-                <a href="#preview" class="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-8 py-3 rounded-lg font-medium transition-all shadow-sm">View Interface</a>
+                <a href="#installation" class="bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Get Started</a>
+                <a href="#preview" class="bg-white/10 border border-white/45 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-sm backdrop-blur-sm">View Interface</a>
             </div>
         </div>
     </div>
 
     <!-- Features Section -->
-    <div id="features" class="py-24 bg-white">
+    <div id="features" class="py-24 bg-gray-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-3xl font-bold text-gray-900">Everything you need, completely offline.</h2>
@@ -155,7 +160,7 @@
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- Feature 1 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     </div>
@@ -163,7 +168,7 @@
                     <p class="text-gray-600">Render vector and raster maps locally using PMTiles and MBTiles, with absolutely no external tile server required.</p>
                 </div>
                 <!-- Feature 2 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                     </div>
@@ -171,7 +176,7 @@
                     <p class="text-gray-600">Read EPUB, PDF, Markdown, and natively parse ZIM files (Wikipedia & Kiwix-format) entirely on-device. Download maps, books, and AI models directly from the UI.</p>
                 </div>
                 <!-- Feature 3 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
@@ -179,7 +184,7 @@
                     <p class="text-gray-600">Load and chat with GGUF language models like Qwen2.5, Llama 3.2, and Phi-3.5 without sending a single byte of data to the cloud.</p>
                 </div>
                 <!-- Feature 4 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     </div>
@@ -187,7 +192,7 @@
                     <p class="text-gray-600">No accounts, no subscriptions, no telemetry. What you read, search, and ask stays inside your own network — always.</p>
                 </div>
                 <!-- Feature 5 -->
-                <a href="#installation" class="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-500 hover:shadow-md transition-all group block">
+                <a href="#installation" class="p-6 bg-gray-100 rounded-2xl border border-gray-200 hover:border-brand-500 hover:shadow-md transition-all group block">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"></path></svg>
                     </div>
@@ -195,7 +200,7 @@
                     <p class="text-gray-600">Native <code>linux/arm64</code> support. Deploy Fyr on a Raspberry Pi and optionally turn it into a standalone Wi-Fi hotspot for fully off-grid access. <span class="text-brand-600 font-medium">See the guide →</span></p>
                 </a>
                 <!-- Feature 6 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
                     </div>
@@ -203,7 +208,7 @@
                     <p class="text-gray-600">Bind to your LAN or turn a Raspberry Pi into a Wi-Fi hotspot. Every device on the network gets access to maps, books, and AI — no app installs needed.</p>
                 </div>
                 <!-- Feature 7 -->
-                <div class="p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <div class="p-6 bg-gray-100 rounded-2xl border border-gray-200">
                     <div class="w-12 h-12 bg-brand-100 text-brand-600 rounded-lg flex items-center justify-center mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"></path></svg>
                     </div>
@@ -215,15 +220,15 @@
     </div>
 
     <!-- Screenshot Showcase / Interactive Slider Section -->
-    <div id="preview" class="py-24 bg-gray-50 border-y border-gray-200">
+    <div id="preview" class="py-24 bg-gray-200 border-y border-gray-400">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-12">
                 <h2 class="text-3xl font-bold text-gray-900">Designed for speed and clarity.</h2>
                 <p class="mt-4 text-lg text-gray-600">Explore the clean local dashboard and workspace interfaces.</p>
                 
                 <!-- Tab Controls Slider -->
-                <div class="mt-8 inline-flex p-1.5 bg-gray-200 rounded-xl space-x-1 shadow-inner">
-                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm">Maps</button>
+                <div class="mt-8 inline-flex p-1.5 bg-gray-300 rounded-xl space-x-1 shadow-inner">
+                    <button onclick="switchTab(1)" id="tab-btn-1" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-gray-200 text-gray-900 shadow-sm">Maps</button>
                     <button onclick="switchTab(2)" id="tab-btn-2" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Library</button>
                     <button onclick="switchTab(3)" id="tab-btn-3" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Assistant</button>
                     <button onclick="switchTab(4)" id="tab-btn-4" class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900">Tools</button>
@@ -231,14 +236,14 @@
             </div>
 
             <!-- Simulated Browser Window Container -->
-            <div class="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden max-w-5xl mx-auto">
+            <div class="bg-gray-200 rounded-2xl shadow-2xl border border-gray-400 overflow-hidden max-w-5xl mx-auto">
                 <div class="flex items-center justify-between px-4 py-3 bg-gray-100 border-b border-gray-200">
                     <div class="flex items-center space-x-2">
                         <div class="w-3 h-3 rounded-full bg-red-400"></div>
                         <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
                         <div class="w-3 h-3 rounded-full bg-green-400"></div>
                     </div>
-                    <div class="bg-white px-4 py-1 rounded-md text-xs text-gray-500 font-mono border border-gray-200 w-96 text-center truncate shadow-xs">
+                    <div class="bg-gray-100 px-4 py-1 rounded-md text-xs text-gray-500 font-mono border border-gray-400 w-96 text-center truncate shadow-xs">
                         http://localhost:8080
                     </div>
                     <div class="w-12"></div>
@@ -680,31 +685,31 @@ git checkout main   # or dev, or a specific tag</code></pre>
     </div>
 
     <!-- FAQ Section -->
-    <div id="faq" class="py-24 bg-gray-50 border-b border-gray-200">
+    <div id="faq" class="py-24 bg-gray-200 border-b border-gray-400">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 class="text-3xl font-bold text-gray-900 text-center mb-10">Frequently Asked Questions</h2>
             <div class="space-y-6">
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Can Fyr run fully offline?</h3>
                     <p class="mt-2 text-gray-600">Yes. Fyr is designed for offline-first operation. Once your content is downloaded, maps, books, local AI models, and utilities can be used without internet connectivity.</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Does Fyr work on Raspberry Pi?</h3>
                     <p class="mt-2 text-gray-600">Yes. Fyr supports <code>linux/arm64</code> and is suitable for Raspberry Pi 64-bit deployments, including standalone hotspot-style setups for off-grid access.</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Can Fyr read ZIM archives like Wikipedia dumps?</h3>
                     <p class="mt-2 text-gray-600">Yes. Fyr includes native ZIM parsing for Kiwix/Wikipedia-style offline archives, alongside EPUB, PDF, and Markdown reading support.</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Is my data sent to cloud AI services?</h3>
                     <p class="mt-2 text-gray-600">No. Fyr’s local AI workflow is built around on-device GGUF models, so prompts and data can stay inside your own network.</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">What content can I load into Fyr?</h3>
                     <p class="mt-2 text-gray-600">OpenStreetMap vector and raster tiles (PMTiles and MBTiles), Wikipedia and Kiwix ZIM archives, Project Gutenberg and other EPUB books, PDF and Markdown documents, and GGUF language models (Qwen2.5, Llama 3.2, Phi-3.5, and others). Fyr includes a curated catalog to help you get started.</p>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="bg-gray-100 border border-gray-300 rounded-xl p-6">
                     <h3 class="text-xl font-semibold text-gray-900">Can multiple devices on my network use Fyr at the same time?</h3>
                     <p class="mt-2 text-gray-600">Yes. Bind Fyr to your LAN interface (<code>FYR_HOST=0.0.0.0</code>) and any phone, tablet, or laptop on the same network can access it through a browser — no app installs required. On a Raspberry Pi you can also set up a standalone Wi-Fi hotspot so devices connect directly.</p>
                 </div>
@@ -713,13 +718,13 @@ git checkout main   # or dev, or a specific tag</code></pre>
     </div>
 
     <!-- Documentation External Links -->
-    <div id="documentation" class="py-24 bg-white border-b border-gray-200">
+    <div id="documentation" class="py-24 bg-gray-100 border-b border-gray-400">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h2 class="text-3xl font-bold text-gray-900 mb-6">Full Documentation</h2>
             <p class="text-lg text-gray-600 mb-10">Use the docs below for role-specific guidance. Fyr is currently in preview, so check docs with each upgrade.</p>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                <a href="https://github.com/Hexagon/fyr/blob/main/README.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                <a href="https://github.com/Hexagon/fyr/blob/main/README.md" target="_blank" class="block p-8 bg-gray-100 border border-gray-300 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
                     <div class="text-brand-500 mb-3">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5h14v14H5zM9 9h6m-6 4h6"></path></svg>
                     </div>
@@ -727,7 +732,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
                     <p class="mt-2 text-gray-600 text-sm">Project overview, quick start, and a navigation hub for all canonical docs.</p>
                 </a>
 
-                <a href="https://github.com/Hexagon/fyr/blob/main/CONTRIBUTING.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                <a href="https://github.com/Hexagon/fyr/blob/main/CONTRIBUTING.md" target="_blank" class="block p-8 bg-gray-100 border border-gray-300 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
                     <div class="text-brand-500 mb-3">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6M4 6h16v12H4z"></path></svg>
                     </div>
@@ -735,7 +740,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
                     <p class="mt-2 text-gray-600 text-sm">Branching strategy, validation checklist, and documentation update requirements.</p>
                 </a>
 
-                <a href="https://github.com/Hexagon/fyr/blob/main/docs/user/USER_MANUAL.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                <a href="https://github.com/Hexagon/fyr/blob/main/docs/user/USER_MANUAL.md" target="_blank" class="block p-8 bg-gray-100 border border-gray-300 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
                     <div class="text-brand-500 mb-3">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                     </div>
@@ -743,7 +748,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
                     <p class="mt-2 text-gray-600 text-sm">Detailed usage reference for access control, AI setup, data directories, and troubleshooting.</p>
                 </a>
                 
-                <a href="https://github.com/Hexagon/fyr/blob/main/docs/developer/DEVELOPER_MANUAL.md" target="_blank" class="block p-8 bg-gray-50 border border-gray-200 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
+                <a href="https://github.com/Hexagon/fyr/blob/main/docs/developer/DEVELOPER_MANUAL.md" target="_blank" class="block p-8 bg-gray-100 border border-gray-300 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all group text-left">
                     <div class="text-brand-500 mb-3">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                     </div>
@@ -755,7 +760,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-white py-12">
+    <footer class="bg-gray-200 py-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
             <div class="flex items-center gap-2">
                 <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs">F</div>
@@ -777,7 +782,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
     <script>
         function switchTab(tabIndex) {
             const TABS = 4;
-            const btnActive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm';
+            const btnActive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all bg-gray-200 text-gray-900 shadow-sm';
             const btnInactive = 'px-6 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900';
 
             // Update button styles
