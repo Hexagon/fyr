@@ -204,8 +204,9 @@ impl DownloadManager {
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
     ///
-    /// For `LocalFile` tasks that are not completed, any source file remaining on disk is also
-    /// removed (best-effort, errors are ignored).
+    /// For `LocalFile` tasks, any source file remaining on disk is also removed
+    /// (best-effort, errors are ignored). Completed tasks have already been moved to their
+    /// destination so the remove_file call is a no-op in that case.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -235,13 +236,11 @@ impl DownloadManager {
             flags.remove(task_id);
         }
 
-        // For LocalFile tasks that did not complete successfully, attempt to remove the
-        // source file from disk. Completed tasks have already been moved to their destination
-        // so the source path no longer exists; the remove_file call is a no-op in that case.
+        // For LocalFile tasks, attempt to remove the source file from disk (best-effort).
+        // Completed tasks have already been moved to their destination so remove_file
+        // will be a no-op; errors are ignored in all cases.
         if let DownloadSource::LocalFile { path } = &dismissed_task.source {
-            if dismissed_task.status != DownloadStatus::Completed {
-                let _ = tokio::fs::remove_file(path).await;
-            }
+            let _ = tokio::fs::remove_file(path).await;
         }
 
         Ok(true)

@@ -249,6 +249,8 @@ export const apiService = {
 
       const xhr = new XMLHttpRequest()
 
+      xhr.timeout = REQUEST_TIMEOUT_MS
+
       if (abortHandle) {
         abortHandle.abort = () => xhr.abort()
       }
@@ -265,7 +267,7 @@ export const apiService = {
         let payload = null
         const responseType = xhr.getResponseHeader('content-type') || ''
         if (responseType.includes('application/json')) {
-          try { payload = JSON.parse(xhr.responseText) } catch (_) { /* ignore */ }
+          try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
         } else if (xhr.responseText) {
           payload = { message: xhr.responseText }
         }
@@ -279,6 +281,10 @@ export const apiService = {
 
       xhr.addEventListener('error', () => {
         reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
+      })
+
+      xhr.addEventListener('timeout', () => {
+        reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
       })
 
       xhr.addEventListener('abort', () => {
