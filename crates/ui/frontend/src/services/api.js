@@ -242,36 +242,52 @@ export const apiService = {
 
     return { data: payload }
   },
-  uploadFile: async (file) => {
-    const formData = new FormData()
-    formData.append('file', file)
+  uploadFile: (file, onProgress, abortHandle) => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file', file)
 
-    const response = await fetch('/api/import/upload', {
-      method: 'POST',
-      body: formData,
-      cache: 'no-store'
-    })
+      const xhr = new XMLHttpRequest()
 
-    let payload = null
-    const responseType = response.headers.get('content-type') || ''
-
-    if (responseType.includes('application/json')) {
-      payload = await response.json()
-    } else {
-      const text = await response.text()
-      payload = text ? { message: text } : null
-    }
-
-    if (!response.ok) {
-      throw {
-        response: {
-          status: response.status,
-          data: payload
-        }
+      if (abortHandle) {
+        abortHandle.abort = () => xhr.abort()
       }
-    }
 
-    return { data: payload }
+      if (typeof onProgress === 'function') {
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            onProgress(event.loaded, event.total)
+          }
+        })
+      }
+
+      xhr.addEventListener('load', () => {
+        let payload = null
+        const responseType = xhr.getResponseHeader('content-type') || ''
+        if (responseType.includes('application/json')) {
+          try { payload = JSON.parse(xhr.responseText) } catch (_) { /* ignore */ }
+        } else if (xhr.responseText) {
+          payload = { message: xhr.responseText }
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ data: payload })
+        } else {
+          reject({ response: { status: xhr.status, data: payload } })
+        }
+      })
+
+      xhr.addEventListener('error', () => {
+        reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
+      })
+
+      xhr.addEventListener('abort', () => {
+        reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
+      })
+
+      xhr.open('POST', '/api/import/upload')
+      xhr.send(formData)
+    })
   },
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
   createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),

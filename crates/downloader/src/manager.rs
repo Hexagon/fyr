@@ -203,6 +203,9 @@ impl DownloadManager {
     /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
+    ///
+    /// For `LocalFile` tasks that are not completed, any source file remaining on disk is also
+    /// removed (best-effort, errors are ignored).
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -213,13 +216,15 @@ impl DownloadManager {
             cancel_flag.store(true, Ordering::Relaxed);
         }
 
-        // Remove the task from the map
-        let snapshot = {
+        // Remove the task from the map, capturing its source and status for cleanup
+        let (snapshot, dismissed_task) = {
             let mut tasks = self.tasks.write().await;
-            if tasks.remove(task_id).is_none() {
-                return Ok(false);
-            }
-            tasks.clone()
+            let task = match tasks.remove(task_id) {
+                Some(t) => t,
+                None => return Ok(false),
+            };
+            let snap = tasks.clone();
+            (snap, task)
         };
 
         // Persist first; only clean up the cancel flag on success
@@ -228,6 +233,15 @@ impl DownloadManager {
         {
             let mut flags = self.cancel_flags.write().await;
             flags.remove(task_id);
+        }
+
+        // For LocalFile tasks that did not complete successfully, attempt to remove the
+        // source file from disk. Completed tasks have already been moved to their destination
+        // so the source path no longer exists; the remove_file call is a no-op in that case.
+        if let DownloadSource::LocalFile { path } = &dismissed_task.source {
+            if dismissed_task.status != DownloadStatus::Completed {
+                let _ = tokio::fs::remove_file(path).await;
+            }
         }
 
         Ok(true)
