@@ -17,3 +17,4 @@ pub struct AppSettings {
     #[serde(default)]
     pub modules: HashMap<String, Value>,
 }
+

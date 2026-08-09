@@ -28,6 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
+use uuid::Uuid;
 use walkdir::WalkDir;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
@@ -397,11 +398,7 @@ pub async fn serve_mbtile(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .unwrap_or_else(|| "pbf".to_string());
-        state
-            .mbtiles_format_cache
-            .write()
-            .await
-            .insert(path.clone(), fmt.clone());
+        state.mbtiles_format_cache.write().await.insert(path.clone(), fmt.clone());
         fmt
     };
 
@@ -450,13 +447,9 @@ pub async fn serve_mbtile(
             let mut builder = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
-                .header(
-                    header::CACHE_CONTROL,
-                    HeaderValue::from_static("public, max-age=86400"),
-                );
+                .header(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"));
             if is_vector && is_gzip {
-                builder =
-                    builder.header(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+                builder = builder.header(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
             }
             Ok(builder.body(Body::from(data)).unwrap())
         }
@@ -489,7 +482,9 @@ pub async fn serve_mbtiles_metadata(
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .ok()?;
-        let mut stmt = conn.prepare("SELECT name, value FROM metadata").ok()?;
+        let mut stmt = conn
+            .prepare("SELECT name, value FROM metadata")
+            .ok()?;
         let mut map = serde_json::Map::new();
         let rows = stmt
             .query_map([], |row| {
@@ -540,12 +535,13 @@ pub async fn save_poi_file(
     }
 
     // Validate that the body is a GeoJSON FeatureCollection with an array features field.
-    let is_feature_collection = body
-        .get("type")
+    let is_feature_collection = body.get("type")
         .and_then(|v| v.as_str())
         .map(|t| t == "FeatureCollection")
         .unwrap_or(false);
-    let has_features_array = body.get("features").map(|v| v.is_array()).unwrap_or(false);
+    let has_features_array = body.get("features")
+        .map(|v| v.is_array())
+        .unwrap_or(false);
     if !is_feature_collection || !has_features_array {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
@@ -623,32 +619,14 @@ pub async fn ai_upload_model(
         }
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -660,6 +638,7 @@ pub async fn ai_upload_model(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::BAD_REQUEST
         })? {
             if !magic_checked {
@@ -670,7 +649,7 @@ pub async fn ai_upload_model(
                 if magic.len() == 4 {
                     magic_checked = true;
                     if magic.as_slice() != b"GGUF" {
-                        let _ = tokio::fs::remove_file(&target_path).await;
+                        let _ = tokio::fs::remove_file(&part_path).await;
                         return Err(StatusCode::UNPROCESSABLE_ENTITY);
                     }
                 }
@@ -678,28 +657,44 @@ pub async fn ai_upload_model(
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
+                let _ = std::fs::remove_file(&part_path);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if magic.len() < 4 {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -745,44 +740,17 @@ pub async fn upload_file_to_import(
         })?;
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            import_err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Server error. Please try again.",
-            )
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    import_err(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "Server error. Please try again.",
-                    )
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
-                import_err(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Server error. Please try again.",
-                )
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
 
         let mut size_bytes = 0u64;
@@ -790,10 +758,8 @@ pub async fn upload_file_to_import(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
-            import_err(
-                StatusCode::BAD_REQUEST,
-                "Upload stream failed. Please retry.",
-            )
+            let _ = std::fs::remove_file(&part_path);
+            import_err(StatusCode::BAD_REQUEST, "Upload stream failed. Please retry.")
         })? {
             let needed = 16usize.saturating_sub(magic.len());
             if needed > 0 {
@@ -802,28 +768,23 @@ pub async fn upload_file_to_import(
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
-                import_err(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Server error. Please try again.",
-                )
+                let _ = std::fs::remove_file(&part_path);
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if size_bytes == 0 {
-            let _ = tokio::fs::remove_file(&target_path).await;
-            return Err(import_err(
-                StatusCode::BAD_REQUEST,
-                "The uploaded file is empty.",
-            ));
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(import_err(StatusCode::BAD_REQUEST, "The uploaded file is empty."));
         }
 
         if !validate_upload_magic(&filename, detected_type, &magic) {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(import_err(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "File content does not match the expected format for this file type. \
@@ -833,15 +794,27 @@ pub async fn upload_file_to_import(
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
-            import_err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Server error. Please try again.",
-            )
+            let _ = std::fs::remove_file(&part_path);
+            import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -854,10 +827,7 @@ pub async fn upload_file_to_import(
         ));
     }
 
-    Err(import_err(
-        StatusCode::BAD_REQUEST,
-        "No file field found in upload request.",
-    ))
+    Err(import_err(StatusCode::BAD_REQUEST, "No file field found in upload request."))
 }
 
 fn import_err(status: StatusCode, msg: &str) -> (StatusCode, Json<ErrorMessageResponse>) {
@@ -952,15 +922,7 @@ pub async fn ai_infer_stream(
 
     let rx = state
         .model_manager
-        .infer_stream(
-            &filename,
-            query.prompt,
-            temperature,
-            max_tokens,
-            num_ctx,
-            history,
-            app_context,
-        )
+        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history, app_context)
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
@@ -1625,28 +1587,18 @@ fn build_content_catalog_summary(config: &types::Config) -> String {
             .iter()
             .map(|filename| {
                 let format = crate::library::detect_format(filename);
-                match format
-                    .and_then(|fmt| crate::library::extract_title(&books_dir.join(filename), fmt))
-                {
+                match format.and_then(|fmt| crate::library::extract_title(&books_dir.join(filename), fmt)) {
                     Some(title) => format!("{} ({})", title, filename),
                     None => filename.clone(),
                 }
             })
             .collect();
-        lines.push(format!(
-            "- Books ({}): {}",
-            books.len(),
-            book_descriptions.join(", ")
-        ));
+        lines.push(format!("- Books ({}): {}", books.len(), book_descriptions.join(", ")));
     }
 
     let models = list_dir_filenames(config.models_dir());
     if !models.is_empty() {
-        lines.push(format!(
-            "- Models ({}): {}",
-            models.len(),
-            models.join(", ")
-        ));
+        lines.push(format!("- Models ({}): {}", models.len(), models.join(", ")));
     }
 
     if lines.is_empty() {
@@ -2108,10 +2060,7 @@ pub async fn library_book_metadata(
     match crate::library::extract_book_metadata(&books_dir, &sanitized) {
         Ok(metadata) => Ok(Json(metadata)),
         Err(error) => {
-            warn!(
-                "Failed to extract book metadata for {}: {}",
-                sanitized, error
-            );
+            warn!("Failed to extract book metadata for {}: {}", sanitized, error);
             Err(StatusCode::BAD_REQUEST)
         }
     }
@@ -2240,7 +2189,7 @@ pub async fn tools_aes(
     use std::num::NonZeroU32;
 
     const SALT_LEN: usize = 16;
-    const IV_LEN: usize = 16; // CBC IV
+    const IV_LEN: usize = 16;   // CBC IV
     const NONCE_LEN: usize = 12; // GCM nonce
     const PBKDF2_ITERATIONS: u32 = 100_000;
 
@@ -2249,34 +2198,23 @@ pub async fn tools_aes(
         128 => 16,
         192 => 24,
         256 => 32,
-        _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorMessageResponse {
-                    message: "Bits must be 128, 192, or 256".to_string(),
-                }),
-            ))
-        }
+        _ => return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Bits must be 128, 192, or 256".to_string(),
+        }))),
     };
 
     // Validate cipher_mode
     if !matches!(req.cipher_mode.as_str(), "cbc" | "ecb" | "gcm") {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorMessageResponse {
-                message: "cipher_mode must be 'cbc', 'ecb', or 'gcm'".to_string(),
-            }),
-        ));
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "cipher_mode must be 'cbc', 'ecb', or 'gcm'".to_string(),
+        })));
     }
 
     // GCM only supports 256-bit via ring
     if req.cipher_mode == "gcm" && req.bits != 256 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorMessageResponse {
-                message: "GCM mode only supports 256-bit keys".to_string(),
-            }),
-        ));
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "GCM mode only supports 256-bit keys".to_string(),
+        })));
     }
 
     let rng = SystemRandom::new();
@@ -2292,12 +2230,9 @@ pub async fn tools_aes(
             "password" => {
                 let mut salt = [0u8; SALT_LEN];
                 rng.fill(&mut salt).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Failed to generate random salt".to_string(),
-                        }),
-                    )
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                        message: "Failed to generate random salt".to_string(),
+                    }))
                 })?;
                 let mut key = vec![0u8; key_byte_len];
                 pbkdf2::derive(
@@ -2311,64 +2246,44 @@ pub async fn tools_aes(
             }
             "raw" => {
                 let key = hex::decode(key_source).map_err(|_| {
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid hex key".to_string(),
-                        }),
-                    )
+                    (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                        message: "Invalid hex key".to_string(),
+                    }))
                 })?;
                 if key.len() != key_byte_len {
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorMessageResponse {
-                            message: format!(
-                                "Raw key must be {} hex chars ({} bytes)",
-                                key_byte_len * 2,
-                                key_byte_len
-                            ),
-                        }),
-                    ));
+                    return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                        message: format!("Raw key must be {} hex chars ({} bytes)", key_byte_len * 2, key_byte_len),
+                    })));
                 }
                 Ok((key, Vec::new()))
             }
-            _ => Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorMessageResponse {
-                    message: "key_type must be 'password' or 'raw'".to_string(),
-                }),
-            )),
+            _ => Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                message: "key_type must be 'password' or 'raw'".to_string(),
+            }))),
         }
     }
 
     match req.mode.as_str() {
         "encrypt" => {
-            let (key_bytes, salt_prefix) =
-                resolve_key(&req.key_type, &req.key_source, key_byte_len, &rng)?;
+            let (key_bytes, salt_prefix) = resolve_key(&req.key_type, &req.key_source, key_byte_len, &rng)?;
 
             let result = match req.cipher_mode.as_str() {
                 "cbc" => {
                     // Generate random IV
                     let mut iv = [0u8; IV_LEN];
                     rng.fill(&mut iv).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Failed to generate IV".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to generate IV".to_string(),
+                        }))
                     })?;
 
                     // Pad plaintext
                     let plaintext = req.text.as_bytes();
                     let mut buf = [0u8; 4096];
                     if plaintext.len() > 4000 {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Plaintext too long (max 4000 bytes)".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Plaintext too long (max 4000 bytes)".to_string(),
+                        })));
                     }
                     buf[..plaintext.len()].copy_from_slice(plaintext);
                     let padded_len = pkcs7_pad(&mut buf, plaintext.len());
@@ -2384,12 +2299,9 @@ pub async fn tools_aes(
                     let plaintext = req.text.as_bytes();
                     let mut buf = [0u8; 4096];
                     if plaintext.len() > 4000 {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Plaintext too long (max 4000 bytes)".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Plaintext too long (max 4000 bytes)".to_string(),
+                        })));
                     }
                     buf[..plaintext.len()].copy_from_slice(plaintext);
                     let padded_len = pkcs7_pad(&mut buf, plaintext.len());
@@ -2403,38 +2315,28 @@ pub async fn tools_aes(
                 "gcm" => {
                     // GCM is only supported for 256-bit via ring
                     let unbound_key = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Failed to create encryption key".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to create encryption key".to_string(),
+                        }))
                     })?;
                     let key = LessSafeKey::new(unbound_key);
 
                     // Generate random nonce
                     let mut nonce_bytes = [0u8; NONCE_LEN];
                     rng.fill(&mut nonce_bytes).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Failed to generate nonce".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to generate nonce".to_string(),
+                        }))
                     })?;
                     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
                     // Encrypt
                     let mut plaintext = req.text.as_bytes().to_vec();
-                    key.seal_in_place_append_tag(nonce, Aad::empty(), &mut plaintext)
-                        .map_err(|_| {
-                            (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(ErrorMessageResponse {
-                                    message: "Encryption failed".to_string(),
-                                }),
-                            )
-                        })?;
+                    key.seal_in_place_append_tag(nonce, Aad::empty(), &mut plaintext).map_err(|_| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Encryption failed".to_string(),
+                        }))
+                    })?;
 
                     // Output: hex(salt_prefix) + hex(nonce) + hex(ct)
                     hex::encode(&salt_prefix) + &hex::encode(nonce_bytes) + &hex::encode(plaintext)
@@ -2446,23 +2348,17 @@ pub async fn tools_aes(
         }
         "decrypt" => {
             let bytes = hex::decode(&req.text).map_err(|_| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid hex input".to_string(),
-                    }),
-                )
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Invalid hex input".to_string(),
+                }))
             })?;
 
             let (key_bytes, payload) = match req.key_type.as_str() {
                 "password" => {
                     if bytes.len() < SALT_LEN {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Input too short: expected salt + payload".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Input too short: expected salt + payload".to_string(),
+                        })));
                     }
                     let salt = &bytes[..SALT_LEN];
                     let mut key = vec![0u8; key_byte_len];
@@ -2477,88 +2373,58 @@ pub async fn tools_aes(
                 }
                 "raw" => {
                     let key = hex::decode(&req.key_source).map_err(|_| {
-                        (
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Invalid hex key".to_string(),
-                            }),
-                        )
+                        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Invalid hex key".to_string(),
+                        }))
                     })?;
                     if key.len() != key_byte_len {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: format!(
-                                    "Raw key must be {} hex chars ({} bytes)",
-                                    key_byte_len * 2,
-                                    key_byte_len
-                                ),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: format!("Raw key must be {} hex chars ({} bytes)", key_byte_len * 2, key_byte_len),
+                        })));
                     }
                     (key, &bytes[..])
                 }
-                _ => {
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorMessageResponse {
-                            message: "key_type must be 'password' or 'raw'".to_string(),
-                        }),
-                    ))
-                }
+                _ => return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "key_type must be 'password' or 'raw'".to_string(),
+                }))),
             };
 
             let result = match req.cipher_mode.as_str() {
                 "cbc" => {
                     if payload.len() < IV_LEN {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Ciphertext too short: missing IV".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext too short: missing IV".to_string(),
+                        })));
                     }
                     let iv = &payload[..IV_LEN];
                     let ct = &payload[IV_LEN..];
 
                     let plaintext = cbc_decrypt(&key_bytes, iv, ct)?;
                     String::from_utf8(plaintext).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Decrypted data is not valid UTF-8".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
                     })?
                 }
                 "ecb" => {
                     if payload.is_empty() {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Ciphertext is empty".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext is empty".to_string(),
+                        })));
                     }
 
                     let plaintext = ecb_decrypt(&key_bytes, payload)?;
                     String::from_utf8(plaintext).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Decrypted data is not valid UTF-8".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
                     })?
                 }
                 "gcm" => {
                     if payload.len() < NONCE_LEN {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorMessageResponse {
-                                message: "Ciphertext too short: missing nonce".to_string(),
-                            }),
-                        ));
+                        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Ciphertext too short: missing nonce".to_string(),
+                        })));
                     }
                     let nonce_bytes: [u8; NONCE_LEN] = {
                         let arr = &payload[..NONCE_LEN];
@@ -2567,37 +2433,24 @@ pub async fn tools_aes(
                     let ct = &payload[NONCE_LEN..];
 
                     let unbound_key = UnboundKey::new(&AES_256_GCM, &key_bytes).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Failed to create decryption key".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Failed to create decryption key".to_string(),
+                        }))
                     })?;
                     let key = LessSafeKey::new(unbound_key);
 
                     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
                     let mut ct_vec = ct.to_vec();
-                    let plaintext_slice = key
-                        .open_in_place(nonce, Aad::empty(), &mut ct_vec)
-                        .map_err(|_| {
-                            (
-                                StatusCode::BAD_REQUEST,
-                                Json(ErrorMessageResponse {
-                                    message:
-                                        "Decryption failed. Check your password and ciphertext."
-                                            .to_string(),
-                                }),
-                            )
-                        })?;
+                    let plaintext_slice = key.open_in_place(nonce, Aad::empty(), &mut ct_vec).map_err(|_| {
+                        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                            message: "Decryption failed. Check your password and ciphertext.".to_string(),
+                        }))
+                    })?;
 
                     String::from_utf8(plaintext_slice.to_vec()).map_err(|_| {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ErrorMessageResponse {
-                                message: "Decrypted data is not valid UTF-8".to_string(),
-                            }),
-                        )
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                            message: "Decrypted data is not valid UTF-8".to_string(),
+                        }))
                     })?
                 }
                 _ => unreachable!(),
@@ -2605,372 +2458,245 @@ pub async fn tools_aes(
 
             Ok(Json(ToolsAesResponse { result }))
         }
-        _ => Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorMessageResponse {
-                message: "Mode must be 'encrypt' or 'decrypt'".to_string(),
-            }),
-        )),
+        _ => Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Mode must be 'encrypt' or 'decrypt'".to_string(),
+        }))),
     }
 }
 
 /// Helper: CBC encrypt with the appropriate AES key size.
-fn cbc_encrypt(
-    key_bytes: &[u8],
-    iv: &[u8],
-    plaintext: &[u8],
-) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+fn cbc_encrypt(key_bytes: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{KeyIvInit, BlockEncryptMut};
     use aes::cipher::block_padding::Pkcs7;
-    use aes::cipher::{BlockEncryptMut, KeyIvInit};
 
     let ct = match key_bytes.len() {
         16 => {
             use aes::Aes128;
-            let cipher =
-                cbc::Encryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Encryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = plaintext.to_vec();
             buf.extend_from_slice(&[0u8; 32]); // room for padding
-            let pos = cipher
-                .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "CBC encryption padding failed".to_string(),
-                        }),
-                    )
-                })?;
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
             pos.to_vec()
         }
         24 => {
             use aes::Aes192;
-            let cipher =
-                cbc::Encryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Encryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = plaintext.to_vec();
             buf.extend_from_slice(&[0u8; 32]);
-            let pos = cipher
-                .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "CBC encryption padding failed".to_string(),
-                        }),
-                    )
-                })?;
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
             pos.to_vec()
         }
         32 => {
             use aes::Aes256;
-            let cipher =
-                cbc::Encryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = plaintext.to_vec();
             buf.extend_from_slice(&[0u8; 32]);
-            let pos = cipher
-                .encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len())
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "CBC encryption padding failed".to_string(),
-                        }),
-                    )
-                })?;
+            let pos = cipher.encrypt_padded_mut::<Pkcs7>(&mut buf, plaintext.len()).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "CBC encryption padding failed".to_string(),
+                }))
+            })?;
             pos.to_vec()
         }
-        _ => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorMessageResponse {
-                    message: "Invalid key length".to_string(),
-                }),
-            ))
-        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
     };
     Ok(ct)
 }
 
 /// Helper: CBC decrypt with the appropriate AES key size.
-fn cbc_decrypt(
-    key_bytes: &[u8],
-    iv: &[u8],
-    ciphertext: &[u8],
-) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+fn cbc_decrypt(key_bytes: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
+    use aes::cipher::{KeyIvInit, BlockDecryptMut};
     use aes::cipher::block_padding::Pkcs7;
-    use aes::cipher::{BlockDecryptMut, KeyIvInit};
 
     let plaintext = match key_bytes.len() {
         16 => {
             use aes::Aes128;
-            let cipher =
-                cbc::Decryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Decryptor::<Aes128>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = ciphertext.to_vec();
             let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorMessageResponse {
-                        message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
-                    }),
-                )
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
             })?;
             pt.to_vec()
         }
         24 => {
             use aes::Aes192;
-            let cipher =
-                cbc::Decryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Decryptor::<Aes192>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = ciphertext.to_vec();
             let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorMessageResponse {
-                        message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
-                    }),
-                )
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
             })?;
             pt.to_vec()
         }
         32 => {
             use aes::Aes256;
-            let cipher =
-                cbc::Decryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorMessageResponse {
-                            message: "Invalid CBC key/IV length".to_string(),
-                        }),
-                    )
-                })?;
+            let cipher = cbc::Decryptor::<Aes256>::new_from_slices(key_bytes, iv).map_err(|_| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid CBC key/IV length".to_string(),
+                }))
+            })?;
             let mut buf = ciphertext.to_vec();
             let pt = cipher.decrypt_padded_mut::<Pkcs7>(&mut buf).map_err(|_| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorMessageResponse {
-                        message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
-                    }),
-                )
+                (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+                    message: "Decryption failed. Check key, IV, or ciphertext.".to_string(),
+                }))
             })?;
             pt.to_vec()
         }
-        _ => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorMessageResponse {
-                    message: "Invalid key length".to_string(),
-                }),
-            ))
-        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
     };
     Ok(plaintext)
 }
 
 /// Helper: ECB encrypt with the appropriate AES key size.
 /// Each 16-byte block is encrypted independently.
-fn ecb_encrypt(
-    key_bytes: &[u8],
-    plaintext: &[u8],
-) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
-    use aes::cipher::generic_array::GenericArray;
+fn ecb_encrypt(key_bytes: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
     use aes::cipher::{BlockEncrypt, KeyInit};
+    use aes::cipher::generic_array::GenericArray;
 
     let ct: Vec<u8> = match key_bytes.len() {
         16 => {
             use aes::Aes128;
             let cipher = Aes128::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            plaintext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.encrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
         24 => {
             use aes::Aes192;
             let cipher = Aes192::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            plaintext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.encrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
         32 => {
             use aes::Aes256;
             let cipher = Aes256::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            plaintext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.encrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            plaintext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.encrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
-        _ => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorMessageResponse {
-                    message: "Invalid key length".to_string(),
-                }),
-            ))
-        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
     };
     Ok(ct)
 }
 
 /// Helper: ECB decrypt with the appropriate AES key size.
-fn ecb_decrypt(
-    key_bytes: &[u8],
-    ciphertext: &[u8],
-) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
-    use aes::cipher::generic_array::GenericArray;
+fn ecb_decrypt(key_bytes: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, (StatusCode, Json<ErrorMessageResponse>)> {
     use aes::cipher::{BlockDecrypt, KeyInit};
+    use aes::cipher::generic_array::GenericArray;
 
     if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorMessageResponse {
-                message: "ECB ciphertext must be a non-empty multiple of 16 bytes".to_string(),
-            }),
-        ));
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "ECB ciphertext must be a non-empty multiple of 16 bytes".to_string(),
+        })));
     }
 
     let mut decrypted: Vec<u8> = match key_bytes.len() {
         16 => {
             use aes::Aes128;
             let cipher = Aes128::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            ciphertext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.decrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
         24 => {
             use aes::Aes192;
             let cipher = Aes192::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            ciphertext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.decrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
         32 => {
             use aes::Aes256;
             let cipher = Aes256::new_from_slice(key_bytes).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorMessageResponse {
-                        message: "Invalid ECB key length".to_string(),
-                    }),
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+                    message: "Invalid ECB key length".to_string(),
+                }))
             })?;
-            ciphertext
-                .chunks(16)
-                .flat_map(|block| {
-                    let mut ga = GenericArray::clone_from_slice(block);
-                    cipher.decrypt_block(&mut ga);
-                    ga.to_vec()
-                })
-                .collect()
+            ciphertext.chunks(16).flat_map(|block| {
+                let mut ga = GenericArray::clone_from_slice(block);
+                cipher.decrypt_block(&mut ga);
+                ga.to_vec()
+            }).collect()
         }
-        _ => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorMessageResponse {
-                    message: "Invalid key length".to_string(),
-                }),
-            ))
-        }
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorMessageResponse {
+            message: "Invalid key length".to_string(),
+        }))),
     };
 
     // Remove PKCS7 padding
     let unpadded_len = pkcs7_unpad(&decrypted).ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorMessageResponse {
-                message: "Invalid PKCS7 padding in decrypted data".to_string(),
-            }),
-        )
+        (StatusCode::BAD_REQUEST, Json(ErrorMessageResponse {
+            message: "Invalid PKCS7 padding in decrypted data".to_string(),
+        }))
     })?;
     decrypted.truncate(unpadded_len);
 
@@ -2991,7 +2717,9 @@ pub struct ToolsHashResponse {
 }
 
 /// POST /api/tools/hash — Hash text using SHA-256, SHA-512, SHA-1, or MD5
-pub async fn tools_hash(Json(req): Json<ToolsHashRequest>) -> Json<ToolsHashResponse> {
+pub async fn tools_hash(
+    Json(req): Json<ToolsHashRequest>,
+) -> Json<ToolsHashResponse> {
     let result = match req.algo.as_str() {
         "sha256" => {
             let digest = ring::digest::digest(&ring::digest::SHA256, req.text.as_bytes());
@@ -3002,13 +2730,12 @@ pub async fn tools_hash(Json(req): Json<ToolsHashRequest>) -> Json<ToolsHashResp
             hex::encode(digest.as_ref())
         }
         "sha1" => {
-            let digest =
-                ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, req.text.as_bytes());
+            let digest = ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, req.text.as_bytes());
             hex::encode(digest.as_ref())
         }
         "md5" => {
-            use digest::Digest;
             use md5::Md5;
+            use digest::Digest;
             let mut hasher = Md5::new();
             hasher.update(req.text.as_bytes());
             let digest = hasher.finalize();
@@ -3116,10 +2843,7 @@ mod tests {
     #[test]
     fn resolve_download_timeout_uses_default_without_override() {
         let settings = AppSettings::default();
-        assert_eq!(
-            resolve_download_request_timeout_secs(&settings),
-            DEFAULT_REQUEST_TIMEOUT_SECS
-        );
+        assert_eq!(resolve_download_request_timeout_secs(&settings), DEFAULT_REQUEST_TIMEOUT_SECS);
     }
 
     #[test]

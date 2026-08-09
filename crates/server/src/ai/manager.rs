@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokenizers::Tokenizer;
 use tokio::sync::{mpsc, RwLock};
+use tokenizers::Tokenizer;
 use tracing::info;
 use types::Config;
 
@@ -399,7 +399,7 @@ fn spawn_quantized_inference<M, FReset, FForward>(
     FReset: Fn(&mut M) + Send + 'static,
     FForward: Fn(&mut M, &Tensor, usize) -> candle_core::Result<Tensor> + Send + 'static,
 {
-    const PREFILL_CHUNK_TOKENS: usize = 256;
+        const PREFILL_CHUNK_TOKENS: usize = 256;
 
     tokio::task::spawn_blocking(move || {
         let send_error = |message: String, tx: &mpsc::Sender<String>| {
@@ -466,17 +466,14 @@ fn spawn_quantized_inference<M, FReset, FForward>(
                 Err(_) => logits,
             });
 
-            index_pos += chunk.len();
+                        index_pos += chunk.len();
         }
 
         timing.mark_prefill_done(token_ids.len());
 
         for _ in 0..max_tokens {
             let Some(logits) = last_logits.take() else {
-                send_error(
-                    "Inference failed: no logits available after prompt prefill.".to_string(),
-                    &tx,
-                );
+                send_error("Inference failed: no logits available after prompt prefill.".to_string(), &tx);
                 return;
             };
 
@@ -527,14 +524,13 @@ fn spawn_quantized_inference<M, FReset, FForward>(
                 break;
             }
 
-            let input =
-                match Tensor::new(&[next_token], &device).and_then(|tensor| tensor.unsqueeze(0)) {
-                    Ok(tensor) => tensor,
-                    Err(error) => {
-                        send_error(format!("Tensor setup failed: {error}"), &tx);
-                        return;
-                    }
-                };
+            let input = match Tensor::new(&[next_token], &device).and_then(|tensor| tensor.unsqueeze(0)) {
+                Ok(tensor) => tensor,
+                Err(error) => {
+                    send_error(format!("Tensor setup failed: {error}"), &tx);
+                    return;
+                }
+            };
 
             let logits = match forward(&mut model, &input, index_pos) {
                 Ok(logits) => logits,
@@ -591,7 +587,10 @@ fn format_prompt(
 }
 
 fn format_chatml_prompt(history: &[(String, String)], prompt: &str, system_block: &str) -> String {
-    let mut output = format!("<|im_start|>system\n{}\n<|im_end|>\n", system_block);
+    let mut output = format!(
+        "<|im_start|>system\n{}\n<|im_end|>\n",
+        system_block
+    );
 
     for (role, text) in history {
         let role_tag = match role.as_str() {

@@ -36,8 +36,7 @@ impl ContentType {
             "epub" | "pdf" | "mobi" | "md" | "zim" => Some(ContentType::Book),
             "fgb" | "geojson" | "json" => Some(ContentType::Poi),
             "gguf" => Some(ContentType::Model),
-            "txt" | "csv" | "zip" | "7z" | "log" | "exe" | "msi" | "msp" | "dmg" | "pkg"
-            | "deb" | "rpm" | "appimage" | "apk" => Some(ContentType::Misc),
+            "txt" | "csv" | "zip" | "7z" | "log" | "exe" | "msi" | "msp" | "dmg" | "pkg" | "deb" | "rpm" | "appimage" | "apk" => Some(ContentType::Misc),
             _ => None,
         }
     }
@@ -160,7 +159,6 @@ impl Default for ValidationResult {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::ContentType;

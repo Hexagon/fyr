@@ -1,11 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use tracing::{info, warn};
 use types::{AppSettings, GeoPosition};
+use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct SettingsManager {
@@ -102,7 +102,6 @@ impl SettingsManager {
         Ok(settings)
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::SettingsManager;

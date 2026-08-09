@@ -1,17 +1,17 @@
 //! Download task manager
 
 use crate::router::ContentRouter;
+use tokio_stream::StreamExt;
+use tokio::io::AsyncWriteExt;
+use types::{ContentType, DownloadSource, DownloadStatus, DownloadTask};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
-use tokio_stream::StreamExt;
-use tracing::{error, info, warn};
-use types::{ContentType, DownloadSource, DownloadStatus, DownloadTask};
 use uuid::Uuid;
+use tracing::{error, info, warn};
 
 pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 pub const MIN_REQUEST_TIMEOUT_SECS: u64 = 30;
@@ -73,7 +73,8 @@ impl DownloadManager {
 
         info!(
             "Download HTTP timeout configured to {}s (requested {}s)",
-            bounded, timeout_secs
+            bounded,
+            timeout_secs
         );
     }
 
@@ -184,10 +185,7 @@ impl DownloadManager {
                 return Ok(false);
             };
 
-            if !matches!(
-                task.status,
-                DownloadStatus::Completed | DownloadStatus::Failed | DownloadStatus::Cancelled
-            ) {
+            if !matches!(task.status, DownloadStatus::Completed | DownloadStatus::Failed | DownloadStatus::Cancelled) {
                 task.status = DownloadStatus::Cancelled;
                 task.error = Some("download cancelled by user".to_string());
                 task.updated_at = chrono::Local::now().to_rfc3339();
@@ -205,6 +203,11 @@ impl DownloadManager {
     /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
+    ///
+    /// Inbox file cleanup for `LocalFile` tasks is handled by the worker itself while it still
+    /// holds ownership of the source file; `dismiss_task` does not attempt any file deletion
+    /// because the path stored in the task is a shared inbox name that may already have been
+    /// claimed by a newer upload.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -256,16 +259,7 @@ impl DownloadManager {
     }
 
     async fn run_url_download(runtime: DownloadRuntime, task_id: String, url: String) {
-        if let Err(error) = Self::set_task_state(
-            &runtime,
-            &task_id,
-            DownloadStatus::Downloading,
-            None,
-            None,
-            None,
-        )
-        .await
-        {
+        if let Err(error) = Self::set_task_state(&runtime, &task_id, DownloadStatus::Downloading, None, None, None).await {
             error!("Failed to mark task {} as downloading: {}", task_id, error);
             return;
         }
@@ -319,7 +313,10 @@ impl DownloadManager {
 
                     warn!(
                         "Download task {} got HTTP {} on attempt {}/{}; retrying",
-                        task_id, status, attempt, MAX_DOWNLOAD_ATTEMPTS
+                        task_id,
+                        status,
+                        attempt,
+                        MAX_DOWNLOAD_ATTEMPTS
                     );
                 }
                 Err(error) => {
@@ -330,7 +327,10 @@ impl DownloadManager {
 
                     warn!(
                         "Download task {} failed on attempt {}/{}: {}. Retrying",
-                        task_id, attempt, MAX_DOWNLOAD_ATTEMPTS, error
+                        task_id,
+                        attempt,
+                        MAX_DOWNLOAD_ATTEMPTS,
+                        error
                     );
                 }
             }
@@ -566,20 +566,8 @@ impl DownloadManager {
     }
 
     async fn run_local_import(runtime: DownloadRuntime, task_id: String, source_path: PathBuf) {
-        if let Err(error) = Self::set_task_state(
-            &runtime,
-            &task_id,
-            DownloadStatus::Validating,
-            None,
-            None,
-            None,
-        )
-        .await
-        {
-            error!(
-                "Failed to mark local import task {} as validating: {}",
-                task_id, error
-            );
+        if let Err(error) = Self::set_task_state(&runtime, &task_id, DownloadStatus::Validating, None, None, None).await {
+            error!("Failed to mark local import task {} as validating: {}", task_id, error);
             return;
         }
 
@@ -593,6 +581,7 @@ impl DownloadManager {
                 Some("download cancelled by user".to_string()),
             )
             .await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -641,10 +630,7 @@ impl DownloadManager {
         )
         .await
         {
-            error!(
-                "Failed to mark local import task {} as downloading: {}",
-                task_id, error
-            );
+            error!("Failed to mark local import task {} as downloading: {}", task_id, error);
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -671,7 +657,7 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", source_name));
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, source_name));
         let final_inbox_path = inbox_path.join(&source_name);
 
         let mut source_file = match tokio::fs::File::open(&source_path).await {
@@ -726,29 +712,29 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
 
-            let bytes_read =
-                match tokio::io::AsyncReadExt::read(&mut source_file, &mut buffer).await {
-                    Ok(read) => read,
-                    Err(error) => {
-                        let message = format!("failed to read local source file: {error}");
-                        let _ = Self::set_task_state(
-                            &runtime,
-                            &task_id,
-                            DownloadStatus::Failed,
-                            Some(copied),
-                            Some(total_bytes),
-                            Some(message),
-                        )
-                        .await;
-                        let _ = tokio::fs::remove_file(&temp_path).await;
-                        Self::clear_cancel_flag(&runtime, &task_id).await;
-                        return;
-                    }
-                };
+            let bytes_read = match tokio::io::AsyncReadExt::read(&mut source_file, &mut buffer).await {
+                Ok(read) => read,
+                Err(error) => {
+                    let message = format!("failed to read local source file: {error}");
+                    let _ = Self::set_task_state(
+                        &runtime,
+                        &task_id,
+                        DownloadStatus::Failed,
+                        Some(copied),
+                        Some(total_bytes),
+                        Some(message),
+                    )
+                    .await;
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    Self::clear_cancel_flag(&runtime, &task_id).await;
+                    return;
+                }
+            };
 
             if bytes_read == 0 {
                 break;
@@ -766,6 +752,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -797,6 +784,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -813,6 +801,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -879,17 +868,11 @@ impl DownloadManager {
         )
         .await
         {
-            error!(
-                "Failed to mark local import task {} completed: {}",
-                task_id, error
-            );
+            error!("Failed to mark local import task {} completed: {}", task_id, error);
         }
 
         if let Err(error) = Self::set_task_content_type(&runtime, &task_id, content_type).await {
-            error!(
-                "Failed to set local import task content type for {}: {}",
-                task_id, error
-            );
+            error!("Failed to set local import task content type for {}: {}", task_id, error);
         }
 
         Self::clear_cancel_flag(&runtime, &task_id).await;
@@ -911,7 +894,9 @@ impl DownloadManager {
             if task.status != status {
                 info!(
                     "Download task {} status transition: {:?} -> {:?}",
-                    task_id, task.status, status
+                    task_id,
+                    task.status,
+                    status
                 );
             }
 
@@ -926,8 +911,7 @@ impl DownloadManager {
             }
 
             let denominator = task.total_bytes.unwrap_or(task.bytes_downloaded).max(1);
-            task.progress =
-                ((task.bytes_downloaded as f32 / denominator as f32) * 100.0).clamp(0.0, 100.0);
+            task.progress = ((task.bytes_downloaded as f32 / denominator as f32) * 100.0).clamp(0.0, 100.0);
             task.error = error_message;
         })
         .await
@@ -944,11 +928,7 @@ impl DownloadManager {
         .await
     }
 
-    async fn update_task<F>(
-        runtime: &DownloadRuntime,
-        task_id: &str,
-        updater: F,
-    ) -> anyhow::Result<()>
+    async fn update_task<F>(runtime: &DownloadRuntime, task_id: &str, updater: F) -> anyhow::Result<()>
     where
         F: FnOnce(&mut DownloadTask),
     {
@@ -989,10 +969,7 @@ impl DownloadManager {
             .timeout(Duration::from_secs(timeout_secs))
             .build()
             .unwrap_or_else(|error| {
-                warn!(
-                    "Failed to build HTTP client with custom timeouts: {}",
-                    error
-                );
+                warn!("Failed to build HTTP client with custom timeouts: {}", error);
                 reqwest::Client::new()
             })
     }
@@ -1073,11 +1050,7 @@ impl DownloadManager {
 
             match std::fs::remove_file(&path) {
                 Ok(_) => info!("Removed stale temp import file {}", path.display()),
-                Err(error) => warn!(
-                    "Failed to remove stale temp file {}: {}",
-                    path.display(),
-                    error
-                ),
+                Err(error) => warn!("Failed to remove stale temp file {}: {}", path.display(), error),
             }
         }
     }
@@ -1087,12 +1060,7 @@ impl DownloadManager {
 
         let Some(segment) = reqwest::Url::parse(url)
             .ok()
-            .and_then(|parsed| {
-                parsed
-                    .path_segments()
-                    .and_then(|mut it| it.next_back())
-                    .map(str::to_string)
-            })
+            .and_then(|parsed| parsed.path_segments().and_then(|mut it| it.next_back()).map(str::to_string))
             .filter(|segment| !segment.trim().is_empty())
         else {
             return default;
@@ -1189,21 +1157,11 @@ mod tests {
 
     #[test]
     fn retry_status_policy_matches_expected_codes() {
-        assert!(DownloadManager::is_retriable_http_status(
-            reqwest::StatusCode::REQUEST_TIMEOUT
-        ));
-        assert!(DownloadManager::is_retriable_http_status(
-            reqwest::StatusCode::TOO_MANY_REQUESTS
-        ));
-        assert!(DownloadManager::is_retriable_http_status(
-            reqwest::StatusCode::INTERNAL_SERVER_ERROR
-        ));
-        assert!(!DownloadManager::is_retriable_http_status(
-            reqwest::StatusCode::BAD_REQUEST
-        ));
-        assert!(!DownloadManager::is_retriable_http_status(
-            reqwest::StatusCode::NOT_FOUND
-        ));
+        assert!(DownloadManager::is_retriable_http_status(reqwest::StatusCode::REQUEST_TIMEOUT));
+        assert!(DownloadManager::is_retriable_http_status(reqwest::StatusCode::TOO_MANY_REQUESTS));
+        assert!(DownloadManager::is_retriable_http_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
+        assert!(!DownloadManager::is_retriable_http_status(reqwest::StatusCode::BAD_REQUEST));
+        assert!(!DownloadManager::is_retriable_http_status(reqwest::StatusCode::NOT_FOUND));
     }
 
     #[tokio::test]
@@ -1273,8 +1231,10 @@ mod tests {
 
     #[test]
     fn filename_from_url_decodes_percent_encoded_space() {
-        let name =
-            DownloadManager::filename_from_url("https://example.com/file%20name.epub", "task-id");
+        let name = DownloadManager::filename_from_url(
+            "https://example.com/file%20name.epub",
+            "task-id",
+        );
         assert_eq!(name, "file_name.epub");
     }
 
@@ -1292,7 +1252,8 @@ mod tests {
 
     #[test]
     fn filename_from_url_rejects_percent_encoded_dotdot() {
-        let name = DownloadManager::filename_from_url("https://example.com/%2e%2e", "task-id");
+        let name =
+            DownloadManager::filename_from_url("https://example.com/%2e%2e", "task-id");
         assert_eq!(name, "task-id.bin");
     }
 }

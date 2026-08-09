@@ -5,10 +5,10 @@
 //! - Download task management types
 //! - Configuration management
 
+pub mod types;
 pub mod config;
 pub mod settings;
-pub mod types;
 
+pub use types::*;
 pub use config::Config;
 pub use settings::{AppSettings, GeoPosition};
-pub use types::*;

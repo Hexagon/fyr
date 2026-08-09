@@ -17,7 +17,7 @@ use tokenizers::tokenizer::SplitDelimiterBehavior;
 use tokenizers::{
     decoders::metaspace::{Metaspace as MetaspaceDecoder, PrependScheme},
     decoders::{byte_level::ByteLevel as ByteLevelDecoder, DecoderWrapper},
-    models::bpe::{Vocab, BPE},
+    models::bpe::{BPE, Vocab},
     models::unigram::Unigram,
     normalizers::{unicode::NFC, NormalizerWrapper},
     pre_tokenizers::{
@@ -42,9 +42,7 @@ pub struct LoadedModel {
 
 #[derive(Clone)]
 pub enum ModelRuntime {
-    ValidationOnly {
-        reason: Option<String>,
-    },
+    ValidationOnly { reason: Option<String> },
     QuantizedQwen2 {
         model: Arc<Mutex<quantized_qwen2::ModelWeights>>,
         tokenizer: Arc<Tokenizer>,
@@ -97,15 +95,12 @@ impl ModelLoader {
             return Err(ModelError::NotFound(path.display().to_string()));
         }
 
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or_default();
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default();
         if !ext.eq_ignore_ascii_case("gguf") {
             return Err(ModelError::InvalidExtension(path.display().to_string()));
         }
 
-        // Memory-map the GGUF file once and reuse the mapping for header
+                        // Memory-map the GGUF file once and reuse the mapping for header
         // parsing and tensor loading below. This avoids reading multi-GB
         // model files into process memory up front, letting the OS page
         // weights in on demand and evict them under memory pressure
@@ -131,12 +126,10 @@ impl ModelLoader {
             .any(|key| key.starts_with("tokenizer."));
 
         if !has_tokenizer_metadata {
-            return Err(ModelError::MissingTokenizerMetadata(
-                path.display().to_string(),
-            ));
+            return Err(ModelError::MissingTokenizerMetadata(path.display().to_string()));
         }
 
-        let size_bytes = mmap.len() as u64;
+                let size_bytes = mmap.len() as u64;
         let tensor_count = content.tensor_infos.len();
 
         let filename = path
@@ -145,7 +138,7 @@ impl ModelLoader {
             .unwrap_or("unknown.gguf")
             .to_string();
 
-        let runtime = match architecture.as_deref() {
+                let runtime = match architecture.as_deref() {
             Some("qwen2") => load_quantized_qwen2_runtime(path, &mmap, content, &filename)?,
             Some("llama") => load_quantized_llama_runtime(path, &mmap, content, &filename)?,
             Some("phi") => load_quantized_phi_runtime(path, &mmap, content, &filename)?,
@@ -163,7 +156,10 @@ impl ModelLoader {
             has_tokenizer_metadata,
         };
 
-        Ok(LoadedModel { metadata, runtime })
+        Ok(LoadedModel {
+            metadata,
+            runtime,
+        })
     }
 }
 
@@ -417,12 +413,11 @@ fn merges_from_value(value: &gguf_file::Value) -> Result<Vec<(String, String)>, 
     value_to_string_array(value, "tokenizer.ggml.merges")?
         .into_iter()
         .map(|merge| {
-            merge
-                .split_once(' ')
-                .map(|(left, right)| (left.to_string(), right.to_string()))
-                .ok_or_else(|| {
-                    ModelError::InferenceFailed(format!("invalid merge entry `{merge}`"))
-                })
+            merge.split_once(' ').map(|(left, right)| {
+                (left.to_string(), right.to_string())
+            }).ok_or_else(|| {
+                ModelError::InferenceFailed(format!("invalid merge entry `{merge}`"))
+            })
         })
         .collect()
 }
@@ -643,9 +638,7 @@ fn build_bpe_tokenizer_from_gguf(content: &gguf_file::Content) -> Result<Tokeniz
         tokenizer.with_post_processor(Some(post_processor));
     }
 
-    if let Ok(gguf_file::Value::Array(values)) =
-        metadata_value(content, "tokenizer.ggml.token_type")
-    {
+    if let Ok(gguf_file::Value::Array(values)) = metadata_value(content, "tokenizer.ggml.token_type") {
         let mut special_tokens = Vec::new();
         for (index, value) in values.iter().enumerate() {
             let token_type = gguf_value_to_u32(value)?;
@@ -687,9 +680,7 @@ fn build_bpe_tokenizer_from_gguf(content: &gguf_file::Content) -> Result<Tokeniz
     Ok(tokenizer)
 }
 
-fn build_unigram_tokenizer_from_gguf(
-    content: &gguf_file::Content,
-) -> Result<Tokenizer, ModelError> {
+fn build_unigram_tokenizer_from_gguf(content: &gguf_file::Content) -> Result<Tokenizer, ModelError> {
     let tokens = value_to_string_array(
         metadata_value(content, "tokenizer.ggml.tokens")?,
         "tokenizer.ggml.tokens",
@@ -797,14 +788,8 @@ fn open_runtime_reader(path: &Path) -> Result<Mmap, ModelError> {
 }
 
 fn eos_token_ids(tokenizer: &Tokenizer) -> Vec<u32> {
-    [
-        "<|im_end|>",
-        "<|endoftext|>",
-        "</s>",
-        "<|eot_id|>",
-        "<|end|>",
-    ]
-    .into_iter()
-    .filter_map(|token| tokenizer.token_to_id(token))
-    .collect()
+    ["<|im_end|>", "<|endoftext|>", "</s>", "<|eot_id|>", "<|end|>"]
+        .into_iter()
+        .filter_map(|token| tokenizer.token_to_id(token))
+        .collect()
 }

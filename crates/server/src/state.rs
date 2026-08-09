@@ -3,12 +3,12 @@
 use crate::ai::ModelManager;
 use crate::auth::AuthManager;
 use crate::settings::SettingsManager;
+use types::Config;
 use downloader::DownloadManager;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use types::Config;
 
 #[derive(Clone)]
 pub struct AppState {

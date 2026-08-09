@@ -13,10 +13,12 @@ use types::{BookMetadata, BookSearchResponse, SearchResult, TocEntry};
 // ---------------------------------------------------------------------------
 
 /// Extract unified metadata for a book file.
-pub fn extract_book_metadata(books_dir: &Path, filename: &str) -> Result<BookMetadata, String> {
+pub fn extract_book_metadata(
+    books_dir: &Path,
+    filename: &str,
+) -> Result<BookMetadata, String> {
     let path = books_dir.join(filename);
-    let format =
-        detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
+    let format = detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
 
     let metadata = std::fs::metadata(&path).map_err(|e| format!("cannot read file: {}", e))?;
     let file_size = metadata.len();
@@ -42,8 +44,7 @@ pub fn extract_book_metadata(books_dir: &Path, filename: &str) -> Result<BookMet
 /// Extract the table of contents for a book file.
 pub fn extract_toc(books_dir: &Path, filename: &str) -> Result<Vec<TocEntry>, String> {
     let path = books_dir.join(filename);
-    let format =
-        detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
+    let format = detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
 
     match format {
         "epub" => extract_epub_toc(&path),
@@ -62,8 +63,7 @@ pub fn search_book(
     limit: usize,
 ) -> Result<BookSearchResponse, String> {
     let path = books_dir.join(filename);
-    let format =
-        detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
+    let format = detect_format(filename).ok_or_else(|| format!("unsupported format: {}", filename))?;
     let needle = query.trim();
 
     if needle.is_empty() {
@@ -415,8 +415,7 @@ fn search_epub(path: &Path, needle: &str, limit: usize) -> Result<Vec<SearchResu
             continue;
         }
 
-        let title =
-            extract_xml_text_content(&content, "title").unwrap_or_else(|| item_path.clone());
+        let title = extract_xml_text_content(&content, "title").unwrap_or_else(|| item_path.clone());
         let snippet = extract_snippet(&content, &needle_lower);
 
         results.push(SearchResult {
@@ -676,8 +675,7 @@ fn extract_markdown_title(path: &Path) -> Option<String> {
 }
 
 fn extract_markdown_toc(path: &Path) -> Result<Vec<TocEntry>, String> {
-    let content =
-        std::fs::read_to_string(path).map_err(|e| format!("cannot read markdown: {}", e))?;
+    let content = std::fs::read_to_string(path).map_err(|e| format!("cannot read markdown: {}", e))?;
     let mut entries = Vec::new();
 
     for line in content.lines() {
@@ -713,8 +711,7 @@ fn extract_markdown_toc(path: &Path) -> Result<Vec<TocEntry>, String> {
 }
 
 fn search_markdown(path: &Path, needle: &str, limit: usize) -> Result<Vec<SearchResult>, String> {
-    let content =
-        std::fs::read_to_string(path).map_err(|e| format!("cannot read markdown: {}", e))?;
+    let content = std::fs::read_to_string(path).map_err(|e| format!("cannot read markdown: {}", e))?;
     let needle_lower = needle.to_lowercase();
     let mut results = Vec::new();
 
@@ -959,10 +956,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let path = dir.join("test-title.md");
         std::fs::write(&path, "# My Book Title\n\nSome content.\n").unwrap();
-        assert_eq!(
-            extract_markdown_title(&path),
-            Some("My Book Title".to_string())
-        );
+        assert_eq!(extract_markdown_title(&path), Some("My Book Title".to_string()));
         let _ = std::fs::remove_file(&path);
     }
 

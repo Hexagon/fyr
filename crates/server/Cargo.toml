@@ -42,6 +42,3 @@ cbc.workspace = true
 [[bin]]
 name = "fyr"
 path = "src/main.rs"
-
-[dev-dependencies]
-tower = { version = "0.5", features = ["util"] }

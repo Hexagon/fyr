@@ -3,8 +3,6 @@
 //! A self-contained Rust application for offline content distribution and consumption.
 //! Supports maps (PMTiles), books (EPUB), and POIs (FlatGeoBuf/GeoJSON).
 
-use ai::ModelManager;
-use anyhow::Context;
 use axum::{
     extract::DefaultBodyLimit,
     http::{header, HeaderValue, Method},
@@ -12,23 +10,25 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use downloader::DownloadManager;
-use settings::SettingsManager;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use anyhow::Context;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
-use tracing::{info, warn};
+use tower_http::cors::CorsLayer;
 use types::Config;
+use downloader::DownloadManager;
+use ai::ModelManager;
+use std::fs;
+use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use tracing::{info, warn};
+use settings::SettingsManager;
 
 mod ai;
 mod auth;
 mod handlers;
 mod library;
-mod settings;
 mod state;
+mod settings;
 
 pub use state::AppState;
 
@@ -57,10 +57,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     info!("Data directory: {}", config.data_dir.display());
-    info!(
-        "Server will run on: {}:{}",
-        config.server.host, config.server.port
-    );
+    info!("Server will run on: {}:{}", config.server.host, config.server.port);
     let bind_host = config.server.host.clone();
     let bind_port = config.server.port;
     let config = Arc::new(config);
@@ -72,8 +69,7 @@ async fn main() -> anyhow::Result<()> {
     let download_manager = Arc::new(DownloadManager::new(config.data_dir.clone()));
 
     let initial_settings = settings_manager.current();
-    let initial_download_timeout =
-        handlers::resolve_download_request_timeout_secs(&initial_settings);
+    let initial_download_timeout = handlers::resolve_download_request_timeout_secs(&initial_settings);
     download_manager
         .set_request_timeout_secs(initial_download_timeout)
         .await;
@@ -126,7 +122,11 @@ fn create_router(state: AppState) -> Router {
             HeaderValue::from_static("http://localhost:8080"),
         ])
         .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
-        .allow_headers([header::RANGE, header::ACCEPT, header::CONTENT_TYPE])
+        .allow_headers([
+            header::RANGE,
+            header::ACCEPT,
+            header::CONTENT_TYPE,
+        ])
         .expose_headers([
             header::CONTENT_TYPE,
             header::CONTENT_LENGTH,
@@ -137,34 +137,25 @@ fn create_router(state: AppState) -> Router {
     // Build the Arc<AppState> early so the auth middleware can capture it.
     let state_arc = Arc::new(state);
 
-    let admin_mw = middleware::from_fn_with_state(Arc::clone(&state_arc), auth::require_admin);
+    let admin_mw = middleware::from_fn_with_state(
+        Arc::clone(&state_arc),
+        auth::require_admin,
+    );
 
     // Protected (mutating) routes — guarded by the admin middleware.
     let protected = Router::new()
         .route("/api/download", post(handlers::create_download))
         .route("/api/download/:task_id", delete(handlers::cancel_download))
-        .route(
-            "/api/download/:task_id/dismiss",
-            delete(handlers::dismiss_download),
-        )
-        .route(
-            "/api/import/download/:filename",
-            post(handlers::create_import_download),
-        )
-        .route(
-            "/api/content/:content_type/:filename",
-            delete(handlers::delete_content_file),
-        )
+        .route("/api/download/:task_id/dismiss", delete(handlers::dismiss_download))
+        .route("/api/import/download/:filename", post(handlers::create_import_download))
+        .route("/api/content/:content_type/:filename", delete(handlers::delete_content_file))
         .route(
             "/api/models/upload",
             post(handlers::ai_upload_model).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/models/import", post(handlers::ai_import_model))
         .route("/api/models/:filename/load", post(handlers::ai_load_model))
-        .route(
-            "/api/models/:filename/load",
-            delete(handlers::ai_unload_model),
-        )
+        .route("/api/models/:filename/load", delete(handlers::ai_unload_model))
         .route(
             "/api/import/upload",
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
@@ -180,14 +171,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/settings", get(handlers::get_settings))
         .route("/api/storage", get(handlers::get_storage))
         .route("/api/content/maps", get(handlers::list_maps))
-        .route(
-            "/api/maps/tiles/:filename/metadata",
-            get(handlers::serve_mbtiles_metadata),
-        )
-        .route(
-            "/api/maps/tiles/:filename/:z/:x/:y",
-            get(handlers::serve_mbtile),
-        )
+        .route("/api/maps/tiles/:filename/metadata", get(handlers::serve_mbtiles_metadata))
+        .route("/api/maps/tiles/:filename/:z/:x/:y", get(handlers::serve_mbtile))
         .route("/api/content/books", get(handlers::list_books))
         .route("/api/content/poi", get(handlers::list_poi))
         .route("/api/content/models", get(handlers::list_models))
@@ -197,57 +182,21 @@ fn create_router(state: AppState) -> Router {
             get(handlers::download_content_file),
         )
         .route("/api/models", get(handlers::ai_list_models))
-        .route(
-            "/api/models/:filename/health",
-            get(handlers::ai_model_health),
-        )
-        .route(
-            "/api/models/:filename/infer/stream",
-            get(handlers::ai_infer_stream),
-        )
-        .route(
-            "/api/download/:task_id/status",
-            get(handlers::get_download_status),
-        )
+        .route("/api/models/:filename/health", get(handlers::ai_model_health))
+        .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
+        .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
-        .route(
-            "/api/reader/capabilities",
-            get(handlers::reader_capabilities),
-        )
+        .route("/api/reader/capabilities", get(handlers::reader_capabilities))
         .route("/api/reader/open/:filename", get(handlers::reader_open))
-        .route(
-            "/api/reader/zim/:filename/meta",
-            get(handlers::reader_zim_meta),
-        )
-        .route(
-            "/api/reader/zim/:filename/capabilities",
-            get(handlers::reader_zim_capabilities),
-        )
-        .route(
-            "/api/reader/zim/:filename/native/article",
-            get(handlers::reader_zim_native_article),
-        )
-        .route(
-            "/api/reader/zim/:filename/native/search",
-            get(handlers::reader_zim_native_search),
-        )
-        .route(
-            "/api/reader/zim/:filename/native/content/*path",
-            get(handlers::reader_zim_native_content),
-        )
+        .route("/api/reader/zim/:filename/meta", get(handlers::reader_zim_meta))
+        .route("/api/reader/zim/:filename/capabilities", get(handlers::reader_zim_capabilities))
+        .route("/api/reader/zim/:filename/native/article", get(handlers::reader_zim_native_article))
+        .route("/api/reader/zim/:filename/native/search", get(handlers::reader_zim_native_search))
+        .route("/api/reader/zim/:filename/native/content/*path", get(handlers::reader_zim_native_content))
         // Unified library API (read-only book metadata, TOC, search)
-        .route(
-            "/api/library/books/:filename",
-            get(handlers::library_book_metadata),
-        )
-        .route(
-            "/api/library/books/:filename/toc",
-            get(handlers::library_book_toc),
-        )
-        .route(
-            "/api/library/books/:filename/search",
-            get(handlers::library_book_search),
-        )
+        .route("/api/library/books/:filename", get(handlers::library_book_metadata))
+        .route("/api/library/books/:filename/toc", get(handlers::library_book_toc))
+        .route("/api/library/books/:filename/search", get(handlers::library_book_search))
         // Tools endpoints (read-only computation, no state mutation)
         .route("/api/tools/aes", post(handlers::tools_aes))
         .route("/api/tools/hash", post(handlers::tools_hash))
@@ -293,11 +242,7 @@ fn configure_ai_runtime(config: &Config) {
         return;
     }
 
-    let threads = config
-        .ai
-        .threads
-        .unwrap_or_else(default_ai_thread_count)
-        .max(1);
+    let threads = config.ai.threads.unwrap_or_else(default_ai_thread_count).max(1);
 
     info!(
         "Configuring Candle CPU inference thread pool: {} thread(s) (override with FYR_AI_THREADS, or CANDLE_NUM_THREADS/RAYON_NUM_THREADS directly)",
@@ -355,7 +300,10 @@ fn log_cpu_feature_support() {
 
         info!(
             "CPU features (x86_64): compiled[avx2={} fma={}] runtime[avx2={} fma={}]",
-            compiled_avx2, compiled_fma, runtime_avx2, runtime_fma,
+            compiled_avx2,
+            compiled_fma,
+            runtime_avx2,
+            runtime_fma,
         );
 
         if runtime_avx2 && runtime_fma && (!compiled_avx2 || !compiled_fma) {

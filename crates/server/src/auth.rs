@@ -73,12 +73,10 @@ impl AuthManager {
     /// Record one failed login attempt from `ip`.
     pub fn record_failed_attempt(&self, ip: &str) {
         let mut limits = self.rate_limits.lock().unwrap();
-        let entry = limits
-            .entry(ip.to_string())
-            .or_insert_with(|| RateLimitEntry {
-                attempts: 0,
-                first_attempt: Instant::now(),
-            });
+        let entry = limits.entry(ip.to_string()).or_insert_with(|| RateLimitEntry {
+            attempts: 0,
+            first_attempt: Instant::now(),
+        });
         if entry.first_attempt.elapsed() > RATE_LIMIT_WINDOW {
             entry.attempts = 1;
             entry.first_attempt = Instant::now();
@@ -123,10 +121,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter()
-        .zip(b.iter())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 // ---------------------------------------------------------------------------
@@ -326,8 +321,11 @@ pub async fn login_handler(
     state.auth_manager.clear_rate_limit(&client_ip);
     let token = state.auth_manager.create_session();
 
-    let mut response =
-        (StatusCode::OK, Json(serde_json::json!({ "status": "ok" }))).into_response();
+    let mut response = (
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "ok" })),
+    )
+        .into_response();
 
     response
         .headers_mut()
@@ -345,8 +343,11 @@ pub async fn logout_handler(
         state.auth_manager.revoke_session(&token);
     }
 
-    let mut response =
-        (StatusCode::OK, Json(serde_json::json!({ "status": "ok" }))).into_response();
+    let mut response = (
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "ok" })),
+    )
+        .into_response();
 
     response
         .headers_mut()
@@ -452,7 +453,10 @@ mod tests {
             header::COOKIE,
             HeaderValue::from_static("fyr_session=abc123; other=val"),
         );
-        assert_eq!(extract_session_token(&headers), Some("abc123".to_string()));
+        assert_eq!(
+            extract_session_token(&headers),
+            Some("abc123".to_string())
+        );
     }
 
     #[test]

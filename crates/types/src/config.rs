@@ -59,7 +59,7 @@ impl Config {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
             },
-            data_dir,
+                        data_dir,
             auth: AuthConfig {
                 admin_password: None,
                 readonly: false,
@@ -176,7 +176,7 @@ impl Default for Config {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-        config.auth = AuthConfig {
+                config.auth = AuthConfig {
             admin_password,
             readonly,
         };
@@ -185,9 +185,7 @@ impl Default for Config {
             .ok()
             .and_then(|raw| raw.parse::<usize>().ok())
             .filter(|threads| *threads > 0);
-        config.ai = AiConfig {
-            threads: ai_threads,
-        };
+        config.ai = AiConfig { threads: ai_threads };
 
         config
     }
