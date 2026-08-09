@@ -36,7 +36,8 @@ impl ContentType {
             "epub" | "pdf" | "mobi" | "md" | "zim" => Some(ContentType::Book),
             "fgb" | "geojson" | "json" => Some(ContentType::Poi),
             "gguf" => Some(ContentType::Model),
-            "txt" | "csv" | "zip" | "7z" | "log" | "exe" | "msi" | "msp" | "dmg" | "pkg" | "deb" | "rpm" | "appimage" | "apk" => Some(ContentType::Misc),
+            "txt" | "csv" | "zip" | "7z" | "log" | "exe" | "msi" | "msp" | "dmg" | "pkg"
+            | "deb" | "rpm" | "appimage" | "apk" => Some(ContentType::Misc),
             _ => None,
         }
     }
@@ -157,5 +158,44 @@ impl Default for ValidationResult {
             errors: Vec::new(),
             detected_type: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ContentType;
+
+    #[test]
+    fn content_type_directory_names_match_expected() {
+        assert_eq!(ContentType::Map.directory_name(), "maps");
+        assert_eq!(ContentType::Book.directory_name(), "books");
+        assert_eq!(ContentType::Poi.directory_name(), "poi");
+        assert_eq!(ContentType::Model.directory_name(), "models");
+        assert_eq!(ContentType::Misc.directory_name(), "misc");
+    }
+
+    #[test]
+    fn content_type_from_extension_maps_supported_values() {
+        assert_eq!(
+            ContentType::from_extension("pmtiles"),
+            Some(ContentType::Map)
+        );
+        assert_eq!(
+            ContentType::from_extension("MBTILES"),
+            Some(ContentType::Map)
+        );
+        assert_eq!(ContentType::from_extension("epub"), Some(ContentType::Book));
+        assert_eq!(ContentType::from_extension("PDF"), Some(ContentType::Book));
+        assert_eq!(ContentType::from_extension("fgb"), Some(ContentType::Poi));
+        assert_eq!(
+            ContentType::from_extension("GEOJSON"),
+            Some(ContentType::Poi)
+        );
+        assert_eq!(
+            ContentType::from_extension("gguf"),
+            Some(ContentType::Model)
+        );
+        assert_eq!(ContentType::from_extension("csv"), Some(ContentType::Misc));
+        assert_eq!(ContentType::from_extension("unknown"), None);
     }
 }

@@ -1,7 +1,7 @@
 //! File routing logic — routes downloaded files to appropriate directories
 
-use types::ContentType;
 use std::path::{Path, PathBuf};
+use types::ContentType;
 
 /// Routes files to the appropriate content directory based on type
 pub struct ContentRouter;
