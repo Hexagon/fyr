@@ -155,17 +155,29 @@
               <small>Supported in this folder: {{ currentFolderHint }}</small>
             </div>
 
-            <p v-if="importStatus" class="status-text" role="status" aria-live="polite">{{ importStatus }}</p>
             <p v-if="importError" class="error-text" role="alert" aria-live="assertive">{{ importError }}</p>
           </div>
 
           <div class="downloads-panel">
             <div class="download-header">
               <h3>Download Manager</h3>
-              <span class="pill">{{ downloads.length }}</span>
+              <span class="pill">{{ pendingUploads.length + downloads.length }}</span>
             </div>
 
-            <div v-if="downloads.length" class="download-list">
+            <div v-if="pendingUploads.length || downloads.length" class="download-list">
+              <div v-for="pu in pendingUploads" :key="pu.id" class="download-item">
+                <p class="download-name">Upload: {{ pu.filename }}</p>
+                <p class="download-status">
+                  <span class="badge uploading">uploading</span>
+                </p>
+                <div v-if="pu.totalBytes > 0" class="progress-bar-wrap">
+                  <div class="progress-bar-fill uploading" :style="{ width: pu.progress + '%' }"></div>
+                </div>
+                <p class="download-progress" v-if="pu.totalBytes > 0">
+                  {{ pu.progress }}% ({{ formatBytes(pu.bytesSent) }} / {{ formatBytes(pu.totalBytes) }})
+                </p>
+                <button class="btn btn-secondary btn-inline" @click="pu.abortFn()">Cancel</button>
+              </div>
               <div v-for="dl in downloads" :key="dl.id" class="download-item">
                 <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
                 <p class="download-status">
@@ -261,7 +273,6 @@ const activeDownloadUrl = ref(null)
 const urlDownloadStatus = ref(null)
 const urlDownloadError = ref(null)
 const importing = ref(false)
-const importStatus = ref(null)
 const importError = ref(null)
 
 const maps = ref([])
@@ -270,6 +281,7 @@ const pois = ref([])
 const models = ref([])
 const misc = ref([])
 const downloads = ref([])
+const pendingUploads = ref([])
 const curatedContent = ref({ items: {} })
 const loading = ref(true)
 const contentError = ref(null)
@@ -280,7 +292,7 @@ const confirmDeleteFile = ref(null)
 const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
-let importStatusTimer = null
+let pendingUploadCounter = 0
 let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
 
@@ -548,58 +560,67 @@ const setCategoryFromContentType = (contentType) => {
 }
 
 const importLocalFile = async (file, index, total) => {
-  importStatus.value = total > 1
-    ? `Uploading ${index + 1} of ${total}: ${file.name}...`
-    : `Uploading ${file.name}...`
-
-  const uploadResponse = await apiService.uploadFile(file)
-  const uploadedFilename = uploadResponse.data?.filename
-
-  if (!uploadedFilename) {
-    throw new Error('Upload did not return a filename.')
+  pendingUploadCounter += 1
+  const pendingId = `__upload_${pendingUploadCounter}`
+  const abortHandle = { abort: null }
+  const pending = {
+    id: pendingId,
+    filename: file.name,
+    progress: 0,
+    bytesSent: 0,
+    totalBytes: file.size || 0,
+    abortFn: () => abortHandle.abort?.()
   }
+  pendingUploads.value.push(pending)
 
-  importStatus.value = total > 1
-    ? `Queued import ${index + 1} of ${total}: ${uploadedFilename}...`
-    : `Queued import for ${uploadedFilename}...`
+  try {
+    const uploadResponse = await apiService.uploadFile(file, (loaded, total) => {
+      pending.bytesSent = loaded
+      pending.totalBytes = total
+      pending.progress = total > 0 ? Math.round((loaded / total) * 100) : 0
+    }, abortHandle)
 
-  const importResponse = await apiService.createImportDownload(uploadedFilename)
-  const taskId = importResponse.data?.task_id
+    const uploadedFilename = uploadResponse.data?.filename
 
-  if (!taskId) {
-    throw new Error('Import task could not be created.')
-  }
-
-  await loadDownloads()
-
-  for (let i = 0; i < 120; i += 1) {
-    const statusResponse = await apiService.getDownloadStatus(taskId)
-    const task = statusResponse.data
-    const status = String(task?.status || '').toLowerCase()
-
-    if (status === 'completed') {
-      setCategoryFromContentType(task?.content_type)
-      importStatus.value = total > 1
-        ? `Imported ${index + 1} of ${total}: ${uploadedFilename}.`
-        : `Imported ${uploadedFilename} successfully.`
-      if (importStatusTimer) clearTimeout(importStatusTimer)
-      importStatusTimer = setTimeout(() => {
-        if (!importing.value) {
-          importStatus.value = null
-        }
-      }, 5000)
-      await loadDownloads()
-      return
+    if (!uploadedFilename) {
+      throw new Error('Upload did not return a filename.')
     }
 
-    if (status === 'failed' || status === 'cancelled') {
-      throw new Error(task?.error || `Import ended with status: ${status}`)
+    // Upload complete — remove the synthetic entry before the real task appears
+    pendingUploads.value = pendingUploads.value.filter((p) => p.id !== pendingId)
+
+    const importResponse = await apiService.createImportDownload(uploadedFilename)
+    const taskId = importResponse.data?.task_id
+
+    if (!taskId) {
+      throw new Error('Import task could not be created.')
     }
 
-    await sleep(1000)
-  }
+    await loadDownloads()
 
-  throw new Error('Import timed out while waiting for task completion.')
+    for (let i = 0; i < 120; i += 1) {
+      const statusResponse = await apiService.getDownloadStatus(taskId)
+      const task = statusResponse.data
+      const status = String(task?.status || '').toLowerCase()
+
+      if (status === 'completed') {
+        setCategoryFromContentType(task?.content_type)
+        await loadDownloads()
+        return
+      }
+
+      if (status === 'failed' || status === 'cancelled') {
+        throw new Error(task?.error || `Import ended with status: ${status}`)
+      }
+
+      await sleep(1000)
+    }
+
+    throw new Error('Import timed out while waiting for task completion.')
+  } catch (err) {
+    pendingUploads.value = pendingUploads.value.filter((p) => p.id !== pendingId)
+    throw err
+  }
 }
 
 const onFilePicked = async (event) => {
@@ -647,7 +668,6 @@ const importFiles = async (files) => {
     await loadContent()
   } catch (err) {
     importError.value = apiService.handleError(err)
-    importStatus.value = null
   } finally {
     importing.value = false
     dragActive.value = false
@@ -799,10 +819,6 @@ onUnmounted(() => {
   if (downloadRefreshTimer) {
     clearTimeout(downloadRefreshTimer)
     downloadRefreshTimer = null
-  }
-  if (importStatusTimer) {
-    clearTimeout(importStatusTimer)
-    importStatusTimer = null
   }
 })
 </script>
@@ -1056,6 +1072,7 @@ onUnmounted(() => {
   color: #d4a94a;
 }
 
+.badge.uploading,
 .badge.downloading,
 .badge.validating,
 .badge.routing {

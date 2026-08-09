@@ -28,6 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
+use uuid::Uuid;
 use walkdir::WalkDir;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
@@ -618,32 +619,14 @@ pub async fn ai_upload_model(
         }
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -655,6 +638,7 @@ pub async fn ai_upload_model(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::BAD_REQUEST
         })? {
             if !magic_checked {
@@ -665,7 +649,7 @@ pub async fn ai_upload_model(
                 if magic.len() == 4 {
                     magic_checked = true;
                     if magic.as_slice() != b"GGUF" {
-                        let _ = tokio::fs::remove_file(&target_path).await;
+                        let _ = tokio::fs::remove_file(&part_path).await;
                         return Err(StatusCode::UNPROCESSABLE_ENTITY);
                     }
                 }
@@ -673,28 +657,44 @@ pub async fn ai_upload_model(
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
+                let _ = std::fs::remove_file(&part_path);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if magic.len() < 4 {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -740,32 +740,14 @@ pub async fn upload_file_to_import(
         })?;
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
                 import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
@@ -776,6 +758,7 @@ pub async fn upload_file_to_import(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
+            let _ = std::fs::remove_file(&part_path);
             import_err(StatusCode::BAD_REQUEST, "Upload stream failed. Please retry.")
         })? {
             let needed = 16usize.saturating_sub(magic.len());
@@ -785,22 +768,23 @@ pub async fn upload_file_to_import(
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
+                let _ = std::fs::remove_file(&part_path);
                 import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if size_bytes == 0 {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(import_err(StatusCode::BAD_REQUEST, "The uploaded file is empty."));
         }
 
         if !validate_upload_magic(&filename, detected_type, &magic) {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(import_err(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "File content does not match the expected format for this file type. \
@@ -810,12 +794,27 @@ pub async fn upload_file_to_import(
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
+            let _ = std::fs::remove_file(&part_path);
             import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
+            })?;
 
         return Ok((
             StatusCode::CREATED,
