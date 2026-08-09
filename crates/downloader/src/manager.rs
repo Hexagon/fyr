@@ -204,9 +204,10 @@ impl DownloadManager {
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
     ///
-    /// For `LocalFile` tasks, any source file remaining on disk is also removed
-    /// (best-effort, errors are ignored). Completed tasks have already been moved to their
-    /// destination so the remove_file call is a no-op in that case.
+    /// Inbox file cleanup for `LocalFile` tasks is handled by the worker itself while it still
+    /// holds ownership of the source file; `dismiss_task` does not attempt any file deletion
+    /// because the path stored in the task is a shared inbox name that may already have been
+    /// claimed by a newer upload.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -217,15 +218,13 @@ impl DownloadManager {
             cancel_flag.store(true, Ordering::Relaxed);
         }
 
-        // Remove the task from the map, capturing its source and status for cleanup
-        let (snapshot, dismissed_task) = {
+        // Remove the task from the map
+        let snapshot = {
             let mut tasks = self.tasks.write().await;
-            let task = match tasks.remove(task_id) {
-                Some(t) => t,
-                None => return Ok(false),
-            };
-            let snap = tasks.clone();
-            (snap, task)
+            if tasks.remove(task_id).is_none() {
+                return Ok(false);
+            }
+            tasks.clone()
         };
 
         // Persist first; only clean up the cancel flag on success
@@ -234,13 +233,6 @@ impl DownloadManager {
         {
             let mut flags = self.cancel_flags.write().await;
             flags.remove(task_id);
-        }
-
-        // For LocalFile tasks, attempt to remove the source file from disk (best-effort).
-        // Completed tasks have already been moved to their destination so remove_file
-        // will be a no-op; errors are ignored in all cases.
-        if let DownloadSource::LocalFile { path } = &dismissed_task.source {
-            let _ = tokio::fs::remove_file(path).await;
         }
 
         Ok(true)
@@ -589,6 +581,7 @@ impl DownloadManager {
                 Some("download cancelled by user".to_string()),
             )
             .await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -664,7 +657,7 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", source_name));
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, source_name));
         let final_inbox_path = inbox_path.join(&source_name);
 
         let mut source_file = match tokio::fs::File::open(&source_path).await {
@@ -719,6 +712,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -758,6 +752,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -789,6 +784,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -805,6 +801,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }

@@ -28,6 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
+use uuid::Uuid;
 use walkdir::WalkDir;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
@@ -618,7 +619,7 @@ pub async fn ai_upload_model(
         }
 
         let target_path = state.config.inbox_dir().join(&filename);
-        let part_path = state.config.inbox_dir().join(format!("{}.part", filename));
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
         let mut file = tokio::fs::File::create(&part_path)
             .await
@@ -739,7 +740,7 @@ pub async fn upload_file_to_import(
         })?;
 
         let target_path = state.config.inbox_dir().join(&filename);
-        let part_path = state.config.inbox_dir().join(format!("{}.part", filename));
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
         let mut file = tokio::fs::File::create(&part_path)
             .await
