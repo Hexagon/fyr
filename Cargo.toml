@@ -38,3 +38,4 @@ md-5 = "0.10"
 digest = "0.10"
 aes = "0.8"
 cbc = "0.1"
+tower = { version = "0.5", features = ["util"] }
