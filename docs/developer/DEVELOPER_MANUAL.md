@@ -19,7 +19,7 @@ Workspace modules:
 - `crates/ui/frontend`: Vue 3 application built into `public/static/`.
 - `crates/server/src/ai`: Candle-powered GGUF model loading and assistant endpoints.
 
-The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) is a purely client-side feature with zero server dependencies. Unit conversions and ciphering (AES, Base64, ROT13, SHA-256, MD5) execute entirely in the browser using the Web Crypto API and standard JavaScript—no API endpoints, no Rust changes.
+The Tools page (`crates/ui/frontend/src/pages/Tools.vue`) mixes client-only and API-backed behavior. Unit converters, Base64, and ROT13 run entirely in-browser, while AES and hash/checksum operations call backend endpoints (`POST /api/tools/aes`, `POST /api/tools/hash`) implemented in `crates/server/src/handlers.rs`.
 
 Downloader timeout centralization:
 - URL download request timeout is sourced from persisted app settings at `settings.modules.downloads.request_timeout_seconds`.
@@ -47,13 +47,23 @@ Performance recommendation:
 RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
 ```
 
+- On Windows PowerShell:
+
+```powershell
+$env:RUSTFLAGS="-C target-cpu=native"
+cargo build --release -p server --bin fyr
+Remove-Item Env:RUSTFLAGS
+```
+
+- Use `target-cpu=native` only for local/self-hosted builds that will run on the same CPU family. For portable binaries and published images, keep the generic target settings.
+
 ### CPU optimization and thread pool sizing
 
 - GGUF weights are loaded via `memmap2` (`crates/server/src/ai/loader.rs`) instead of being read fully into a `Vec<u8>`. The OS pages weight data in on demand and can evict it under memory pressure, which matters on RAM-constrained boards such as a Raspberry Pi.
 - At startup, `configure_ai_runtime()` in `crates/server/src/main.rs` logs detected CPU SIMD capabilities (NEON/fp16/dotprod/fcma on aarch64, AVX2/FMA on x86_64), comparing what the running binary was compiled with against what the hardware actually supports. This check runs on the real deployment hardware at process startup, so it stays accurate even when the Docker image itself was built under QEMU emulation for a foreign architecture (see Docker section below).
 - The same function sizes Candle's CPU thread pool via `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS`, defaulting to `std::thread::available_parallelism()` (cgroup/quota-aware, unlike a naive core count). Override with `FYR_AI_THREADS=<n>`, or set `CANDLE_NUM_THREADS`/`RAYON_NUM_THREADS` directly for full manual control; Fyr will not overwrite either variable if already set.
 - Each inference run logs a `tracing::info!` summary of prefill and decode throughput (tokens and tok/s, separately) from `spawn_quantized_inference()` in `crates/server/src/ai/manager.rs`, regardless of how the run ends (success, error, or early stop), to make performance regressions and slow hardware easy to spot in server logs.
-- For aarch64 self-builds targeting known hardware, use the Dockerfile's `RUST_TARGET_FEATURES` build arg (e.g. `+dotprod` for Raspberry Pi 5 / Cortex-A75 and newer) to compile in optional ARMv8.2+ kernels. Do not set this for the published multi-arch `hexagon/fyr:*` image, since it must keep running on older boards (Raspberry Pi 3/4, Cortex-A53/A72) that lack these extensions. Baseline NEON is always enabled on aarch64 and does not require this flag.
+- For aarch64 self-builds targeting known hardware, use the Dockerfile's `RUST_TARGET_FEATURES` build arg (e.g. `+dotprod` for Raspberry Pi 5 / Cortex-A75 and newer) to compile in optional ARMv8.2+ kernels. Baseline NEON is always enabled on aarch64 and does not require this flag.
 
 ### Inference hardening
 
@@ -130,7 +140,7 @@ CI-pinned versions for parity:
 3. `npm run build`
 
 ### Build backend
-1. From workspace root: `cargo build --release`
+1. From workspace root: `cargo build --release -p server`
 2. Run: `./target/release/fyr`
 
 ### Dev mode
@@ -158,6 +168,7 @@ Container expectations:
 
 - App static assets live under `/app/public`.
 - Docker image builds frontend assets during image build and bundles generated files under `/app/public/static`.
+- The final Rust image build uses `FYR_USE_PREBUILT_FRONTEND=1` so `crates/server/build.rs` reuses those prebuilt assets instead of running `npm ci` again in the Rust builder stage.
 - Writable content directory is mounted to `/data`.
 - Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
 - Healthcheck uses `GET /api/status`.
@@ -175,6 +186,19 @@ docker build --build-arg RUST_TARGET_FEATURES=+dotprod -t fyr:rpi5 .
 
 - Never set `RUST_TARGET_FEATURES` when building the published multi-arch `hexagon/fyr:*` tags — it would silently break older aarch64 boards (Raspberry Pi 3/4, Cortex-A53/A72) that do not implement `dotprod`/`i8mm`/`fp16` and would crash with an illegal-instruction fault. Baseline NEON is part of the mandatory ARMv8-A instruction set and is always available regardless of this flag.
 - Because build-time feature negotiation is unreliable under emulation, Fyr instead detects and logs real CPU capabilities at process startup on the actual deployment hardware (`configure_ai_runtime()` in `crates/server/src/main.rs`; see § 1.1 above). Check the startup logs after deploying to a new device to confirm whether a rebuild with `RUST_TARGET_FEATURES` would help.
+
+Published image strategy:
+
+- Default tags are optimized multi-arch manifests assembled from architecture-specific tuned images:
+  - `hexagon/fyr:latest` and `hexagon/fyr:vX.Y.Z`
+  - `hexagon/fyr:dev`
+- Compatibility-first legacy tags are published for older hardware:
+  - `hexagon/fyr:legacy` and `hexagon/fyr:vX.Y.Z-legacy` (multi-arch manifest)
+  - `hexagon/fyr:pc-legacy` and `hexagon/fyr:vX.Y.Z-pc-legacy` (generic x86_64)
+  - `hexagon/fyr:rpi-legacy` and `hexagon/fyr:vX.Y.Z-rpi-legacy` (generic arm64)
+  - Dev equivalents: `hexagon/fyr:dev-legacy`, `hexagon/fyr:dev-pc-legacy`, `hexagon/fyr:dev-rpi-legacy` (plus SHA-suffixed variants)
+
+Use default tags only when the target CPU definitely supports the required instructions. For mixed fleets or older boards/PCs, prefer the legacy tags.
 
 ## 3.5 Access Control Architecture
 
@@ -218,6 +242,8 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/storage`
 - `GET /api/settings`
 - `GET /api/content/maps`
+- `GET /api/maps/tiles/:filename/metadata` — MBTiles metadata as JSON
+- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention)
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`
@@ -286,9 +312,17 @@ Static content aliases:
 Native ZIM integration notes:
 - Frontend reader logic is split into format-specific modules under `crates/ui/frontend/src/modules/reader/` (`useEpubReader`, `useMarkdownReader`, `usePdfReader`, `useZimReader`) and orchestrated by `useUnifiedReader`.
 - `.zim` archives are opened through the native ZIM module, which fetches metadata/capabilities from server endpoints and renders article HTML in a sandboxed iframe (`srcdoc`) with same-origin navigation bridged via `postMessage`.
+- Native ZIM rendering preserves sanitized archive root attributes (`html`/`body` class, id, lang, dir, style) so archive-authored layout systems (for example Wikipedia main-page mosaic rules) can apply without Fyr-specific fallback selectors.
+- The ZIM sandbox document does not inject Fyr fallback theme CSS; rendering uses archive-provided CSS plus browser defaults.
 - Server-side article resolution uses the Rust `zim` crate and returns article payloads through `/api/reader/zim/:filename/native/article`.
 - Blob/resource lookup is available via `/api/reader/zim/:filename/native/content/*path`, and rewritten asset links in the frontend target this endpoint.
 - Native mode is always active for `.zim` archives. The `FYR_ZIM_NATIVE_EXPERIMENTAL` toggle has been removed.
+
+Reader shell layout notes:
+- `Books.vue` uses a unified reader viewport where each format surface owns its own scroll behavior.
+- Read mode uses a single consolidated top toolbar that merges title, filename, status, ZIM search controls, and compact ZIM metadata chips (adapter/archive/article).
+- The Library panel auto-collapses whenever a book is opened; collapsed mode hides the panel entirely so the reader owns the full stage, and the state remains session-local (no persistence).
+- Legacy dynamic iframe height synchronization for ZIM and cross-surface resize plumbing were removed to avoid nested scrollbar complexity.
 
 Licensing and distribution notes:
 - Fyr source code remains MIT-licensed at repository root.
@@ -339,15 +373,35 @@ GitHub workflows:
 - `.github/workflows/release-dev.yml`
   - Trigger: merged PR into `dev` (or manual dispatch).
   - Runs full preflight (tests/check/build/docs).
-  - Publishes Docker multi-arch dev images:
+  - Publishes Docker optimized multi-arch dev images:
     - `hexagon/fyr:dev`
     - `hexagon/fyr:dev-<git-sha>`
+  - Publishes Docker optimized architecture-specific dev images:
+    - `hexagon/fyr:dev-amd64-avx2`
+    - `hexagon/fyr:dev-<git-sha>-amd64-avx2`
+    - `hexagon/fyr:dev-arm64-dotprod`
+    - `hexagon/fyr:dev-<git-sha>-arm64-dotprod`
+  - Publishes Docker legacy dev images:
+    - `hexagon/fyr:dev-legacy`
+    - `hexagon/fyr:dev-<git-sha>-legacy`
+    - `hexagon/fyr:dev-pc-legacy`
+    - `hexagon/fyr:dev-<git-sha>-pc-legacy`
+    - `hexagon/fyr:dev-rpi-legacy`
+    - `hexagon/fyr:dev-<git-sha>-rpi-legacy`
 - `.github/workflows/release.yml`
   - Trigger: push tag `v*.*.*` (or manual dispatch with `version`).
   - Verifies the release commit is reachable from `main`.
-  - Runs full preflight and publishes Docker multi-arch stable images:
+  - Runs full preflight and publishes Docker optimized multi-arch stable images:
     - `hexagon/fyr:vX.Y.Z`
     - `hexagon/fyr:latest`
+  - Publishes architecture-specific optimized build artifacts used to assemble the optimized manifests.
+  - Publishes Docker legacy stable images:
+    - `hexagon/fyr:vX.Y.Z-legacy`
+    - `hexagon/fyr:legacy`
+    - `hexagon/fyr:vX.Y.Z-pc-legacy`
+    - `hexagon/fyr:pc-legacy`
+    - `hexagon/fyr:vX.Y.Z-rpi-legacy`
+    - `hexagon/fyr:rpi-legacy`
   - Creates a GitHub release with auto-generated notes.
 
 Required repository secrets:
@@ -362,8 +416,8 @@ Operator release commands:
 ```bash
 git checkout main
 git pull
-git tag v0.4.1
-git push origin v0.4.1
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 4. Confirm workflow `Stable Release` completed and images were published.
@@ -372,7 +426,7 @@ git push origin v0.4.1
 1. Keep implementation details in developer docs, not user docs.
 2. Keep transient delivery/status reports out of permanent docs.
 3. Update docs in the same change set as endpoint or behavior changes.
-4. Canonical docs are restricted to README, AGENTS, and user/developer manuals.
+4. Canonical docs are restricted to `README.md`, `docs/site/index.html`, `AGENTS.md`, `docs/user/USER_MANUAL.md`, `docs/developer/DEVELOPER_MANUAL.md`, and `CONTRIBUTING.md`.
 
 ## 7. Building Documentation Artifacts
 - Source script: `docs/build/build-manuals.js`

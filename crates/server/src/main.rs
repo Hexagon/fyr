@@ -82,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
+        mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
 
     // Build router
@@ -160,6 +161,7 @@ fn create_router(state: AppState) -> Router {
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/settings", put(handlers::update_settings))
+        .route("/api/poi/:filename", put(handlers::save_poi_file))
         .route_layer(admin_mw);
 
     Router::new()
@@ -169,6 +171,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/settings", get(handlers::get_settings))
         .route("/api/storage", get(handlers::get_storage))
         .route("/api/content/maps", get(handlers::list_maps))
+        .route("/api/maps/tiles/:filename/metadata", get(handlers::serve_mbtiles_metadata))
+        .route("/api/maps/tiles/:filename/:z/:x/:y", get(handlers::serve_mbtile))
         .route("/api/content/books", get(handlers::list_books))
         .route("/api/content/poi", get(handlers::list_poi))
         .route("/api/content/models", get(handlers::list_models))
@@ -289,13 +293,22 @@ fn log_cpu_feature_support() {
 
     #[cfg(target_arch = "x86_64")]
     {
+        let compiled_avx2 = cfg!(target_feature = "avx2");
+        let compiled_fma = cfg!(target_feature = "fma");
+        let runtime_avx2 = std::arch::is_x86_feature_detected!("avx2");
+        let runtime_fma = std::arch::is_x86_feature_detected!("fma");
+
         info!(
             "CPU features (x86_64): compiled[avx2={} fma={}] runtime[avx2={} fma={}]",
-            cfg!(target_feature = "avx2"),
-            cfg!(target_feature = "fma"),
-            std::arch::is_x86_feature_detected!("avx2"),
-            std::arch::is_x86_feature_detected!("fma"),
+            compiled_avx2,
+            compiled_fma,
+            runtime_avx2,
+            runtime_fma,
         );
+
+        if runtime_avx2 && runtime_fma && (!compiled_avx2 || !compiled_fma) {
+            info!("This CPU supports AVX2/FMA, but this binary was not compiled with those features, so quantized inference may run slower. For x86_64 self-builds on known-compatible hardware, rebuild with --build-arg RUST_TARGET_FEATURES=+avx2,+fma. Do not use this flag for images that must also run on older x86_64 CPUs without AVX2/FMA.");
+        }
     }
 }
 

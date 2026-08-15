@@ -4,10 +4,17 @@
       <div id="map" class="map-canvas"></div>
 
       <div class="overlay overlay-selector" :class="{ collapsed: !showSelector }">
-        <button class="overlay-toggle" @click="showSelector = !showSelector" :title="showSelector ? 'Hide maps' : 'Show maps'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showSelector ? 'Hide available maps panel' : 'Show available maps panel'"
+          :aria-expanded="String(showSelector)"
+          aria-controls="maps-selector-panel"
+          @click="showSelector = !showSelector"
+          :title="showSelector ? 'Hide maps' : 'Show maps'"
+        >
           {{ showSelector ? '🗺️' : '📂' }}
         </button>
-        <div v-if="showSelector" class="overlay-content">
+        <div id="maps-selector-panel" v-show="showSelector" class="overlay-content">
           <h3>Available Maps</h3>
           <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
           <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
@@ -30,10 +37,17 @@
       </div>
 
       <div v-if="selectedMap" class="overlay overlay-layers" :class="{ collapsed: !showLayers }">
-        <button class="overlay-toggle" @click="showLayers = !showLayers" :title="showLayers ? 'Hide layers' : 'Show layers'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showLayers ? 'Hide layers panel' : 'Show layers panel'"
+          :aria-expanded="String(showLayers)"
+          aria-controls="maps-layers-panel"
+          @click="showLayers = !showLayers"
+          :title="showLayers ? 'Hide layers' : 'Show layers'"
+        >
           {{ showLayers ? '🎨' : '🧩' }}
         </button>
-        <div v-if="showLayers" class="overlay-content">
+        <div id="maps-layers-panel" v-show="showLayers" class="overlay-content">
           <h3>Map Layers</h3>
           <p class="overlay-meta" v-if="renderMode === 'raster'">
             Raster mode detected. Vector layer controls are disabled.
@@ -116,10 +130,17 @@
       </div>
 
       <div v-if="selectedMap" class="overlay overlay-info" :class="{ collapsed: !showInfo }">
-        <button class="overlay-toggle" @click="showInfo = !showInfo" :title="showInfo ? 'Hide info' : 'Show info'">
+        <button
+          class="overlay-toggle"
+          :aria-label="showInfo ? 'Hide map info panel' : 'Show map info panel'"
+          :aria-expanded="String(showInfo)"
+          aria-controls="maps-info-panel"
+          @click="showInfo = !showInfo"
+          :title="showInfo ? 'Hide info' : 'Show info'"
+        >
           {{ showInfo ? 'ℹ️' : '📍' }}
         </button>
-        <div v-if="showInfo" class="overlay-content">
+        <div id="maps-info-panel" v-show="showInfo" class="overlay-content">
           <h3>{{ selectedMap.filename }}</h3>
           <p class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
@@ -134,11 +155,128 @@
 
       <div v-if="mapError" class="map-error-banner">{{ mapError }}</div>
 
+      <div v-if="selectedMap" class="overlay overlay-tools" :class="{ collapsed: !showTools }">
+        <button
+          class="overlay-toggle"
+          :aria-label="showTools ? 'Hide tools panel' : 'Show tools panel'"
+          :aria-expanded="String(showTools)"
+          aria-controls="maps-tools-panel"
+          @click="showTools = !showTools"
+          :title="showTools ? 'Hide tools' : 'Show tools'"
+        >
+          {{ showTools ? '🔧' : '⚙️' }}
+        </button>
+        <div id="maps-tools-panel" v-show="showTools" class="overlay-content">
+          <h3>Tools</h3>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn"
+              :class="{ loading: locating }"
+              :disabled="locating"
+              @click="centerOnUserLocation"
+              title="Center map on your current browser location"
+            >
+              📍 {{ locating ? 'Locating…' : 'My Location' }}
+            </button>
+            <p v-if="locationError" class="tool-error">{{ locationError }}</p>
+          </div>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'measure' }"
+              @click="toggleTool('measure')"
+              title="Measure distance by clicking points on the map"
+            >
+              📏 {{ activeTool === 'measure' ? 'Stop Measuring' : 'Measure Distance' }}
+            </button>
+            <div v-if="activeTool === 'measure'" class="tool-sub-panel">
+              <p class="tool-hint">Click the map to add waypoints.</p>
+              <div v-if="measurePoints.length === 0" class="tool-dim">No points yet</div>
+              <div v-else class="measure-info">
+                <span>{{ measurePoints.length }} point{{ measurePoints.length !== 1 ? 's' : '' }}</span>
+                <span class="measure-distance">{{ formatDistance(measureTotalDistance) }}</span>
+              </div>
+              <button
+                class="tool-btn-secondary"
+                :disabled="measurePoints.length === 0"
+                @click="clearMeasure"
+              >Clear</button>
+            </div>
+          </div>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn"
+              :class="{ active: activeTool === 'poi' }"
+              @click="toggleTool('poi')"
+              title="Add and edit custom Points of Interest"
+            >
+              🏷️ {{ activeTool === 'poi' ? 'Close POI Editor' : 'Edit POIs' }}
+            </button>
+            <div v-if="activeTool === 'poi'" class="tool-sub-panel">
+              <div class="poi-file-row">
+                <select v-model="selectedPoiFile" @change="onPoiFileChange" class="poi-select">
+                  <option value="">— select file —</option>
+                  <option v-for="f in poiFiles" :key="f.filename" :value="f.filename">{{ f.filename }}</option>
+                </select>
+                <button class="tool-btn-icon" :class="{ active: showNewPoiFile }" @click="showNewPoiFile = !showNewPoiFile" title="Create new POI file">+</button>
+              </div>
+              <div v-if="showNewPoiFile" class="poi-create-row">
+                <input
+                  v-model="newPoiFileName"
+                  placeholder="name.geojson"
+                  class="poi-input"
+                  @keydown.enter="createPoiFile"
+                  @keydown.escape="showNewPoiFile = false"
+                />
+                <button class="tool-btn-secondary" :disabled="!newPoiFileName.trim()" @click="createPoiFile">Create</button>
+              </div>
+              <template v-if="selectedPoiFile && poiData">
+                <p class="tool-hint">
+                  Click the map to place a POI. {{ poiData.features.length }} POI{{ poiData.features.length !== 1 ? 's' : '' }} loaded.
+                </p>
+                <div v-if="pendingPoiCoords" class="poi-name-row">
+                  <input
+                    ref="poiNameInput"
+                    v-model="pendingPoiName"
+                    placeholder="POI name"
+                    class="poi-input"
+                    @keydown.enter="confirmPoi"
+                    @keydown.escape="cancelPoi"
+                  />
+                  <button class="tool-btn-secondary" :disabled="!pendingPoiName.trim()" @click="confirmPoi">Add</button>
+                  <button class="tool-btn-icon" @click="cancelPoi" title="Cancel">✕</button>
+                </div>
+                <div v-if="poiData.features.length > 0" class="poi-list">
+                  <div v-for="(feat, idx) in poiData.features" :key="idx" class="poi-list-item">
+                    <span class="poi-list-name">{{ feat.properties?.name || '(unnamed)' }}</span>
+                    <button class="poi-remove-btn" @click="removePoi(idx)" title="Remove">✕</button>
+                  </div>
+                </div>
+                <div class="poi-save-row">
+                  <button
+                    class="tool-btn"
+                    :class="{ saved: !poiDirty }"
+                    :disabled="!poiDirty || poiSaving"
+                    @click="savePoiFile"
+                  >
+                    {{ poiSaving ? 'Saving…' : poiDirty ? 'Save Changes' : 'Saved ✓' }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       <p class="map-note" v-if="selectedMap">
         {{ renderMode === 'vector'
-          ? 'Vector PMTiles mode. Layers can be styled and toggled.'
+          ? 'Vector tile mode. Layers can be styled and toggled.'
           : renderMode === 'raster'
-            ? 'Raster PMTiles mode. Tiles are pre-rendered and styling controls are limited.'
+            ? 'Raster tile mode. Tiles are pre-rendered and styling controls are limited.'
             : 'Detecting tile mode.' }}
       </p>
     </div>
@@ -146,7 +284,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import maplibregl from 'maplibre-gl'
@@ -161,6 +299,7 @@ const selectedMap = ref(null)
 const showSelector = ref(true)
 const showLayers = ref(true)
 const showInfo = ref(false)
+const showTools = ref(false)
 const renderMode = ref('unknown')
 const layerVisibility = ref({
   water: true,
@@ -172,6 +311,35 @@ const layerVisibility = ref({
   boundary: true,
   labels: true
 })
+
+// Tools state
+const activeTool = ref('none') // 'none' | 'measure' | 'poi'
+
+// Location tool
+const locating = ref(false)
+const locationError = ref(null)
+
+// Measure tool
+const measurePoints = ref([])
+const measureTotalDistance = computed(() => {
+  let total = 0
+  for (let i = 1; i < measurePoints.value.length; i++) {
+    total += haversineDistance(measurePoints.value[i - 1], measurePoints.value[i])
+  }
+  return total
+})
+
+// POI tool
+const poiFiles = ref([])
+const selectedPoiFile = ref('')
+const poiData = ref(null)
+const poiDirty = ref(false)
+const poiSaving = ref(false)
+const showNewPoiFile = ref(false)
+const newPoiFileName = ref('')
+const pendingPoiCoords = ref(null)
+const pendingPoiName = ref('')
+const poiNameInput = ref(null)
 
 const layerGroups = {
   water: ['water-layer', 'water-line-layer'],
@@ -201,10 +369,15 @@ const locationState = useLocationState()
 
 const isVectorMode = computed(() => renderMode.value === 'vector')
 const renderModeLabel = computed(() => {
-  if (renderMode.value === 'vector') return 'Vector PMTiles'
-  if (renderMode.value === 'raster') return 'Raster PMTiles'
+  if (renderMode.value === 'vector') return 'Vector tiles'
+  if (renderMode.value === 'raster') return 'Raster tiles'
   return 'Unknown'
 })
+
+const getMapFormat = (filename) => {
+  const ext = String(filename || '').split('.').pop().toLowerCase()
+  return ext
+}
 
 const formatBytes = (bytes) => {
   if (bytes === 0) return '0 B'
@@ -213,6 +386,25 @@ const formatBytes = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
+
+// Haversine distance between two [lng, lat] points in km
+const haversineDistance = (a, b) => {
+  const R = 6371
+  const toRad = (x) => (x * Math.PI) / 180
+  const dLat = toRad(b[1] - a[1])
+  const dLon = toRad(b[0] - a[0])
+  const sinHalfLat = Math.sin(dLat / 2)
+  const sinHalfLon = Math.sin(dLon / 2)
+  const h = sinHalfLat * sinHalfLat + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * sinHalfLon * sinHalfLon
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+const formatDistance = (km) => {
+  if (km < 1) return `${Math.round(km * 1000)} m`
+  return `${km.toFixed(2)} km`
+}
+
+const emptyGeoJSON = () => ({ type: 'FeatureCollection', features: [] })
 
 const buildMapDataUrl = (filename) => {
   const encodedFilename = encodeURIComponent(String(filename || ''))
@@ -258,6 +450,279 @@ const toggleLayer = (groupName) => {
   setGroupVisibility(groupName, layerVisibility.value[groupName])
 }
 
+// ── Center on user location (issue #43) ────────────────────────────
+const centerOnUserLocation = () => {
+  if (!mapInstance) return
+  if (!navigator.geolocation) {
+    locationError.value = 'Geolocation is not supported by this browser'
+    return
+  }
+  locating.value = true
+  locationError.value = null
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      locating.value = false
+      const { longitude, latitude } = pos.coords
+      mapInstance.flyTo({ center: [longitude, latitude], zoom: 14 })
+      updateLocationMarker({ longitude, latitude })
+    },
+    (err) => {
+      locating.value = false
+      locationError.value = err.code === 1 ? 'Location access was denied' : 'Could not determine location'
+    },
+    { timeout: 10000 }
+  )
+}
+
+// ── Measure tool (issue #41) ────────────────────────────────────────
+const getMeasureGeoJSON = () => {
+  const features = []
+  if (measurePoints.value.length > 1) {
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: measurePoints.value },
+      properties: {}
+    })
+  }
+  for (const pt of measurePoints.value) {
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: pt }, properties: {} })
+  }
+  return { type: 'FeatureCollection', features }
+}
+
+const addMeasureLayers = () => {
+  if (!mapInstance || mapInstance.getSource('measure-source')) return
+  mapInstance.addSource('measure-source', { type: 'geojson', data: getMeasureGeoJSON() })
+  mapInstance.addLayer({
+    id: 'measure-line-layer',
+    type: 'line',
+    source: 'measure-source',
+    filter: ['==', '$type', 'LineString'],
+    paint: { 'line-color': '#f7c948', 'line-width': 2, 'line-dasharray': [3, 2] }
+  })
+  mapInstance.addLayer({
+    id: 'measure-points-layer',
+    type: 'circle',
+    source: 'measure-source',
+    filter: ['==', '$type', 'Point'],
+    paint: { 'circle-radius': 5, 'circle-color': '#f7c948', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
+  })
+}
+
+const updateMeasureSource = () => {
+  if (!mapInstance) return
+  const src = mapInstance.getSource('measure-source')
+  if (src) src.setData(getMeasureGeoJSON())
+}
+
+const onMeasureClick = (e) => {
+  measurePoints.value = [...measurePoints.value, [e.lngLat.lng, e.lngLat.lat]]
+  updateMeasureSource()
+}
+
+const clearMeasure = () => {
+  measurePoints.value = []
+  updateMeasureSource()
+}
+
+// ── POI tool (issue #42) ────────────────────────────────────────────
+const addPoiLayersToMap = () => {
+  if (!mapInstance) return
+  const data = poiData.value || emptyGeoJSON()
+  const existing = mapInstance.getSource('poi-source')
+  if (existing) {
+    existing.setData(data)
+    return
+  }
+  mapInstance.addSource('poi-source', { type: 'geojson', data })
+  mapInstance.addLayer({
+    id: 'poi-circle-layer',
+    type: 'circle',
+    source: 'poi-source',
+    paint: { 'circle-radius': 7, 'circle-color': '#ff6b35', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
+  })
+  mapInstance.addLayer({
+    id: 'poi-label-layer',
+    type: 'symbol',
+    source: 'poi-source',
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-offset': [0, 1.3],
+      'text-anchor': 'top',
+      'text-size': 12,
+      'text-allow-overlap': false
+    },
+    paint: { 'text-color': '#fff', 'text-halo-color': '#000', 'text-halo-width': 1.2 }
+  })
+}
+
+const removePoiLayersFromMap = () => {
+  if (!mapInstance) return
+  if (mapInstance.getLayer('poi-label-layer')) mapInstance.removeLayer('poi-label-layer')
+  if (mapInstance.getLayer('poi-circle-layer')) mapInstance.removeLayer('poi-circle-layer')
+  if (mapInstance.getSource('poi-source')) mapInstance.removeSource('poi-source')
+}
+
+const loadPoiFiles = async () => {
+  try {
+    const response = await apiService.getPOIs()
+    poiFiles.value = response.data || []
+  } catch (err) {
+    console.error('Error loading POI file list:', err)
+  }
+}
+
+const onPoiFileChange = async () => {
+  if (!selectedPoiFile.value) {
+    poiData.value = null
+    removePoiLayersFromMap()
+    if (mapInstance) {
+      mapInstance.off('click', onPoiClick)
+      mapInstance.getCanvas().style.cursor = ''
+    }
+    return
+  }
+  const requestedFile = selectedPoiFile.value
+  try {
+    const data = await apiService.readPoi(requestedFile)
+    if (selectedPoiFile.value !== requestedFile) return
+    poiData.value = (data && data.features) ? data : emptyGeoJSON()
+    poiDirty.value = false
+    addPoiLayersToMap()
+    if (mapInstance) {
+      mapInstance.off('click', onPoiClick)
+      mapInstance.on('click', onPoiClick)
+      mapInstance.getCanvas().style.cursor = 'crosshair'
+    }
+  } catch (err) {
+    if (selectedPoiFile.value !== requestedFile) return
+    console.error('Error loading POI file:', err)
+    poiData.value = emptyGeoJSON()
+  }
+}
+
+const createPoiFile = async () => {
+  const raw = newPoiFileName.value.trim()
+  if (!raw) return
+  const filename = (raw.endsWith('.geojson') || raw.endsWith('.json')) ? raw : `${raw}.geojson`
+  const newData = emptyGeoJSON()
+  try {
+    await apiService.savePoi(filename, newData)
+    await loadPoiFiles()
+    selectedPoiFile.value = filename
+    poiData.value = newData
+    poiDirty.value = false
+    showNewPoiFile.value = false
+    newPoiFileName.value = ''
+    addPoiLayersToMap()
+    if (mapInstance) {
+      mapInstance.on('click', onPoiClick)
+      mapInstance.getCanvas().style.cursor = 'crosshair'
+    }
+  } catch (err) {
+    console.error('Error creating POI file:', err)
+  }
+}
+
+const onPoiClick = (e) => {
+  if (pendingPoiCoords.value) return
+  pendingPoiCoords.value = [e.lngLat.lng, e.lngLat.lat]
+  pendingPoiName.value = ''
+  nextTick(() => { poiNameInput.value?.focus() })
+}
+
+const confirmPoi = () => {
+  if (!pendingPoiCoords.value || !pendingPoiName.value.trim()) return
+  if (!poiData.value) poiData.value = emptyGeoJSON()
+  poiData.value.features.push({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: pendingPoiCoords.value },
+    properties: { name: pendingPoiName.value.trim() }
+  })
+  poiDirty.value = true
+  addPoiLayersToMap()
+  pendingPoiCoords.value = null
+  pendingPoiName.value = ''
+}
+
+const cancelPoi = () => {
+  pendingPoiCoords.value = null
+  pendingPoiName.value = ''
+}
+
+const removePoi = (index) => {
+  if (!poiData.value) return
+  poiData.value.features.splice(index, 1)
+  poiDirty.value = true
+  addPoiLayersToMap()
+}
+
+const savePoiFile = async () => {
+  if (!selectedPoiFile.value || !poiData.value) return
+  poiSaving.value = true
+  try {
+    await apiService.savePoi(selectedPoiFile.value, poiData.value)
+    poiDirty.value = false
+  } catch (err) {
+    console.error('Error saving POI file:', err)
+  } finally {
+    poiSaving.value = false
+  }
+}
+
+// ── Tool activation / deactivation ─────────────────────────────────
+const activateTool = (tool) => {
+  if (!mapInstance) return
+  if (tool === 'measure') {
+    mapInstance.getCanvas().style.cursor = 'crosshair'
+    addMeasureLayers()
+    mapInstance.on('click', onMeasureClick)
+  } else if (tool === 'poi') {
+    loadPoiFiles()
+    if (selectedPoiFile.value && poiData.value) {
+      mapInstance.off('click', onPoiClick)
+      mapInstance.on('click', onPoiClick)
+      mapInstance.getCanvas().style.cursor = 'crosshair'
+    }
+  }
+}
+
+const deactivateTool = (tool) => {
+  if (!mapInstance) return
+  if (tool === 'measure') {
+    mapInstance.getCanvas().style.cursor = ''
+    mapInstance.off('click', onMeasureClick)
+  } else if (tool === 'poi') {
+    if (pendingPoiCoords.value) cancelPoi()
+    mapInstance.getCanvas().style.cursor = ''
+    mapInstance.off('click', onPoiClick)
+  }
+}
+
+const toggleTool = (tool) => {
+  if (activeTool.value === tool) {
+    deactivateTool(tool)
+    activeTool.value = 'none'
+  } else {
+    deactivateTool(activeTool.value)
+    activeTool.value = tool
+    activateTool(tool)
+  }
+}
+
+// Re-attach tool layers/handlers after a map re-initialization
+const afterMapLoaded = () => {
+  if (activeTool.value === 'measure') {
+    addMeasureLayers()
+    mapInstance.on('click', onMeasureClick)
+    mapInstance.getCanvas().style.cursor = 'crosshair'
+  } else if (activeTool.value === 'poi' && selectedPoiFile.value && poiData.value) {
+    addPoiLayersToMap()
+    mapInstance.on('click', onPoiClick)
+    mapInstance.getCanvas().style.cursor = 'crosshair'
+  }
+}
+
 const loadMaps = async () => {
   mapsLoading.value = true
   mapsError.value = null
@@ -290,6 +755,63 @@ const getMapDiagnostics = async (filename) => {
   })
 
   return { header, vectorLayers }
+}
+
+const tryLoadMbtilesSource = async (filename) => {
+  try {
+    const metaUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/metadata`
+    let tileFormat = 'png'
+    try {
+      const res = await fetch(metaUrl)
+      if (res.ok) {
+        const meta = await res.json()
+        tileFormat = meta.format || 'png'
+      }
+    } catch (_) { /* use default */ }
+
+    const tileUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/{z}/{x}/{y}`
+    const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
+
+    if (isVector) {
+      let vectorLayers = []
+      try {
+        const vectorLayersRaw = meta?.vector_layers
+        if (typeof vectorLayersRaw === 'string' && vectorLayersRaw) {
+          const parsed = JSON.parse(vectorLayersRaw)
+          if (Array.isArray(parsed)) {
+            vectorLayers = parsed.map((l) => (typeof l === 'object' && l.id ? l.id : l)).filter(Boolean)
+          }
+        }
+      } catch (_) { /* use empty fallback */ }
+      mapInstance.addSource('pmtiles-source', {
+        type: 'vector',
+        tiles: [tileUrl],
+        minzoom: 0,
+        maxzoom: 14
+      })
+      addVectorLayers(vectorLayers)
+      renderMode.value = 'vector'
+    } else {
+      mapInstance.addSource('pmtiles-source', {
+        type: 'raster',
+        tiles: [tileUrl],
+        tileSize: 256,
+        minzoom: 0,
+        maxzoom: 19
+      })
+      mapInstance.addLayer({
+        id: 'raster-layer',
+        type: 'raster',
+        source: 'pmtiles-source',
+        paint: { 'raster-opacity': 1 }
+      })
+      renderMode.value = 'raster'
+    }
+    return true
+  } catch (error) {
+    console.warn(`MBTiles load failed: ${error.message}`)
+    return false
+  }
 }
 
 const tryLoadVectorSource = (pmtilesUrl, header, availableLayers) => {
@@ -886,41 +1408,49 @@ const initializeMap = async () => {
     mapInstance.on('load', async () => {
       try {
         const filename = selectedMap.value.filename
-        const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
-
-        let header = null
-        let vectorLayers = []
-        let tileType = null
-
-        try {
-          const diagnostics = await getMapDiagnostics(filename)
-          header = diagnostics.header
-          vectorLayers = diagnostics.vectorLayers
-          tileType = diagnostics.header?.tileType
-        } catch (diagError) {
-          console.warn(`PMTiles diagnostics failed, using fallback loading: ${diagError.message}`)
-        }
+        const format = getMapFormat(filename)
 
         let loaded = false
 
-        if (tileType === 1 || tileType === 6) {
-          loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-          if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
-        } else if (tileType >= 2 && tileType <= 5) {
-          loaded = tryLoadRasterSource(pmtilesUrl, header)
-          if (!loaded) loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+        if (format === 'mbtiles') {
+          loaded = await tryLoadMbtilesSource(filename)
         } else {
-          loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-          if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          // PMTiles path
+          const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
+
+          let header = null
+          let vectorLayers = []
+          let tileType = null
+
+          try {
+            const diagnostics = await getMapDiagnostics(filename)
+            header = diagnostics.header
+            vectorLayers = diagnostics.vectorLayers
+            tileType = diagnostics.header?.tileType
+          } catch (diagError) {
+            console.warn(`PMTiles diagnostics failed, using fallback loading: ${diagError.message}`)
+          }
+
+          if (tileType === 1 || tileType === 6) {
+            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          } else if (tileType >= 2 && tileType <= 5) {
+            loaded = tryLoadRasterSource(pmtilesUrl, header)
+            if (!loaded) loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+          } else {
+            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
+            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+          }
         }
 
         if (!loaded) {
           renderMode.value = 'unknown'
-          mapError.value = 'Unable to render the selected PMTiles archive.'
-          console.warn(`Unable to load PMTiles source as either vector or raster for ${filename}`)
+          mapError.value = 'Unable to render the selected map.'
+          console.warn(`Unable to load map source for ${filename}`)
         }
 
         updateLocationMarker(locationState.location)
+        afterMapLoaded()
       } catch (error) {
         renderMode.value = 'unknown'
         mapError.value = 'Failed to load map data.'
@@ -941,6 +1471,8 @@ const initializeMap = async () => {
 
 const cleanupMap = () => {
   if (mapInstance) {
+    mapInstance.off('click', onMeasureClick)
+    mapInstance.off('click', onPoiClick)
     mapInstance.remove()
     mapInstance = null
   }
@@ -948,6 +1480,14 @@ const cleanupMap = () => {
 
 watch(selectedMap, (newMap) => {
   if (newMap) {
+    // Reset per-map tool state when switching maps
+    if (activeTool.value === 'measure') {
+      measurePoints.value = []
+    }
+    if (activeTool.value === 'poi') {
+      pendingPoiCoords.value = null
+      pendingPoiName.value = ''
+    }
     setTimeout(initializeMap, 120)
   } else {
     renderMode.value = 'unknown'
@@ -957,13 +1497,8 @@ watch(selectedMap, (newMap) => {
 
 watch(() => locationState.location, (location) => {
   if (!mapInstance) return
-
-  if (location) {
-    mapInstance.setCenter([location.longitude, location.latitude])
-    updateLocationMarker(location)
-  } else {
-    updateLocationMarker(null)
-  }
+  // Only update the marker; don't auto-pan so the user isn't disrupted while browsing
+  updateLocationMarker(location)
 }, { deep: true })
 
 onMounted(async () => {
@@ -1104,6 +1639,242 @@ onBeforeUnmount(() => {
 
 .overlay-info .overlay-toggle {
   right: 0.6rem;
+}
+
+.overlay-tools {
+  bottom: 2.4rem;
+  right: 0.75rem;
+  width: 260px;
+}
+
+.overlay-tools .overlay-toggle {
+  right: 0.6rem;
+}
+
+/* Tool button styles */
+.tool-group {
+  margin-bottom: 0.75rem;
+}
+
+.tool-group:last-child {
+  margin-bottom: 0;
+}
+
+.tool-btn {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  background: #2a2a2a;
+  border: 1px solid #4a4a4a;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: #333;
+  border-color: #667eea;
+}
+
+.tool-btn.active {
+  background: #2d3f5a;
+  border-color: #667eea;
+  color: #8ea2ff;
+}
+
+.tool-btn.saved {
+  color: #7ec98c;
+  border-color: #4a6a4f;
+}
+
+.tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tool-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.tool-btn-secondary {
+  padding: 0.35rem 0.55rem;
+  background: #252525;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #c0c0c0;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tool-btn-secondary:hover:not(:disabled) {
+  background: #333;
+  border-color: #667eea;
+  color: #e0e0e0;
+}
+
+.tool-btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tool-btn-icon {
+  padding: 0.3rem 0.5rem;
+  background: #252525;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #c0c0c0;
+  font-size: 0.82rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.tool-btn-icon:hover {
+  background: #333;
+  border-color: #667eea;
+  color: #e0e0e0;
+}
+
+.tool-btn-icon.active {
+  background: #2d3f5a;
+  border-color: #667eea;
+  color: #8ea2ff;
+}
+
+.tool-sub-panel {
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.6rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 5px;
+  border: 1px solid #3a3a3a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tool-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #999;
+  line-height: 1.35;
+}
+
+.tool-dim {
+  font-size: 0.8rem;
+  color: #666;
+  font-style: italic;
+}
+
+.tool-error {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: #ff9090;
+}
+
+.measure-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #d0d0d0;
+}
+
+.measure-distance {
+  font-weight: 600;
+  color: #f7c948;
+}
+
+/* POI tool sub-elements */
+.poi-file-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.poi-select {
+  flex: 1;
+  background: #1e1e1e;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+.poi-create-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.poi-name-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.poi-input {
+  flex: 1;
+  background: #1e1e1e;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.poi-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.poi-list {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.poi-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.4rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  font-size: 0.8rem;
+  color: #c0c0c0;
+}
+
+.poi-list-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poi-remove-btn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.poi-remove-btn:hover {
+  color: #ff7070;
+}
+
+.poi-save-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .maps-list {
@@ -1264,7 +2035,8 @@ onBeforeUnmount(() => {
     width: 260px;
   }
 
-  .overlay-layers {
+  .overlay-layers,
+  .overlay-tools {
     width: 230px;
   }
 }
@@ -1280,7 +2052,6 @@ onBeforeUnmount(() => {
   }
 
   .overlay-selector,
-  .overlay-info,
   .overlay-layers {
     width: auto;
     left: 0.5rem;
@@ -1295,8 +2066,27 @@ onBeforeUnmount(() => {
     top: 7rem;
   }
 
+  /* On mobile, info and tools sit side-by-side at the bottom (left vs right)
+     to avoid the collapsed toggles (46 px tall) overlapping each other.
+     When expanded they grow to full width like the other overlays. */
   .overlay-info {
     bottom: 2.2rem;
+    left: 0.5rem;
+    width: auto;
+  }
+
+  .overlay-info:not(.collapsed) {
+    right: 0.5rem;
+  }
+
+  .overlay-tools {
+    bottom: 2.2rem;
+    right: 0.5rem;
+    width: auto;
+  }
+
+  .overlay-tools:not(.collapsed) {
+    left: 0.5rem;
   }
 
   .overlay-content {

@@ -1,17 +1,18 @@
-name: Quick Checks
+name: Validation Reusable
 
 on:
-  push:
-    branches:
-      - "**"
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
-  quick-backend:
-    name: Quick Backend Check
+  backend-tests:
+    name: Backend Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -22,18 +23,18 @@ jobs:
       - name: Cargo Check (server)
         run: cargo check -p server
 
-  quick-frontend:
-    name: Quick Frontend Build
+  frontend-build:
+    name: Frontend Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: crates/ui/frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -45,18 +46,18 @@ jobs:
       - name: Build Frontend
         run: npm run build
 
-  quick-docs-build:
-    name: Quick Docs Build
+  docs-build:
+    name: Documentation Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: docs/build
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm

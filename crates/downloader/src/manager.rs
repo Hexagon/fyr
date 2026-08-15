@@ -1,7 +1,7 @@
 //! Download task manager
 
 use crate::router::ContentRouter;
-use futures::StreamExt;
+use tokio_stream::StreamExt;
 use tokio::io::AsyncWriteExt;
 use types::{ContentType, DownloadSource, DownloadStatus, DownloadTask};
 use std::collections::HashMap;
@@ -203,6 +203,11 @@ impl DownloadManager {
     /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
+    ///
+    /// Inbox file cleanup for `LocalFile` tasks is handled by the worker itself while it still
+    /// holds ownership of the source file; `dismiss_task` does not attempt any file deletion
+    /// because the path stored in the task is a shared inbox name that may already have been
+    /// claimed by a newer upload.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -576,6 +581,7 @@ impl DownloadManager {
                 Some("download cancelled by user".to_string()),
             )
             .await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -651,7 +657,7 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", source_name));
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, source_name));
         let final_inbox_path = inbox_path.join(&source_name);
 
         let mut source_file = match tokio::fs::File::open(&source_path).await {
@@ -706,6 +712,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -745,6 +752,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -776,6 +784,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -792,6 +801,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -1056,7 +1066,11 @@ impl DownloadManager {
             return default;
         };
 
-        let sanitized: String = segment
+        // Percent-decode the segment so that filenames like "file%20name.epub"
+        // become "file_name.epub" rather than "file_20name.epub".
+        let decoded = Self::percent_decode_segment(&segment);
+
+        let sanitized: String = decoded
             .chars()
             .map(|ch| {
                 if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
@@ -1067,11 +1081,35 @@ impl DownloadManager {
             })
             .collect();
 
-        if sanitized.is_empty() {
+        if sanitized.is_empty() || sanitized == "." || sanitized == ".." {
             default
         } else {
             sanitized
         }
+    }
+
+    /// Decode a percent-encoded URL path segment into a UTF-8 string (falls back to the original segment if decoding fails).
+    fn percent_decode_segment(segment: &str) -> String {
+        let bytes = segment.as_bytes();
+        let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+
+        while i < bytes.len() {
+            if bytes[i] == b'%' && i + 2 < bytes.len() {
+                if let (Some(h1), Some(h2)) = (
+                    (bytes[i + 1] as char).to_digit(16),
+                    (bytes[i + 2] as char).to_digit(16),
+                ) {
+                    decoded.push((h1 * 16 + h2) as u8);
+                    i += 3;
+                    continue;
+                }
+            }
+            decoded.push(bytes[i]);
+            i += 1;
+        }
+
+        String::from_utf8(decoded).unwrap_or_else(|_| segment.to_string())
     }
 }
 
@@ -1173,5 +1211,49 @@ mod tests {
         let ids: Vec<_> = tasks.into_iter().map(|task| task.id).collect();
 
         assert_eq!(ids, vec!["newer".to_string(), "older".to_string()]);
+    }
+
+    #[test]
+    fn percent_decode_segment_decodes_space() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("file%20name.epub"),
+            "file name.epub"
+        );
+    }
+
+    #[test]
+    fn percent_decode_segment_passes_through_plain() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("plain.epub"),
+            "plain.epub"
+        );
+    }
+
+    #[test]
+    fn filename_from_url_decodes_percent_encoded_space() {
+        let name = DownloadManager::filename_from_url(
+            "https://example.com/file%20name.epub",
+            "task-id",
+        );
+        assert_eq!(name, "file_name.epub");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dot() {
+        let name = DownloadManager::filename_from_url("https://example.com/.", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dotdot() {
+        let name = DownloadManager::filename_from_url("https://example.com/..", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_percent_encoded_dotdot() {
+        let name =
+            DownloadManager::filename_from_url("https://example.com/%2e%2e", "task-id");
+        assert_eq!(name, "task-id.bin");
     }
 }

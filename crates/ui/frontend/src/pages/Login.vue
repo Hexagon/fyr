@@ -16,7 +16,8 @@
           :disabled="loading"
         />
 
-        <p v-if="error" class="error-text">{{ error }}</p>
+        <p v-if="error" class="error-text" role="alert" aria-live="assertive">{{ error }}</p>
+        <p v-if="loading" class="status-text" role="status" aria-live="polite">Checking credentials...</p>
 
         <button type="submit" class="btn btn-primary" :disabled="loading || !password">
           {{ loading ? 'Logging in…' : 'Log In' }}
@@ -140,6 +141,12 @@ const handleLogin = async () => {
   margin: 0;
   font-size: 0.875rem;
   color: #f87171;
+}
+
+.status-text {
+  margin: 0;
+  font-size: 0.825rem;
+  color: var(--text-secondary, #b0b0b0);
 }
 
 .btn {

@@ -30,10 +30,6 @@
             <dt>Sun</dt>
             <dd>{{ sunSummary }}</dd>
           </div>
-          <div>
-            <dt>Mode</dt>
-            <dd>Offline active</dd>
-          </div>
         </dl>
       </div>
 
@@ -95,13 +91,16 @@
           <p class="storage-detail" v-if="storage.capacity_bytes !== null && storage.capacity_bytes !== undefined">{{ storage.capacity_bytes.toLocaleString() }} bytes</p>
         </div>
       </div>
+      <router-link to="/content" class="storage-manage-link">Manage content &rarr;</router-link>
     </div>
 
-    <div v-if="loading" class="loading">
+    <div v-if="loading" class="loading" role="status" aria-live="polite" aria-busy="true">
+      <span class="spinner" aria-hidden="true"></span>
       <p>Loading server status...</p>
     </div>
-    <div v-if="error" class="error-message">
+    <div v-if="error" class="error-message" role="alert" aria-live="assertive">
       <p>⚠️ {{ error }}</p>
+      <p class="small">Try refreshing this page or checking server connectivity.</p>
     </div>
   </div>
 </template>
@@ -263,10 +262,26 @@ onMounted(async () => {
   color: #b0b0b0;
 }
 
+.spinner {
+  display: inline-block;
+  width: 1.3rem;
+  height: 1.3rem;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #8db2ff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .error-message {
   background: #3d2a2a;
   color: #ff6b6b;
   border-left: 4px solid #ff6b6b;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .storage-section {
@@ -334,5 +349,20 @@ onMounted(async () => {
   color: #808080;
   font-size: 0.75rem;
   margin: 0.3rem 0 0 0;
+}
+
+.storage-manage-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: #8db2ff;
+  text-decoration: none;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.storage-manage-link:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 </style>
