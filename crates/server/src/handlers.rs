@@ -2756,11 +2756,12 @@ mod tests {
     use super::{
         assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
         resolve_assistant_num_ctx, resolve_download_request_timeout_secs, sanitize_upload_filename,
-        DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS, HIGH_RAM_ASSISTANT_NUM_CTX,
+        validate_upload_magic, DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS,
+        HIGH_RAM_ASSISTANT_NUM_CTX,
     };
     use serde_json::json;
     use std::collections::HashMap;
-    use types::AppSettings;
+    use types::{AppSettings, ContentType};
 
     #[test]
     fn detects_supported_reader_formats() {
@@ -2861,6 +2862,63 @@ mod tests {
         };
 
         assert_eq!(resolve_download_request_timeout_secs(&settings), 900);
+    }
+
+    #[test]
+    fn validate_upload_magic_checks_gguf_for_models() {
+        assert!(validate_upload_magic(
+            "model.gguf",
+            ContentType::Model,
+            b"GGUFxxxx"
+        ));
+        assert!(!validate_upload_magic(
+            "model.gguf",
+            ContentType::Model,
+            b"NOPExxxx"
+        ));
+    }
+
+    #[test]
+    fn validate_upload_magic_checks_pmtiles_and_mbtiles() {
+        assert!(validate_upload_magic(
+            "atlas.pmtiles",
+            ContentType::Map,
+            b"PMTiles data"
+        ));
+        assert!(!validate_upload_magic(
+            "atlas.pmtiles",
+            ContentType::Map,
+            b"NOTILES data"
+        ));
+        assert!(validate_upload_magic(
+            "atlas.mbtiles",
+            ContentType::Map,
+            b"SQLite format 3\0rest"
+        ));
+        assert!(!validate_upload_magic(
+            "atlas.mbtiles",
+            ContentType::Map,
+            b"PMTiles data"
+        ));
+    }
+
+    #[test]
+    fn validate_upload_magic_checks_epub_zip_header() {
+        assert!(validate_upload_magic(
+            "book.epub",
+            ContentType::Book,
+            &[0x50, 0x4B, 0x03, 0x04, 0x14]
+        ));
+        assert!(!validate_upload_magic(
+            "book.epub",
+            ContentType::Book,
+            b"NOTZ"
+        ));
+        assert!(validate_upload_magic(
+            "book.pdf",
+            ContentType::Book,
+            b"NOTPDF"
+        ));
     }
 }
 

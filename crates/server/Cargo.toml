@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 types = { path = "../types" }
 downloader = { path = "../downloader" }
+tower = { workspace = true, features = ["util"] }
 
 tokio.workspace = true
 axum = { workspace = true, features = ["multipart"] }
