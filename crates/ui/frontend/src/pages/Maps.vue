@@ -290,6 +290,34 @@ import { useLocationState } from '../services/location'
 import maplibregl from 'maplibre-gl'
 import { PMTiles, Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { formatBytes, formatDistance, pathLength } from '../modules/maps/geo'
+import {
+  buildMapDataUrl as buildMapDataUrlFor,
+  getMapFormat,
+  mbtilesMetadataUrl,
+  mbtilesTileUrl,
+  isVectorTileFormat,
+  parseMbtilesVectorLayers
+} from '../modules/maps/mapFiles'
+import {
+  emptyGeoJSON,
+  normalizePoiData,
+  normalizePoiFilename,
+  makePointFeature,
+  buildMeasureGeoJSON
+} from '../modules/maps/poi'
+import {
+  MAP_SOURCE_ID,
+  MEASURE_SOURCE_ID,
+  POI_SOURCE_ID,
+  layerGroups,
+  defaultLayerVisibility,
+  buildBaseStyle,
+  buildVectorLayers,
+  buildMeasureLayers,
+  buildPoiLayers,
+  poiLayerIds
+} from '../modules/maps/style'
 
 const maps = ref([])
 const mapsLoading = ref(false)
@@ -301,16 +329,7 @@ const showLayers = ref(true)
 const showInfo = ref(false)
 const showTools = ref(false)
 const renderMode = ref('unknown')
-const layerVisibility = ref({
-  water: true,
-  landuse: true,
-  park: true,
-  building: true,
-  road: true,
-  railway: true,
-  boundary: true,
-  labels: true
-})
+const layerVisibility = ref(defaultLayerVisibility())
 
 // Tools state
 const activeTool = ref('none') // 'none' | 'measure' | 'poi'
@@ -321,13 +340,7 @@ const locationError = ref(null)
 
 // Measure tool
 const measurePoints = ref([])
-const measureTotalDistance = computed(() => {
-  let total = 0
-  for (let i = 1; i < measurePoints.value.length; i++) {
-    total += haversineDistance(measurePoints.value[i - 1], measurePoints.value[i])
-  }
-  return total
-})
+const measureTotalDistance = computed(() => pathLength(measurePoints.value))
 
 // POI tool
 const poiFiles = ref([])
@@ -340,26 +353,6 @@ const newPoiFileName = ref('')
 const pendingPoiCoords = ref(null)
 const pendingPoiName = ref('')
 const poiNameInput = ref(null)
-
-const layerGroups = {
-  water: ['water-layer', 'water-line-layer'],
-  landuse: ['landuse-layer'],
-  park: ['park-layer'],
-  building: ['building-layer'],
-  road: [
-    'road-major-casing-layer',
-    'road-major-layer',
-    'road-minor-casing-layer',
-    'road-minor-layer',
-    'road-any-layer',
-    'road-track-layer',
-    'road-walkway-layer',
-    'road-name-layer'
-  ],
-  railway: ['railway-layer'],
-  boundary: ['boundary-layer'],
-  labels: ['place-name-layer', 'poi-name-layer', 'road-name-layer']
-}
 
 let mapInstance = null
 let pmtilesProtocol = null
@@ -374,42 +367,7 @@ const renderModeLabel = computed(() => {
   return 'Unknown'
 })
 
-const getMapFormat = (filename) => {
-  const ext = String(filename || '').split('.').pop().toLowerCase()
-  return ext
-}
-
-const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
-
-// Haversine distance between two [lng, lat] points in km
-const haversineDistance = (a, b) => {
-  const R = 6371
-  const toRad = (x) => (x * Math.PI) / 180
-  const dLat = toRad(b[1] - a[1])
-  const dLon = toRad(b[0] - a[0])
-  const sinHalfLat = Math.sin(dLat / 2)
-  const sinHalfLon = Math.sin(dLon / 2)
-  const h = sinHalfLat * sinHalfLat + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * sinHalfLon * sinHalfLon
-  return 2 * R * Math.asin(Math.sqrt(h))
-}
-
-const formatDistance = (km) => {
-  if (km < 1) return `${Math.round(km * 1000)} m`
-  return `${km.toFixed(2)} km`
-}
-
-const emptyGeoJSON = () => ({ type: 'FeatureCollection', features: [] })
-
-const buildMapDataUrl = (filename) => {
-  const encodedFilename = encodeURIComponent(String(filename || ''))
-  return new URL(`/data/maps/${encodedFilename}`, window.location.origin).toString()
-}
+const buildMapDataUrl = (filename) => buildMapDataUrlFor(filename, window.location.origin)
 
 const selectMap = (map) => {
   selectedMap.value = map
@@ -475,43 +433,17 @@ const centerOnUserLocation = () => {
 }
 
 // ── Measure tool (issue #41) ────────────────────────────────────────
-const getMeasureGeoJSON = () => {
-  const features = []
-  if (measurePoints.value.length > 1) {
-    features.push({
-      type: 'Feature',
-      geometry: { type: 'LineString', coordinates: measurePoints.value },
-      properties: {}
-    })
-  }
-  for (const pt of measurePoints.value) {
-    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: pt }, properties: {} })
-  }
-  return { type: 'FeatureCollection', features }
-}
+const getMeasureGeoJSON = () => buildMeasureGeoJSON(measurePoints.value)
 
 const addMeasureLayers = () => {
-  if (!mapInstance || mapInstance.getSource('measure-source')) return
-  mapInstance.addSource('measure-source', { type: 'geojson', data: getMeasureGeoJSON() })
-  mapInstance.addLayer({
-    id: 'measure-line-layer',
-    type: 'line',
-    source: 'measure-source',
-    filter: ['==', '$type', 'LineString'],
-    paint: { 'line-color': '#f7c948', 'line-width': 2, 'line-dasharray': [3, 2] }
-  })
-  mapInstance.addLayer({
-    id: 'measure-points-layer',
-    type: 'circle',
-    source: 'measure-source',
-    filter: ['==', '$type', 'Point'],
-    paint: { 'circle-radius': 5, 'circle-color': '#f7c948', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-  })
+  if (!mapInstance || mapInstance.getSource(MEASURE_SOURCE_ID)) return
+  mapInstance.addSource(MEASURE_SOURCE_ID, { type: 'geojson', data: getMeasureGeoJSON() })
+  for (const layer of buildMeasureLayers()) mapInstance.addLayer(layer)
 }
 
 const updateMeasureSource = () => {
   if (!mapInstance) return
-  const src = mapInstance.getSource('measure-source')
+  const src = mapInstance.getSource(MEASURE_SOURCE_ID)
   if (src) src.setData(getMeasureGeoJSON())
 }
 
@@ -529,38 +461,21 @@ const clearMeasure = () => {
 const addPoiLayersToMap = () => {
   if (!mapInstance) return
   const data = poiData.value || emptyGeoJSON()
-  const existing = mapInstance.getSource('poi-source')
+  const existing = mapInstance.getSource(POI_SOURCE_ID)
   if (existing) {
     existing.setData(data)
     return
   }
-  mapInstance.addSource('poi-source', { type: 'geojson', data })
-  mapInstance.addLayer({
-    id: 'poi-circle-layer',
-    type: 'circle',
-    source: 'poi-source',
-    paint: { 'circle-radius': 7, 'circle-color': '#ff6b35', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-  })
-  mapInstance.addLayer({
-    id: 'poi-label-layer',
-    type: 'symbol',
-    source: 'poi-source',
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-offset': [0, 1.3],
-      'text-anchor': 'top',
-      'text-size': 12,
-      'text-allow-overlap': false
-    },
-    paint: { 'text-color': '#fff', 'text-halo-color': '#000', 'text-halo-width': 1.2 }
-  })
+  mapInstance.addSource(POI_SOURCE_ID, { type: 'geojson', data })
+  for (const layer of buildPoiLayers()) mapInstance.addLayer(layer)
 }
 
 const removePoiLayersFromMap = () => {
   if (!mapInstance) return
-  if (mapInstance.getLayer('poi-label-layer')) mapInstance.removeLayer('poi-label-layer')
-  if (mapInstance.getLayer('poi-circle-layer')) mapInstance.removeLayer('poi-circle-layer')
-  if (mapInstance.getSource('poi-source')) mapInstance.removeSource('poi-source')
+  for (const id of poiLayerIds()) {
+    if (mapInstance.getLayer(id)) mapInstance.removeLayer(id)
+  }
+  if (mapInstance.getSource(POI_SOURCE_ID)) mapInstance.removeSource(POI_SOURCE_ID)
 }
 
 const loadPoiFiles = async () => {
@@ -586,7 +501,7 @@ const onPoiFileChange = async () => {
   try {
     const data = await apiService.readPoi(requestedFile)
     if (selectedPoiFile.value !== requestedFile) return
-    poiData.value = (data && data.features) ? data : emptyGeoJSON()
+    poiData.value = normalizePoiData(data)
     poiDirty.value = false
     addPoiLayersToMap()
     if (mapInstance) {
@@ -602,9 +517,8 @@ const onPoiFileChange = async () => {
 }
 
 const createPoiFile = async () => {
-  const raw = newPoiFileName.value.trim()
-  if (!raw) return
-  const filename = (raw.endsWith('.geojson') || raw.endsWith('.json')) ? raw : `${raw}.geojson`
+  const filename = normalizePoiFilename(newPoiFileName.value)
+  if (!filename) return
   const newData = emptyGeoJSON()
   try {
     await apiService.savePoi(filename, newData)
@@ -634,11 +548,7 @@ const onPoiClick = (e) => {
 const confirmPoi = () => {
   if (!pendingPoiCoords.value || !pendingPoiName.value.trim()) return
   if (!poiData.value) poiData.value = emptyGeoJSON()
-  poiData.value.features.push({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: pendingPoiCoords.value },
-    properties: { name: pendingPoiName.value.trim() }
-  })
+  poiData.value.features.push(makePointFeature(pendingPoiCoords.value, pendingPoiName.value.trim()))
   poiDirty.value = true
   addPoiLayersToMap()
   pendingPoiCoords.value = null
@@ -759,31 +669,18 @@ const getMapDiagnostics = async (filename) => {
 
 const tryLoadMbtilesSource = async (filename) => {
   try {
-    const metaUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/metadata`
-    let tileFormat = 'png'
+    let meta = null
     try {
-      const res = await fetch(metaUrl)
-      if (res.ok) {
-        const meta = await res.json()
-        tileFormat = meta.format || 'png'
-      }
+      const res = await fetch(mbtilesMetadataUrl(filename))
+      if (res.ok) meta = await res.json()
     } catch (_) { /* use default */ }
+    const tileFormat = meta?.format || 'png'
 
-    const tileUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/{z}/{x}/{y}`
-    const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
+    const tileUrl = mbtilesTileUrl(filename)
 
-    if (isVector) {
-      let vectorLayers = []
-      try {
-        const vectorLayersRaw = meta?.vector_layers
-        if (typeof vectorLayersRaw === 'string' && vectorLayersRaw) {
-          const parsed = JSON.parse(vectorLayersRaw)
-          if (Array.isArray(parsed)) {
-            vectorLayers = parsed.map((l) => (typeof l === 'object' && l.id ? l.id : l)).filter(Boolean)
-          }
-        }
-      } catch (_) { /* use empty fallback */ }
-      mapInstance.addSource('pmtiles-source', {
+    if (isVectorTileFormat(tileFormat)) {
+      const vectorLayers = parseMbtilesVectorLayers(meta)
+      mapInstance.addSource(MAP_SOURCE_ID, {
         type: 'vector',
         tiles: [tileUrl],
         minzoom: 0,
@@ -792,7 +689,7 @@ const tryLoadMbtilesSource = async (filename) => {
       addVectorLayers(vectorLayers)
       renderMode.value = 'vector'
     } else {
-      mapInstance.addSource('pmtiles-source', {
+      mapInstance.addSource(MAP_SOURCE_ID, {
         type: 'raster',
         tiles: [tileUrl],
         tileSize: 256,
@@ -802,7 +699,7 @@ const tryLoadMbtilesSource = async (filename) => {
       mapInstance.addLayer({
         id: 'raster-layer',
         type: 'raster',
-        source: 'pmtiles-source',
+        source: MAP_SOURCE_ID,
         paint: { 'raster-opacity': 1 }
       })
       renderMode.value = 'raster'
@@ -816,7 +713,7 @@ const tryLoadMbtilesSource = async (filename) => {
 
 const tryLoadVectorSource = (pmtilesUrl, header, availableLayers) => {
   try {
-    mapInstance.addSource('pmtiles-source', {
+    mapInstance.addSource(MAP_SOURCE_ID, {
       type: 'vector',
       url: pmtilesUrl,
       minzoom: header?.minZoom ?? 0,
@@ -833,7 +730,7 @@ const tryLoadVectorSource = (pmtilesUrl, header, availableLayers) => {
 
 const tryLoadRasterSource = (pmtilesUrl, header) => {
   try {
-    mapInstance.addSource('pmtiles-source', {
+    mapInstance.addSource(MAP_SOURCE_ID, {
       type: 'raster',
       url: pmtilesUrl,
       tileSize: 256,
@@ -844,7 +741,7 @@ const tryLoadRasterSource = (pmtilesUrl, header) => {
     mapInstance.addLayer({
       id: 'raster-layer',
       type: 'raster',
-      source: 'pmtiles-source',
+      source: MAP_SOURCE_ID,
       paint: {
         'raster-opacity': 1
       }
@@ -859,517 +756,26 @@ const tryLoadRasterSource = (pmtilesUrl, header) => {
 }
 
 const addVectorLayers = (availableLayers) => {
-  const availableList = Array.isArray(availableLayers) ? availableLayers : []
-  const available = new Set(availableList)
-  const lowerMap = new Map(availableList.map((name) => [String(name).toLowerCase(), name]))
-
-  const pickLayer = (candidates, fallback, patternHints = []) => {
-    for (const candidate of candidates) {
-      const exact = lowerMap.get(String(candidate).toLowerCase())
-      if (exact) return exact
-    }
-
-    for (const hint of patternHints) {
-      const found = availableList.find((layerName) => hint.test(String(layerName)))
-      if (found) return found
-    }
-
-    if (availableList.length === 0) return fallback
-    return lowerMap.get(String(fallback).toLowerCase()) || fallback
+  const { layers, skipped, mapping } = buildVectorLayers(availableLayers, MAP_SOURCE_ID)
+  console.log('Vector schema mapping:', { availableLayers, ...mapping })
+  for (const def of skipped) {
+    console.warn(`Skipping layer '${def.id}', missing source-layer '${def.layer}'`)
   }
 
-  const earthSource = pickLayer(['land', 'earth'], 'land', [/^land$/i, /^earth$/i])
-  const oceanSource = pickLayer(['ocean'], 'ocean', [/^ocean$/i])
-  const landcoverSource = pickLayer(['landcover', 'landuse', 'land'], 'land', [/landcover/i, /landuse/i, /^land$/i])
-  const landuseSource = pickLayer(['landuse', 'landcover', 'land'], 'land', [/landuse/i, /landcover/i, /^land$/i])
-  const waterSource = pickLayer(['water_polygons', 'water'], 'water_polygons', [/water_polygon/i, /^water$/i, /hydro/i])
-  const waterLineSource = pickLayer(['water_lines', 'waterway', 'physical_line', 'water'], 'water_lines', [/waterway/i, /river/i, /stream/i, /canal/i, /physical_line/i, /water_line/i])
-  const buildingSource = pickLayer(['buildings', 'building'], 'buildings', [/building/i])
-  const roadsSource = pickLayer(['streets', 'roads', 'transportation', 'road'], 'streets', [/transport/i, /road/i, /street/i, /highway/i])
-  const transitSource = pickLayer(['transit', 'transportation', 'roads', 'railway'], 'transit', [/rail/i, /transit/i, /transport/i])
-  const boundarySource = pickLayer(['boundaries', 'boundary', 'admin'], 'boundaries', [/boundar/i, /admin/i])
-  const placesSource = pickLayer(['places', 'place'], 'places', [/places?/i, /settlement/i])
-  const poisSource = pickLayer(['pois', 'poi'], 'pois', [/pois?/i, /point/i])
-  const sitesSource = pickLayer(['sites'], 'sites', [/^sites$/i])
-
-  const roadClassExpr = ['coalesce', ['get', 'class'], ['get', 'kind'], ['get', 'type'], ['get', 'highway']]
-  const roadDetailExpr = ['coalesce', ['get', 'kind_detail'], ['get', 'detail'], ['get', 'subclass']]
-
-  const majorRoadValues = ['motorway', 'trunk', 'primary', 'secondary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link']
-  const minorRoadValues = ['tertiary', 'minor', 'street', 'residential', 'living_street', 'service', 'unclassified']
-  const trackRoadValues = ['track', 'path', 'cycleway', 'bridleway']
-  const walkwayRoadValues = ['footway', 'pedestrian', 'steps', 'sidewalk', 'corridor']
-  const railValues = ['rail', 'railway', 'tram', 'light_rail', 'subway']
-
-  const parkFilter = ['any',
-    ['in', 'class', 'park', 'nature_reserve', 'garden'],
-    ['in', 'kind', 'park', 'nature_reserve', 'garden'],
-    ['in', 'type', 'park', 'nature_reserve', 'garden']
-  ]
-
-  const waterLineFilter = ['any',
-    ['in', 'class', 'river', 'stream', 'canal', 'drain'],
-    ['in', 'kind', 'river', 'stream', 'canal', 'drain'],
-    ['in', 'type', 'river', 'stream', 'canal', 'drain']
-  ]
-
-  const majorRoadFilter = ['any',
-    ['in', 'class', ...majorRoadValues],
-    ['in', 'kind', ...majorRoadValues],
-    ['in', 'type', ...majorRoadValues],
-    ['in', 'highway', ...majorRoadValues],
-    ['in', 'kind_detail', ...majorRoadValues],
-    ['in', 'detail', ...majorRoadValues],
-    ['in', 'subclass', ...majorRoadValues]
-  ]
-
-  const minorRoadFilter = ['any',
-    ['in', 'class', ...minorRoadValues],
-    ['in', 'kind', ...minorRoadValues],
-    ['in', 'type', ...minorRoadValues],
-    ['in', 'highway', ...minorRoadValues],
-    ['in', 'kind_detail', ...minorRoadValues],
-    ['in', 'detail', ...minorRoadValues],
-    ['in', 'subclass', ...minorRoadValues]
-  ]
-
-  const trackRoadFilter = ['any',
-    ['in', 'class', ...trackRoadValues],
-    ['in', 'kind', ...trackRoadValues],
-    ['in', 'type', ...trackRoadValues],
-    ['in', 'highway', ...trackRoadValues],
-    ['in', 'kind_detail', ...trackRoadValues],
-    ['in', 'detail', ...trackRoadValues],
-    ['in', 'subclass', ...trackRoadValues]
-  ]
-
-  const walkwayRoadFilter = ['any',
-    ['in', 'class', ...walkwayRoadValues],
-    ['in', 'kind', ...walkwayRoadValues],
-    ['in', 'type', ...walkwayRoadValues],
-    ['in', 'highway', ...walkwayRoadValues],
-    ['in', 'kind_detail', ...walkwayRoadValues],
-    ['in', 'detail', ...walkwayRoadValues],
-    ['in', 'subclass', ...walkwayRoadValues]
-  ]
-
-  const railFilter = ['any',
-    ['in', 'class', ...railValues],
-    ['in', 'kind', ...railValues],
-    ['in', 'type', ...railValues],
-    ['in', 'highway', ...railValues],
-    ['in', 'kind_detail', ...railValues],
-    ['in', 'detail', ...railValues],
-    ['in', 'subclass', ...railValues]
-  ]
-
-  console.log('Vector schema mapping:', {
-    availableLayers: availableList,
-    roadsSource,
-    transitSource,
-    landuseSource,
-    waterSource,
-    waterLineSource,
-    boundarySource,
-    placesSource,
-    poisSource
-  })
-
-  const vectorLayers = [
-    {
-      id: 'earth-layer',
-      layer: earthSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#f7f4ee',
-        'fill-opacity': 1
-      }
-    },
-    {
-      id: 'ocean-layer',
-      layer: oceanSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#b3d9ff',
-        'fill-opacity': 0.9
-      }
-    },
-    {
-      id: 'landcover-layer',
-      layer: landcoverSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#dfe8c8',
-        'fill-opacity': 0.55
-      }
-    },
-    {
-      id: 'landuse-layer',
-      layer: landuseSource,
-      type: 'fill',
-      filter: ['all', ['==', '$type', 'Polygon']],
-      paint: {
-        'fill-color': '#d8e6b4',
-        'fill-opacity': 0.65
-      }
-    },
-    {
-      id: 'park-layer',
-      layer: landuseSource,
-      type: 'fill',
-      minzoom: 7,
-      filter: ['all',
-        ['==', '$type', 'Polygon'],
-        parkFilter
-      ],
-      paint: {
-        'fill-color': '#c6ddb0',
-        'fill-opacity': 0.75
-      }
-    },
-    {
-      id: 'sites-layer',
-      layer: sitesSource,
-      type: 'fill',
-      minzoom: 14,
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#e2ddd2',
-        'fill-opacity': 0.7
-      }
-    },
-    {
-      id: 'water-layer',
-      layer: waterSource,
-      type: 'fill',
-      filter: ['all',
-        ['==', '$type', 'Polygon']
-      ],
-      paint: {
-        'fill-color': '#99ccff',
-        'fill-opacity': 0.9
-      }
-    },
-    {
-      id: 'water-line-layer',
-      layer: waterLineSource,
-      type: 'line',
-      minzoom: 6,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        waterLineFilter
-      ],
-      paint: {
-        'line-color': '#5fa8e8',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.7, 10, 1.4, 14, 2.6],
-        'line-opacity': 0.9
-      }
-    },
-    {
-      id: 'building-layer',
-      layer: buildingSource,
-      type: 'fill',
-      minzoom: 11,
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#e4d8d8',
-        'fill-opacity': 0.78
-      }
-    },
-    {
-      id: 'road-major-casing-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 4,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        majorRoadFilter
-      ],
-      paint: {
-        'line-color': '#efe9dc',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.4, 12, 8.4, 15, 12.5],
-        'line-opacity': 1
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-major-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 4,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        majorRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'motorway', '#d88c5a',
-          'trunk', '#d99c67',
-          'primary', '#ddb178',
-          '#e4c89a'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 2.0, 12, 5.8, 15, 9],
-        'line-opacity': 0.98
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-minor-casing-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 8,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        minorRoadFilter
-      ],
-      paint: {
-        'line-color': '#f2eee6',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.1, 12, 3.2, 15, 5.2],
-        'line-opacity': 0.95
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-minor-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 8,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        minorRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'tertiary', '#d9bf97',
-          'minor', '#d2b792',
-          'street', '#cdb28f',
-          'residential', '#c7ad88',
-          '#bea47f'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.6, 15, 3],
-        'line-opacity': 0.95
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-any-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 9,
-      filter: ['all',
-        ['==', '$type', 'LineString']
-      ],
-      paint: {
-        'line-color': '#ad9a79',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.5, 12, 1.2, 15, 2.4],
-        'line-opacity': 0.72
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-track-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 11,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        trackRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'track', '#9b8b62',
-          'path', '#7fa06d',
-          'cycleway', '#6f9f78',
-          '#8ea474'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.45, 14, 1.2, 16, 1.8],
-        'line-dasharray': ['match', roadClassExpr,
-          'track', ['literal', [3, 2]],
-          'path', ['literal', [1, 3]],
-          ['literal', [1.5, 1.6]]
-        ],
-        'line-opacity': 0.88
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-walkway-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 12,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        walkwayRoadFilter
-      ],
-      paint: {
-        'line-color': '#b3a892',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.35, 15, 0.95, 17, 1.35],
-        'line-dasharray': [0.8, 1.2],
-        'line-opacity': 0.82
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'railway-layer',
-      layer: transitSource,
-      type: 'line',
-      minzoom: 5,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        railFilter
-      ],
-      paint: {
-        'line-color': '#8e8e8e',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.6, 10, 1.4, 15, 2.8],
-        'line-dasharray': [2, 2]
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'boundary-layer',
-      layer: boundarySource,
-      type: 'line',
-      filter: ['==', '$type', 'LineString'],
-      paint: {
-        'line-color': '#b8b8b8',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 8, 0.8, 12, 1.3],
-        'line-dasharray': [3, 2]
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-name-layer',
-      layer: roadsSource,
-      type: 'symbol',
-      minzoom: 11,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        ['none', railFilter, trackRoadFilter, walkwayRoadFilter]
-      ],
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name'], ['get', 'ref']],
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 11, 15, 14],
-        'symbol-placement': 'line',
-        'text-rotation-alignment': 'map',
-        'text-allow-overlap': false
-      },
-      paint: {
-        'text-color': '#303030',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.6
-      }
-    },
-    {
-      id: 'place-name-layer',
-      layer: placesSource,
-      type: 'symbol',
-      minzoom: 5,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 14, 14, 18],
-        'text-anchor': 'center',
-        'text-allow-overlap': false,
-        'text-ignore-placement': false
-      },
-      paint: {
-        'text-color': '#222222',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.6
-      }
-    },
-    {
-      id: 'poi-name-layer',
-      layer: poisSource,
-      type: 'symbol',
-      minzoom: 12,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
-        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 13],
-        'text-anchor': 'top',
-        'text-offset': [0, 0.8],
-        'text-allow-overlap': false,
-        'icon-allow-overlap': false
-      },
-      paint: {
-        'text-color': '#2a2a2a',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4
-      }
-    }
-  ]
-
   let layersAdded = 0
-
-  for (const layerDef of vectorLayers) {
-    if (availableLayers.length > 0 && !available.has(layerDef.layer)) {
-      console.warn(`Skipping layer '${layerDef.id}', missing source-layer '${layerDef.layer}'`)
-      continue
-    }
-
+  for (const layer of layers) {
     try {
-      const layer = {
-        id: layerDef.id,
-        type: layerDef.type,
-        source: 'pmtiles-source',
-        'source-layer': layerDef.layer,
-        layout: { visibility: 'visible' }
-      }
-
-      if (layerDef.minzoom !== undefined) layer.minzoom = layerDef.minzoom
-      if (layerDef.filter) layer.filter = layerDef.filter
-      if (layerDef.layout) layer.layout = { ...layer.layout, ...layerDef.layout }
-      if (layerDef.paint) layer.paint = layerDef.paint
-
       mapInstance.addLayer(layer)
       layersAdded++
     } catch (error) {
-      console.warn(`Layer add failed for '${layerDef.id}': ${error.message}`)
+      console.warn(`Layer add failed for '${layer.id}': ${error.message}`)
     }
   }
-
   console.log(`Vector layers added: ${layersAdded}`)
 
-  setGroupVisibility('water', layerVisibility.value.water)
-  setGroupVisibility('landuse', layerVisibility.value.landuse)
-  setGroupVisibility('park', layerVisibility.value.park)
-  setGroupVisibility('building', layerVisibility.value.building)
-  setGroupVisibility('road', layerVisibility.value.road)
-  setGroupVisibility('railway', layerVisibility.value.railway)
-  setGroupVisibility('boundary', layerVisibility.value.boundary)
-  setGroupVisibility('labels', layerVisibility.value.labels)
+  for (const groupName of Object.keys(layerGroups)) {
+    setGroupVisibility(groupName, layerVisibility.value[groupName])
+  }
 }
 
 const initializeMap = async () => {
@@ -1387,15 +793,7 @@ const initializeMap = async () => {
 
     mapInstance = new maplibregl.Map({
       container: mapContainer,
-      style: {
-        version: 8,
-        sources: {},
-        layers: [{
-          id: 'background',
-          type: 'background',
-          paint: { 'background-color': '#f2efe9' }
-        }]
-      },
+      style: buildBaseStyle(),
       center: getInitialCenter(),
       zoom: 6,
       pitch: 0,
