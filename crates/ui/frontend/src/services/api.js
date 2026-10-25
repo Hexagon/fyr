@@ -110,6 +110,9 @@ const extractNextSseFrame = (buffer) => {
   }
 }
 
+// Exported for unit tests.
+export { mapContentItem, encodePathPreservingSlashes, parseSseFrame, extractNextSseFrame }
+
 export const apiService = {
   getReaderCapabilities: async () => {
     const response = await api.get('/reader/capabilities')

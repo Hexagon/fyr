@@ -31,7 +31,7 @@ Run from repo root:
 ```bash
 cargo test --workspace --all-targets
 cargo check -p server
-(cd crates/ui/frontend && npm ci && npm run build)
+(cd crates/ui/frontend && npm ci && npm test && npm run build)
 (cd docs/build && npm ci && npm run build)
 ```
 

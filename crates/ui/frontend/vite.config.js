@@ -31,6 +31,10 @@ export default defineConfig({
       }
     }
   },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.test.js']
+  },
   server: {
     proxy: {
       '/api': {

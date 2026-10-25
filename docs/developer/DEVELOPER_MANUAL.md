@@ -134,6 +134,10 @@ Extending model support:
 CI-pinned versions for parity:
 - Rust stable (Docker build uses `rust:bookworm`)
 
+### Frontend unit tests
+- `cd crates/ui/frontend && npm test` runs Vitest (`happy-dom` environment) over `src/**/*.test.js`; CI runs it before the frontend build.
+- Keep testable logic in plain modules under `src/services/` or `src/modules/` (pure functions, composables) and colocate `*.test.js` next to them. Vue pages should stay thin glue around those modules.
+
 ### Build frontend
 1. `cd crates/ui/frontend`
 2. `npm ci` (or `npm install` for local iteration)
