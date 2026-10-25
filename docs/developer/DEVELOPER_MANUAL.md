@@ -138,6 +138,10 @@ CI-pinned versions for parity:
 - `cd crates/ui/frontend && npm test` runs Vitest (`happy-dom` environment) over `src/**/*.test.js`; CI runs it before the frontend build.
 - Keep testable logic in plain modules under `src/services/` or `src/modules/` (pure functions, composables) and colocate `*.test.js` next to them. Vue pages should stay thin glue around those modules.
 
+### Web app manifest
+- `crates/ui/frontend/public/manifest.webmanifest` (served at `/static/manifest.webmanifest`, `start_url`/`scope` `/`) plus PNG icons in `public/assets/icons/` (192, 512, maskable 512, 180 apple-touch) rendered from `fyr-icon.svg`.
+- There is intentionally no service worker: Fyr is usually reached over plain HTTP on a LAN, where browsers refuse to register service workers, and the app is useless without its server anyway.
+
 ### Build frontend
 1. `cd crates/ui/frontend`
 2. `npm ci` (or `npm install` for local iteration)

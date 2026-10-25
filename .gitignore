@@ -43,4 +43,4 @@ docs/build/node_modules/
 !/public/data/books/user-manual.epub
 !/public/data/books/developer-manual.epub
 
-server-run.log
+server-run.log.claude/worktrees/

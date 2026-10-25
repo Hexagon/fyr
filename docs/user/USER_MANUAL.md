@@ -89,6 +89,9 @@ Setting `FYR_READONLY=true` disables all mutating operations permanently. No log
 
 Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.
 
+### Install as an app (phones, tablets, desktops)
+Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use **Add to Home Screen** (iOS Safari, Android Chrome) or **Install app** (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.
+
 ### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.
 - Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
