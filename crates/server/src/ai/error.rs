@@ -5,6 +5,9 @@ pub enum ModelError {
     #[error("model file not found: {0}")]
     NotFound(String),
 
+    #[error("invalid model filename: {0}")]
+    InvalidFilename(String),
+
     #[error("invalid model file extension, expected .gguf: {0}")]
     InvalidExtension(String),
 

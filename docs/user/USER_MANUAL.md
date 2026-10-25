@@ -210,10 +210,10 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --b
 - When a content folder is empty, Content Manager shows curated recommendations from `curated-content.json` instead of a blank listing.
 - When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
-- Use the **Download** button in each Content Manager file row to download a local copy from the browser.
+- Use the **Download** button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
-- Active tasks persist across restarts and are restored automatically.
+- The task list persists across restarts. Tasks that were still queued or in progress when the server stopped are marked **failed** with the reason "interrupted by server restart" (their partial files are removed); re-queue the URL or re-import the file to try again.
 - Content listings and download tasks refresh automatically as task state changes.
 - You can cancel queued or in-progress downloads from the download manager.
 - Fyr does not overwrite your `curated-content.json` catalog when it already exists in `DATA_DIR`, so you can keep local recommendations there across updates.
@@ -250,6 +250,8 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --b
 - `public/data/inbox/`
 - `public/data/models/`
 - `public/data/misc/`
+
+Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
 
 ### System-Managed Manuals Sync
@@ -293,6 +295,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 ### Download is stuck or failed
 - Open Content Manager and inspect the download status/error line.
 - Cancel the task and retry the URL.
+- A task that shows "interrupted by server restart" was running when Fyr stopped; dismiss it and queue it again.
 - For repeated failures, verify the source URL is reachable and supports direct file transfer.
 
 ### ZIM view not loading
@@ -301,6 +304,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 
 ### Assistant model import fails
 - Confirm the model file extension is `.gguf`.
+- Model filenames must be plain file names (no folders or `..`); otherwise the server rejects the request with "invalid model filename".
 - Ensure the source file starts with GGUF magic bytes.
 - Retry the upload if the browser was interrupted before the file finished transferring.
 

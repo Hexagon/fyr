@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use anyhow::Context;
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::cors::CorsLayer;
 use types::Config;
@@ -112,7 +112,6 @@ async fn main() -> anyhow::Result<()> {
 
 /// Create the API router with all endpoints
 fn create_router(state: AppState) -> Router {
-    let data_path: PathBuf = state.config.data_dir.clone();
     let books_path: PathBuf = state.config.books_dir();
     let static_path: PathBuf = state.static_dir.clone();
     let assets_path: PathBuf = first_existing_path("public/assets", "assets");
@@ -206,8 +205,16 @@ fn create_router(state: AppState) -> Router {
         .route("/api/auth/logout", post(auth::logout_handler))
         // Protected (admin) routes
         .merge(protected)
-        // Data file serving (for PMTiles, etc.) - use configured data directory
-        .nest_service("/data", ServeDir::new(data_path))
+        // Data file serving (PMTiles, books, POI, curated catalog). Only the
+        // public content folders are exposed; settings.json,
+        // download_tasks.json, inbox/, models/ and misc/ stay private.
+        .nest_service("/data/maps", ServeDir::new(state_arc.config.maps_dir()))
+        .nest_service("/data/books", ServeDir::new(books_path.clone()))
+        .nest_service("/data/poi", ServeDir::new(state_arc.config.poi_dir()))
+        .route_service(
+            "/data/curated-content.json",
+            ServeFile::new(state_arc.config.curated_content_path()),
+        )
         // Book-serving alias for URL-based reader integrations
         .nest_service("/docs/books", ServeDir::new(books_path))
         // Optional generic public asset passthrough
@@ -394,4 +401,109 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
 
 fn is_file_lock_error(error: &std::io::Error) -> bool {
     matches!(error.raw_os_error(), Some(32) | Some(33))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    fn test_state() -> AppState {
+        let data_dir = std::env::temp_dir().join(format!("fyr-router-tests-{}", uuid::Uuid::new_v4()));
+        let config = Config::default_with_data_dir(&data_dir);
+        config.initialize_directories().expect("initialize directories");
+        let config = Arc::new(config);
+
+        AppState {
+            config: Arc::clone(&config),
+            static_dir: data_dir.join("static"),
+            download_manager: Arc::new(DownloadManager::new(&data_dir)),
+            model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
+            settings_manager: Arc::new(SettingsManager::new(&data_dir)),
+            auth_manager: Arc::new(auth::AuthManager::new()),
+            mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        }
+    }
+
+    async fn get(app: &Router, uri: &str, range: Option<&str>) -> axum::response::Response {
+        let mut request = Request::get(uri);
+        if let Some(range) = range {
+            request = request.header(header::RANGE, range);
+        }
+        app.clone()
+            .oneshot(request.body(Body::empty()).expect("request"))
+            .await
+            .expect("response")
+    }
+
+    async fn body_bytes(response: axum::response::Response) -> Vec<u8> {
+        axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body")
+            .to_vec()
+    }
+
+    #[tokio::test]
+    async fn data_mount_serves_public_content_only() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(state.config.books_dir().join("guide.md"), "# Guide").expect("write book");
+        fs::write(state.config.poi_dir().join("camps.geojson"), "{}").expect("write poi");
+        fs::write(data_dir.join("settings.json"), "{}").expect("write settings");
+        fs::write(data_dir.join("download_tasks.json"), "{}").expect("write tasks");
+        fs::write(state.config.inbox_dir().join("staged.epub"), "x").expect("write inbox");
+        fs::write(state.config.models_dir().join("model.gguf"), "GGUF").expect("write model");
+        let app = create_router(state);
+
+        for public in [
+            "/data/books/guide.md",
+            "/data/poi/camps.geojson",
+            "/data/curated-content.json",
+        ] {
+            assert_eq!(get(&app, public, None).await.status(), StatusCode::OK, "{public}");
+        }
+
+        for private in [
+            "/data/settings.json",
+            "/data/download_tasks.json",
+            "/data/inbox/staged.epub",
+            "/data/models/model.gguf",
+            "/data/maps/../settings.json",
+            "/api/does-not-exist",
+        ] {
+            assert_eq!(get(&app, private, None).await.status(), StatusCode::NOT_FOUND, "{private}");
+        }
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn content_download_streams_with_filename_and_range_support() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let payload: Vec<u8> = (0..=255u8).cycle().take(100_000).collect();
+        fs::write(state.config.misc_dir().join("field notes.zip"), &payload).expect("write misc");
+        let app = create_router(state);
+
+        let full = get(&app, "/api/content/misc/field%20notes.zip/download", None).await;
+        assert_eq!(full.status(), StatusCode::OK);
+        assert_eq!(full.headers()[header::CONTENT_LENGTH], "100000");
+        assert_eq!(full.headers()[header::CONTENT_TYPE], "application/octet-stream");
+        let disposition = full.headers()[header::CONTENT_DISPOSITION].to_str().unwrap().to_string();
+        assert!(disposition.starts_with("attachment; filename=\"field notes.zip\""), "{disposition}");
+        assert!(disposition.contains("filename*=UTF-8''field%20notes.zip"), "{disposition}");
+        assert_eq!(body_bytes(full).await, payload);
+
+        let partial = get(&app, "/api/content/misc/field%20notes.zip/download", Some("bytes=10-19")).await;
+        assert_eq!(partial.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(partial.headers()[header::CONTENT_RANGE], "bytes 10-19/100000");
+        assert_eq!(body_bytes(partial).await, payload[10..20].to_vec());
+
+        let missing = get(&app, "/api/content/misc/absent.zip/download", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
 }
