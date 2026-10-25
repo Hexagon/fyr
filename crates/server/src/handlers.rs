@@ -26,6 +26,7 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
+use tower::ServiceExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
 use uuid::Uuid;
@@ -203,25 +204,25 @@ pub struct ReaderOpenResponse {
 }
 
 /// GET /api/status — Server status and content inventory
-pub async fn status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
-    let maps_count = count_files(state.config.maps_dir());
-    let books_count = count_files(state.config.books_dir());
-    let poi_count = count_files(state.config.poi_dir());
-    let models_count = count_files(state.config.models_dir());
-    let misc_count = count_files(state.config.misc_dir());
+pub async fn status(State(state): State<Arc<AppState>>) -> Result<Json<StatusResponse>, StatusCode> {
+    let config = Arc::clone(&state.config);
+    let content_count = run_blocking(move || {
+        Ok(ContentCountResponse {
+            maps: count_files(config.maps_dir()),
+            books: count_files(config.books_dir()),
+            poi: count_files(config.poi_dir()),
+            models: count_files(config.models_dir()),
+            misc: count_files(config.misc_dir()),
+        })
+    })
+    .await?;
 
-    Json(StatusResponse {
+    Ok(Json(StatusResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         status: "running".to_string(),
         data_dir: state.config.data_dir.display().to_string(),
-        content_count: ContentCountResponse {
-            maps: maps_count,
-            books: books_count,
-            poi: poi_count,
-            models: models_count,
-            misc: misc_count,
-        },
-    })
+        content_count,
+    }))
 }
 
 /// GET /api/config — Current configuration
@@ -269,7 +270,11 @@ pub async fn update_settings(
 }
 
 /// GET /api/storage — Get storage usage information
-pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResponse> {
+pub async fn get_storage(State(state): State<Arc<AppState>>) -> Result<Json<StorageResponse>, StatusCode> {
+    run_blocking(move || Ok(Json(compute_storage(&state)))).await
+}
+
+fn compute_storage(state: &AppState) -> StorageResponse {
     let mut by_category = std::collections::HashMap::new();
 
     let data_dir_info = get_dir_size(state.config.data_dir.clone());
@@ -338,7 +343,7 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
 
     let total_bytes = data_dir_info.0;
 
-    Json(StorageResponse {
+    StorageResponse {
         data_dir: state.config.data_dir.display().to_string(),
         total_bytes,
         total_human: format_bytes(total_bytes),
@@ -347,12 +352,14 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
         capacity_bytes,
         capacity_human: capacity_bytes.map(format_bytes),
         by_category,
-    })
+    }
 }
 
 /// GET /api/content/maps — List available maps
-pub async fn list_maps(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.maps_dir(), ContentType::Map)
+pub async fn list_maps(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    list_content_files(state.config.maps_dir(), ContentType::Map).await
 }
 
 /// GET /api/maps/tiles/:filename/:z/:x/:y — Serve a single tile from an MBTiles archive
@@ -504,13 +511,17 @@ pub async fn serve_mbtiles_metadata(
 }
 
 /// GET /api/content/books — List available books
-pub async fn list_books(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.books_dir(), ContentType::Book)
+pub async fn list_books(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    list_content_files(state.config.books_dir(), ContentType::Book).await
 }
 
 /// GET /api/content/poi — List available POI datasets
-pub async fn list_poi(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.poi_dir(), ContentType::Poi)
+pub async fn list_poi(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    list_content_files(state.config.poi_dir(), ContentType::Poi).await
 }
 
 /// PUT /api/poi/:filename — Create or overwrite a GeoJSON POI file
@@ -578,13 +589,17 @@ pub async fn save_poi_file(
 }
 
 /// GET /api/content/models — List available local GGUF models
-pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.models_dir(), ContentType::Model)
+pub async fn list_models(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    list_content_files(state.config.models_dir(), ContentType::Model).await
 }
 
 /// GET /api/content/misc — List available generic files
-pub async fn list_misc(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.misc_dir(), ContentType::Misc)
+pub async fn list_misc(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    list_content_files(state.config.misc_dir(), ContentType::Misc).await
 }
 
 /// GET /api/models — List model registry entries and load states
@@ -918,7 +933,8 @@ pub async fn ai_infer_stream(
         .map(|m| (m.role, m.text))
         .collect();
 
-    let app_context = build_content_catalog_summary(&state.config);
+    let config = Arc::clone(&state.config);
+    let app_context = run_blocking(move || Ok(build_content_catalog_summary(&config))).await?;
 
     let rx = state
         .model_manager
@@ -1106,9 +1122,15 @@ pub async fn delete_content_file(
 }
 
 /// GET /api/content/:content_type/:filename/download — Download a content file from disk
+///
+/// The file is streamed from disk (never buffered in memory) so multi-gigabyte
+/// ZIM archives and GGUF models can be downloaded safely. HTTP `Range`
+/// requests are honoured, which lets browsers and download managers resume
+/// interrupted transfers.
 pub async fn download_content_file(
     State(state): State<Arc<AppState>>,
     Path((content_type, filename)): Path<(String, String)>,
+    request: axum::extract::Request,
 ) -> Result<Response, StatusCode> {
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
 
@@ -1127,7 +1149,7 @@ pub async fn download_content_file(
 
     let file_path = dir.join(&sanitized);
 
-    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+    let canonical_dir = tokio::fs::canonicalize(&dir).await.map_err(|error| {
         error!(
             "Failed to resolve content directory {}: {}",
             dir.display(),
@@ -1135,7 +1157,7 @@ pub async fn download_content_file(
         );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+    let canonical_path = tokio::fs::canonicalize(&file_path).await.map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             StatusCode::NOT_FOUND
         } else {
@@ -1151,30 +1173,74 @@ pub async fn download_content_file(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let bytes = tokio::fs::read(&canonical_path).await.map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            StatusCode::NOT_FOUND
-        } else {
+    let is_file = tokio::fs::metadata(&canonical_path)
+        .await
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false);
+    if !is_file {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // ServeFile streams the body in chunks and implements Range/If-Range,
+    // Last-Modified and HEAD handling for us.
+    let served = tower_http::services::ServeFile::new(&canonical_path)
+        .oneshot(request)
+        .await
+        .map_err(|error| {
             error!(
-                "Failed to read content file {}: {}",
+                "Failed to stream content file {}: {}",
                 canonical_path.display(),
                 error
             );
             StatusCode::INTERNAL_SERVER_ERROR
-        }
-    })?;
+        })?;
 
-    let mut response = Response::new(Body::from(bytes));
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/octet-stream"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment"),
-    );
+    let mut response = served.map(Body::new);
+    if response.status().is_success() {
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+        response.headers_mut().insert(
+            header::CONTENT_DISPOSITION,
+            attachment_content_disposition(&sanitized),
+        );
+    }
 
     Ok(response)
+}
+
+/// Build an `attachment` Content-Disposition header that preserves the
+/// original filename, using an ASCII fallback plus an RFC 5987 `filename*`
+/// parameter for non-ASCII names.
+fn attachment_content_disposition(filename: &str) -> HeaderValue {
+    let ascii_fallback: String = filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_graphic() && ch != '"' && ch != '\\' && ch != ';' {
+                ch
+            } else if ch == ' ' {
+                ' '
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let mut encoded = String::with_capacity(filename.len() * 3);
+    for byte in filename.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b'~') {
+            encoded.push(*byte as char);
+        } else {
+            encoded.push_str(&format!("%{:02X}", byte));
+        }
+    }
+
+    HeaderValue::from_str(&format!(
+        "attachment; filename=\"{}\"; filename*=UTF-8''{}",
+        ascii_fallback, encoded
+    ))
+    .unwrap_or_else(|_| HeaderValue::from_static("attachment"))
 }
 
 /// GET /api/reader/capabilities — Unified reader capabilities
@@ -1313,7 +1379,9 @@ pub async fn reader_zim_capabilities(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let (supports_native_render, mode) = match probe_zim_archive(&source_path) {
+    let probe_path = source_path.clone();
+    let probe = run_blocking(move || Ok(probe_zim_archive(&probe_path))).await?;
+    let (supports_native_render, mode) = match probe {
         Ok(()) => (true, "native"),
         Err(reason) => {
             warn!(
@@ -1346,22 +1414,25 @@ pub async fn reader_zim_native_article(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-
     let requested_path = query
         .path
         .as_deref()
         .map(normalize_zim_url)
         .filter(|value| !value.is_empty());
 
-    let entry = if let Some(path) = requested_path {
-        find_entry_by_path_flexible(&zim, &path).ok_or(StatusCode::NOT_FOUND)?
-    } else {
-        resolve_main_entry(&zim).ok_or(StatusCode::NOT_FOUND)?
-    };
+    let (path, title, mime_type, content) = run_blocking(move || {
+        let zim = open_zim_archive(&source_path)?;
 
-    let (path, title, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
-    let content = String::from_utf8_lossy(&bytes).into_owned();
+        let entry = if let Some(path) = requested_path {
+            find_entry_by_path_flexible(&zim, &path).ok_or(StatusCode::NOT_FOUND)?
+        } else {
+            resolve_main_entry(&zim).ok_or(StatusCode::NOT_FOUND)?
+        };
+
+        let (path, title, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        Ok((path, title, mime_type, String::from_utf8_lossy(&bytes).into_owned()))
+    })
+    .await?;
 
     Ok(Json(ZimNativeArticleResponse {
         filename: sanitized,
@@ -1388,19 +1459,23 @@ pub async fn reader_zim_native_content(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-    let mut entry = content_path_lookup_variants(&normalized_path)
-        .into_iter()
-        .find_map(|candidate| find_any_entry_by_path(&zim, &candidate));
+    let (mime_type, bytes) = run_blocking(move || {
+        let zim = open_zim_archive(&source_path)?;
+        let mut entry = content_path_lookup_variants(&normalized_path)
+            .into_iter()
+            .find_map(|candidate| find_any_entry_by_path(&zim, &candidate));
 
-    if entry.is_none() && normalized_path.starts_with("_assets_/") {
-        if let Some(filename_only) = normalized_path.rsplit('/').next() {
-            entry = find_any_entry_by_basename(&zim, filename_only);
+        if entry.is_none() && normalized_path.starts_with("_assets_/") {
+            if let Some(filename_only) = normalized_path.rsplit('/').next() {
+                entry = find_any_entry_by_basename(&zim, filename_only);
+            }
         }
-    }
 
-    let entry = entry.ok_or(StatusCode::NOT_FOUND)?;
-    let (_, _, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        let entry = entry.ok_or(StatusCode::NOT_FOUND)?;
+        let (_, _, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        Ok((mime_type, bytes))
+    })
+    .await?;
 
     let header_value = HeaderValue::from_str(&mime_type)
         .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
@@ -1434,9 +1509,33 @@ pub async fn reader_zim_native_search(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-    let needle_lower = needle.to_ascii_lowercase();
+    let archive_name = sanitized.clone();
+    let needle_owned = needle.to_string();
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
+    let results = run_blocking(move || {
+        search_zim_titles(&source_path, &archive_name, &needle_owned, limit)
+    })
+    .await?;
+
+    Ok(Json(ZimNativeSearchResponse {
+        filename: sanitized,
+        query: needle.to_string(),
+        results,
+    }))
+}
+
+/// Scan a ZIM archive for articles whose title or path contains `needle`.
+///
+/// This walks the URL index linearly, which can take seconds on large
+/// archives, so callers must run it via [`run_blocking`].
+fn search_zim_titles(
+    source_path: &FsPath,
+    archive_name: &str,
+    needle: &str,
+    limit: usize,
+) -> Result<Vec<ZimNativeSearchItem>, StatusCode> {
+    let zim = open_zim_archive(source_path)?;
+    let needle_lower = needle.to_ascii_lowercase();
 
     let mut results: Vec<ZimNativeSearchItem> = Vec::new();
     let mut seen_paths = std::collections::HashSet::new();
@@ -1446,7 +1545,7 @@ pub async fn reader_zim_native_search(
             Err(error) => {
                 warn!(
                     "Skipping invalid ZIM entry while searching {}: {}",
-                    sanitized, error
+                    archive_name, error
                 );
                 continue;
             }
@@ -1502,16 +1601,18 @@ pub async fn reader_zim_native_search(
         }
     }
 
-    Ok(Json(ZimNativeSearchResponse {
-        filename: sanitized,
-        query: needle.to_string(),
-        results,
-    }))
+    Ok(results)
 }
 
 /// GET / — Fallback handler for SPA (serves index.html)
 /// This enables client-side routing in Vue
-pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
+pub async fn serve_index(State(state): State<Arc<AppState>>, uri: axum::http::Uri) -> Response {
+    // Unknown API routes and unpublished data paths (settings.json, inbox/,
+    // models/, ...) must not masquerade as the SPA shell.
+    if is_non_spa_path(uri.path()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
     let index_path = state.static_dir.join("index.html");
 
     match tokio::fs::read_to_string(&index_path).await {
@@ -1533,6 +1634,29 @@ pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
 }
 
 // Helper functions
+
+/// Run synchronous filesystem / archive work on Tokio's blocking pool.
+///
+/// Directory walks, EPUB/ZIM parsing and ZIM title scans can take seconds on
+/// large archives or slow storage (SD cards). Running them inline would stall
+/// an async worker thread and, on small boards with few cores, freeze map
+/// tiles and every other request until the scan finishes.
+async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
+where
+    F: FnOnce() -> Result<T, StatusCode> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(work).await.map_err(|error| {
+        error!("Blocking task failed: {}", error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+}
+
+fn is_non_spa_path(path: &str) -> bool {
+    ["/api", "/data"]
+        .iter()
+        .any(|prefix| path == *prefix || path.starts_with(&format!("{prefix}/")))
+}
 
 fn count_files(dir: std::path::PathBuf) -> usize {
     if !dir.exists() {
@@ -1608,12 +1732,16 @@ fn build_content_catalog_summary(config: &types::Config) -> String {
     format!("Current local content library:\n{}", lines.join("\n"))
 }
 
-fn list_content_files(
+async fn list_content_files(
     dir: std::path::PathBuf,
     content_type: ContentType,
-) -> Json<Vec<ContentMetadata>> {
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    run_blocking(move || Ok(Json(collect_content_files(dir, content_type)))).await
+}
+
+fn collect_content_files(dir: std::path::PathBuf, content_type: ContentType) -> Vec<ContentMetadata> {
     if !dir.exists() {
-        return Json(Vec::new());
+        return Vec::new();
     }
 
     let files: Vec<ContentMetadata> = WalkDir::new(dir)
@@ -1649,7 +1777,7 @@ fn list_content_files(
         })
         .collect();
 
-    Json(files)
+    files
 }
 
 /// Try to extract the human-readable title embedded in a book file.
@@ -1713,6 +1841,7 @@ fn map_model_error_to_status(error: &crate::ai::error::ModelError) -> StatusCode
     use crate::ai::error::ModelError;
     match error {
         ModelError::NotFound(_) => StatusCode::NOT_FOUND,
+        ModelError::InvalidFilename(_) => StatusCode::BAD_REQUEST,
         ModelError::InvalidExtension(_) => StatusCode::BAD_REQUEST,
         ModelError::InvalidMagic(_) => StatusCode::UNPROCESSABLE_ENTITY,
         ModelError::GgufParse(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -2057,7 +2186,10 @@ pub async fn library_book_metadata(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    match crate::library::extract_book_metadata(&books_dir, &sanitized) {
+    let name = sanitized.clone();
+    let extracted =
+        run_blocking(move || Ok(crate::library::extract_book_metadata(&books_dir, &name))).await?;
+    match extracted {
         Ok(metadata) => Ok(Json(metadata)),
         Err(error) => {
             warn!("Failed to extract book metadata for {}: {}", sanitized, error);
@@ -2085,7 +2217,9 @@ pub async fn library_book_toc(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    match crate::library::extract_toc(&books_dir, &sanitized) {
+    let name = sanitized.clone();
+    let extracted = run_blocking(move || Ok(crate::library::extract_toc(&books_dir, &name))).await?;
+    match extracted {
         Ok(toc) => Ok(Json(toc)),
         Err(error) => {
             warn!("Failed to extract TOC for {}: {}", sanitized, error);
@@ -2116,7 +2250,11 @@ pub async fn library_book_search(
 
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
 
-    match crate::library::search_book(&books_dir, &sanitized, &query.q, limit) {
+    let name = sanitized.clone();
+    let needle = query.q;
+    let searched =
+        run_blocking(move || Ok(crate::library::search_book(&books_dir, &name, &needle, limit))).await?;
+    match searched {
         Ok(response) => Ok(Json(response)),
         Err(error) => {
             warn!("Failed to search book {}: {}", sanitized, error);
@@ -2754,7 +2892,7 @@ pub async fn tools_hash(
 #[cfg(test)]
 mod tests {
     use super::{
-        assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
+        assistant_num_ctx_override, attachment_content_disposition, is_non_spa_path, parse_total_memory_kib, reader_format_from_filename,
         resolve_assistant_num_ctx, resolve_download_request_timeout_secs, sanitize_upload_filename,
         validate_upload_magic, DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS,
         HIGH_RAM_ASSISTANT_NUM_CTX,
@@ -2762,6 +2900,25 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
     use types::{AppSettings, ContentType};
+
+    #[test]
+    fn attachment_disposition_escapes_unsafe_and_non_ascii_names() {
+        let header = attachment_content_disposition("kartor \"norr\";å.pmtiles");
+        assert_eq!(
+            header.to_str().expect("ascii header"),
+            "attachment; filename=\"kartor _norr___.pmtiles\"; filename*=UTF-8''kartor%20%22norr%22%3B%C3%A5.pmtiles"
+        );
+    }
+
+    #[test]
+    fn non_spa_paths_cover_api_and_data_prefixes_only() {
+        assert!(is_non_spa_path("/api"));
+        assert!(is_non_spa_path("/api/unknown"));
+        assert!(is_non_spa_path("/data/settings.json"));
+        assert!(!is_non_spa_path("/"));
+        assert!(!is_non_spa_path("/maps"));
+        assert!(!is_non_spa_path("/database-guide"));
+    }
 
     #[test]
     fn detects_supported_reader_formats() {

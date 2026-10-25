@@ -248,7 +248,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/content/poi`
 - `GET /api/content/models`
 - `GET /api/content/misc`
-- `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager
+- `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager. Streams via `tower_http::services::ServeFile` (no in-memory buffering), supports `Range`/`If-Range`/`HEAD`, and sets `Content-Disposition: attachment` with an ASCII `filename` plus RFC 5987 `filename*`.
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
 
@@ -264,6 +264,8 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
+
+`ModelManager::import_model` and `load_model` accept only bare `.gguf` filenames (`validate_model_filename`; anything with directory components or `..` returns `ModelError::InvalidFilename` → `400`). GGUF parsing/weight loading and the inbox→models move run on Tokio's blocking pool (`spawn_blocking`) so a multi-second model load never stalls other requests.
 
 AI read-only endpoints (always public):
 - `GET /api/models`
@@ -294,6 +296,8 @@ Unified Library API endpoints (read-only, always public):
 - `GET /api/library/books/:filename/toc` — Unified table of contents (EPUB nav/ncx, ZIM articles, PDF outline, Markdown headings)
 - `GET /api/library/books/:filename/search?q=...&limit=20` — Unified full-text search (ZIM articles, EPUB spine items, Markdown lines)
 
+Handlers that do synchronous disk or archive work — content listings (including EPUB/ZIM title extraction), `/api/status` file counts, `/api/storage` directory walks, the assistant's content catalog summary, library metadata/TOC/search and all native ZIM article/content/search endpoints — run that work through `handlers::run_blocking` (a `spawn_blocking` wrapper). New handlers that walk directories, parse archives or scan ZIM indexes must do the same so tiles and UI requests keep flowing on low-core devices such as a Raspberry Pi.
+
 The library module (`crates/server/src/library.rs`) implements format-agnostic extraction for metadata, TOC, and search. Each format handler (EPUB, ZIM, PDF, Markdown) is isolated in its own helper section within the module.
 
 Reader and ZIM endpoints:
@@ -305,7 +309,7 @@ Reader and ZIM endpoints:
 - `GET /api/reader/zim/:filename/native/content/*path`
 
 Static content aliases:
-- `GET /data/*path` (full data directory)
+- `GET /data/maps/*path`, `GET /data/books/*path`, `GET /data/poi/*path` and `GET /data/curated-content.json` — the only published parts of `DATA_DIR`. `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are intentionally not served; unmatched `/data/*` and `/api/*` paths return `404` instead of the SPA `index.html`.
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
 - Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.
 
@@ -442,7 +446,7 @@ Run:
 2. `npm run build`
 
 ## 8. Current Known Gaps
-- Download resume/range continuation is not yet implemented for interrupted transfers.
+- Download resume/range continuation is not yet implemented for interrupted *URL* downloads into Fyr. On startup `DownloadManager::recover_interrupted_tasks` marks persisted non-terminal tasks (`queued`/`downloading`/`validating`/`routing`) as `failed` ("interrupted by server restart") and deletes their `.part` files, because workers do not survive a restart. (Browser downloads *from* Fyr via `/api/content/:type/:filename/download` do support `Range`.)
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
 ## 9. Recommended Validation Sequence

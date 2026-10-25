@@ -95,9 +95,7 @@ impl ModelManager {
     }
 
     pub async fn import_model(&self, filename: &str, source: &str) -> Result<PathBuf, ModelError> {
-        if !filename.to_ascii_lowercase().ends_with(".gguf") {
-            return Err(ModelError::InvalidExtension(filename.to_string()));
-        }
+        validate_model_filename(filename)?;
 
         let source_dir = match source {
             "inbox" => self.config.inbox_dir(),
@@ -111,44 +109,59 @@ impl ModelManager {
         };
 
         let source_path = source_dir.join(filename);
-        if !source_path.exists() {
-            return Err(ModelError::NotFound(source_path.display().to_string()));
-        }
-
-        let mut file = std::fs::File::open(&source_path)
-            .map_err(|e| ModelError::ImportFailed(e.to_string()))?;
-        let mut magic = [0u8; 4];
-        use std::io::Read;
-        file.read_exact(&mut magic)
-            .map_err(|e| ModelError::InvalidMagic(e.to_string()))?;
-        if magic != *b"GGUF" {
-            return Err(ModelError::InvalidMagic(source_path.display().to_string()));
-        }
-
         let target_path = self.config.models_dir().join(filename);
-        if source_path == target_path {
-            return Ok(target_path);
-        }
 
-        std::fs::rename(&source_path, &target_path)
-            .or_else(|_| {
-                std::fs::copy(&source_path, &target_path)
-                    .map(|_| ())
-                    .and_then(|_| std::fs::remove_file(&source_path))
-            })
-            .map_err(|e| ModelError::ImportFailed(e.to_string()))?;
+        // Validation and the move itself touch the disk (a cross-device move
+        // copies the whole multi-gigabyte file), so keep it off the async
+        // runtime threads.
+        tokio::task::spawn_blocking(move || {
+            if !source_path.exists() {
+                return Err(ModelError::NotFound(source_path.display().to_string()));
+            }
 
-        Ok(target_path)
+            let mut file = std::fs::File::open(&source_path)
+                .map_err(|e| ModelError::ImportFailed(e.to_string()))?;
+            let mut magic = [0u8; 4];
+            use std::io::Read;
+            file.read_exact(&mut magic)
+                .map_err(|e| ModelError::InvalidMagic(e.to_string()))?;
+            if magic != *b"GGUF" {
+                return Err(ModelError::InvalidMagic(source_path.display().to_string()));
+            }
+            drop(file);
+
+            if source_path == target_path {
+                return Ok(target_path);
+            }
+
+            std::fs::rename(&source_path, &target_path)
+                .or_else(|_| {
+                    std::fs::copy(&source_path, &target_path)
+                        .map(|_| ())
+                        .and_then(|_| std::fs::remove_file(&source_path))
+                })
+                .map_err(|e| ModelError::ImportFailed(e.to_string()))?;
+
+            Ok(target_path)
+        })
+        .await
+        .map_err(|e| ModelError::Internal(format!("model import task failed: {}", e)))?
     }
 
     pub async fn load_model(&self, filename: &str) -> Result<(), ModelError> {
+        validate_model_filename(filename)?;
         let model_path = self.config.models_dir().join(filename);
         {
             let mut states = self.states.write().await;
             states.insert(filename.to_string(), (ModelLoadState::Loading, None));
         }
 
-        let loaded = ModelLoader::load(&model_path);
+        // Parsing GGUF and materializing quantized weights can take many
+        // seconds; run it on the blocking pool so tiles, books and status
+        // requests keep being served while a model loads.
+        let loaded = tokio::task::spawn_blocking(move || ModelLoader::load(&model_path))
+            .await
+            .unwrap_or_else(|e| Err(ModelError::Internal(format!("model load task failed: {}", e))));
 
         match loaded {
             Ok(model) => {
@@ -372,6 +385,23 @@ impl Drop for InferenceTiming {
             }
         }
     }
+}
+
+/// Accept only a bare `.gguf` filename: no directory components, no `..`,
+/// so model operations can never reach outside the models/inbox folders.
+fn validate_model_filename(filename: &str) -> Result<(), ModelError> {
+    let is_bare_name = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name == filename)
+        .unwrap_or(false);
+    if !is_bare_name || filename.contains('\\') {
+        return Err(ModelError::InvalidFilename(filename.to_string()));
+    }
+    if !filename.to_ascii_lowercase().ends_with(".gguf") {
+        return Err(ModelError::InvalidExtension(filename.to_string()));
+    }
+    Ok(())
 }
 
 fn tokens_per_second(tokens: usize, elapsed: Duration) -> f64 {
@@ -733,10 +763,35 @@ fn trim_context_window(tokens: &[u32], num_ctx: usize) -> Vec<u32> {
 mod tests {
     use super::{
         first_role_marker_index, format_chat_prompt, format_prompt, is_repeating,
-        trim_context_window, PromptFormat,
+        trim_context_window, validate_model_filename, PromptFormat,
     };
+    use crate::ai::error::ModelError;
 
     // --- format_chat_prompt ---
+
+    #[test]
+    fn validate_model_filename_accepts_bare_gguf_names() {
+        assert!(validate_model_filename("qwen2.5-1.5b-instruct-q4_k_m.gguf").is_ok());
+        assert!(validate_model_filename("Model.GGUF").is_ok());
+    }
+
+    #[test]
+    fn validate_model_filename_rejects_path_components() {
+        for name in ["../escape.gguf", "nested/model.gguf", "..\\escape.gguf", "/abs/model.gguf", "..", ""] {
+            assert!(
+                matches!(validate_model_filename(name), Err(ModelError::InvalidFilename(_))),
+                "expected {name:?} to be rejected as an invalid filename"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_model_filename_rejects_non_gguf() {
+        assert!(matches!(
+            validate_model_filename("notes.txt"),
+            Err(ModelError::InvalidExtension(_))
+        ));
+    }
 
     #[test]
     fn format_chat_prompt_single_turn_has_no_history() {

@@ -42,7 +42,7 @@ impl DownloadManager {
         let root = data_dir.as_ref().to_path_buf();
         Self::cleanup_stale_temp_files(&root);
         let persistence_path = data_dir.as_ref().join("download_tasks.json");
-        let tasks = Self::load_tasks(&persistence_path).unwrap_or_else(|error| {
+        let mut tasks = Self::load_tasks(&persistence_path).unwrap_or_else(|error| {
             warn!(
                 "Failed to load download tasks from {}: {}",
                 persistence_path.display(),
@@ -50,6 +50,12 @@ impl DownloadManager {
             );
             HashMap::new()
         });
+
+        if Self::recover_interrupted_tasks(&mut tasks, &root) > 0 {
+            if let Err(error) = Self::persist_tasks_at(&persistence_path, &tasks) {
+                error!("Failed to persist recovered download tasks: {}", error);
+            }
+        }
 
         let client = Self::build_http_client(DEFAULT_REQUEST_TIMEOUT_SECS);
 
@@ -1007,6 +1013,59 @@ impl DownloadManager {
         Ok(())
     }
 
+    /// Mark tasks that were still in flight when the server stopped as failed.
+    ///
+    /// Workers only live as long as the process, so a persisted task in a
+    /// non-terminal state after startup has no worker and would otherwise stay
+    /// "downloading" forever. Their partial temp files are removed as well.
+    /// Returns the number of recovered tasks.
+    fn recover_interrupted_tasks(tasks: &mut HashMap<String, DownloadTask>, data_dir: &Path) -> usize {
+        let inbox = data_dir.join("inbox");
+        let now = chrono::Local::now().to_rfc3339();
+        let mut recovered = 0;
+
+        for task in tasks.values_mut() {
+            if matches!(
+                task.status,
+                DownloadStatus::Completed | DownloadStatus::Failed | DownloadStatus::Cancelled
+            ) {
+                continue;
+            }
+
+            let temp_path = match &task.source {
+                DownloadSource::Url { url } => {
+                    inbox.join(format!("{}.part", Self::filename_from_url(url, &task.id)))
+                }
+                DownloadSource::LocalFile { path } => {
+                    let source_name = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(ToOwned::to_owned)
+                        .unwrap_or_else(|| format!("{}.bin", task.id));
+                    inbox.join(format!("{}-{}.part", task.id, source_name))
+                }
+            };
+            if temp_path.exists() {
+                match std::fs::remove_file(&temp_path) {
+                    Ok(_) => info!("Removed partial file {} of interrupted task {}", temp_path.display(), task.id),
+                    Err(error) => warn!("Failed to remove partial file {}: {}", temp_path.display(), error),
+                }
+            }
+
+            warn!(
+                "Download task {} was interrupted in state {:?} by a server restart; marking as failed",
+                task.id,
+                task.status
+            );
+            task.status = DownloadStatus::Failed;
+            task.error = Some("interrupted by server restart; please retry".to_string());
+            task.updated_at = now.clone();
+            recovered += 1;
+        }
+
+        recovered
+    }
+
     fn cleanup_stale_temp_files(data_dir: &Path) {
         let inbox = data_dir.join("inbox");
         if !inbox.exists() {
@@ -1153,6 +1212,82 @@ mod tests {
                 | DownloadStatus::Cancelled
                 | DownloadStatus::Failed
         ));
+    }
+
+    fn persisted_task(id: &str, source: DownloadSource, status: DownloadStatus) -> DownloadTask {
+        DownloadTask {
+            id: id.to_string(),
+            source,
+            status,
+            progress: 40.0,
+            bytes_downloaded: 4,
+            total_bytes: Some(10),
+            error: None,
+            content_type: None,
+            created_at: "2026-07-19T21:00:00+00:00".to_string(),
+            updated_at: "2026-07-19T21:01:00+00:00".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_marks_interrupted_tasks_failed_and_removes_partials() {
+        let data_dir = test_data_dir();
+        let inbox = data_dir.join("inbox");
+        std::fs::create_dir_all(&inbox).expect("create inbox");
+
+        let mut persisted = HashMap::new();
+        persisted.insert(
+            "url-task".to_string(),
+            persisted_task(
+                "url-task",
+                DownloadSource::Url { url: "https://example.com/atlas.pmtiles".to_string() },
+                DownloadStatus::Downloading,
+            ),
+        );
+        persisted.insert(
+            "local-task".to_string(),
+            persisted_task(
+                "local-task",
+                DownloadSource::LocalFile { path: inbox.join("novel.epub") },
+                DownloadStatus::Validating,
+            ),
+        );
+        persisted.insert(
+            "done-task".to_string(),
+            persisted_task(
+                "done-task",
+                DownloadSource::Url { url: "https://example.com/done.epub".to_string() },
+                DownloadStatus::Completed,
+            ),
+        );
+        std::fs::write(
+            data_dir.join("download_tasks.json"),
+            serde_json::to_vec(&persisted).expect("serialize tasks"),
+        )
+        .expect("write persisted tasks");
+        std::fs::write(inbox.join("atlas.pmtiles.part"), b"partial").expect("write url partial");
+        std::fs::write(inbox.join("local-task-novel.epub.part"), b"partial").expect("write local partial");
+
+        let manager = DownloadManager::new(&data_dir);
+
+        for id in ["url-task", "local-task"] {
+            let task = manager.get_task(id).await.expect("task exists");
+            assert_eq!(task.status, DownloadStatus::Failed);
+            assert!(task.error.as_deref().unwrap_or_default().contains("restart"));
+        }
+        let done = manager.get_task("done-task").await.expect("task exists");
+        assert_eq!(done.status, DownloadStatus::Completed);
+        assert!(done.error.is_none());
+
+        assert!(!inbox.join("atlas.pmtiles.part").exists());
+        assert!(!inbox.join("local-task-novel.epub.part").exists());
+
+        // The recovery must be persisted so a second restart sees terminal states.
+        let reloaded = DownloadManager::load_tasks(&data_dir.join("download_tasks.json"))
+            .expect("reload tasks");
+        assert_eq!(reloaded["url-task"].status, DownloadStatus::Failed);
+
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 
     #[test]
