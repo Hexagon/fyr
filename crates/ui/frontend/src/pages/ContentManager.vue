@@ -189,6 +189,17 @@
                 <p class="download-progress" v-if="showDownloadProgress(dl)">
                   {{ formatDownloadProgress(dl) }}
                 </p>
+                <p v-if="describeResumeState(dl, formatBytes)" class="status-text download-resume">
+                  {{ describeResumeState(dl, formatBytes) }}
+                </p>
+                <button
+                  v-if="!adminLocked && canRetryDownload(dl)"
+                  class="btn btn-primary btn-inline"
+                  :disabled="retryingTaskIds.has(dl.id)"
+                  @click="retryDownload(dl.id)"
+                >
+                  {{ retryingTaskIds.has(dl.id) ? 'Retrying...' : retryActionLabel(dl) }}
+                </button>
                 <button
                   v-if="isDownloadCancellable(dl.status)"
                   class="btn btn-secondary btn-inline"
@@ -218,6 +229,15 @@
                 type="text"
                 v-model="downloadUrl"
                 placeholder="Enter URL (https://example.com/file.pmtiles)"
+                @keyup.enter="handleDownload"
+              />
+              <input
+                type="text"
+                v-model="downloadSha256"
+                class="sha256-input"
+                placeholder="SHA-256 checksum (optional)"
+                spellcheck="false"
+                autocomplete="off"
                 @keyup.enter="handleDownload"
               />
               <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || urlDownloadPending">
@@ -256,6 +276,14 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { apiService } from '../services/api'
+import { isAdminLocked } from '../services/auth'
+import {
+  canRetryDownload,
+  describeResumeState,
+  isActiveDownloadStatus,
+  normalizeSha256Input,
+  retryActionLabel
+} from '../services/downloadResume'
 
 const sidebarCollapsed = ref(false)
 const fileInput = ref(null)
@@ -268,6 +296,9 @@ const sortBy = ref('name')
 const sortDir = ref('asc')
 
 const downloadUrl = ref('')
+const downloadSha256 = ref('')
+const retryingTaskIds = ref(new Set())
+const adminLocked = computed(() => isAdminLocked())
 const urlDownloadPending = ref(false)
 const activeDownloadUrl = ref(null)
 const urlDownloadStatus = ref(null)
@@ -402,6 +433,7 @@ const normalizedCuratedItems = (category) => {
       : item.label || item.id || 'Recommended source',
     description: item.recommended_for || item.notes || '',
     downloadUrl: String(item.download_url || '').trim(),
+    sha256: String(item.sha256 || '').trim(),
     source: String(item.source || '').trim(),
     meta: buildCuratedMeta(category, item)
   }))
@@ -460,15 +492,25 @@ const handleDownload = async () => {
     return
   }
 
+  const checksum = normalizeSha256Input(downloadSha256.value)
+  if (checksum.error) {
+    urlDownloadStatus.value = null
+    urlDownloadError.value = checksum.error
+    return
+  }
+
   urlDownloadPending.value = true
   activeDownloadUrl.value = url
   urlDownloadStatus.value = 'Starting download...'
   urlDownloadError.value = null
 
   try {
-    await apiService.createDownload(url)
-    urlDownloadStatus.value = 'Download queued. Monitoring progress...'
+    await apiService.createDownload(url, checksum.value)
+    urlDownloadStatus.value = checksum.value
+      ? 'Download queued. The SHA-256 checksum is verified when it finishes.'
+      : 'Download queued. Monitoring progress...'
     downloadUrl.value = ''
+    downloadSha256.value = ''
     await loadDownloads()
   } catch (err) {
     urlDownloadError.value = apiService.handleError(err)
@@ -481,11 +523,13 @@ const handleDownload = async () => {
 const startCuratedDownload = async (item) => {
   if (!item?.downloadUrl || urlDownloadPending.value) return
   downloadUrl.value = item.downloadUrl
+  // Curated entries may carry a sha256; pass it so the server verifies the file.
+  downloadSha256.value = item.sha256 || ''
   urlDownloadError.value = null
   await handleDownload()
 }
 
-const isDownloadCancellable = (status) => ['queued', 'downloading', 'validating', 'routing'].includes(String(status || '').toLowerCase())
+const isDownloadCancellable = (status) => isActiveDownloadStatus(status)
 
 const isDownloadDismissible = (status) => ['completed', 'failed', 'cancelled'].includes(String(status || '').toLowerCase())
 
@@ -496,6 +540,23 @@ const cancelDownload = async (taskId) => {
     await loadDownloads()
   } catch (err) {
     downloadsError.value = apiService.handleError(err)
+  }
+}
+
+const retryDownload = async (taskId) => {
+  if (retryingTaskIds.value.has(taskId)) return
+  retryingTaskIds.value = new Set([...retryingTaskIds.value, taskId])
+  try {
+    await apiService.retryDownload(taskId)
+    downloadsError.value = null
+    await loadDownloads()
+    scheduleDownloadRefresh()
+  } catch (err) {
+    downloadsError.value = apiService.handleError(err)
+  } finally {
+    const next = new Set(retryingTaskIds.value)
+    next.delete(taskId)
+    retryingTaskIds.value = next
   }
 }
 
@@ -1075,6 +1136,7 @@ onUnmounted(() => {
 .badge.uploading,
 .badge.downloading,
 .badge.validating,
+.badge.verifying,
 .badge.routing {
   background: #2a3d3d;
   color: #5cadc4;
@@ -1335,5 +1397,13 @@ onUnmounted(() => {
   .curated-item {
     flex-direction: column;
   }
+}
+.download-resume {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+.sha256-input {
+  font-family: monospace;
 }
 </style>
