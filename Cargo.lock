@@ -727,7 +727,9 @@ version = "0.5.2"
 dependencies = [
  "anyhow",
  "chrono",
+ "hex",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
