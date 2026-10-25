@@ -1,7 +1,7 @@
 //! Download task manager
 
 use crate::router::ContentRouter;
-use futures::StreamExt;
+use tokio_stream::StreamExt;
 use tokio::io::AsyncWriteExt;
 use types::{ContentType, DownloadSource, DownloadStatus, DownloadTask};
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ impl DownloadManager {
         let root = data_dir.as_ref().to_path_buf();
         Self::cleanup_stale_temp_files(&root);
         let persistence_path = data_dir.as_ref().join("download_tasks.json");
-        let tasks = Self::load_tasks(&persistence_path).unwrap_or_else(|error| {
+        let mut tasks = Self::load_tasks(&persistence_path).unwrap_or_else(|error| {
             warn!(
                 "Failed to load download tasks from {}: {}",
                 persistence_path.display(),
@@ -50,6 +50,12 @@ impl DownloadManager {
             );
             HashMap::new()
         });
+
+        if Self::recover_interrupted_tasks(&mut tasks, &root) > 0 {
+            if let Err(error) = Self::persist_tasks_at(&persistence_path, &tasks) {
+                error!("Failed to persist recovered download tasks: {}", error);
+            }
+        }
 
         let client = Self::build_http_client(DEFAULT_REQUEST_TIMEOUT_SECS);
 
@@ -203,6 +209,11 @@ impl DownloadManager {
     /// Returns `Ok(true)` if the task was found and removed, `Ok(false)` if no task with the
     /// given ID exists. If the task is still in progress its cancel flag is set before removal,
     /// signalling the worker to stop at the next checkpoint.
+    ///
+    /// Inbox file cleanup for `LocalFile` tasks is handled by the worker itself while it still
+    /// holds ownership of the source file; `dismiss_task` does not attempt any file deletion
+    /// because the path stored in the task is a shared inbox name that may already have been
+    /// claimed by a newer upload.
     pub async fn dismiss_task(&self, task_id: &str) -> anyhow::Result<bool> {
         // Signal cancellation if the task is still running
         let flag = {
@@ -365,7 +376,9 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", filename));
+        // Prefix with the task id so two concurrent downloads of the same
+        // filename never write into the same partial file.
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, filename));
         let final_inbox_path = inbox_path.join(&filename);
 
         let mut file = match tokio::fs::File::create(&temp_path).await {
@@ -519,7 +532,7 @@ impl DownloadManager {
                 }
             }
 
-            if let Err(error) = tokio::fs::rename(&final_inbox_path, &destination).await {
+            if let Err(error) = Self::move_file(&final_inbox_path, &destination).await {
                 let message = format!("failed to route file to destination: {error}");
                 let _ = Self::set_task_state(
                     &runtime,
@@ -576,6 +589,7 @@ impl DownloadManager {
                 Some("download cancelled by user".to_string()),
             )
             .await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -651,7 +665,7 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", source_name));
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, source_name));
         let final_inbox_path = inbox_path.join(&source_name);
 
         let mut source_file = match tokio::fs::File::open(&source_path).await {
@@ -706,6 +720,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -745,6 +760,7 @@ impl DownloadManager {
                 )
                 .await;
                 let _ = tokio::fs::remove_file(&temp_path).await;
+                let _ = tokio::fs::remove_file(&source_path).await;
                 Self::clear_cancel_flag(&runtime, &task_id).await;
                 return;
             }
@@ -776,6 +792,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -792,6 +809,7 @@ impl DownloadManager {
             )
             .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
+            let _ = tokio::fs::remove_file(&source_path).await;
             Self::clear_cancel_flag(&runtime, &task_id).await;
             return;
         }
@@ -827,7 +845,7 @@ impl DownloadManager {
                 }
             }
 
-            if let Err(error) = tokio::fs::rename(&final_inbox_path, &destination).await {
+            if let Err(error) = Self::move_file(&final_inbox_path, &destination).await {
                 let message = format!("failed to route file to destination: {error}");
                 let _ = Self::set_task_state(
                     &runtime,
@@ -997,6 +1015,96 @@ impl DownloadManager {
         Ok(())
     }
 
+    /// Mark tasks that were still in flight when the server stopped as failed.
+    ///
+    /// Workers only live as long as the process, so a persisted task in a
+    /// non-terminal state after startup has no worker and would otherwise stay
+    /// "downloading" forever. Their partial temp files are removed as well.
+    /// Returns the number of recovered tasks.
+    fn recover_interrupted_tasks(tasks: &mut HashMap<String, DownloadTask>, data_dir: &Path) -> usize {
+        let inbox = data_dir.join("inbox");
+        let now = chrono::Local::now().to_rfc3339();
+        let mut recovered = 0;
+
+        for task in tasks.values_mut() {
+            if matches!(
+                task.status,
+                DownloadStatus::Completed | DownloadStatus::Failed | DownloadStatus::Cancelled
+            ) {
+                continue;
+            }
+
+            let temp_path = match &task.source {
+                DownloadSource::Url { url } => {
+                    let filename = Self::filename_from_url(url, &task.id);
+                    // Older releases used `<filename>.part` without the task id.
+                    let legacy = inbox.join(format!("{}.part", filename));
+                    if legacy.exists() {
+                        let _ = std::fs::remove_file(&legacy);
+                    }
+                    inbox.join(format!("{}-{}.part", task.id, filename))
+                }
+                DownloadSource::LocalFile { path } => {
+                    let source_name = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(ToOwned::to_owned)
+                        .unwrap_or_else(|| format!("{}.bin", task.id));
+                    inbox.join(format!("{}-{}.part", task.id, source_name))
+                }
+            };
+            if temp_path.exists() {
+                match std::fs::remove_file(&temp_path) {
+                    Ok(_) => info!("Removed partial file {} of interrupted task {}", temp_path.display(), task.id),
+                    Err(error) => warn!("Failed to remove partial file {}: {}", temp_path.display(), error),
+                }
+            }
+
+            warn!(
+                "Download task {} was interrupted in state {:?} by a server restart; marking as failed",
+                task.id,
+                task.status
+            );
+            task.status = DownloadStatus::Failed;
+            task.error = Some("interrupted by server restart; please retry".to_string());
+            task.updated_at = now.clone();
+            recovered += 1;
+        }
+
+        recovered
+    }
+
+    /// Move `source` to `destination`, falling back to copy + delete when a
+    /// plain rename fails (for example when `maps/` or `books/` is a separate
+    /// Docker volume or mount point, which makes rename return EXDEV).
+    async fn move_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+        match tokio::fs::rename(source, destination).await {
+            Ok(()) => Ok(()),
+            Err(rename_error) => {
+                let copy_target = destination.with_extension(format!(
+                    "{}.fyr-move",
+                    destination.extension().and_then(|ext| ext.to_str()).unwrap_or("")
+                ));
+                if let Err(copy_error) = tokio::fs::copy(source, &copy_target).await {
+                    let _ = tokio::fs::remove_file(&copy_target).await;
+                    warn!(
+                        "Moving {} to {} failed (rename: {}; copy: {})",
+                        source.display(),
+                        destination.display(),
+                        rename_error,
+                        copy_error
+                    );
+                    return Err(copy_error);
+                }
+                if let Err(error) = tokio::fs::rename(&copy_target, destination).await {
+                    let _ = tokio::fs::remove_file(&copy_target).await;
+                    return Err(error);
+                }
+                tokio::fs::remove_file(source).await
+            }
+        }
+    }
+
     fn cleanup_stale_temp_files(data_dir: &Path) {
         let inbox = data_dir.join("inbox");
         if !inbox.exists() {
@@ -1056,7 +1164,11 @@ impl DownloadManager {
             return default;
         };
 
-        let sanitized: String = segment
+        // Percent-decode the segment so that filenames like "file%20name.epub"
+        // become "file_name.epub" rather than "file_20name.epub".
+        let decoded = Self::percent_decode_segment(&segment);
+
+        let sanitized: String = decoded
             .chars()
             .map(|ch| {
                 if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
@@ -1067,11 +1179,35 @@ impl DownloadManager {
             })
             .collect();
 
-        if sanitized.is_empty() {
+        if sanitized.is_empty() || sanitized == "." || sanitized == ".." {
             default
         } else {
             sanitized
         }
+    }
+
+    /// Decode a percent-encoded URL path segment into a UTF-8 string (falls back to the original segment if decoding fails).
+    fn percent_decode_segment(segment: &str) -> String {
+        let bytes = segment.as_bytes();
+        let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+
+        while i < bytes.len() {
+            if bytes[i] == b'%' && i + 2 < bytes.len() {
+                if let (Some(h1), Some(h2)) = (
+                    (bytes[i + 1] as char).to_digit(16),
+                    (bytes[i + 2] as char).to_digit(16),
+                ) {
+                    decoded.push((h1 * 16 + h2) as u8);
+                    i += 3;
+                    continue;
+                }
+            }
+            decoded.push(bytes[i]);
+            i += 1;
+        }
+
+        String::from_utf8(decoded).unwrap_or_else(|_| segment.to_string())
     }
 }
 
@@ -1115,6 +1251,111 @@ mod tests {
                 | DownloadStatus::Cancelled
                 | DownloadStatus::Failed
         ));
+    }
+
+    fn persisted_task(id: &str, source: DownloadSource, status: DownloadStatus) -> DownloadTask {
+        DownloadTask {
+            id: id.to_string(),
+            source,
+            status,
+            progress: 40.0,
+            bytes_downloaded: 4,
+            total_bytes: Some(10),
+            error: None,
+            content_type: None,
+            created_at: "2026-07-19T21:00:00+00:00".to_string(),
+            updated_at: "2026-07-19T21:01:00+00:00".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_marks_interrupted_tasks_failed_and_removes_partials() {
+        let data_dir = test_data_dir();
+        let inbox = data_dir.join("inbox");
+        std::fs::create_dir_all(&inbox).expect("create inbox");
+
+        let mut persisted = HashMap::new();
+        persisted.insert(
+            "url-task".to_string(),
+            persisted_task(
+                "url-task",
+                DownloadSource::Url { url: "https://example.com/atlas.pmtiles".to_string() },
+                DownloadStatus::Downloading,
+            ),
+        );
+        persisted.insert(
+            "local-task".to_string(),
+            persisted_task(
+                "local-task",
+                DownloadSource::LocalFile { path: inbox.join("novel.epub") },
+                DownloadStatus::Validating,
+            ),
+        );
+        persisted.insert(
+            "done-task".to_string(),
+            persisted_task(
+                "done-task",
+                DownloadSource::Url { url: "https://example.com/done.epub".to_string() },
+                DownloadStatus::Completed,
+            ),
+        );
+        std::fs::write(
+            data_dir.join("download_tasks.json"),
+            serde_json::to_vec(&persisted).expect("serialize tasks"),
+        )
+        .expect("write persisted tasks");
+        std::fs::write(inbox.join("url-task-atlas.pmtiles.part"), b"partial").expect("write url partial");
+        std::fs::write(inbox.join("atlas.pmtiles.part"), b"legacy").expect("write legacy url partial");
+        std::fs::write(inbox.join("local-task-novel.epub.part"), b"partial").expect("write local partial");
+
+        let manager = DownloadManager::new(&data_dir);
+
+        for id in ["url-task", "local-task"] {
+            let task = manager.get_task(id).await.expect("task exists");
+            assert_eq!(task.status, DownloadStatus::Failed);
+            assert!(task.error.as_deref().unwrap_or_default().contains("restart"));
+        }
+        let done = manager.get_task("done-task").await.expect("task exists");
+        assert_eq!(done.status, DownloadStatus::Completed);
+        assert!(done.error.is_none());
+
+        assert!(!inbox.join("url-task-atlas.pmtiles.part").exists());
+        assert!(!inbox.join("atlas.pmtiles.part").exists());
+        assert!(!inbox.join("local-task-novel.epub.part").exists());
+
+        // The recovery must be persisted so a second restart sees terminal states.
+        let reloaded = DownloadManager::load_tasks(&data_dir.join("download_tasks.json"))
+            .expect("reload tasks");
+        assert_eq!(reloaded["url-task"].status, DownloadStatus::Failed);
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn move_file_moves_and_replaces_destination() {
+        let data_dir = test_data_dir();
+        let source = data_dir.join("inbox.epub");
+        let destination_dir = data_dir.join("books");
+        std::fs::create_dir_all(&destination_dir).expect("create destination dir");
+        let destination = destination_dir.join("inbox.epub");
+        std::fs::write(&source, b"new").expect("write source");
+        std::fs::write(&destination, b"old").expect("write existing destination");
+
+        DownloadManager::move_file(&source, &destination).await.expect("move file");
+
+        assert!(!source.exists());
+        assert_eq!(std::fs::read(&destination).expect("read destination"), b"new");
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn move_file_reports_missing_source() {
+        let data_dir = test_data_dir();
+        let result = DownloadManager::move_file(&data_dir.join("absent.epub"), &data_dir.join("x.epub")).await;
+        assert!(result.is_err());
+        assert!(!data_dir.join("x.epub").exists());
+        assert!(!data_dir.join("x.epub.fyr-move").exists());
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 
     #[test]
@@ -1173,5 +1414,49 @@ mod tests {
         let ids: Vec<_> = tasks.into_iter().map(|task| task.id).collect();
 
         assert_eq!(ids, vec!["newer".to_string(), "older".to_string()]);
+    }
+
+    #[test]
+    fn percent_decode_segment_decodes_space() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("file%20name.epub"),
+            "file name.epub"
+        );
+    }
+
+    #[test]
+    fn percent_decode_segment_passes_through_plain() {
+        assert_eq!(
+            DownloadManager::percent_decode_segment("plain.epub"),
+            "plain.epub"
+        );
+    }
+
+    #[test]
+    fn filename_from_url_decodes_percent_encoded_space() {
+        let name = DownloadManager::filename_from_url(
+            "https://example.com/file%20name.epub",
+            "task-id",
+        );
+        assert_eq!(name, "file_name.epub");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dot() {
+        let name = DownloadManager::filename_from_url("https://example.com/.", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_dotdot() {
+        let name = DownloadManager::filename_from_url("https://example.com/..", "task-id");
+        assert_eq!(name, "task-id.bin");
+    }
+
+    #[test]
+    fn filename_from_url_rejects_percent_encoded_dotdot() {
+        let name =
+            DownloadManager::filename_from_url("https://example.com/%2e%2e", "task-id");
+        assert_eq!(name, "task-id.bin");
     }
 }

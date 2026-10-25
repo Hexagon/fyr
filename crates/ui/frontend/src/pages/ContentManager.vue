@@ -25,6 +25,10 @@
       </aside>
 
       <section class="manager-main">
+        <div v-if="loading" class="loading-overlay">
+          <p class="loading">Loading content...</p>
+        </div>
+
         <div class="toolbar">
           <div class="search-wrap">
             <input v-model="searchQuery" type="text" placeholder="Search files..." class="search-input" />
@@ -41,7 +45,7 @@
         </div>
 
         <div class="file-table-wrap">
-          <p v-if="contentError" class="error-text">{{ contentError }}</p>
+          <p v-if="contentError" class="error-text" role="alert" aria-live="assertive">{{ contentError }}</p>
           <table class="file-table" v-else-if="visibleFiles.length">
             <thead>
               <tr>
@@ -72,7 +76,7 @@
           <div v-else class="empty-panel">
             <p class="empty-state">No files in {{ currentFolderLabel }}.</p>
             <p v-if="!showCuratedPanel" class="status-text">Import files or queue a URL download to get started.</p>
-            <p v-if="curatedContentError" class="error-text">{{ curatedContentError }}</p>
+            <p v-if="curatedContentError" class="error-text" role="alert" aria-live="assertive">{{ curatedContentError }}</p>
           </div>
         </div>
 
@@ -102,7 +106,7 @@
                   :disabled="urlDownloadPending"
                   @click="startCuratedDownload(item)"
                 >
-                  {{ urlDownloadPending && downloadUrl === item.downloadUrl ? 'Downloading...' : 'Download now' }}
+                  {{ activeDownloadUrl === String(item.downloadUrl).trim() ? 'Downloading...' : 'Download now' }}
                 </button>
                 <a
                   v-if="item.source"
@@ -151,22 +155,37 @@
               <small>Supported in this folder: {{ currentFolderHint }}</small>
             </div>
 
-            <p v-if="importStatus" class="status-text">{{ importStatus }}</p>
-            <p v-if="importError" class="error-text">{{ importError }}</p>
+            <p v-if="importError" class="error-text" role="alert" aria-live="assertive">{{ importError }}</p>
           </div>
 
           <div class="downloads-panel">
             <div class="download-header">
               <h3>Download Manager</h3>
-              <span class="pill">{{ downloads.length }}</span>
+              <span class="pill">{{ pendingUploads.length + downloads.length }}</span>
             </div>
 
-            <div v-if="downloads.length" class="download-list">
+            <div v-if="pendingUploads.length || downloads.length" class="download-list">
+              <div v-for="pu in pendingUploads" :key="pu.id" class="download-item">
+                <p class="download-name">Upload: {{ pu.filename }}</p>
+                <p class="download-status">
+                  <span class="badge uploading">uploading</span>
+                </p>
+                <div v-if="pu.totalBytes > 0" class="progress-bar-wrap">
+                  <div class="progress-bar-fill uploading" :style="{ width: pu.progress + '%' }"></div>
+                </div>
+                <p class="download-progress" v-if="pu.totalBytes > 0">
+                  {{ pu.progress }}% ({{ formatBytes(pu.bytesSent) }} / {{ formatBytes(pu.totalBytes) }})
+                </p>
+                <button class="btn btn-secondary btn-inline" @click="pu.abortFn()">Cancel</button>
+              </div>
               <div v-for="dl in downloads" :key="dl.id" class="download-item">
                 <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
                 <p class="download-status">
                   <span class="badge" :class="downloadBadgeClass(dl.status)">{{ dl.status }}</span>
                 </p>
+                <div v-if="showDownloadProgress(dl)" class="progress-bar-wrap">
+                  <div class="progress-bar-fill" :class="downloadBadgeClass(dl.status)" :style="{ width: Math.max(0, Math.min(100, Math.round(Number(dl.progress) || 0))) + '%' }"></div>
+                </div>
                 <p class="download-progress" v-if="showDownloadProgress(dl)">
                   {{ formatDownloadProgress(dl) }}
                 </p>
@@ -184,16 +203,16 @@
                 >
                   Dismiss
                 </button>
-                <p v-if="dl.error" class="error-text">{{ dl.error }}</p>
+                <p v-if="dl.error" class="error-text" role="alert" aria-live="assertive">{{ dl.error }}</p>
               </div>
             </div>
             <p v-else-if="!downloadsLoading" class="empty-state">No download tasks</p>
-            <p v-if="downloadsLoading" class="status-text">Refreshing downloads...</p>
-            <p v-if="downloadsError" class="error-text">{{ downloadsError }}</p>
+            <p v-if="downloadsLoading" class="status-text" role="status" aria-live="polite">Refreshing downloads...</p>
+            <p v-if="downloadsError" class="error-text" role="alert" aria-live="assertive">{{ downloadsError }}</p>
 
             <div class="download-create">
               <p class="status-text">
-                URL downloads auto-route by extension: maps (.pmtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+                URL downloads auto-route by extension: maps (.pmtiles, .mbtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
               </p>
               <input
                 type="text"
@@ -206,14 +225,12 @@
               </button>
             </div>
 
-            <p v-if="urlDownloadStatus" class="status-text">{{ urlDownloadStatus }}</p>
-            <p v-if="urlDownloadError" class="error-text">{{ urlDownloadError }}</p>
+            <p v-if="urlDownloadStatus" class="status-text" role="status" aria-live="polite">{{ urlDownloadStatus }}</p>
+            <p v-if="urlDownloadError" class="error-text" role="alert" aria-live="assertive">{{ urlDownloadError }}</p>
           </div>
         </div>
       </section>
     </div>
-
-    <div v-if="loading" class="loading">Loading content...</div>
 
     <div v-if="confirmDeleteFile" class="confirm-overlay">
       <div class="confirm-dialog">
@@ -223,7 +240,7 @@
           <strong>{{ confirmDeleteFile.filename }}</strong>?
           This action cannot be undone.
         </p>
-        <p v-if="deleteFileError" class="error-text">{{ deleteFileError }}</p>
+        <p v-if="deleteFileError" class="error-text" role="alert" aria-live="assertive">{{ deleteFileError }}</p>
         <div class="confirm-actions">
           <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
           <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">
@@ -252,10 +269,10 @@ const sortDir = ref('asc')
 
 const downloadUrl = ref('')
 const urlDownloadPending = ref(false)
+const activeDownloadUrl = ref(null)
 const urlDownloadStatus = ref(null)
 const urlDownloadError = ref(null)
 const importing = ref(false)
-const importStatus = ref(null)
 const importError = ref(null)
 
 const maps = ref([])
@@ -264,6 +281,7 @@ const pois = ref([])
 const models = ref([])
 const misc = ref([])
 const downloads = ref([])
+const pendingUploads = ref([])
 const curatedContent = ref({ items: {} })
 const loading = ref(true)
 const contentError = ref(null)
@@ -274,11 +292,12 @@ const confirmDeleteFile = ref(null)
 const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
+let pendingUploadCounter = 0
 let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
 
 const folderEntries = computed(() => [
-  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles files.' },
+  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles and .mbtiles files.' },
   { key: 'books', label: 'Books', icon: '📚', count: books.value.length, hint: 'Books accepts .epub, .pdf, .mobi, .md, and .zim files.' },
   { key: 'poi', label: 'POI', icon: '📍', count: pois.value.length, hint: 'POI accepts .geojson, .json, and .fgb files.' },
   { key: 'models', label: 'Models', icon: '🤖', count: models.value.length, hint: 'Models accepts .gguf files (import flow).' },
@@ -434,25 +453,35 @@ const buildContentDownloadUrl = (category, filename) => {
 const handleDownload = async () => {
   if (!downloadUrl.value) return
 
+  const url = downloadUrl.value.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    urlDownloadStatus.value = null
+    urlDownloadError.value = 'URL must start with http:// or https://'
+    return
+  }
+
   urlDownloadPending.value = true
+  activeDownloadUrl.value = url
   urlDownloadStatus.value = 'Starting download...'
   urlDownloadError.value = null
 
   try {
-    const response = await apiService.createDownload(downloadUrl.value)
-    urlDownloadStatus.value = `Download queued: ${response.data.task_id}`
+    await apiService.createDownload(url)
+    urlDownloadStatus.value = 'Download queued. Monitoring progress...'
     downloadUrl.value = ''
     await loadDownloads()
   } catch (err) {
     urlDownloadError.value = apiService.handleError(err)
   } finally {
     urlDownloadPending.value = false
+    activeDownloadUrl.value = null
   }
 }
 
 const startCuratedDownload = async (item) => {
   if (!item?.downloadUrl || urlDownloadPending.value) return
   downloadUrl.value = item.downloadUrl
+  urlDownloadError.value = null
   await handleDownload()
 }
 
@@ -463,20 +492,20 @@ const isDownloadDismissible = (status) => ['completed', 'failed', 'cancelled'].i
 const cancelDownload = async (taskId) => {
   try {
     await apiService.cancelDownload(taskId)
-    urlDownloadStatus.value = `Cancelled download: ${taskId}`
-    urlDownloadError.value = null
+    downloadsError.value = null
     await loadDownloads()
   } catch (err) {
-    urlDownloadError.value = apiService.handleError(err)
+    downloadsError.value = apiService.handleError(err)
   }
 }
 
 const dismissDownload = async (taskId) => {
   try {
     await apiService.dismissDownload(taskId)
+    downloadsError.value = null
     await loadDownloads()
   } catch (err) {
-    urlDownloadError.value = apiService.handleError(err)
+    downloadsError.value = apiService.handleError(err)
   }
 }
 
@@ -531,52 +560,67 @@ const setCategoryFromContentType = (contentType) => {
 }
 
 const importLocalFile = async (file, index, total) => {
-  importStatus.value = total > 1
-    ? `Uploading ${index + 1} of ${total}: ${file.name}...`
-    : `Uploading ${file.name}...`
-
-  const uploadResponse = await apiService.uploadFile(file)
-  const uploadedFilename = uploadResponse.data?.filename
-
-  if (!uploadedFilename) {
-    throw new Error('Upload did not return a filename.')
+  pendingUploadCounter += 1
+  const pendingId = `__upload_${pendingUploadCounter}`
+  const abortHandle = { abort: null }
+  const pending = {
+    id: pendingId,
+    filename: file.name,
+    progress: 0,
+    bytesSent: 0,
+    totalBytes: file.size || 0,
+    abortFn: () => abortHandle.abort?.()
   }
+  pendingUploads.value.push(pending)
 
-  importStatus.value = total > 1
-    ? `Queued import ${index + 1} of ${total}: ${uploadedFilename}...`
-    : `Queued import for ${uploadedFilename}...`
+  try {
+    const uploadResponse = await apiService.uploadFile(file, (loaded, total) => {
+      pending.bytesSent = loaded
+      pending.totalBytes = total
+      pending.progress = total > 0 ? Math.round((loaded / total) * 100) : 0
+    }, abortHandle)
 
-  const importResponse = await apiService.createImportDownload(uploadedFilename)
-  const taskId = importResponse.data?.task_id
+    const uploadedFilename = uploadResponse.data?.filename
 
-  if (!taskId) {
-    throw new Error('Import task could not be created.')
-  }
-
-  await loadDownloads()
-
-  for (let i = 0; i < 120; i += 1) {
-    const statusResponse = await apiService.getDownloadStatus(taskId)
-    const task = statusResponse.data
-    const status = String(task?.status || '').toLowerCase()
-
-    if (status === 'completed') {
-      setCategoryFromContentType(task?.content_type)
-      importStatus.value = total > 1
-        ? `Imported ${index + 1} of ${total}: ${uploadedFilename}.`
-        : `Imported ${uploadedFilename} successfully.`
-      await loadDownloads()
-      return
+    if (!uploadedFilename) {
+      throw new Error('Upload did not return a filename.')
     }
 
-    if (status === 'failed' || status === 'cancelled') {
-      throw new Error(task?.error || `Import ended with status: ${status}`)
+    // Upload complete — remove the synthetic entry before the real task appears
+    pendingUploads.value = pendingUploads.value.filter((p) => p.id !== pendingId)
+
+    const importResponse = await apiService.createImportDownload(uploadedFilename)
+    const taskId = importResponse.data?.task_id
+
+    if (!taskId) {
+      throw new Error('Import task could not be created.')
     }
 
-    await sleep(1000)
-  }
+    await loadDownloads()
 
-  throw new Error('Import timed out while waiting for task completion.')
+    for (let i = 0; i < 120; i += 1) {
+      const statusResponse = await apiService.getDownloadStatus(taskId)
+      const task = statusResponse.data
+      const status = String(task?.status || '').toLowerCase()
+
+      if (status === 'completed') {
+        setCategoryFromContentType(task?.content_type)
+        await loadDownloads()
+        return
+      }
+
+      if (status === 'failed' || status === 'cancelled') {
+        throw new Error(task?.error || `Import ended with status: ${status}`)
+      }
+
+      await sleep(1000)
+    }
+
+    throw new Error('Import timed out while waiting for task completion.')
+  } catch (err) {
+    pendingUploads.value = pendingUploads.value.filter((p) => p.id !== pendingId)
+    throw err
+  }
 }
 
 const onFilePicked = async (event) => {
@@ -624,7 +668,6 @@ const importFiles = async (files) => {
     await loadContent()
   } catch (err) {
     importError.value = apiService.handleError(err)
-    importStatus.value = null
   } finally {
     importing.value = false
     dragActive.value = false
@@ -867,6 +910,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  position: relative;
 }
 
 .toolbar {
@@ -1028,6 +1072,7 @@ onUnmounted(() => {
   color: #d4a94a;
 }
 
+.badge.uploading,
 .badge.downloading,
 .badge.validating,
 .badge.routing {
@@ -1168,6 +1213,44 @@ onUnmounted(() => {
   color: #9d9d9d;
   font-style: italic;
   margin: 0;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.progress-bar-wrap {
+  height: 4px;
+  background: #2a2a2a;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 3px 0 2px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  background: #5cadc4;
+}
+
+.progress-bar-fill.completed {
+  background: #90ee90;
+}
+
+.progress-bar-fill.failed {
+  background: #ff6b6b;
+}
+
+.progress-bar-fill.cancelled {
+  background: #b0b0b0;
 }
 
 .btn-danger {

@@ -76,10 +76,6 @@ export const useUnifiedReader = () => {
     return zimReader.loadNativeArticle(filename, path, apiService)
   }
 
-  const resize = () => {
-    epubReader.resize()
-  }
-
   const dispose = () => {
     resetContentState()
     activeFormat.value = 'none'
@@ -102,7 +98,6 @@ export const useUnifiedReader = () => {
     decodePathDeep: zimReader.decodePathDeep,
     selectBook,
     loadNativeZimArticle,
-    resize,
     dispose
   }
 }

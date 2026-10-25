@@ -7,12 +7,13 @@ It runs as a local web server and works without internet once content is present
 
 ## Features
 
-- Offline maps with PMTiles
+- Single-service deployment — no external database, cache server, or sidecar services required
+- Offline maps with PMTiles and MBTiles
 - Library with EPUB, PDF, Markdown, and ZIM reading
 - Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
-- Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline, client-side
+- Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline on your local Fyr deployment
 
 ## Quick Install
 
@@ -34,6 +35,16 @@ The installer handles Docker setup, data persistence, and remembers your setting
 curl -fsSL https://fyr.guide/install.sh | sh -s -- update
 ```
 
+If you need the compatibility-first legacy image on older hardware, use the installer shortcut:
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy
+```
+
+```powershell
+irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy
+```
+
 See [fyr.guide/#installation](https://fyr.guide/#installation) for the full installation guide, including manual Docker commands, building from source, and Raspberry Pi deployment.
 
 ## One-Minute Start (From Source)
@@ -45,6 +56,22 @@ cargo build --release -p server --bin fyr
 ./target/release/fyr
 ```
 
+For a CPU-tuned local build on the same machine that will run Fyr, enable Rust's auto-detected native target features:
+
+```bash
+RUSTFLAGS="-C target-cpu=native" cargo build --release -p server --bin fyr
+./target/release/fyr
+```
+
+PowerShell:
+
+```powershell
+$env:RUSTFLAGS="-C target-cpu=native"
+cargo build --release -p server --bin fyr
+.\target\release\fyr.exe
+Remove-Item Env:RUSTFLAGS
+```
+
 Open `http://localhost:8080` on the same machine.
 
 ## Installation & Deployment
@@ -54,6 +81,12 @@ The canonical installation guide lives at [fyr.guide/#installation](https://fyr.
 * Building from source for development workflows.
 * Running with Docker (both Production and Dev releases) on an existing system.
 * Installing and running Fyr on a clean Raspberry Pi OS setup.
+
+Docker release tags are intentionally simple:
+
+* `hexagon/fyr:latest` and `hexagon/fyr:vX.Y.Z` are optimized defaults.
+* `hexagon/fyr:legacy` and `hexagon/fyr:vX.Y.Z-legacy` are compatibility-first fallbacks.
+* `hexagon/fyr:pc-legacy` and `hexagon/fyr:rpi-legacy` are explicit legacy targets for older PCs and older Raspberry Pi-class arm64 hardware.
 
 ## Documentation Map
 
@@ -67,13 +100,6 @@ The canonical installation guide lives at [fyr.guide/#installation](https://fyr.
 
 Fyr stores user content in a persistent data directory (`./public/data` by default, `/data` in Docker).
 See [fyr.guide/#installation](https://fyr.guide/#installation) for persistence setup and the [User Manual data layout section](/docs/user/USER_MANUAL.md#6-data-storage-layout) for folder-level details.
-
-## Documentation
-
-- Installation guide: [fyr.guide/#installation](https://fyr.guide/#installation)
-- User guide: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
-- Developer guide: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
-- Contributing: [/CONTRIBUTING.md](/CONTRIBUTING.md)
 
 ## License
 

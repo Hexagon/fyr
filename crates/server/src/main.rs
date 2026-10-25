@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use anyhow::Context;
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::cors::CorsLayer;
 use types::Config;
@@ -27,6 +27,7 @@ mod ai;
 mod auth;
 mod handlers;
 mod library;
+mod mbtiles;
 mod state;
 mod settings;
 
@@ -82,6 +83,7 @@ async fn main() -> anyhow::Result<()> {
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
+        mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
     };
 
     // Build router
@@ -111,7 +113,6 @@ async fn main() -> anyhow::Result<()> {
 
 /// Create the API router with all endpoints
 fn create_router(state: AppState) -> Router {
-    let data_path: PathBuf = state.config.data_dir.clone();
     let books_path: PathBuf = state.config.books_dir();
     let static_path: PathBuf = state.static_dir.clone();
     let assets_path: PathBuf = first_existing_path("public/assets", "assets");
@@ -160,6 +161,7 @@ fn create_router(state: AppState) -> Router {
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/settings", put(handlers::update_settings))
+        .route("/api/poi/:filename", put(handlers::save_poi_file))
         .route_layer(admin_mw);
 
     Router::new()
@@ -169,6 +171,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/settings", get(handlers::get_settings))
         .route("/api/storage", get(handlers::get_storage))
         .route("/api/content/maps", get(handlers::list_maps))
+        .route("/api/maps/tiles/:filename/metadata", get(handlers::serve_mbtiles_metadata))
+        .route("/api/maps/tiles/:filename/:z/:x/:y", get(handlers::serve_mbtile))
         .route("/api/content/books", get(handlers::list_books))
         .route("/api/content/poi", get(handlers::list_poi))
         .route("/api/content/models", get(handlers::list_models))
@@ -202,14 +206,26 @@ fn create_router(state: AppState) -> Router {
         .route("/api/auth/logout", post(auth::logout_handler))
         // Protected (admin) routes
         .merge(protected)
-        // Data file serving (for PMTiles, etc.) - use configured data directory
-        .nest_service("/data", ServeDir::new(data_path))
+        // Data file serving (PMTiles, books, POI, curated catalog). Only the
+        // public content folders are exposed; settings.json,
+        // download_tasks.json, inbox/, models/ and misc/ stay private.
+        .nest_service("/data/maps", ServeDir::new(state_arc.config.maps_dir()))
+        .nest_service("/data/books", ServeDir::new(books_path.clone()))
+        .nest_service("/data/poi", ServeDir::new(state_arc.config.poi_dir()))
+        .route_service(
+            "/data/curated-content.json",
+            ServeFile::new(state_arc.config.curated_content_path()),
+        )
         // Book-serving alias for URL-based reader integrations
         .nest_service("/docs/books", ServeDir::new(books_path))
         // Optional generic public asset passthrough
         .nest_service("/assets", ServeDir::new(assets_path))
         // Static file serving and SPA fallback
-        .nest_service("/static", ServeDir::new(static_path.clone()))
+        .merge(
+            Router::new()
+                .nest_service("/static", ServeDir::new(static_path.clone()))
+                .layer(middleware::from_fn(static_cache_headers)),
+        )
         .fallback(get(handlers::serve_index))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CACHE_CONTROL,
@@ -221,6 +237,26 @@ fn create_router(state: AppState) -> Router {
         ))
         .layer(cors)
         .with_state(state_arc)
+}
+
+/// Vite emits content-hashed bundles under `js/` and `css/`, so they can be
+/// cached forever; a new build produces new filenames referenced by the
+/// (never cached) `index.html`. Everything else under `/static` keeps the
+/// global `no-store` policy.
+async fn static_cache_headers(
+    request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let path = request.uri().path();
+    let is_hashed_bundle = path.starts_with("/static/js/") || path.starts_with("/static/css/");
+    let mut response = next.run(request).await;
+    if is_hashed_bundle && (response.status().is_success() || response.status() == axum::http::StatusCode::NOT_MODIFIED) {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
+    response
 }
 
 /// Log detected CPU SIMD capabilities and size Candle's CPU thread pool.
@@ -289,13 +325,22 @@ fn log_cpu_feature_support() {
 
     #[cfg(target_arch = "x86_64")]
     {
+        let compiled_avx2 = cfg!(target_feature = "avx2");
+        let compiled_fma = cfg!(target_feature = "fma");
+        let runtime_avx2 = std::arch::is_x86_feature_detected!("avx2");
+        let runtime_fma = std::arch::is_x86_feature_detected!("fma");
+
         info!(
             "CPU features (x86_64): compiled[avx2={} fma={}] runtime[avx2={} fma={}]",
-            cfg!(target_feature = "avx2"),
-            cfg!(target_feature = "fma"),
-            std::arch::is_x86_feature_detected!("avx2"),
-            std::arch::is_x86_feature_detected!("fma"),
+            compiled_avx2,
+            compiled_fma,
+            runtime_avx2,
+            runtime_fma,
         );
+
+        if runtime_avx2 && runtime_fma && (!compiled_avx2 || !compiled_fma) {
+            info!("This CPU supports AVX2/FMA, but this binary was not compiled with those features, so quantized inference may run slower. For x86_64 self-builds on known-compatible hardware, rebuild with --build-arg RUST_TARGET_FEATURES=+avx2,+fma. Do not use this flag for images that must also run on older x86_64 CPUs without AVX2/FMA.");
+        }
     }
 }
 
@@ -381,4 +426,213 @@ fn sync_managed_manuals(config: &Config) -> anyhow::Result<()> {
 
 fn is_file_lock_error(error: &std::io::Error) -> bool {
     matches!(error.raw_os_error(), Some(32) | Some(33))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    fn test_state() -> AppState {
+        let data_dir = std::env::temp_dir().join(format!("fyr-router-tests-{}", uuid::Uuid::new_v4()));
+        let config = Config::default_with_data_dir(&data_dir);
+        config.initialize_directories().expect("initialize directories");
+        let config = Arc::new(config);
+
+        AppState {
+            config: Arc::clone(&config),
+            static_dir: data_dir.join("static"),
+            download_manager: Arc::new(DownloadManager::new(&data_dir)),
+            model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
+            settings_manager: Arc::new(SettingsManager::new(&data_dir)),
+            auth_manager: Arc::new(auth::AuthManager::new()),
+            mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
+        }
+    }
+
+    async fn get(app: &Router, uri: &str, range: Option<&str>) -> axum::response::Response {
+        let mut request = Request::get(uri);
+        if let Some(range) = range {
+            request = request.header(header::RANGE, range);
+        }
+        app.clone()
+            .oneshot(request.body(Body::empty()).expect("request"))
+            .await
+            .expect("response")
+    }
+
+    async fn body_bytes(response: axum::response::Response) -> Vec<u8> {
+        axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body")
+            .to_vec()
+    }
+
+    #[tokio::test]
+    async fn data_mount_serves_public_content_only() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(state.config.books_dir().join("guide.md"), "# Guide").expect("write book");
+        fs::write(state.config.poi_dir().join("camps.geojson"), "{}").expect("write poi");
+        fs::write(data_dir.join("settings.json"), "{}").expect("write settings");
+        fs::write(data_dir.join("download_tasks.json"), "{}").expect("write tasks");
+        fs::write(state.config.inbox_dir().join("staged.epub"), "x").expect("write inbox");
+        fs::write(state.config.models_dir().join("model.gguf"), "GGUF").expect("write model");
+        let app = create_router(state);
+
+        for public in [
+            "/data/books/guide.md",
+            "/data/poi/camps.geojson",
+            "/data/curated-content.json",
+        ] {
+            assert_eq!(get(&app, public, None).await.status(), StatusCode::OK, "{public}");
+        }
+
+        for private in [
+            "/data/settings.json",
+            "/data/download_tasks.json",
+            "/data/inbox/staged.epub",
+            "/data/models/model.gguf",
+            "/data/maps/../settings.json",
+            "/api/does-not-exist",
+        ] {
+            assert_eq!(get(&app, private, None).await.status(), StatusCode::NOT_FOUND, "{private}");
+        }
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn mbtiles_tiles_are_served_from_pooled_connections() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let archive = state.config.maps_dir().join("region.mbtiles");
+        {
+            let conn = rusqlite::Connection::open(&archive).expect("create archive");
+            conn.execute_batch(
+                "CREATE TABLE metadata (name TEXT, value TEXT);
+                 CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);
+                 INSERT INTO metadata VALUES ('format', 'png');",
+            )
+            .expect("create schema");
+            // XYZ z=1 x=1 y=0 is TMS row 1.
+            conn.execute(
+                "INSERT INTO tiles VALUES (1, 1, 1, ?1)",
+                [b"\x89PNG-tile".to_vec()],
+            )
+            .expect("insert tile");
+        }
+        let app = create_router(state);
+
+        for _ in 0..3 {
+            let tile = get(&app, "/api/maps/tiles/region.mbtiles/1/1/0", None).await;
+            assert_eq!(tile.status(), StatusCode::OK);
+            assert_eq!(tile.headers()[header::CONTENT_TYPE], "image/png");
+            assert_eq!(body_bytes(tile).await, b"\x89PNG-tile".to_vec());
+        }
+
+        let missing = get(&app, "/api/maps/tiles/region.mbtiles/1/0/0", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        let out_of_range = get(&app, "/api/maps/tiles/region.mbtiles/1/5/0", None).await;
+        assert_eq!(out_of_range.status(), StatusCode::NOT_FOUND);
+
+        let metadata = get(&app, "/api/maps/tiles/region.mbtiles/metadata", None).await;
+        assert_eq!(metadata.status(), StatusCode::OK);
+        assert_eq!(body_bytes(metadata).await, br#"{"format":"png"}"#.to_vec());
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn hashed_static_bundles_are_cached_immutably() {
+        let mut state = test_state();
+        let static_dir = state.config.data_dir.join("static");
+        fs::create_dir_all(static_dir.join("js")).expect("create js dir");
+        fs::create_dir_all(static_dir.join("assets")).expect("create assets dir");
+        fs::write(static_dir.join("js/index-abc123.js"), "console.log(1)").expect("write bundle");
+        fs::write(static_dir.join("assets/fyr-icon.svg"), "<svg/>").expect("write icon");
+        state.static_dir = static_dir;
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+
+        let bundle = get(&app, "/static/js/index-abc123.js", None).await;
+        assert_eq!(bundle.status(), StatusCode::OK);
+        assert_eq!(bundle.headers()[header::CACHE_CONTROL], "public, max-age=31536000, immutable");
+
+        let icon = get(&app, "/static/assets/fyr-icon.svg", None).await;
+        assert_eq!(icon.status(), StatusCode::OK);
+        assert!(icon.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+
+        let missing = get(&app, "/static/js/missing.js", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        assert!(missing.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn restricted_mode_hides_host_paths_from_anonymous_callers() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(state.config.maps_dir().join("region.pmtiles"), "PMTiles").expect("write map");
+        let mut config = (*state.config).clone();
+        config.auth.admin_password = Some("secret".to_string());
+        state.config = Arc::new(config);
+        let token = state.auth_manager.create_session();
+        let app = create_router(state);
+        let data_dir_str = data_dir.display().to_string();
+
+        for uri in ["/api/status", "/api/config", "/api/storage", "/api/content/maps"] {
+            let anonymous = String::from_utf8(body_bytes(get(&app, uri, None).await).await).unwrap();
+            assert!(!anonymous.contains(&data_dir_str), "{uri} leaked a host path: {anonymous}");
+
+            let admin = app
+                .clone()
+                .oneshot(
+                    Request::get(uri)
+                        .header(header::COOKIE, format!("fyr_session={token}"))
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            let admin = String::from_utf8(body_bytes(admin).await).unwrap();
+            assert!(admin.contains(&data_dir_str), "{uri} should show paths to admins: {admin}");
+        }
+
+        let maps = String::from_utf8(body_bytes(get(&app, "/api/content/maps", None).await).await).unwrap();
+        assert!(maps.contains(r#""file_path":"region.pmtiles""#), "{maps}");
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn content_download_streams_with_filename_and_range_support() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let payload: Vec<u8> = (0..=255u8).cycle().take(100_000).collect();
+        fs::write(state.config.misc_dir().join("field notes.zip"), &payload).expect("write misc");
+        let app = create_router(state);
+
+        let full = get(&app, "/api/content/misc/field%20notes.zip/download", None).await;
+        assert_eq!(full.status(), StatusCode::OK);
+        assert_eq!(full.headers()[header::CONTENT_LENGTH], "100000");
+        assert_eq!(full.headers()[header::CONTENT_TYPE], "application/octet-stream");
+        let disposition = full.headers()[header::CONTENT_DISPOSITION].to_str().unwrap().to_string();
+        assert!(disposition.starts_with("attachment; filename=\"field notes.zip\""), "{disposition}");
+        assert!(disposition.contains("filename*=UTF-8''field%20notes.zip"), "{disposition}");
+        assert_eq!(body_bytes(full).await, payload);
+
+        let partial = get(&app, "/api/content/misc/field%20notes.zip/download", Some("bytes=10-19")).await;
+        assert_eq!(partial.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(partial.headers()[header::CONTENT_RANGE], "bytes 10-19/100000");
+        assert_eq!(body_bytes(partial).await, payload[10..20].to_vec());
+
+        let missing = get(&app, "/api/content/misc/absent.zip/download", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
 }

@@ -3,6 +3,7 @@
 # Usage: curl -fsSL https://fyr.guide/install.sh | sh
 #        curl -fsSL https://fyr.guide/install.sh | sh -s -- update
 #        curl -fsSL https://fyr.guide/install.sh | sh -s -- --data-dir /srv/fyr --port 9090
+#        curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy
 #
 # NOTE: This script is POSIX sh-compatible. It is piped via `curl | sh` which
 # bypasses the shebang, so it must work under /bin/sh (dash, bash, busybox sh).
@@ -32,10 +33,13 @@ Usage:
   curl -fsSL https://fyr.guide/install.sh | sh -s -- [options] [tag]
 
 Arguments:
-  latest|dev|<tag>       Docker image tag (default: latest)
+    latest|dev|<tag>       Docker image tag (default: latest, optimized)
   update                 Recreate container with latest image (preserves data)
 
 Options:
+    --legacy               Use the legacy compatibility tag for this platform
+    --pc-legacy            Use the x86_64 legacy compatibility tag
+    --rpi-legacy           Use the arm64 Raspberry Pi legacy compatibility tag
   --data-dir <path>      Bind-mount a host directory as the data volume
   --data-volume <name>   Use a named Docker volume (default: fyr-data)
   --port <number>        Host port to expose (default: 8080)
@@ -44,6 +48,8 @@ Options:
   --help                 Show this help message
 
 Notes:
+    latest/dev/version tags now prefer CPU-optimized images.
+    Use --legacy on older or mixed hardware that needs broader compatibility.
   --data-dir and --data-volume are mutually exclusive.
   If neither is given, a named Docker volume 'fyr-data' is used.
   Settings are persisted in ~/.config/fyr/install.conf for future updates.
@@ -61,11 +67,86 @@ DATA_VOLUME=""
 PORT=""
 ADMIN_PASSWORD=""
 READONLY=false
+LEGACY_MODE=""
+
+resolve_legacy_suffix() {
+    mode="$1"
+    case "$mode" in
+        pc)
+            echo "pc-legacy"
+            ;;
+        rpi)
+            echo "rpi-legacy"
+            ;;
+        *)
+            arch=$(uname -m 2>/dev/null || echo "")
+            case "$arch" in
+                x86_64|amd64)
+                    echo "pc-legacy"
+                    ;;
+                aarch64|arm64)
+                    echo "rpi-legacy"
+                    ;;
+                *)
+                    echo "legacy"
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+apply_legacy_tag() {
+    current_tag="$1"
+    mode="$2"
+    suffix=$(resolve_legacy_suffix "$mode")
+
+    case "$current_tag" in
+        ""|latest)
+            echo "$suffix"
+            ;;
+        dev)
+            echo "dev-$suffix"
+            ;;
+        amd64-avx2)
+            echo "pc-legacy"
+            ;;
+        arm64-dotprod)
+            echo "rpi-legacy"
+            ;;
+        dev-amd64-avx2)
+            echo "dev-pc-legacy"
+            ;;
+        dev-arm64-dotprod)
+            echo "dev-rpi-legacy"
+            ;;
+        *-legacy|*pc-legacy|*rpi-legacy)
+            echo "$current_tag"
+            ;;
+        v*)
+            echo "${current_tag}-$suffix"
+            ;;
+        *)
+            echo "$current_tag"
+            ;;
+    esac
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --help|-h)
             show_help
+            ;;
+        --legacy)
+            LEGACY_MODE="auto"
+            shift
+            ;;
+        --pc-legacy)
+            LEGACY_MODE="pc"
+            shift
+            ;;
+        --rpi-legacy)
+            LEGACY_MODE="rpi"
+            shift
             ;;
         update)
             IS_UPDATE=true
@@ -158,6 +239,10 @@ fi
 [ -z "$PORT" ] && PORT="$DEFAULT_PORT"
 if [ -z "$DATA_VOLUME" ] && [ -z "$DATA_DIR" ]; then
     DATA_VOLUME="$DEFAULT_DATA_VOLUME"
+fi
+
+if [ -n "$LEGACY_MODE" ]; then
+    TAG=$(apply_legacy_tag "$TAG" "$LEGACY_MODE")
 fi
 
 # Validate mutual exclusivity

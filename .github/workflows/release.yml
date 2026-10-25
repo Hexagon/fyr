@@ -15,11 +15,13 @@ jobs:
   preflight:
     name: Stable Preflight
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release_tag.outputs.tag }}
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -57,7 +59,7 @@ jobs:
         run: cargo check -p server
 
       - name: Setup Node (frontend)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -72,7 +74,7 @@ jobs:
         run: npm run build
 
       - name: Setup Node (docs)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -86,53 +88,108 @@ jobs:
         working-directory: docs/build
         run: npm run build
 
-  publish-stable-image:
-    name: Publish Stable Docker Image
-    runs-on: ubuntu-latest
+  build-stable-image:
+    name: Build Stable ${{ matrix.name }} Image
+    runs-on: ${{ matrix.runner }}
     needs: preflight
     permissions:
-      contents: write
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - name: amd64-avx2
+            runner: ubuntu-latest
+            platform: linux/amd64
+            build_args: "RUST_TARGET_FEATURES=+avx2,+fma"
+            cache_scope: fyr-docker-amd64-avx2
+          - name: arm64-dotprod
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            build_args: "RUST_TARGET_FEATURES=+dotprod"
+            cache_scope: fyr-docker-arm64-dotprod
+          - name: pc-legacy
+            runner: ubuntu-latest
+            platform: linux/amd64
+            build_args: ""
+            cache_scope: fyr-docker-pc-legacy
+          - name: rpi-legacy
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            build_args: ""
+            cache_scope: fyr-docker-rpi-legacy
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Resolve Release Tag
-        id: release_tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.version }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push Stable Multi-Arch Image
-        uses: docker/build-push-action@v6
+      - name: Build and Push Stable ${{ matrix.name }} Image
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=fyr-docker
-          cache-to: type=gha,mode=max,scope=fyr-docker
+          platforms: ${{ matrix.platform }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           tags: |
-            hexagon/fyr:${{ steps.release_tag.outputs.tag }}
-            hexagon/fyr:latest
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-${{ matrix.name }}
+
+  publish-stable-manifests:
+    name: Publish Stable Manifests
+    runs-on: ubuntu-latest
+    needs:
+      - preflight
+      - build-stable-image
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Publish Stable Optimized Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:${{ needs.preflight.outputs.tag }} \
+            -t hexagon/fyr:latest \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-amd64-avx2 \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-arm64-dotprod
+
+      - name: Publish Stable Legacy Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:${{ needs.preflight.outputs.tag }}-legacy \
+            -t hexagon/fyr:legacy \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-pc-legacy \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-rpi-legacy
+
+      - name: Add per-variant stable tags (pc-legacy, rpi-legacy)
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:pc-legacy \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-pc-legacy
+          docker buildx imagetools create \
+            -t hexagon/fyr:rpi-legacy \
+            hexagon/fyr:${{ needs.preflight.outputs.tag }}-rpi-legacy
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
+          tag_name: ${{ needs.preflight.outputs.tag }}
           generate_release_notes: true

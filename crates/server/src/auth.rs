@@ -168,6 +168,24 @@ pub fn extract_session_token(headers: &axum::http::HeaderMap) -> Option<String> 
     None
 }
 
+/// Return `true` when the caller may see host-level details such as
+/// filesystem paths, bind host and disk capacity.
+///
+/// Open mode: everyone. Password mode: only valid admin sessions.
+/// Read-only mode: nobody (there is no admin in strict read-only mode).
+pub fn can_view_system_details(state: &AppState, headers: &axum::http::HeaderMap) -> bool {
+    let auth_cfg = &state.config.auth;
+    if auth_cfg.readonly {
+        return false;
+    }
+    if auth_cfg.admin_password.is_none() {
+        return true;
+    }
+    extract_session_token(headers)
+        .map(|token| state.auth_manager.is_valid_session(&token))
+        .unwrap_or(false)
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -363,6 +381,81 @@ pub async fn logout_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ai::ModelManager;
+    use crate::settings::SettingsManager;
+    use axum::body::Body;
+    use axum::http::Request;
+    use axum::middleware;
+    use axum::routing::post;
+    use axum::Router;
+    use downloader::DownloadManager;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tower::ServiceExt;
+    use types::Config;
+
+    fn test_data_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("fyr-auth-tests-{unique}"))
+    }
+
+    fn test_state(readonly: bool, admin_password: Option<&str>) -> Arc<AppState> {
+        let data_dir = test_data_dir();
+        std::fs::create_dir_all(&data_dir).expect("create test data dir");
+
+        let mut config = Config::default_with_data_dir(&data_dir);
+        config.auth.readonly = readonly;
+        config.auth.admin_password = admin_password.map(ToString::to_string);
+        let config = Arc::new(config);
+
+        Arc::new(AppState {
+            config: Arc::clone(&config),
+            static_dir: PathBuf::from("."),
+            download_manager: Arc::new(DownloadManager::new(&data_dir)),
+            model_manager: Arc::new(ModelManager::new(config)),
+            settings_manager: Arc::new(SettingsManager::new(&data_dir)),
+            auth_manager: Arc::new(AuthManager::new()),
+            mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
+        })
+    }
+
+    fn protected_test_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route("/mutate", post(|| async { StatusCode::OK }))
+            .route_layer(middleware::from_fn_with_state(
+                Arc::clone(&state),
+                require_admin,
+            ))
+            .with_state(state)
+    }
+
+    #[test]
+    fn system_details_visibility_follows_access_mode() {
+        let open = test_state(false, None);
+        assert!(can_view_system_details(&open, &axum::http::HeaderMap::new()));
+
+        let protected = test_state(false, Some("secret"));
+        assert!(!can_view_system_details(&protected, &axum::http::HeaderMap::new()));
+        let token = protected.auth_manager.create_session();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
+        );
+        assert!(can_view_system_details(&protected, &headers));
+
+        let readonly = test_state(true, Some("secret"));
+        let token = readonly.auth_manager.create_session();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
+        );
+        assert!(!can_view_system_details(&readonly, &headers));
+    }
 
     #[test]
     fn rate_limit_blocks_after_max_attempts() {
@@ -411,5 +504,58 @@ mod tests {
     fn extract_session_token_missing() {
         let headers = axum::http::HeaderMap::new();
         assert_eq!(extract_session_token(&headers), None);
+    }
+
+    #[tokio::test]
+    async fn require_admin_rejects_when_readonly() {
+        let state = test_state(true, Some("secret"));
+        let app = protected_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::post("/mutate")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn require_admin_rejects_without_session_in_admin_mode() {
+        let state = test_state(false, Some("secret"));
+        let app = protected_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::post("/mutate")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn require_admin_allows_valid_session_in_admin_mode() {
+        let state = test_state(false, Some("secret"));
+        let token = state.auth_manager.create_session();
+        let app = protected_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::post("/mutate")
+                    .header(header::COOKIE, format!("{SESSION_COOKIE_NAME}={token}"))
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

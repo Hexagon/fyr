@@ -2,6 +2,7 @@
 
 use crate::ai::ModelManager;
 use crate::auth::AuthManager;
+use crate::mbtiles::MbtilesPool;
 use crate::settings::SettingsManager;
 use types::Config;
 use downloader::DownloadManager;
@@ -16,4 +17,6 @@ pub struct AppState {
     pub model_manager: Arc<ModelManager>,
     pub settings_manager: Arc<SettingsManager>,
     pub auth_manager: Arc<AuthManager>,
+    /// Reusable read-only SQLite connections and cached tile format per MBTiles archive.
+    pub mbtiles_pool: Arc<MbtilesPool>,
 }

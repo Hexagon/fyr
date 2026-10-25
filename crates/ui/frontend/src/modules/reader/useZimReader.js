@@ -49,112 +49,163 @@ const rewriteSrcset = (value, mapUrl) => {
 
 const sanitizeNativeZimBodyHtml = (html) => {
   return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true }
+    USE_PROFILES: { html: true },
+    ADD_TAGS: [
+      'figure', 'figcaption', 'main', 'nav', 'header', 'footer',
+      'section', 'article', 'aside', 'details', 'summary', 'dialog',
+      'data', 'time', 'mark', 'ruby', 'rt', 'rp', 'wbr',
+      'center', 'font', 'basefont', 'big', 'small', 'strike', 'tt', 'u',
+      'nobr', 'noembed', 'plaintext', 'listing', 'xmp', 'multicol',
+      'nextid', 'spacer'
+    ],
+    ADD_ATTR: [
+      'class', 'id', 'style', 'role',
+      'colspan', 'rowspan', 'scope', 'headers',
+      'align', 'valign', 'width', 'height', 'border',
+      'cellpadding', 'cellspacing', 'bgcolor',
+      'lang', 'dir', 'title', 'alt',
+      'srcset', 'sizes', 'media', 'type', 'rel',
+      'target', 'loading', 'decoding', 'fetchpriority',
+      'data-*', 'aria-*'
+    ],
+    ALLOW_DATA_ATTR: true,
+    ALLOW_ARIA_ATTR: true,
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: [
+      'onerror', 'onload', 'onclick', 'onmouseover',
+      'onfocus', 'onblur', 'onchange', 'onsubmit',
+      'onreset', 'onselect', 'onkeydown', 'onkeypress', 'onkeyup'
+    ]
   })
 }
 
-const ZIM_ARTICLE_LAYOUT_CSS = [
-  'html,body{height:auto;min-height:100vh;overflow-x:hidden!important}',
-  'body{margin:0;padding:1.25rem;color:#202122;',
-  'font-family:Georgia,"Times New Roman",Times,serif;font-size:0.98rem;',
-  'line-height:1.62;overflow-x:hidden}',
-  'a{color:#3366cc;text-decoration:none}',
-  'a:hover{color:#003399;text-decoration:underline}',
-  'p{margin:0.45rem 0 0.7rem}',
-  'h1,h2,h3,h4{font-family:"Linux Libertine","Times New Roman",Times,serif;',
-  'font-weight:500;line-height:1.25;border-bottom:1px solid #eaecf0;',
-  'margin:1rem 0 0.6rem;padding-bottom:0.15rem}',
-  'ul,ol{margin:0.55rem 0 0.85rem 1.25rem}',
-  'li{margin-bottom:0.25rem}',
-  'img{max-width:100%;height:auto;display:block}',
-  'figure{margin:0}',
-  'figcaption{font-size:0.78rem;line-height:1.3;color:#3b3f45}',
-  'table{max-width:100%;border-collapse:collapse}',
-  'td,th{border:1px solid #d8dde3;padding:0.32rem 0.45rem;vertical-align:top}',
-  'table:not(.infobox):not(.vertical-navbox):not(.wikitable){display:block;overflow-x:auto}',
-  '.thumb,.infobox,.gallery{max-width:100%}',
-  '.thumb{margin:0.4rem 0 0.75rem}',
-  '.thumb img{border:1px solid #c8ccd1;padding:2px;background:#ffffff}',
-  '.infobox{float:right;margin:0 0 0.8rem 0.9rem;font-size:0.86rem;',
-  'width:min(320px,100%);background:#f8f9fa}',
-  '.infobox td,.infobox th{border-color:#c8ccd1}',
-  'a.item{display:inline-flex;width:172px;max-width:100%;margin:0.32rem;',
-  'border:1px solid #c8ccd1;border-radius:2px;overflow:hidden;',
-  'vertical-align:top;color:#202122;background:#f8f9fa}',
-  'a.item:hover{border-color:#a2a9b1;background:#f1f3f5}',
-  'a.item figure{display:flex;flex-direction:column;width:100%}',
-  'a.item img{width:100%;aspect-ratio:4/3;object-fit:cover}',
-  'a.item figcaption{padding:0.42rem 0.5rem}'
-].join('')
+const ALLOWED_ROOT_ATTRS = new Set(['class', 'id', 'lang', 'dir', 'style'])
 
-const ZIM_ARTICLE_PAGE_RESET_CSS = [
-  'html{background:#ffffff!important}',
-  'body{background:#ffffff!important}'
-].join('')
+const escapeHtmlAttribute = (value) => {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
-const buildZimSandboxDocument = (headHtml, bodyHtml) => {
+const sanitizeRootStyleValue = (value) => {
+  const escaped = escapeHtmlAttribute(value)
+  const sanitized = DOMPurify.sanitize(`<div style="${escaped}"></div>`, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['style'],
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: [
+      'onerror', 'onload', 'onclick', 'onmouseover',
+      'onfocus', 'onblur', 'onchange', 'onsubmit',
+      'onreset', 'onselect', 'onkeydown', 'onkeypress', 'onkeyup'
+    ]
+  })
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(sanitized, 'text/html')
+  return doc.body.firstElementChild?.getAttribute('style') || ''
+}
+
+const extractSanitizedRootAttributes = (element) => {
+  const attrs = {}
+  if (!element?.attributes) return attrs
+
+  Array.from(element.attributes).forEach((attr) => {
+    const name = String(attr.name || '').toLowerCase()
+    if (!ALLOWED_ROOT_ATTRS.has(name)) return
+
+    const rawValue = String(attr.value || '').trim()
+    if (!rawValue) return
+
+    if (name === 'style') {
+      const styleValue = sanitizeRootStyleValue(rawValue)
+      if (styleValue) attrs[name] = styleValue
+      return
+    }
+
+    attrs[name] = rawValue
+  })
+
+  return attrs
+}
+
+const buildRootAttributeString = (attrs) => {
+  const entries = Object.entries(attrs || {})
+  if (!entries.length) return ''
+  return entries.map(([name, value]) => ` ${name}="${escapeHtmlAttribute(value)}"`).join('')
+}
+
+const buildZimSandboxDocument = (headHtml, bodyHtml, rootAttrs = {}) => {
+  const readerDefaults =
+    '<style>' +
+    'a:any-link{color:#0000ee;text-decoration:underline}' +
+    'a:visited{color:#551a8b}' +
+    '</style>'
+
+  const readerStructure =
+    '<style>' +
+    'html{height:100%;overflow-x:auto;overflow-y:auto!important;scrollbar-width:auto}' +
+    'body{min-height:100%;overflow-x:visible;overflow-y:auto!important;scrollbar-width:auto}' +
+    'body,main,article,section,div{scrollbar-width:auto}' +
+    'body *{scrollbar-width:auto}' +
+    '::-webkit-scrollbar{width:12px;height:12px}' +
+    'body *::-webkit-scrollbar{width:12px!important;height:12px!important}' +
+    '::-webkit-scrollbar-track{background:#f1f1f1!important}' +
+    'body *::-webkit-scrollbar-track{background:#f1f1f1!important}' +
+    '::-webkit-scrollbar-thumb{background:#767676!important;border:3px solid #f1f1f1;border-radius:6px}' +
+    'body *::-webkit-scrollbar-thumb{background:#767676!important;border:3px solid #f1f1f1;border-radius:6px}' +
+    '</style>'
+
   const navScript =
     '<script>' +
-    'function fyrNotifyHeight() {' +
-    '  var body = document.body;' +
-    '  var docEl = document.documentElement;' +
-    '  var height = Math.max(' +
-    '    body ? body.scrollHeight : 0,' +
-    '    body ? body.offsetHeight : 0,' +
-    '    docEl ? docEl.scrollHeight : 0,' +
-    '    docEl ? docEl.offsetHeight : 0' +
-    '  );' +
-    '  window.parent.postMessage({ type: "zim-height", height: height }, location.origin);' +
-    '}' +
     'document.addEventListener("click", function(e) {' +
     '  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;' +
     '  var el = e.target;' +
     '  while (el && el.tagName !== "A") { el = el.parentElement; }' +
     '  if (!el) return;' +
     '  var href = el.getAttribute("href");' +
-    '  if (!href || href.charAt(0) === "#") return;' +
+    '  if (!href) return;' +
+    '  if (href.charAt(0) === "#") {' +
+    '    e.preventDefault();' +
+    '    e.stopPropagation();' +
+    '    var targetId;' +
+    '    try { targetId = decodeURIComponent(href.slice(1)); } catch (ex) { targetId = href.slice(1); }' +
+    '    var target = document.getElementById(targetId) || document.getElementsByName(targetId)[0];' +
+    '    if (target) target.scrollIntoView();' +
+    '    return;' +
+    '  }' +
     '  var lower = href.toLowerCase();' +
-    '  if (lower.indexOf("mailto:") === 0 || lower.indexOf("javascript:") === 0' +
-    '      || lower.indexOf("data:") === 0 || lower.indexOf("vbscript:") === 0) return;' +
-    '  try {' +
-    '    var url = new URL(href, location.href);' +
-    '    if (url.origin !== location.origin) return;' +
-    '  } catch (ex) { return; }' +
+    '  if (href.indexOf("//") === 0 || /^[a-z][a-z0-9+.-]*:/i.test(href)' +
+    '      || lower.indexOf("javascript:") === 0 || lower.indexOf("data:") === 0' +
+    '      || lower.indexOf("vbscript:") === 0) return;' +
     '  e.preventDefault();' +
     '  e.stopPropagation();' +
-    '  window.parent.postMessage({ type: "zim-navigate", href: href }, location.origin);' +
+    '  window.parent.postMessage({ type: "zim-navigate", href: href }, "*");' +
     '}, true);' +
-    'window.addEventListener("load", fyrNotifyHeight);' +
-    'window.addEventListener("resize", fyrNotifyHeight);' +
-    'new MutationObserver(function() { fyrNotifyHeight(); }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });' +
-    'setTimeout(fyrNotifyHeight, 0);' +
-    'setTimeout(fyrNotifyHeight, 300);' +
-    'setTimeout(fyrNotifyHeight, 1200);' +
     '</script>'
 
-  const scrollOverride =
-    '<style>' +
-    'html,body{overflow-x:hidden!important;overflow-y:visible;overscroll-behavior:contain}' +
-    'body{max-width:100%;}' +
-    '</style>'
+  const htmlAttrs = buildRootAttributeString(rootAttrs.html)
+  const bodyAttrs = buildRootAttributeString(rootAttrs.body)
 
   return (
-    '<!DOCTYPE html><html><head>' +
+    `<!DOCTYPE html><html${htmlAttrs}><head>` +
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    readerDefaults +
     headHtml +
-    `<style>${ZIM_ARTICLE_LAYOUT_CSS}</style>` +
-    `<style>${ZIM_ARTICLE_PAGE_RESET_CSS}</style>` +
-    scrollOverride +
+    readerStructure +
     navScript +
-    '</head><body>' +
+    `</head><body${bodyAttrs}>` +
     bodyHtml +
     '</body></html>'
   )
 }
 
 const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
+  // Step 1: Parse the raw HTML to extract CSS and rewrite URLs BEFORE sanitization.
+  // DOMPurify strips <style> and <link> tags, so we must extract them first.
+  const rawHtml = String(html || '')
   const parser = new DOMParser()
-  const doc = parser.parseFromString(String(html || ''), 'text/html')
+  const doc = parser.parseFromString(rawHtml, 'text/html')
 
   const mapAssetUrl = (raw) => {
     if (!raw) return raw
@@ -179,12 +230,9 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
 
     // Detect domain-prefixed ZIM paths (e.g. "www.nhs.uk/medicines/alogliptin/")
     // These are stored as absolute paths in the ZIM archive, not relative to the current article.
-    // new URL() would interpret "www.nhs.uk" as a path segment, so we detect this pattern
-    // by checking if the href starts with a known domain-like pattern (contains a dot before
-    // the first slash, or starts with a hostname-like prefix).
     const hasDomainPrefix = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/|$)/.test(raw)
     if (hasDomainPrefix) {
-      // Treat as an absolute ZIM path — strip any leading slash and use directly
+      // Treat as an absolute ZIM path - strip any leading slash and use directly
       const normalizedPath = decodePathDeep(raw).replace(/^\/+/, '')
       if (!normalizedPath) return raw
       return normalizedPath
@@ -201,6 +249,7 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     return `${normalizedPath}${resolved.search}${resolved.hash}`
   }
 
+  // Extract CSS from the raw DOM before sanitization strips it
   const injectedHeadAssets = []
 
   doc.querySelectorAll('link[rel="stylesheet"][href]').forEach((link) => {
@@ -216,6 +265,7 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     injectedHeadAssets.push(`<style>${style.textContent || ''}</style>`)
   })
 
+  // Rewrite URLs in the raw DOM
   doc.querySelectorAll('a[href]').forEach((anchor) => {
     const href = anchor.getAttribute('href')
     anchor.setAttribute('href', mapArticleHref(href))
@@ -231,9 +281,27 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
     node.setAttribute('srcset', rewriteSrcset(srcset, mapAssetUrl))
   })
 
+  const rootAttrs = {
+    html: extractSanitizedRootAttributes(doc.documentElement),
+    body: extractSanitizedRootAttributes(doc.body)
+  }
+
+  // Step 2: Serialize the body with XMLSerializer to preserve DOM structure
+  // (whitespace text nodes, attribute quoting, self-closing tags).
+  // doc.body.innerHTML normalizes the HTML, which breaks layouts that depend on
+  // precise DOM structure (e.g. Wikipedia mosaic tiles using inline-flex).
+  const serializer = new XMLSerializer()
+  const rawBodyHtml = doc.body
+    ? serializer.serializeToString(doc.body).replace(/^<body[^>]*>/, '').replace(/<\/body>$/, '')
+    : ''
+
+  // Step 3: Sanitize only the body HTML (CSS is already extracted in headHtml)
+  const bodyHtml = sanitizeNativeZimBodyHtml(rawBodyHtml)
+
   return {
     headHtml: injectedHeadAssets.join(''),
-    bodyHtml: doc.body.innerHTML
+    bodyHtml,
+    rootAttrs
   }
 }
 
@@ -259,8 +327,6 @@ export const useZimReader = () => {
         mode: 'native',
         supports_native_render: true,
         supports_search: true,
-        legacy_bridge_available: false,
-        legacy_bridge_url: '',
         archive_url: descriptor.content_url
       }))
 
@@ -271,7 +337,6 @@ export const useZimReader = () => {
 
   const loadNativeArticle = async (filename, path, apiService) => {
     // Extract hash fragment from the path before sending to the server
-    // (hashes are client-side only and would be stripped by the browser)
     let hash = ''
     let cleanPath = path
     if (path) {
@@ -293,7 +358,7 @@ export const useZimReader = () => {
 
     nativeArticle.value = {
       ...native,
-      content: buildZimSandboxDocument(rendered.headHtml, sanitizeNativeZimBodyHtml(rendered.bodyHtml))
+      content: buildZimSandboxDocument(rendered.headHtml, rendered.bodyHtml, rendered.rootAttrs)
     }
 
     return nativeArticle.value

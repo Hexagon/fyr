@@ -26,15 +26,22 @@
     irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
 .EXAMPLE
     irm https://fyr.guide/install.ps1 | iex; Install-Fyr -DataDir C:\fyr-data -Port 9090
+.EXAMPLE
+    irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy
 #>
+
 
 param(
     [string]$Tag = "",
     [switch]$Update,
+    [switch]$Legacy,
+    [switch]$PcLegacy,
+    [switch]$RpiLegacy,
     [string]$DataDir = "",
     [string]$DataVolume = "",
     [string]$Port = "",
-    [string]$AdminPassword = "",
+    [Alias('AdminPassword')]
+    [string]$AdminSecret = "",
     [switch]$ReadOnly,
     [switch]$Help
 )
@@ -62,8 +69,11 @@ Usage:
   irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
 
 Parameters:
-  -Tag <tag>             Docker image tag (default: latest)
+    -Tag <tag>             Docker image tag (default: latest, optimized)
   -Update                Recreate container with latest image (preserves data)
+    -Legacy                Use the legacy compatibility tag for this platform
+    -PcLegacy              Use the x86_64 legacy compatibility tag
+    -RpiLegacy             Use the arm64 Raspberry Pi legacy compatibility tag
   -DataDir <path>        Bind-mount a host directory as the data volume
   -DataVolume <name>     Use a named Docker volume (default: fyr-data)
   -Port <number>         Host port to expose (default: 8080)
@@ -72,11 +82,49 @@ Parameters:
   -Help                  Show this help message
 
 Notes:
+  latest/dev/version tags now prefer CPU-optimized images.
+  Use -Legacy on older or mixed hardware that needs broader compatibility.
   -DataDir and -DataVolume are mutually exclusive.
   If neither is given, a named Docker volume 'fyr-data' is used.
   Settings are persisted in `$env:APPDATA\fyr\install.conf for future updates.
 "@
     return
+}
+
+function Resolve-LegacySuffix {
+    param([ValidateSet('auto','pc','rpi')] [string]$Mode = 'auto')
+
+    switch ($Mode) {
+        'pc' { return 'pc-legacy' }
+        'rpi' { return 'rpi-legacy' }
+        default {
+            switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
+                'X64' { return 'pc-legacy' }
+                'Arm64' { return 'rpi-legacy' }
+                default { return 'legacy' }
+            }
+        }
+    }
+}
+
+function Resolve-LegacyTag {
+    param(
+        [string]$CurrentTag,
+        [ValidateSet('auto','pc','rpi')] [string]$Mode = 'auto'
+    )
+
+    $suffix = Resolve-LegacySuffix -Mode $Mode
+    switch -Regex ($CurrentTag) {
+        '^$|^latest$' { return $suffix }
+        '^dev$' { return "dev-$suffix" }
+        '^amd64-avx2$' { return 'pc-legacy' }
+        '^arm64-dotprod$' { return 'rpi-legacy' }
+        '^dev-amd64-avx2$' { return 'dev-pc-legacy' }
+        '^dev-arm64-dotprod$' { return 'dev-rpi-legacy' }
+        'legacy|pc-legacy|rpi-legacy$' { return $CurrentTag }
+        '^v.+$' { return "$CurrentTag-$suffix" }
+        default { return $CurrentTag }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -110,6 +158,11 @@ if ($DataDir -and $DataVolume) {
     return
 }
 
+if ($Legacy -or $PcLegacy -or $RpiLegacy) {
+    $legacyMode = if ($PcLegacy) { 'pc' } elseif ($RpiLegacy) { 'rpi' } else { 'auto' }
+    $Tag = Resolve-LegacyTag -CurrentTag $Tag -Mode $legacyMode
+}
+
 # Write config for next run
 if (-not (Test-Path $ConfigDir)) {
     New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
@@ -119,7 +172,7 @@ $ConfigData = @{
     data_volume         = $DataVolume
     port                = $Port
     tag                 = $Tag
-    admin_password_set  = [bool]$AdminPassword
+    admin_password_set  = [bool]$AdminSecret
     readonly            = [bool]$ReadOnly
 }
 $ConfigData | ConvertTo-Json | Set-Content $ConfigFile -Encoding UTF8
@@ -194,8 +247,8 @@ $EnvFlags = @(
     "-e", "FYR_HOST=0.0.0.0",
     "-e", "DATA_DIR=/data"
 )
-if ($AdminPassword) {
-    $EnvFlags += "-e", "FYR_ADMIN_PASSWORD=${AdminPassword}"
+if ($AdminSecret) {
+    $EnvFlags += "-e", "FYR_ADMIN_PASSWORD=${AdminSecret}"
 }
 if ($ReadOnly) {
     $EnvFlags += "-e", "FYR_READONLY=true"

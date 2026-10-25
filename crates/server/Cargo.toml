@@ -8,12 +8,12 @@ license.workspace = true
 [dependencies]
 types = { path = "../types" }
 downloader = { path = "../downloader" }
+tower = { workspace = true, features = ["util"] }
 
 tokio.workspace = true
 axum = { workspace = true, features = ["multipart"] }
 serde.workspace = true
 serde_json.workspace = true
-tower.workspace = true
 tower-http = { workspace = true, features = ["set-header"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -21,7 +21,6 @@ walkdir.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-futures.workspace = true
 tokio-stream.workspace = true
 candle-core.workspace = true
 candle-nn.workspace = true
@@ -29,6 +28,7 @@ candle-transformers.workspace = true
 tokenizers = "0.22"
 zim = "0.5"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+rusqlite = { version = "=0.39.0", features = ["bundled"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"

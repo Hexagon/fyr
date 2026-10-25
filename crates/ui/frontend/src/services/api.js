@@ -116,9 +116,7 @@ export const apiService = {
     return response.data || {
       module: 'fyr-unified-reader',
       version: '0.1',
-      formats: [],
-      legacy_bridge_available: false,
-      legacy_bridge_url: ''
+      formats: []
     }
   },
 
@@ -182,6 +180,17 @@ export const apiService = {
     const response = await api.get('/content/poi')
     return { data: mapContentArray(response.data.value || response.data) }
   },
+  readPoi: async (filename) => {
+    const response = await axios.get(`/data/poi/${encodeURIComponent(filename)}`, {
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: { Accept: 'application/json' }
+    })
+    return response.data
+  },
+  savePoi: async (filename, data) => {
+    const response = await api.put(`/poi/${encodeURIComponent(filename)}`, data)
+    return response.data
+  },
   getModels: async () => {
     const response = await api.get('/content/models')
     return { data: mapContentArray(response.data.value || response.data) }
@@ -233,36 +242,58 @@ export const apiService = {
 
     return { data: payload }
   },
-  uploadFile: async (file) => {
-    const formData = new FormData()
-    formData.append('file', file)
+  uploadFile: (file, onProgress, abortHandle) => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file', file)
 
-    const response = await fetch('/api/import/upload', {
-      method: 'POST',
-      body: formData,
-      cache: 'no-store'
-    })
+      const xhr = new XMLHttpRequest()
 
-    let payload = null
-    const responseType = response.headers.get('content-type') || ''
+      xhr.timeout = REQUEST_TIMEOUT_MS
 
-    if (responseType.includes('application/json')) {
-      payload = await response.json()
-    } else {
-      const text = await response.text()
-      payload = text ? { message: text } : null
-    }
-
-    if (!response.ok) {
-      throw {
-        response: {
-          status: response.status,
-          data: payload
-        }
+      if (abortHandle) {
+        abortHandle.abort = () => xhr.abort()
       }
-    }
 
-    return { data: payload }
+      if (typeof onProgress === 'function') {
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            onProgress(event.loaded, event.total)
+          }
+        })
+      }
+
+      xhr.addEventListener('load', () => {
+        let payload = null
+        const responseType = xhr.getResponseHeader('content-type') || ''
+        if (responseType.includes('application/json')) {
+          try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
+        } else if (xhr.responseText) {
+          payload = { message: xhr.responseText }
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ data: payload })
+        } else {
+          reject({ response: { status: xhr.status, data: payload } })
+        }
+      })
+
+      xhr.addEventListener('error', () => {
+        reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
+      })
+
+      xhr.addEventListener('timeout', () => {
+        reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
+      })
+
+      xhr.addEventListener('abort', () => {
+        reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
+      })
+
+      xhr.open('POST', '/api/import/upload')
+      xhr.send(formData)
+    })
   },
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
   createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),

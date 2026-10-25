@@ -52,6 +52,7 @@ Rules to always respect:
 4. **`FYR_READONLY` is absolute** — it returns `403` even if a valid session cookie is present.
 5. **Session tokens** are UUIDs stored in-memory (no persistence across restarts), set as HttpOnly cookies.
 6. Frontend components that reveal sensitive system information (storage paths, disk usage) must also check `isAdminLocked()` from `crates/ui/frontend/src/services/auth.js`.
+7. Public endpoints must not leak host details (filesystem paths, bind host, disk capacity) in restricted modes: gate them with `auth::can_view_system_details` as `/api/status`, `/api/config`, `/api/storage`, content listings and download task responses do.
 
 See `docs/developer/DEVELOPER_MANUAL.md § 3.5` for the full architecture description.
 
@@ -129,6 +130,7 @@ Forbidden bashisms:
 
 These steps are in addition to the per-PR validation in the Development Workflow section above.
 
+- bump `version` in the workspace `Cargo.toml`; update `crates/ui/frontend/package.json` `version` to match; update any version references in [docs/site/index.html](docs/site/index.html)
 - manual docs reviewed
 - docker build succeeds
 
@@ -137,3 +139,14 @@ These steps are in addition to the per-PR validation in the Development Workflow
 - Rust: use stable toolchain (Docker uses `rust:bookworm`).
 - Node.js: CI workflows use Node `24`.
 - Prefer matching CI toolchain versions locally when troubleshooting build drift.
+
+### Automatic Frontend Build
+
+`crates/server/build.rs` automatically runs `npm ci && npm run build` in `crates/ui/frontend/` before compiling the Rust server binary. This means a single command builds everything:
+
+```sh
+cargo build -p server          # debug build
+cargo build --release -p server  # release build
+```
+
+The frontend output goes to `public/static/` (configured in `vite.config.js`). The build script only re-runs when frontend source files change, thanks to `cargo:rerun-if-changed` directives.

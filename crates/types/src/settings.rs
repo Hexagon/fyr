@@ -18,11 +18,3 @@ pub struct AppSettings {
     pub modules: HashMap<String, Value>,
 }
 
-impl AppSettings {
-    pub fn with_location(location: Option<GeoPosition>) -> Self {
-        Self {
-            location,
-            modules: HashMap::new(),
-        }
-    }
-}

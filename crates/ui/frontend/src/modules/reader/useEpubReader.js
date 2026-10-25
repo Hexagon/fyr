@@ -60,14 +60,9 @@ export const useEpubReader = () => {
     renditionObj.themes.select('default')
   }
 
-  const resize = () => {
-    rendition.value?.resize()
-  }
-
   return {
     book,
     open,
-    resize,
     dispose
   }
 }

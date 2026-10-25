@@ -26,8 +26,10 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
+use tower::ServiceExt;
 use tracing::{error, warn};
 use types::{AppSettings, ContentMetadata, ContentType, DownloadSource, GeoPosition};
+use uuid::Uuid;
 use walkdir::WalkDir;
 use zim::{DirectoryEntry, MimeType, Namespace, Zim};
 
@@ -136,8 +138,6 @@ pub struct ReaderCapabilitiesResponse {
     pub module: String,
     pub version: String,
     pub formats: Vec<ReaderFormatCapabilities>,
-    pub legacy_bridge_available: bool,
-    pub legacy_bridge_url: String,
 }
 
 #[derive(Serialize)]
@@ -154,8 +154,6 @@ pub struct ZimReaderCapabilitiesResponse {
     pub mode: String,
     pub supports_native_render: bool,
     pub supports_search: bool,
-    pub legacy_bridge_available: bool,
-    pub legacy_bridge_url: String,
     pub archive_url: String,
 }
 
@@ -206,42 +204,62 @@ pub struct ReaderOpenResponse {
 }
 
 /// GET /api/status — Server status and content inventory
-pub async fn status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
-    let maps_count = count_files(state.config.maps_dir());
-    let books_count = count_files(state.config.books_dir());
-    let poi_count = count_files(state.config.poi_dir());
-    let models_count = count_files(state.config.models_dir());
-    let misc_count = count_files(state.config.misc_dir());
+pub async fn status(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<StatusResponse>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    let config = Arc::clone(&state.config);
+    let content_count = run_blocking(move || {
+        Ok(ContentCountResponse {
+            maps: count_files(config.maps_dir()),
+            books: count_files(config.books_dir()),
+            poi: count_files(config.poi_dir()),
+            models: count_files(config.models_dir()),
+            misc: count_files(config.misc_dir()),
+        })
+    })
+    .await?;
 
-    Json(StatusResponse {
-        version: "0.1.0".to_string(),
+    Ok(Json(StatusResponse {
+        version: env!("CARGO_PKG_VERSION").to_string(),
         status: "running".to_string(),
-        data_dir: state.config.data_dir.display().to_string(),
-        content_count: ContentCountResponse {
-            maps: maps_count,
-            books: books_count,
-            poi: poi_count,
-            models: models_count,
-            misc: misc_count,
+        data_dir: visible_path(show_paths, &state.config.data_dir),
+        content_count,
+    }))
+}
+
+/// GET /api/config — Current configuration
+pub async fn config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<ConfigResponse> {
+    let show = crate::auth::can_view_system_details(&state, &headers);
+    let config = &state.config;
+    Json(ConfigResponse {
+        data_dir: visible_path(show, &config.data_dir),
+        server_host: if show { config.server.host.clone() } else { String::new() },
+        server_port: config.server.port,
+        directories: DirectoriesResponse {
+            maps: visible_path(show, &config.maps_dir()),
+            books: visible_path(show, &config.books_dir()),
+            poi: visible_path(show, &config.poi_dir()),
+            inbox: visible_path(show, &config.inbox_dir()),
+            models: visible_path(show, &config.models_dir()),
+            misc: visible_path(show, &config.misc_dir()),
         },
     })
 }
 
-/// GET /api/config — Current configuration
-pub async fn config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
-    Json(ConfigResponse {
-        data_dir: state.config.data_dir.display().to_string(),
-        server_host: state.config.server.host.clone(),
-        server_port: state.config.server.port,
-        directories: DirectoriesResponse {
-            maps: state.config.maps_dir().display().to_string(),
-            books: state.config.books_dir().display().to_string(),
-            poi: state.config.poi_dir().display().to_string(),
-            inbox: state.config.inbox_dir().display().to_string(),
-            models: state.config.models_dir().display().to_string(),
-            misc: state.config.misc_dir().display().to_string(),
-        },
-    })
+/// Render a filesystem path for API output, or an empty string when the
+/// caller is not allowed to see host details (see
+/// `auth::can_view_system_details`).
+fn visible_path(show: bool, path: &FsPath) -> String {
+    if show {
+        path.display().to_string()
+    } else {
+        String::new()
+    }
 }
 
 /// GET /api/settings — Current persisted application settings
@@ -272,7 +290,25 @@ pub async fn update_settings(
 }
 
 /// GET /api/storage — Get storage usage information
-pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResponse> {
+pub async fn get_storage(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<StorageResponse>, StatusCode> {
+    let show = crate::auth::can_view_system_details(&state, &headers);
+    let mut storage = run_blocking(move || Ok(compute_storage(&state))).await?;
+    if !show {
+        // Per-category usage stays public (Home cards); host path and disk
+        // capacity are admin-only details.
+        storage.data_dir = String::new();
+        storage.free_bytes = None;
+        storage.free_human = None;
+        storage.capacity_bytes = None;
+        storage.capacity_human = None;
+    }
+    Ok(Json(storage))
+}
+
+fn compute_storage(state: &AppState) -> StorageResponse {
     let mut by_category = std::collections::HashMap::new();
 
     let data_dir_info = get_dir_size(state.config.data_dir.clone());
@@ -341,7 +377,7 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
 
     let total_bytes = data_dir_info.0;
 
-    Json(StorageResponse {
+    StorageResponse {
         data_dir: state.config.data_dir.display().to_string(),
         total_bytes,
         total_human: format_bytes(total_bytes),
@@ -350,32 +386,239 @@ pub async fn get_storage(State(state): State<Arc<AppState>>) -> Json<StorageResp
         capacity_bytes,
         capacity_human: capacity_bytes.map(format_bytes),
         by_category,
-    })
+    }
 }
 
 /// GET /api/content/maps — List available maps
-pub async fn list_maps(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.maps_dir(), ContentType::Map)
+pub async fn list_maps(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.maps_dir(), ContentType::Map, show_paths).await
+}
+
+/// GET /api/maps/tiles/:filename/:z/:x/:y — Serve a single tile from an MBTiles archive
+pub async fn serve_mbtile(
+    State(state): State<Arc<AppState>>,
+    Path((filename, z, x, y)): Path<(String, u32, u32, u32)>,
+) -> Result<Response, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let ext = FsPath::new(&sanitized)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext != "mbtiles" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let path = state.config.maps_dir().join(&sanitized);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let pool = Arc::clone(&state.mbtiles_pool);
+    let tile_data: Option<(Vec<u8>, String)> = tokio::task::spawn_blocking(move || {
+        // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention.
+        // Use checked_shl to avoid panicking on oversized zoom values.
+        let zoom_size = 1u32.checked_shl(z)?;
+        if x >= zoom_size || y >= zoom_size {
+            return None;
+        }
+        let tms_y = zoom_size - 1 - y;
+
+        let pooled = pool.checkout(&path).ok()?;
+        let queried = pooled.conn.query_row(
+            "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
+            rusqlite::params![z, x, tms_y],
+            |row| row.get::<_, Vec<u8>>(0),
+        );
+        let format = pooled.format.clone();
+        // A missing tile is a normal outcome; only reuse connections that
+        // did not hit a real SQLite error.
+        match queried {
+            Ok(data) => {
+                pool.checkin(pooled);
+                Some((data, format))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                pool.checkin(pooled);
+                None
+            }
+            Err(_) => None,
+        }
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match tile_data {
+        None => Err(StatusCode::NOT_FOUND),
+        Some((data, format)) => {
+            let content_type = match format.as_str() {
+                "pbf" | "mvt" => "application/x-protobuf",
+                "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
+                _ => "application/octet-stream",
+            };
+            let is_vector = matches!(format.as_str(), "pbf" | "mvt");
+            let is_gzip = data.len() >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+            let mut builder = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
+                .header(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"));
+            if is_vector && is_gzip {
+                builder = builder.header(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            }
+            Ok(builder.body(Body::from(data)).unwrap())
+        }
+    }
+}
+
+/// GET /api/maps/tiles/:filename/metadata — Return MBTiles metadata as JSON
+pub async fn serve_mbtiles_metadata(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+    let ext = FsPath::new(&sanitized)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext != "mbtiles" {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let path = state.config.maps_dir().join(&sanitized);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let pool = Arc::clone(&state.mbtiles_pool);
+    let metadata = tokio::task::spawn_blocking(move || {
+        let pooled = pool.checkout(&path).ok()?;
+        let mut map = serde_json::Map::new();
+        {
+            let mut stmt = pooled.conn.prepare("SELECT name, value FROM metadata").ok()?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .ok()?;
+            for row in rows.flatten() {
+                map.insert(row.0, serde_json::Value::String(row.1));
+            }
+        }
+        pool.checkin(pooled);
+        Some(serde_json::Value::Object(map))
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(metadata))
 }
 
 /// GET /api/content/books — List available books
-pub async fn list_books(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.books_dir(), ContentType::Book)
+pub async fn list_books(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.books_dir(), ContentType::Book, show_paths).await
 }
 
 /// GET /api/content/poi — List available POI datasets
-pub async fn list_poi(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.poi_dir(), ContentType::Poi)
+pub async fn list_poi(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.poi_dir(), ContentType::Poi, show_paths).await
+}
+
+/// PUT /api/poi/:filename — Create or overwrite a GeoJSON POI file
+pub async fn save_poi_file(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> Result<StatusCode, StatusCode> {
+    let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+
+    if sanitized == "." || sanitized == ".." {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if sanitized.contains('/') || sanitized.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let lower = sanitized.to_lowercase();
+    if !lower.ends_with(".geojson") && !lower.ends_with(".json") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate that the body is a GeoJSON FeatureCollection with an array features field.
+    let is_feature_collection = body.get("type")
+        .and_then(|v| v.as_str())
+        .map(|t| t == "FeatureCollection")
+        .unwrap_or(false);
+    let has_features_array = body.get("features")
+        .map(|v| v.is_array())
+        .unwrap_or(false);
+    if !is_feature_collection || !has_features_array {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let dir = state.config.poi_dir();
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+        error!("Failed to create poi directory {}: {}", dir.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let file_path = dir.join(&sanitized);
+
+    let content = serde_json::to_vec_pretty(&body).map_err(|e| {
+        error!("Failed to serialize POI data: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Ok(meta) = tokio::fs::symlink_metadata(&file_path).await {
+        if meta.file_type().is_symlink() {
+            error!(
+                "Refusing to write POI file via symlink {}",
+                file_path.display()
+            );
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
+    tokio::fs::write(&file_path, content).await.map_err(|e| {
+        error!("Failed to write POI file {}: {}", file_path.display(), e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// GET /api/content/models — List available local GGUF models
-pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.models_dir(), ContentType::Model)
+pub async fn list_models(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.models_dir(), ContentType::Model, show_paths).await
 }
 
 /// GET /api/content/misc — List available generic files
-pub async fn list_misc(State(state): State<Arc<AppState>>) -> Json<Vec<ContentMetadata>> {
-    list_content_files(state.config.misc_dir(), ContentType::Misc)
+pub async fn list_misc(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.misc_dir(), ContentType::Misc, show_paths).await
 }
 
 /// GET /api/models — List model registry entries and load states
@@ -410,32 +653,14 @@ pub async fn ai_upload_model(
         }
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -447,6 +672,7 @@ pub async fn ai_upload_model(
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::BAD_REQUEST
         })? {
             if !magic_checked {
@@ -457,7 +683,7 @@ pub async fn ai_upload_model(
                 if magic.len() == 4 {
                     magic_checked = true;
                     if magic.as_slice() != b"GGUF" {
-                        let _ = tokio::fs::remove_file(&target_path).await;
+                        let _ = tokio::fs::remove_file(&part_path).await;
                         return Err(StatusCode::UNPROCESSABLE_ENTITY);
                     }
                 }
@@ -465,28 +691,44 @@ pub async fn ai_upload_model(
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
+                let _ = std::fs::remove_file(&part_path);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if magic.len() < 4 {
-            let _ = tokio::fs::remove_file(&target_path).await;
+            let _ = tokio::fs::remove_file(&part_path).await;
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
+            let _ = std::fs::remove_file(&part_path);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -505,95 +747,108 @@ pub async fn ai_upload_model(
 pub async fn upload_file_to_import(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<UploadFileResponse>), StatusCode> {
+) -> Result<(StatusCode, Json<UploadFileResponse>), (StatusCode, Json<ErrorMessageResponse>)> {
     while let Some(mut field) = multipart.next_field().await.map_err(|error| {
         warn!(
             "Invalid multipart payload while uploading import file: {}",
             error
         );
-        StatusCode::BAD_REQUEST
+        import_err(StatusCode::BAD_REQUEST, "Invalid upload request.")
     })? {
         if field.name() != Some("file") {
             continue;
         }
 
-        let raw_name = field.file_name().ok_or(StatusCode::BAD_REQUEST)?;
-        let filename = sanitize_upload_filename(raw_name).ok_or(StatusCode::BAD_REQUEST)?;
-        let detected_type = detect_content_type(&filename).ok_or(StatusCode::BAD_REQUEST)?;
+        let raw_name = field
+            .file_name()
+            .ok_or_else(|| import_err(StatusCode::BAD_REQUEST, "No filename provided."))?;
+        let filename = sanitize_upload_filename(raw_name)
+            .ok_or_else(|| import_err(StatusCode::BAD_REQUEST, "Invalid filename."))?;
+        let detected_type = detect_content_type(&filename).ok_or_else(|| {
+            import_err(
+                StatusCode::BAD_REQUEST,
+                "Unsupported file type. Accepted: .pmtiles, .mbtiles, .epub, .pdf, .mobi, .md, .zim, \
+                 .fgb, .geojson, .json, .gguf, .txt, .csv, .zip, .7z, .log, .exe, .msi, .deb, \
+                 .rpm, .apk, .dmg, .pkg, and .appimage.",
+            )
+        })?;
 
         let target_path = state.config.inbox_dir().join(&filename);
-        if tokio::fs::try_exists(&target_path).await.map_err(|error| {
-            error!(
-                "Failed to check existing upload target {}: {}",
-                target_path.display(),
-                error
-            );
-            StatusCode::INTERNAL_SERVER_ERROR
-        })? {
-            tokio::fs::remove_file(&target_path)
-                .await
-                .map_err(|error| {
-                    error!(
-                        "Failed to remove existing upload target {}: {}",
-                        target_path.display(),
-                        error
-                    );
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-        }
+        let part_path = state.config.inbox_dir().join(format!("{}.part", Uuid::new_v4()));
 
-        let mut file = tokio::fs::File::create(&target_path)
+        let mut file = tokio::fs::File::create(&part_path)
             .await
             .map_err(|error| {
                 error!(
-                    "Failed to create upload target {}: {}",
-                    target_path.display(),
+                    "Failed to create upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
-                StatusCode::INTERNAL_SERVER_ERROR
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
 
         let mut size_bytes = 0u64;
-        let mut magic = Vec::with_capacity(8);
+        let mut magic = Vec::with_capacity(16);
 
         while let Some(chunk) = field.chunk().await.map_err(|error| {
             warn!("Failed to read upload stream chunk: {}", error);
-            StatusCode::BAD_REQUEST
+            let _ = std::fs::remove_file(&part_path);
+            import_err(StatusCode::BAD_REQUEST, "Upload stream failed. Please retry.")
         })? {
-            let needed = 8usize.saturating_sub(magic.len());
+            let needed = 16usize.saturating_sub(magic.len());
             if needed > 0 {
                 magic.extend_from_slice(&chunk[..chunk.len().min(needed)]);
             }
 
             file.write_all(&chunk).await.map_err(|error| {
                 error!(
-                    "Failed to write upload target {}: {}",
-                    target_path.display(),
+                    "Failed to write upload part file {}: {}",
+                    part_path.display(),
                     error
                 );
-                StatusCode::INTERNAL_SERVER_ERROR
+                let _ = std::fs::remove_file(&part_path);
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
             })?;
             size_bytes += chunk.len() as u64;
         }
 
         if size_bytes == 0 {
-            let _ = tokio::fs::remove_file(&target_path).await;
-            return Err(StatusCode::BAD_REQUEST);
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(import_err(StatusCode::BAD_REQUEST, "The uploaded file is empty."));
         }
 
         if !validate_upload_magic(&filename, detected_type, &magic) {
-            let _ = tokio::fs::remove_file(&target_path).await;
-            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(import_err(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "File content does not match the expected format for this file type. \
+                 The file may be corrupt or have the wrong extension.",
+            ));
         }
 
         file.flush().await.map_err(|error| {
             error!(
-                "Failed to flush upload target {}: {}",
-                target_path.display(),
+                "Failed to flush upload part file {}: {}",
+                part_path.display(),
                 error
             );
-            StatusCode::INTERNAL_SERVER_ERROR
+            let _ = std::fs::remove_file(&part_path);
+            import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
         })?;
+        drop(file);
+
+        tokio::fs::rename(&part_path, &target_path)
+            .await
+            .map_err(|error| {
+                error!(
+                    "Failed to rename {} to {}: {}",
+                    part_path.display(),
+                    target_path.display(),
+                    error
+                );
+                let _ = std::fs::remove_file(&part_path);
+                import_err(StatusCode::INTERNAL_SERVER_ERROR, "Server error. Please try again.")
+            })?;
 
         return Ok((
             StatusCode::CREATED,
@@ -606,7 +861,16 @@ pub async fn upload_file_to_import(
         ));
     }
 
-    Err(StatusCode::BAD_REQUEST)
+    Err(import_err(StatusCode::BAD_REQUEST, "No file field found in upload request."))
+}
+
+fn import_err(status: StatusCode, msg: &str) -> (StatusCode, Json<ErrorMessageResponse>) {
+    (
+        status,
+        Json(ErrorMessageResponse {
+            message: msg.to_string(),
+        }),
+    )
 }
 
 /// POST /api/models/import — Import a model from inbox/misc into models with GGUF validation
@@ -688,7 +952,8 @@ pub async fn ai_infer_stream(
         .map(|m| (m.role, m.text))
         .collect();
 
-    let app_context = build_content_catalog_summary(&state.config);
+    let config = Arc::clone(&state.config);
+    let app_context = run_blocking(move || Ok(build_content_catalog_summary(&config))).await?;
 
     let rx = state
         .model_manager
@@ -756,18 +1021,28 @@ pub async fn create_import_download(
 pub async fn get_download_status(
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<types::DownloadTask>, StatusCode> {
-    state
+    let mut task = state
         .download_manager
         .get_task(&task_id)
         .await
-        .ok_or(StatusCode::NOT_FOUND)
-        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    if !crate::auth::can_view_system_details(&state, &headers) {
+        redact_task_paths(&mut task);
+    }
+    Ok(Json(task))
 }
 
 /// GET /api/downloads — List all download tasks
-pub async fn list_downloads(State(state): State<Arc<AppState>>) -> Json<Vec<types::DownloadTask>> {
-    let tasks = state.download_manager.list_tasks().await;
+pub async fn list_downloads(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<Vec<types::DownloadTask>> {
+    let mut tasks = state.download_manager.list_tasks().await;
+    if !crate::auth::can_view_system_details(&state, &headers) {
+        tasks.iter_mut().for_each(redact_task_paths);
+    }
     Json(tasks)
 }
 
@@ -876,9 +1151,15 @@ pub async fn delete_content_file(
 }
 
 /// GET /api/content/:content_type/:filename/download — Download a content file from disk
+///
+/// The file is streamed from disk (never buffered in memory) so multi-gigabyte
+/// ZIM archives and GGUF models can be downloaded safely. HTTP `Range`
+/// requests are honoured, which lets browsers and download managers resume
+/// interrupted transfers.
 pub async fn download_content_file(
     State(state): State<Arc<AppState>>,
     Path((content_type, filename)): Path<(String, String)>,
+    request: axum::extract::Request,
 ) -> Result<Response, StatusCode> {
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
 
@@ -897,7 +1178,7 @@ pub async fn download_content_file(
 
     let file_path = dir.join(&sanitized);
 
-    let canonical_dir = std::fs::canonicalize(&dir).map_err(|error| {
+    let canonical_dir = tokio::fs::canonicalize(&dir).await.map_err(|error| {
         error!(
             "Failed to resolve content directory {}: {}",
             dir.display(),
@@ -905,7 +1186,7 @@ pub async fn download_content_file(
         );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-    let canonical_path = std::fs::canonicalize(&file_path).map_err(|error| {
+    let canonical_path = tokio::fs::canonicalize(&file_path).await.map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             StatusCode::NOT_FOUND
         } else {
@@ -921,37 +1202,81 @@ pub async fn download_content_file(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let bytes = tokio::fs::read(&canonical_path).await.map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            StatusCode::NOT_FOUND
-        } else {
+    let is_file = tokio::fs::metadata(&canonical_path)
+        .await
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false);
+    if !is_file {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // ServeFile streams the body in chunks and implements Range/If-Range,
+    // Last-Modified and HEAD handling for us.
+    let served = tower_http::services::ServeFile::new(&canonical_path)
+        .oneshot(request)
+        .await
+        .map_err(|error| {
             error!(
-                "Failed to read content file {}: {}",
+                "Failed to stream content file {}: {}",
                 canonical_path.display(),
                 error
             );
             StatusCode::INTERNAL_SERVER_ERROR
-        }
-    })?;
+        })?;
 
-    let mut response = Response::new(Body::from(bytes));
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/octet-stream"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment"),
-    );
+    let mut response = served.map(Body::new);
+    if response.status().is_success() {
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+        response.headers_mut().insert(
+            header::CONTENT_DISPOSITION,
+            attachment_content_disposition(&sanitized),
+        );
+    }
 
     Ok(response)
+}
+
+/// Build an `attachment` Content-Disposition header that preserves the
+/// original filename, using an ASCII fallback plus an RFC 5987 `filename*`
+/// parameter for non-ASCII names.
+fn attachment_content_disposition(filename: &str) -> HeaderValue {
+    let ascii_fallback: String = filename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_graphic() && ch != '"' && ch != '\\' && ch != ';' {
+                ch
+            } else if ch == ' ' {
+                ' '
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let mut encoded = String::with_capacity(filename.len() * 3);
+    for byte in filename.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b'~') {
+            encoded.push(*byte as char);
+        } else {
+            encoded.push_str(&format!("%{:02X}", byte));
+        }
+    }
+
+    HeaderValue::from_str(&format!(
+        "attachment; filename=\"{}\"; filename*=UTF-8''{}",
+        ascii_fallback, encoded
+    ))
+    .unwrap_or_else(|_| HeaderValue::from_static("attachment"))
 }
 
 /// GET /api/reader/capabilities — Unified reader capabilities
 pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
     Json(ReaderCapabilitiesResponse {
         module: "fyr-unified-reader".to_string(),
-        version: "0.1".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         formats: vec![
             ReaderFormatCapabilities {
                 format: "zim".to_string(),
@@ -975,8 +1300,6 @@ pub async fn reader_capabilities() -> Json<ReaderCapabilitiesResponse> {
                 supports_inline_render: true,
             },
         ],
-        legacy_bridge_available: false,
-        legacy_bridge_url: String::new(),
     })
 }
 
@@ -1033,7 +1356,9 @@ pub async fn reader_open(
 pub async fn reader_zim_meta(
     State(state): State<Arc<AppState>>,
     Path(filename): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<ZimArchiveMetaResponse>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
     if !sanitized.to_lowercase().ends_with(".zim") {
         return Err(StatusCode::BAD_REQUEST);
@@ -1057,7 +1382,7 @@ pub async fn reader_zim_meta(
         filename: sanitized.clone(),
         size_bytes: metadata.len(),
         content_url: format!("/docs/books/{}", sanitized),
-        source_path: source_path.display().to_string(),
+        source_path: visible_path(show_paths, &source_path),
     }))
 }
 
@@ -1085,7 +1410,9 @@ pub async fn reader_zim_capabilities(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let (supports_native_render, mode) = match probe_zim_archive(&source_path) {
+    let probe_path = source_path.clone();
+    let probe = run_blocking(move || Ok(probe_zim_archive(&probe_path))).await?;
+    let (supports_native_render, mode) = match probe {
         Ok(()) => (true, "native"),
         Err(reason) => {
             warn!(
@@ -1102,8 +1429,6 @@ pub async fn reader_zim_capabilities(
         mode: mode.to_string(),
         supports_native_render,
         supports_search: supports_native_render,
-        legacy_bridge_available: false,
-        legacy_bridge_url: String::new(),
         archive_url: format!("/docs/books/{}", sanitized),
     }))
 }
@@ -1120,22 +1445,25 @@ pub async fn reader_zim_native_article(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-
     let requested_path = query
         .path
         .as_deref()
         .map(normalize_zim_url)
         .filter(|value| !value.is_empty());
 
-    let entry = if let Some(path) = requested_path {
-        find_entry_by_path_flexible(&zim, &path).ok_or(StatusCode::NOT_FOUND)?
-    } else {
-        resolve_main_entry(&zim).ok_or(StatusCode::NOT_FOUND)?
-    };
+    let (path, title, mime_type, content) = run_blocking(move || {
+        let zim = open_zim_archive(&source_path)?;
 
-    let (path, title, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
-    let content = String::from_utf8_lossy(&bytes).into_owned();
+        let entry = if let Some(path) = requested_path {
+            find_entry_by_path_flexible(&zim, &path).ok_or(StatusCode::NOT_FOUND)?
+        } else {
+            resolve_main_entry(&zim).ok_or(StatusCode::NOT_FOUND)?
+        };
+
+        let (path, title, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        Ok((path, title, mime_type, String::from_utf8_lossy(&bytes).into_owned()))
+    })
+    .await?;
 
     Ok(Json(ZimNativeArticleResponse {
         filename: sanitized,
@@ -1162,19 +1490,23 @@ pub async fn reader_zim_native_content(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-    let mut entry = content_path_lookup_variants(&normalized_path)
-        .into_iter()
-        .find_map(|candidate| find_any_entry_by_path(&zim, &candidate));
+    let (mime_type, bytes) = run_blocking(move || {
+        let zim = open_zim_archive(&source_path)?;
+        let mut entry = content_path_lookup_variants(&normalized_path)
+            .into_iter()
+            .find_map(|candidate| find_any_entry_by_path(&zim, &candidate));
 
-    if entry.is_none() && normalized_path.starts_with("_assets_/") {
-        if let Some(filename_only) = normalized_path.rsplit('/').next() {
-            entry = find_any_entry_by_basename(&zim, filename_only);
+        if entry.is_none() && normalized_path.starts_with("_assets_/") {
+            if let Some(filename_only) = normalized_path.rsplit('/').next() {
+                entry = find_any_entry_by_basename(&zim, filename_only);
+            }
         }
-    }
 
-    let entry = entry.ok_or(StatusCode::NOT_FOUND)?;
-    let (_, _, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        let entry = entry.ok_or(StatusCode::NOT_FOUND)?;
+        let (_, _, mime_type, bytes) = resolve_entry_bytes(&zim, &entry)?;
+        Ok((mime_type, bytes))
+    })
+    .await?;
 
     let header_value = HeaderValue::from_str(&mime_type)
         .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
@@ -1208,9 +1540,33 @@ pub async fn reader_zim_native_search(
     }
 
     let source_path = state.config.books_dir().join(&sanitized);
-    let zim = open_zim_archive(&source_path)?;
-    let needle_lower = needle.to_ascii_lowercase();
+    let archive_name = sanitized.clone();
+    let needle_owned = needle.to_string();
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
+    let results = run_blocking(move || {
+        search_zim_titles(&source_path, &archive_name, &needle_owned, limit)
+    })
+    .await?;
+
+    Ok(Json(ZimNativeSearchResponse {
+        filename: sanitized,
+        query: needle.to_string(),
+        results,
+    }))
+}
+
+/// Scan a ZIM archive for articles whose title or path contains `needle`.
+///
+/// This walks the URL index linearly, which can take seconds on large
+/// archives, so callers must run it via [`run_blocking`].
+fn search_zim_titles(
+    source_path: &FsPath,
+    archive_name: &str,
+    needle: &str,
+    limit: usize,
+) -> Result<Vec<ZimNativeSearchItem>, StatusCode> {
+    let zim = open_zim_archive(source_path)?;
+    let needle_lower = needle.to_ascii_lowercase();
 
     let mut results: Vec<ZimNativeSearchItem> = Vec::new();
     let mut seen_paths = std::collections::HashSet::new();
@@ -1220,7 +1576,7 @@ pub async fn reader_zim_native_search(
             Err(error) => {
                 warn!(
                     "Skipping invalid ZIM entry while searching {}: {}",
-                    sanitized, error
+                    archive_name, error
                 );
                 continue;
             }
@@ -1276,16 +1632,18 @@ pub async fn reader_zim_native_search(
         }
     }
 
-    Ok(Json(ZimNativeSearchResponse {
-        filename: sanitized,
-        query: needle.to_string(),
-        results,
-    }))
+    Ok(results)
 }
 
 /// GET / — Fallback handler for SPA (serves index.html)
 /// This enables client-side routing in Vue
-pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
+pub async fn serve_index(State(state): State<Arc<AppState>>, uri: axum::http::Uri) -> Response {
+    // Unknown API routes and unpublished data paths (settings.json, inbox/,
+    // models/, ...) must not masquerade as the SPA shell.
+    if is_non_spa_path(uri.path()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
     let index_path = state.static_dir.join("index.html");
 
     match tokio::fs::read_to_string(&index_path).await {
@@ -1307,6 +1665,29 @@ pub async fn serve_index(State(state): State<Arc<AppState>>) -> Response {
 }
 
 // Helper functions
+
+/// Run synchronous filesystem / archive work on Tokio's blocking pool.
+///
+/// Directory walks, EPUB/ZIM parsing and ZIM title scans can take seconds on
+/// large archives or slow storage (SD cards). Running them inline would stall
+/// an async worker thread and, on small boards with few cores, freeze map
+/// tiles and every other request until the scan finishes.
+async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
+where
+    F: FnOnce() -> Result<T, StatusCode> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(work).await.map_err(|error| {
+        error!("Blocking task failed: {}", error);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+}
+
+fn is_non_spa_path(path: &str) -> bool {
+    ["/api", "/data"]
+        .iter()
+        .any(|prefix| path == *prefix || path.starts_with(&format!("{prefix}/")))
+}
 
 fn count_files(dir: std::path::PathBuf) -> usize {
     if !dir.exists() {
@@ -1382,12 +1763,36 @@ fn build_content_catalog_summary(config: &types::Config) -> String {
     format!("Current local content library:\n{}", lines.join("\n"))
 }
 
-fn list_content_files(
+async fn list_content_files(
     dir: std::path::PathBuf,
     content_type: ContentType,
-) -> Json<Vec<ContentMetadata>> {
+    show_paths: bool,
+) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
+    run_blocking(move || {
+        let mut files = collect_content_files(dir, content_type);
+        if !show_paths {
+            for file in &mut files {
+                file.file_path = std::path::PathBuf::from(&file.name);
+            }
+        }
+        Ok(Json(files))
+    })
+    .await
+}
+
+/// Reduce a local import source path to its bare filename for callers that
+/// may not see host paths.
+fn redact_task_paths(task: &mut types::DownloadTask) {
+    if let DownloadSource::LocalFile { path } = &mut task.source {
+        if let Some(name) = path.file_name() {
+            *path = std::path::PathBuf::from(name);
+        }
+    }
+}
+
+fn collect_content_files(dir: std::path::PathBuf, content_type: ContentType) -> Vec<ContentMetadata> {
     if !dir.exists() {
-        return Json(Vec::new());
+        return Vec::new();
     }
 
     let files: Vec<ContentMetadata> = WalkDir::new(dir)
@@ -1423,7 +1828,7 @@ fn list_content_files(
         })
         .collect();
 
-    Json(files)
+    files
 }
 
 /// Try to extract the human-readable title embedded in a book file.
@@ -1436,103 +1841,9 @@ fn extract_book_title(path: &FsPath) -> Option<String> {
         .to_lowercase();
 
     match ext.as_str() {
-        "epub" => extract_epub_title(path),
-        "zim" => extract_zim_title(path),
+        "epub" => crate::library::extract_epub_title(path),
+        "zim" => crate::library::extract_zim_title(path),
         _ => None,
-    }
-}
-
-/// Extract the `dc:title` from an EPUB's OPF package document.
-fn extract_epub_title(path: &FsPath) -> Option<String> {
-    use std::io::Read;
-
-    let file = std::fs::File::open(path).ok()?;
-    let mut archive = zip::ZipArchive::new(file).ok()?;
-
-    // Locate the OPF file via META-INF/container.xml
-    let container_xml = {
-        let mut entry = archive.by_name("META-INF/container.xml").ok()?;
-        let mut content = String::new();
-        entry.read_to_string(&mut content).ok()?;
-        content
-    };
-    let opf_path = extract_xml_attr(&container_xml, "full-path")?;
-
-    // Read the OPF package document
-    let opf_content = {
-        let mut entry = archive.by_name(&opf_path).ok()?;
-        let mut content = String::new();
-        entry.read_to_string(&mut content).ok()?;
-        content
-    };
-
-    // Extract the title from <dc:title>
-    extract_xml_text_content(&opf_content, "dc:title")
-}
-
-/// Extract the archive-level title from a ZIM file's `M/Title` metadata entry.
-fn extract_zim_title(path: &FsPath) -> Option<String> {
-    // The ZIM library can panic on malformed archives; catch_unwind mirrors the
-    // approach used by open_zim_archive / probe_zim_archive elsewhere in this module.
-    let zim = std::panic::catch_unwind(AssertUnwindSafe(|| Zim::new(path)))
-        .ok()? // outer Ok: convert panic result to Option (None on panic)
-        .ok()?; // inner Ok: convert Zim::new's Result to Option (None on error)
-
-    let content = zim.metadata("Title").ok()??;
-    let blob = content.to_vec().ok()?;
-    let title = String::from_utf8_lossy(&blob).trim().to_string();
-
-    if title.is_empty() {
-        None
-    } else {
-        Some(title)
-    }
-}
-
-/// Extract the value of `attr="..."` or `attr='...'` (with optional whitespace around `=`)
-/// from a snippet of XML.  Handles both single- and double-quoted attribute values.
-fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
-    let attr_start = xml.find(attr)?;
-    let after_attr = xml[attr_start + attr.len()..].trim_start();
-    let after_eq = after_attr.strip_prefix('=')?;
-    let rest = after_eq.trim_start();
-    let (quote, inner) = if let Some(s) = rest.strip_prefix('"') {
-        ('"', s)
-    } else if let Some(s) = rest.strip_prefix('\'') {
-        ('\'', s)
-    } else {
-        return None;
-    };
-    let end = inner.find(quote)?;
-    let value = inner[..end].trim().to_string();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-/// Extract the plain-text content of the first `<tag …>…</tag>` element in an XML
-/// snippet.  Attributes on the opening tag are skipped correctly, and the returned
-/// value has leading/trailing whitespace trimmed.
-///
-/// This helper covers well-formed EPUB OPF and ZIM metadata XML.  It does not
-/// handle CDATA sections, XML comments, or nested elements of the same tag.
-fn extract_xml_text_content(xml: &str, tag: &str) -> Option<String> {
-    let open_tag = format!("<{}", tag);
-    let close_tag = format!("</{}>", tag);
-    let tag_start = xml.find(&open_tag)?;
-    // Skip past the closing `>` of the opening tag (which may carry attributes).
-    let content_start = xml[tag_start..].find('>')? + tag_start + 1;
-    let content_end = xml.find(&close_tag)?;
-    if content_end <= content_start {
-        return None;
-    }
-    let text = xml[content_start..content_end].trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
     }
 }
 
@@ -1581,6 +1892,7 @@ fn map_model_error_to_status(error: &crate::ai::error::ModelError) -> StatusCode
     use crate::ai::error::ModelError;
     match error {
         ModelError::NotFound(_) => StatusCode::NOT_FOUND,
+        ModelError::InvalidFilename(_) => StatusCode::BAD_REQUEST,
         ModelError::InvalidExtension(_) => StatusCode::BAD_REQUEST,
         ModelError::InvalidMagic(_) => StatusCode::UNPROCESSABLE_ENTITY,
         ModelError::GgufParse(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -1849,58 +2161,7 @@ fn resolve_entry_bytes(
 }
 
 fn normalize_zim_url(value: &str) -> String {
-    let raw = value
-        .trim()
-        .split('#')
-        .next()
-        .unwrap_or_default()
-        .split('?')
-        .next()
-        .unwrap_or_default()
-        .trim_start_matches('/');
-
-    let mut out = raw.to_string();
-    for _ in 0..3 {
-        let decoded = decode_percent_once(&out);
-        if decoded == out {
-            break;
-        }
-        out = decoded;
-    }
-
-    out
-}
-
-fn decode_percent_once(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
-    let mut i = 0usize;
-
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hi = bytes[i + 1];
-            let lo = bytes[i + 2];
-            if let (Some(hi), Some(lo)) = (hex_nibble(hi), hex_nibble(lo)) {
-                out.push((hi << 4) | lo);
-                i += 3;
-                continue;
-            }
-        }
-
-        out.push(bytes[i]);
-        i += 1;
-    }
-
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-fn hex_nibble(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
+    crate::library::normalize_zim_url(value)
 }
 
 fn resolve_assistant_num_ctx(settings: &AppSettings) -> usize {
@@ -1976,7 +2237,10 @@ pub async fn library_book_metadata(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    match crate::library::extract_book_metadata(&books_dir, &sanitized) {
+    let name = sanitized.clone();
+    let extracted =
+        run_blocking(move || Ok(crate::library::extract_book_metadata(&books_dir, &name))).await?;
+    match extracted {
         Ok(metadata) => Ok(Json(metadata)),
         Err(error) => {
             warn!("Failed to extract book metadata for {}: {}", sanitized, error);
@@ -2004,7 +2268,9 @@ pub async fn library_book_toc(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    match crate::library::extract_toc(&books_dir, &sanitized) {
+    let name = sanitized.clone();
+    let extracted = run_blocking(move || Ok(crate::library::extract_toc(&books_dir, &name))).await?;
+    match extracted {
         Ok(toc) => Ok(Json(toc)),
         Err(error) => {
             warn!("Failed to extract TOC for {}: {}", sanitized, error);
@@ -2035,7 +2301,11 @@ pub async fn library_book_search(
 
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
 
-    match crate::library::search_book(&books_dir, &sanitized, &query.q, limit) {
+    let name = sanitized.clone();
+    let needle = query.q;
+    let searched =
+        run_blocking(move || Ok(crate::library::search_book(&books_dir, &name, &needle, limit))).await?;
+    match searched {
         Ok(response) => Ok(Json(response)),
         Err(error) => {
             warn!("Failed to search book {}: {}", sanitized, error);
@@ -2673,13 +2943,33 @@ pub async fn tools_hash(
 #[cfg(test)]
 mod tests {
     use super::{
-        assistant_num_ctx_override, parse_total_memory_kib, reader_format_from_filename,
+        assistant_num_ctx_override, attachment_content_disposition, is_non_spa_path, parse_total_memory_kib, reader_format_from_filename,
         resolve_assistant_num_ctx, resolve_download_request_timeout_secs, sanitize_upload_filename,
-        DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS, HIGH_RAM_ASSISTANT_NUM_CTX,
+        validate_upload_magic, DEFAULT_ASSISTANT_NUM_CTX, DEFAULT_REQUEST_TIMEOUT_SECS,
+        HIGH_RAM_ASSISTANT_NUM_CTX,
     };
     use serde_json::json;
     use std::collections::HashMap;
-    use types::AppSettings;
+    use types::{AppSettings, ContentType};
+
+    #[test]
+    fn attachment_disposition_escapes_unsafe_and_non_ascii_names() {
+        let header = attachment_content_disposition("kartor \"norr\";å.pmtiles");
+        assert_eq!(
+            header.to_str().expect("ascii header"),
+            "attachment; filename=\"kartor _norr___.pmtiles\"; filename*=UTF-8''kartor%20%22norr%22%3B%C3%A5.pmtiles"
+        );
+    }
+
+    #[test]
+    fn non_spa_paths_cover_api_and_data_prefixes_only() {
+        assert!(is_non_spa_path("/api"));
+        assert!(is_non_spa_path("/api/unknown"));
+        assert!(is_non_spa_path("/data/settings.json"));
+        assert!(!is_non_spa_path("/"));
+        assert!(!is_non_spa_path("/maps"));
+        assert!(!is_non_spa_path("/database-guide"));
+    }
 
     #[test]
     fn detects_supported_reader_formats() {
@@ -2781,12 +3071,81 @@ mod tests {
 
         assert_eq!(resolve_download_request_timeout_secs(&settings), 900);
     }
+
+    #[test]
+    fn validate_upload_magic_checks_gguf_for_models() {
+        assert!(validate_upload_magic(
+            "model.gguf",
+            ContentType::Model,
+            b"GGUFxxxx"
+        ));
+        assert!(!validate_upload_magic(
+            "model.gguf",
+            ContentType::Model,
+            b"NOPExxxx"
+        ));
+    }
+
+    #[test]
+    fn validate_upload_magic_checks_pmtiles_and_mbtiles() {
+        assert!(validate_upload_magic(
+            "atlas.pmtiles",
+            ContentType::Map,
+            b"PMTiles data"
+        ));
+        assert!(!validate_upload_magic(
+            "atlas.pmtiles",
+            ContentType::Map,
+            b"NOTILES data"
+        ));
+        assert!(validate_upload_magic(
+            "atlas.mbtiles",
+            ContentType::Map,
+            b"SQLite format 3\0rest"
+        ));
+        assert!(!validate_upload_magic(
+            "atlas.mbtiles",
+            ContentType::Map,
+            b"PMTiles data"
+        ));
+    }
+
+    #[test]
+    fn validate_upload_magic_checks_epub_zip_header() {
+        assert!(validate_upload_magic(
+            "book.epub",
+            ContentType::Book,
+            &[0x50, 0x4B, 0x03, 0x04, 0x14]
+        ));
+        assert!(!validate_upload_magic(
+            "book.epub",
+            ContentType::Book,
+            b"NOTZ"
+        ));
+        assert!(validate_upload_magic(
+            "book.pdf",
+            ContentType::Book,
+            b"NOTPDF"
+        ));
+    }
 }
 
 fn validate_upload_magic(filename: &str, content_type: ContentType, magic: &[u8]) -> bool {
     match content_type {
         ContentType::Model => magic.len() >= 4 && &magic[0..4] == b"GGUF",
-        ContentType::Map => magic.len() >= 7 && &magic[0..7] == b"PMTiles",
+        ContentType::Map => {
+            let ext = FsPath::new(filename)
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if ext == "mbtiles" {
+                // MBTiles are SQLite databases; magic is "SQLite format 3\0"
+                magic.len() >= 16 && magic[0..16] == *b"SQLite format 3\0"
+            } else {
+                magic.len() >= 7 && &magic[0..7] == b"PMTiles"
+            }
+        }
         ContentType::Book => {
             let ext = FsPath::new(filename)
                 .extension()

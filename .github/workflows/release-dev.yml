@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
@@ -29,7 +29,7 @@ jobs:
         run: cargo check -p server
 
       - name: Setup Node (frontend)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -44,7 +44,7 @@ jobs:
         run: npm run build
 
       - name: Setup Node (docs)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -58,39 +58,93 @@ jobs:
         working-directory: docs/build
         run: npm run build
 
-  publish-dev-image:
-    name: Publish Dev Docker Image
+  build-dev-image:
+    name: Build Dev ${{ matrix.name }} Image
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: preflight
     permissions:
       contents: read
+    strategy:
+      matrix:
+        include:
+          - name: amd64-avx2
+            runner: ubuntu-latest
+            platform: linux/amd64
+            build_args: "RUST_TARGET_FEATURES=+avx2,+fma"
+            cache_scope: fyr-docker-dev-amd64-avx2
+          - name: arm64-dotprod
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            build_args: "RUST_TARGET_FEATURES=+dotprod"
+            cache_scope: fyr-docker-dev-arm64-dotprod
+          - name: pc-legacy
+            runner: ubuntu-latest
+            platform: linux/amd64
+            build_args: ""
+            cache_scope: fyr-docker-dev-pc-legacy
+          - name: rpi-legacy
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            build_args: ""
+            cache_scope: fyr-docker-dev-rpi-legacy
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push Multi-Arch Dev Image
-        uses: docker/build-push-action@v6
+      - name: Build and Push Dev ${{ matrix.name }} Image
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=fyr-docker
-          cache-to: type=gha,mode=max,scope=fyr-docker
+          platforms: ${{ matrix.platform }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           tags: |
-            hexagon/fyr:dev
-            hexagon/fyr:dev-${{ github.sha }}
+            hexagon/fyr:dev-${{ matrix.name }}
+            hexagon/fyr:dev-${{ github.sha }}-${{ matrix.name }}
+
+  publish-dev-manifests:
+    name: Publish Dev Manifests
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    needs: build-dev-image
+    permissions:
+      contents: read
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Publish Dev Optimized Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:dev \
+            -t hexagon/fyr:dev-${{ github.sha }} \
+            hexagon/fyr:dev-${{ github.sha }}-amd64-avx2 \
+            hexagon/fyr:dev-${{ github.sha }}-arm64-dotprod
+
+      - name: Publish Dev Legacy Multi-Arch Manifests
+        run: |
+          docker buildx imagetools create \
+            -t hexagon/fyr:dev-legacy \
+            -t hexagon/fyr:dev-${{ github.sha }}-legacy \
+            hexagon/fyr:dev-${{ github.sha }}-pc-legacy \
+            hexagon/fyr:dev-${{ github.sha }}-rpi-legacy

@@ -3,12 +3,11 @@ members = [
     "crates/types",
     "crates/server",
     "crates/downloader",
-    "crates/ui",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.2"
 edition = "2021"
 authors = ["Fyr Contributors"]
 license = "MIT"
@@ -18,10 +17,9 @@ tokio = { version = "1.35", features = ["full"] }
 axum = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = "0.3"
 reqwest = { version = "0.11", features = ["stream"] }
 walkdir = "2"
 toml = "0.8"
@@ -40,3 +38,4 @@ md-5 = "0.10"
 digest = "0.10"
 aes = "0.8"
 cbc = "0.1"
+tower = { version = "0.5", features = ["util"] }

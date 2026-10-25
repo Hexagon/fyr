@@ -2,6 +2,7 @@
 
 ## 1. What Fyr Is
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
+It requires no external database, cache server, or other services to run.
 It runs as a local server and is accessed from a browser.
 
 > **Project status:** Fyr is currently in **preview**. UI details may evolve as features are refined.
@@ -44,9 +45,9 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
 - **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
 - **Maps:** map selection and viewer controls.
-- **Books:** browse books, read EPUB/PDF/Markdown, and launch ZIM reader flow.
+- **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
-- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
+- **Tools:** unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
 ## 3a. Access Control and Admin Login
 
@@ -67,7 +68,7 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 - Content Manager (downloads, imports, file deletion)
 - Settings (location and preferences)
 - Model uploads and model management
-- Storage details on the Overview page
+- Storage details on the Overview page (the server also hides data-directory paths and disk capacity from guests; per-category usage stays visible)
 
 **How to log in:**
 1. Click **Log in** in the top-right navbar.
@@ -86,7 +87,7 @@ Click **Log out** in the navbar. Your session is cleared immediately.
 ### Strict read-only mode (`FYR_READONLY`)
 Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
 
-Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed.
+Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.
 
 ### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.
@@ -103,6 +104,7 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 > * Larger models and higher quantization levels use more memory.
 > * If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).
 > * Fyr's inference runtime currently supports GGUF models with **Qwen2**, **Llama**, and **Phi-3/Phi-3.5** architectures.
+> * Inference runs entirely on CPU with SIMD acceleration: **NEON** on ARM (aarch64, including Raspberry Pi 4/5) and **AVX2/FMA** on x86\_64. No GPU is needed.
 > * The assistant shows a **Thinking** block immediately after you send a prompt, then streams the visible reply as it arrives.
 > * Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a `<think>…</think>` block before their response. Fyr displays that reasoning in the same collapsible **Thinking** section and streams it live while the model reasons.
 
@@ -155,8 +157,8 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 | Folder | Supported file types | Typical use |
 | --- | --- | --- |
 | `curated-content.json` | structured JSON catalog | Manually editable list of recommended model, book, and map downloads |
-| `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives |
-| `maps/` | `.pmtiles` | Offline map tiles |
+| `books/` | `.epub`, `.pdf`, `.mobi`, `.md`, `.zim` | Offline books, manuals, and archives (`.mobi` files are accepted for storage but have no in-browser reader) |
+| `maps/` | `.pmtiles`, `.mbtiles` | Offline map tiles |
 | `poi/` | `.geojson`, `.fgb`, `.json` | POI layers and geo datasets |
 | `models/` | `.gguf` | Local AI models for Assistant |
 | `misc/` | `.txt`, `.csv`, `.zip`, `.7z`, `.log`, `.exe`, `.msi`, `.deb`, `.rpm`, `.dmg`, `.pkg` | General offline resources and installers |
@@ -168,8 +170,9 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 - For ZIM archives, use trusted OpenZIM-compatible sources.
 
 ### Maps
-- Fyr serves vector and raster map tiles from `.pmtiles` archives in `public/data/maps/`.
-- PMTiles is a single-file archive format for map tiles, readable directly by the browser without a tile server.
+- Fyr serves vector and raster map tiles from `.pmtiles` and `.mbtiles` archives in `public/data/maps/`.
+- PMTiles archives are read directly by the browser without a tile server.
+- MBTiles archives (SQLite-based) are served tile-by-tile through the built-in tile endpoint (`/api/maps/tiles/{filename}/{z}/{x}/{y}`).
 
 **Obtaining PMTiles maps:**
 
@@ -177,11 +180,11 @@ All data is stored under `public/data/` (or `DATA_DIR` if you override it).
 Download ready-to-use `.pmtiles` files from [data.bbbike.org](https://data.bbbike.org/osm/region/).
 
 **Extract from Protomaps (CLI):**
-Install the `pmtiles` CLI ([docs.protomaps.com/pmtiles/cli](https://docs.protomaps.com/pmtiles/cli)) and extract a region from a global PMTiles archive:
+Install the `pmtiles` CLI ([docs.protomaps.com/pmtiles/cli](https://docs.protomaps.com/pmtiles/cli)) and extract a region from a global PMTiles archive. Find the latest dated build at [maps.protomaps.com/builds](https://maps.protomaps.com/builds/) and substitute it into the URL below:
 
 ```
-pmtiles extract https://build.protomaps.com/20260716.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
-pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
+pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
+pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
 ```
 
 ### POI
@@ -207,18 +210,19 @@ pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbo
 - When a content folder is empty, Content Manager shows curated recommendations from `curated-content.json` instead of a blank listing.
 - When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.
 - Use the **Local Imports** panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.
-- Use the **Download** button in each Content Manager file row to download a local copy from the browser.
+- Use the **Download** button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
-- Active tasks persist across restarts and are restored automatically.
+- The task list persists across restarts. Tasks that were still queued or in progress when the server stopped are marked **failed** with the reason "interrupted by server restart" (their partial files are removed); re-queue the URL or re-import the file to try again.
 - Content listings and download tasks refresh automatically as task state changes.
 - You can cancel queued or in-progress downloads from the download manager.
 - Fyr does not overwrite your `curated-content.json` catalog when it already exists in `DATA_DIR`, so you can keep local recommendations there across updates.
 
 ## 5. ZIM Reading
 - Select a `.zim` file in Books and Fyr opens it using the native reader module.
-- Use the search input above the article panel to find entries by title or path, then open results directly in the same reader view.
+- Use the search input in the top reader toolbar to find entries by title or path, then open results directly in the same reader view.
 - Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.
+- ZIM pages use archive-provided styles and default browser styles only; Fyr does not inject fallback theme styles.
 - Fyr fetches archive metadata and article content through local `/api/reader/zim/*` endpoints.
 - Book archives remain available under `/docs/books/<filename>.zim` for local access.
 
@@ -231,8 +235,11 @@ pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbo
 - If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
 
 ## 5c. Reader Shell
-- Books uses a unified reader shell with format badges and open/loading/error status badges.
+- Books uses a unified reader shell with a single top toolbar.
+- The toolbar includes back-to-library, title + filename, format/status badges, and compact metadata chips.
 - EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.
+- Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.
+- Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:
@@ -243,6 +250,8 @@ pmtiles extract https://build.protomaps.com/20260716.pmtiles world.pmtiles --bbo
 - `public/data/inbox/`
 - `public/data/models/`
 - `public/data/misc/`
+
+Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
 
 ### System-Managed Manuals Sync
@@ -286,6 +295,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 ### Download is stuck or failed
 - Open Content Manager and inspect the download status/error line.
 - Cancel the task and retry the URL.
+- A task that shows "interrupted by server restart" was running when Fyr stopped; dismiss it and queue it again.
 - For repeated failures, verify the source URL is reachable and supports direct file transfer.
 
 ### ZIM view not loading
@@ -294,6 +304,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 
 ### Assistant model import fails
 - Confirm the model file extension is `.gguf`.
+- Model filenames must be plain file names (no folders or `..`); otherwise the server rejects the request with "invalid model filename".
 - Ensure the source file starts with GGUF magic bytes.
 - Retry the upload if the browser was interrupted before the file finished transferring.
 
@@ -312,22 +323,26 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 
 ## 9. Tools
 
-The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations run entirely in your browser—no data is sent to the server or over the network.
+The **Tools** page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations stay local to your Fyr deployment (offline-safe): some run in-browser, and some are processed by Fyr's local API.
 
 ### Unit Converters
 
-The **Unit Converters** tab supports seven conversion categories, each with its own card:
+The **Unit Converters** tab supports twelve conversion categories, grouped into logical sections:
 
-| Category | Units |
-|----------|-------|
-| Length | mm, cm, m, km, in, ft, yd, mi |
-| Mass | mg, g, kg, oz, lb |
-| Temperature | C, F, K |
-| Area | mm², cm², m², km², ha, in², ft², ac |
-| Volume | mL, L, m³, fl_oz, gal, cup |
-| Speed | m/s, km/h, mph, knot |
-| Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
-| Angle | deg, rad, grad |
+| Section | Category | Units |
+|---------|----------|-------|
+| Length & Speed | Length | mm, cm, m, km, in, ft, yd, mi |
+| | Speed | m/s, km/h, mph, knot |
+| Weight & Volume | Mass | mg, g, kg, oz, lb |
+| | Volume | mL, L, m³, fl_oz, gal, cup |
+| Area & Angle | Area | mm², cm², m², km², ha, in², ft², ac |
+| | Angle | deg, rad, grad |
+| Temperature | Temperature | C, F, K |
+| Digital Storage | Data | B, KB, MB, GB, TB, KiB, MiB, GiB |
+| Energy & Power | Energy | J, kJ, cal, kcal, Wh, kWh |
+| | Power | W, kW, MW, HP, BTU/h |
+| Pressure & Time | Pressure | Pa, kPa, MPa, bar, psi, atm, mmHg |
+| | Time | ms, s, min, h, day |
 
 **How to use a converter:** Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.
 
@@ -343,11 +358,9 @@ The **Encryption & Ciphers** tab provides four tools:
 
 - **Hash / Checksum:** Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: **SHA-256**, **SHA-512**, **SHA-1**, and **MD5**. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.
 
-> **Algorithm implementation notes:**
-> * **AES-256-CBC** uses the browser's Web Crypto API with PBKDF2 key derivation (SHA-256, 100,000 iterations) and a random IV per encryption. The hex output format is Fyr-specific and cannot be directly decrypted by standard tools without extracting the salt and IV.
-> * **Base64** uses the browser's built-in `btoa`/`atob` with UTF-8 safe encoding via `encodeURIComponent`. Results match the standard Base64 alphabet.
-> * **ROT13** applies the classic single-pass rotation; non-letter characters are unaffected.
-> * **SHA-256, SHA-512, and SHA-1** use the browser's Web Crypto digest API and produce standard lowercase hex digests identical to `sha256sum`, `sha512sum`, and `sha1sum` command-line tools.
-> * **MD5** uses a self-contained JavaScript implementation that produces standard lowercase hex digests. It has been verified against the reference RFC 1321 test vectors and matches the output of `md5sum`.
+> **Implementation notes:**
+> * Unit converters, Base64, and ROT13 run directly in the browser.
+> * AES and hash/checksum operations are handled by Fyr's local server API.
+> * Outputs use standard text encodings and hash formats shown in the UI.
 >
 > **Security note:** The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.
