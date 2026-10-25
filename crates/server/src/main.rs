@@ -573,6 +573,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn infer_stream_on_unloaded_model_is_conflict_with_or_without_library() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(
+            state.config.books_dir().join("guide.md"),
+            "# Guide\n\nBoil water for one minute before drinking.\n",
+        )
+        .expect("write book");
+        let app = create_router(state);
+
+        for uri in [
+            "/api/models/missing.gguf/infer/stream?prompt=boil%20water",
+            "/api/models/missing.gguf/infer/stream?prompt=boil%20water&use_library=false",
+            "/api/models/missing.gguf/infer/stream?prompt=boil%20water&use_library=true",
+            "/api/models/missing.gguf/infer/stream?prompt=boil%20water&use_library=true&sources_limit=99",
+        ] {
+            let response = get(&app, uri, None).await;
+            assert_eq!(response.status(), StatusCode::CONFLICT, "{uri}");
+        }
+
+        let bad_flag = get(&app, "/api/models/missing.gguf/infer/stream?prompt=x&use_library=maybe", None).await;
+        assert_eq!(bad_flag.status(), StatusCode::BAD_REQUEST);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
     async fn restricted_mode_hides_host_paths_from_anonymous_callers() {
         let mut state = test_state();
         let data_dir = state.config.data_dir.clone();

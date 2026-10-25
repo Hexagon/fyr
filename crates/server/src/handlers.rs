@@ -952,23 +952,87 @@ pub async fn ai_infer_stream(
         .map(|m| (m.role, m.text))
         .collect();
 
+    // "Ask your library": check the model first so an unloaded model fails
+    // fast (409) without paying for retrieval.
+    let library = if query.use_library.unwrap_or(false) {
+        state
+            .model_manager
+            .ensure_inference_ready(&filename)
+            .await
+            .map_err(|error| map_model_error_to_status(&error))?;
+        let limit = query
+            .sources_limit
+            .unwrap_or(crate::ai::retrieval::DEFAULT_SOURCES_LIMIT)
+            .clamp(1, crate::ai::retrieval::MAX_SOURCES_LIMIT);
+        Some(retrieve_library_passages(state.config.books_dir(), query.prompt.clone(), limit).await)
+    } else {
+        None
+    };
+
     let config = Arc::clone(&state.config);
     let app_context = run_blocking(move || Ok(build_content_catalog_summary(&config))).await?;
 
-    let rx = state
+    let started = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history, app_context)
+        .infer_stream(
+            &filename,
+            crate::ai::manager::InferRequest {
+                prompt: query.prompt,
+                temperature,
+                max_tokens,
+                num_ctx,
+                history,
+                app_context,
+                library,
+            },
+        )
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
-    let token_stream = ReceiverStream::new(rx)
+    // The `sources` event (only when the library was requested) precedes
+    // every token so the UI can link citations while text streams in.
+    let sources_stream = tokio_stream::iter(started.sources.map(|sources| {
+        Ok::<Event, Infallible>(
+            Event::default()
+                .event("sources")
+                .json_data(&sources)
+                .unwrap_or_else(|_| Event::default().event("sources").data("[]")),
+        )
+    }));
+    let token_stream = ReceiverStream::new(started.tokens)
         .map(|token| Ok::<Event, Infallible>(Event::default().event("token").data(token)));
     let done_stream = tokio_stream::iter(vec![Ok::<Event, Infallible>(
         Event::default().event("done"),
     )]);
-    let stream = token_stream.chain(done_stream);
+    let stream = sources_stream.chain(token_stream).chain(done_stream);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+/// Retrieve library passages for the assistant on the blocking pool, bounded
+/// by the retrieval time budget plus a small grace period. Failures and
+/// timeouts degrade to "no sources" rather than failing the request.
+async fn retrieve_library_passages(
+    books_dir: std::path::PathBuf,
+    prompt: String,
+    limit: usize,
+) -> Vec<crate::ai::retrieval::Passage> {
+    let limits = crate::ai::retrieval::RetrievalLimits::default();
+    let hard_limit = limits.time_budget + std::time::Duration::from_millis(1500);
+    let task = tokio::task::spawn_blocking(move || {
+        crate::ai::retrieval::retrieve(&books_dir, &prompt, limit, &limits)
+    });
+    match tokio::time::timeout(hard_limit, task).await {
+        Ok(Ok(passages)) => passages,
+        Ok(Err(error)) => {
+            warn!("Library retrieval task failed: {}", error);
+            Vec::new()
+        }
+        Err(_) => {
+            warn!("Library retrieval exceeded its time budget; answering without sources");
+            Vec::new()
+        }
+    }
 }
 
 /// POST /api/download — Create a new download task
