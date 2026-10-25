@@ -243,7 +243,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/settings`
 - `GET /api/content/maps`
 - `GET /api/maps/tiles/:filename/metadata` — MBTiles metadata as JSON
-- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention)
+- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention). Tiles and metadata are read through `mbtiles::MbtilesPool`, which keeps up to 8 idle read-only SQLite connections plus the cached tile format per archive, keyed by file size + mtime so a replaced archive is reopened instead of served from stale handles.
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`

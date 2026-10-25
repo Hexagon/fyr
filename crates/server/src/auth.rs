@@ -371,10 +371,8 @@ mod tests {
     use axum::routing::post;
     use axum::Router;
     use downloader::DownloadManager;
-    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use tokio::sync::RwLock;
     use tower::ServiceExt;
     use types::Config;
 
@@ -402,7 +400,7 @@ mod tests {
             model_manager: Arc::new(ModelManager::new(config)),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(AuthManager::new()),
-            mbtiles_format_cache: Arc::new(RwLock::new(HashMap::new())),
+            mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
         })
     }
 

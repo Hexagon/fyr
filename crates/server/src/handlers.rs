@@ -382,43 +382,8 @@ pub async fn serve_mbtile(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    // Look up the cached tile format, falling back to querying the archive.
-    let cached_format = state.mbtiles_format_cache.read().await.get(&path).cloned();
-    let tile_mime_cached = if let Some(fmt) = cached_format {
-        fmt
-    } else {
-        let path_clone = path.clone();
-        let fmt = tokio::task::spawn_blocking(move || {
-            let conn = rusqlite::Connection::open_with_flags(
-                &path_clone,
-                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
-                    | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-            )
-            .ok()?;
-            conn.query_row(
-                "SELECT value FROM metadata WHERE name = 'format' LIMIT 1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .ok()
-        })
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .unwrap_or_else(|| "pbf".to_string());
-        state.mbtiles_format_cache.write().await.insert(path.clone(), fmt.clone());
-        fmt
-    };
-
-    // Open the SQLite database on a blocking thread
+    let pool = Arc::clone(&state.mbtiles_pool);
     let tile_data: Option<(Vec<u8>, String)> = tokio::task::spawn_blocking(move || {
-        let conn = rusqlite::Connection::open_with_flags(
-            &path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .ok()?;
-
-        let tile_mime = tile_mime_cached;
-
         // MBTiles uses TMS y-axis (bottom-up); flip y for XYZ convention.
         // Use checked_shl to avoid panicking on oversized zoom values.
         let zoom_size = 1u32.checked_shl(z)?;
@@ -426,15 +391,27 @@ pub async fn serve_mbtile(
             return None;
         }
         let tms_y = zoom_size - 1 - y;
-        let data: Option<Vec<u8>> = conn
-            .query_row(
-                "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
-                rusqlite::params![z, x, tms_y],
-                |row| row.get::<_, Vec<u8>>(0),
-            )
-            .ok();
 
-        data.map(|d| (d, tile_mime))
+        let pooled = pool.checkout(&path).ok()?;
+        let queried = pooled.conn.query_row(
+            "SELECT tile_data FROM tiles WHERE zoom_level = ?1 AND tile_column = ?2 AND tile_row = ?3",
+            rusqlite::params![z, x, tms_y],
+            |row| row.get::<_, Vec<u8>>(0),
+        );
+        let format = pooled.format.clone();
+        // A missing tile is a normal outcome; only reuse connections that
+        // did not hit a real SQLite error.
+        match queried {
+            Ok(data) => {
+                pool.checkin(pooled);
+                Some((data, format))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                pool.checkin(pooled);
+                None
+            }
+            Err(_) => None,
+        }
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -483,24 +460,22 @@ pub async fn serve_mbtiles_metadata(
         return Err(StatusCode::NOT_FOUND);
     }
 
+    let pool = Arc::clone(&state.mbtiles_pool);
     let metadata = tokio::task::spawn_blocking(move || {
-        let conn = rusqlite::Connection::open_with_flags(
-            &path,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .ok()?;
-        let mut stmt = conn
-            .prepare("SELECT name, value FROM metadata")
-            .ok()?;
+        let pooled = pool.checkout(&path).ok()?;
         let mut map = serde_json::Map::new();
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .ok()?;
-        for row in rows.flatten() {
-            map.insert(row.0, serde_json::Value::String(row.1));
+        {
+            let mut stmt = pooled.conn.prepare("SELECT name, value FROM metadata").ok()?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .ok()?;
+            for row in rows.flatten() {
+                map.insert(row.0, serde_json::Value::String(row.1));
+            }
         }
+        pool.checkin(pooled);
         Some(serde_json::Value::Object(map))
     })
     .await

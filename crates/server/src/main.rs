@@ -27,6 +27,7 @@ mod ai;
 mod auth;
 mod handlers;
 mod library;
+mod mbtiles;
 mod state;
 mod settings;
 
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
-        mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
     };
 
     // Build router
@@ -423,7 +424,7 @@ mod tests {
             model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(auth::AuthManager::new()),
-            mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
         }
     }
 
@@ -475,6 +476,47 @@ mod tests {
         ] {
             assert_eq!(get(&app, private, None).await.status(), StatusCode::NOT_FOUND, "{private}");
         }
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn mbtiles_tiles_are_served_from_pooled_connections() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let archive = state.config.maps_dir().join("region.mbtiles");
+        {
+            let conn = rusqlite::Connection::open(&archive).expect("create archive");
+            conn.execute_batch(
+                "CREATE TABLE metadata (name TEXT, value TEXT);
+                 CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);
+                 INSERT INTO metadata VALUES ('format', 'png');",
+            )
+            .expect("create schema");
+            // XYZ z=1 x=1 y=0 is TMS row 1.
+            conn.execute(
+                "INSERT INTO tiles VALUES (1, 1, 1, ?1)",
+                [b"\x89PNG-tile".to_vec()],
+            )
+            .expect("insert tile");
+        }
+        let app = create_router(state);
+
+        for _ in 0..3 {
+            let tile = get(&app, "/api/maps/tiles/region.mbtiles/1/1/0", None).await;
+            assert_eq!(tile.status(), StatusCode::OK);
+            assert_eq!(tile.headers()[header::CONTENT_TYPE], "image/png");
+            assert_eq!(body_bytes(tile).await, b"\x89PNG-tile".to_vec());
+        }
+
+        let missing = get(&app, "/api/maps/tiles/region.mbtiles/1/0/0", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        let out_of_range = get(&app, "/api/maps/tiles/region.mbtiles/1/5/0", None).await;
+        assert_eq!(out_of_range.status(), StatusCode::NOT_FOUND);
+
+        let metadata = get(&app, "/api/maps/tiles/region.mbtiles/metadata", None).await;
+        assert_eq!(metadata.status(), StatusCode::OK);
+        assert_eq!(body_bytes(metadata).await, br#"{"format":"png"}"#.to_vec());
 
         let _ = fs::remove_dir_all(data_dir);
     }
