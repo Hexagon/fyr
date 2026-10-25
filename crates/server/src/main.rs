@@ -27,6 +27,7 @@ mod ai;
 mod auth;
 mod handlers;
 mod library;
+mod mbtiles;
 mod state;
 mod settings;
 
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
         model_manager: Arc::new(ModelManager::new(config.clone())),
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
-        mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
     };
 
     // Build router
@@ -220,7 +221,11 @@ fn create_router(state: AppState) -> Router {
         // Optional generic public asset passthrough
         .nest_service("/assets", ServeDir::new(assets_path))
         // Static file serving and SPA fallback
-        .nest_service("/static", ServeDir::new(static_path.clone()))
+        .merge(
+            Router::new()
+                .nest_service("/static", ServeDir::new(static_path.clone()))
+                .layer(middleware::from_fn(static_cache_headers)),
+        )
         .fallback(get(handlers::serve_index))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CACHE_CONTROL,
@@ -232,6 +237,26 @@ fn create_router(state: AppState) -> Router {
         ))
         .layer(cors)
         .with_state(state_arc)
+}
+
+/// Vite emits content-hashed bundles under `js/` and `css/`, so they can be
+/// cached forever; a new build produces new filenames referenced by the
+/// (never cached) `index.html`. Everything else under `/static` keeps the
+/// global `no-store` policy.
+async fn static_cache_headers(
+    request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let path = request.uri().path();
+    let is_hashed_bundle = path.starts_with("/static/js/") || path.starts_with("/static/css/");
+    let mut response = next.run(request).await;
+    if is_hashed_bundle && (response.status().is_success() || response.status() == axum::http::StatusCode::NOT_MODIFIED) {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    }
+    response
 }
 
 /// Log detected CPU SIMD capabilities and size Candle's CPU thread pool.
@@ -423,7 +448,7 @@ mod tests {
             model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(auth::AuthManager::new()),
-            mbtiles_format_cache: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
         }
     }
 
@@ -475,6 +500,110 @@ mod tests {
         ] {
             assert_eq!(get(&app, private, None).await.status(), StatusCode::NOT_FOUND, "{private}");
         }
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn mbtiles_tiles_are_served_from_pooled_connections() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let archive = state.config.maps_dir().join("region.mbtiles");
+        {
+            let conn = rusqlite::Connection::open(&archive).expect("create archive");
+            conn.execute_batch(
+                "CREATE TABLE metadata (name TEXT, value TEXT);
+                 CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);
+                 INSERT INTO metadata VALUES ('format', 'png');",
+            )
+            .expect("create schema");
+            // XYZ z=1 x=1 y=0 is TMS row 1.
+            conn.execute(
+                "INSERT INTO tiles VALUES (1, 1, 1, ?1)",
+                [b"\x89PNG-tile".to_vec()],
+            )
+            .expect("insert tile");
+        }
+        let app = create_router(state);
+
+        for _ in 0..3 {
+            let tile = get(&app, "/api/maps/tiles/region.mbtiles/1/1/0", None).await;
+            assert_eq!(tile.status(), StatusCode::OK);
+            assert_eq!(tile.headers()[header::CONTENT_TYPE], "image/png");
+            assert_eq!(body_bytes(tile).await, b"\x89PNG-tile".to_vec());
+        }
+
+        let missing = get(&app, "/api/maps/tiles/region.mbtiles/1/0/0", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        let out_of_range = get(&app, "/api/maps/tiles/region.mbtiles/1/5/0", None).await;
+        assert_eq!(out_of_range.status(), StatusCode::NOT_FOUND);
+
+        let metadata = get(&app, "/api/maps/tiles/region.mbtiles/metadata", None).await;
+        assert_eq!(metadata.status(), StatusCode::OK);
+        assert_eq!(body_bytes(metadata).await, br#"{"format":"png"}"#.to_vec());
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn hashed_static_bundles_are_cached_immutably() {
+        let mut state = test_state();
+        let static_dir = state.config.data_dir.join("static");
+        fs::create_dir_all(static_dir.join("js")).expect("create js dir");
+        fs::create_dir_all(static_dir.join("assets")).expect("create assets dir");
+        fs::write(static_dir.join("js/index-abc123.js"), "console.log(1)").expect("write bundle");
+        fs::write(static_dir.join("assets/fyr-icon.svg"), "<svg/>").expect("write icon");
+        state.static_dir = static_dir;
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+
+        let bundle = get(&app, "/static/js/index-abc123.js", None).await;
+        assert_eq!(bundle.status(), StatusCode::OK);
+        assert_eq!(bundle.headers()[header::CACHE_CONTROL], "public, max-age=31536000, immutable");
+
+        let icon = get(&app, "/static/assets/fyr-icon.svg", None).await;
+        assert_eq!(icon.status(), StatusCode::OK);
+        assert!(icon.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+
+        let missing = get(&app, "/static/js/missing.js", None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        assert!(missing.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn restricted_mode_hides_host_paths_from_anonymous_callers() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(state.config.maps_dir().join("region.pmtiles"), "PMTiles").expect("write map");
+        let mut config = (*state.config).clone();
+        config.auth.admin_password = Some("secret".to_string());
+        state.config = Arc::new(config);
+        let token = state.auth_manager.create_session();
+        let app = create_router(state);
+        let data_dir_str = data_dir.display().to_string();
+
+        for uri in ["/api/status", "/api/config", "/api/storage", "/api/content/maps"] {
+            let anonymous = String::from_utf8(body_bytes(get(&app, uri, None).await).await).unwrap();
+            assert!(!anonymous.contains(&data_dir_str), "{uri} leaked a host path: {anonymous}");
+
+            let admin = app
+                .clone()
+                .oneshot(
+                    Request::get(uri)
+                        .header(header::COOKIE, format!("fyr_session={token}"))
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            let admin = String::from_utf8(body_bytes(admin).await).unwrap();
+            assert!(admin.contains(&data_dir_str), "{uri} should show paths to admins: {admin}");
+        }
+
+        let maps = String::from_utf8(body_bytes(get(&app, "/api/content/maps", None).await).await).unwrap();
+        assert!(maps.contains(r#""file_path":"region.pmtiles""#), "{maps}");
 
         let _ = fs::remove_dir_all(data_dir);
     }

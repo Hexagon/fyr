@@ -142,7 +142,7 @@
         </button>
         <div id="maps-info-panel" v-show="showInfo" class="overlay-content">
           <h3>{{ selectedMap.filename }}</h3>
-          <p class="overlay-meta">📍 {{ selectedMap.path }}</p>
+          <p v-if="selectedMap.path && selectedMap.path !== selectedMap.filename" class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
           <p class="overlay-meta">⏰ {{ new Date(selectedMap.modified).toLocaleDateString() }}</p>
           <p class="overlay-meta">Mode: {{ renderModeLabel }}</p>

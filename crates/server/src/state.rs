@@ -2,13 +2,12 @@
 
 use crate::ai::ModelManager;
 use crate::auth::AuthManager;
+use crate::mbtiles::MbtilesPool;
 use crate::settings::SettingsManager;
 use types::Config;
 use downloader::DownloadManager;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -18,6 +17,6 @@ pub struct AppState {
     pub model_manager: Arc<ModelManager>,
     pub settings_manager: Arc<SettingsManager>,
     pub auth_manager: Arc<AuthManager>,
-    /// Cache of MBTiles tile format ("pbf", "png", etc.) keyed by archive path.
-    pub mbtiles_format_cache: Arc<RwLock<HashMap<PathBuf, String>>>,
+    /// Reusable read-only SQLite connections and cached tile format per MBTiles archive.
+    pub mbtiles_pool: Arc<MbtilesPool>,
 }

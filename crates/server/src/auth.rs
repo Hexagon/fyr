@@ -168,6 +168,24 @@ pub fn extract_session_token(headers: &axum::http::HeaderMap) -> Option<String> 
     None
 }
 
+/// Return `true` when the caller may see host-level details such as
+/// filesystem paths, bind host and disk capacity.
+///
+/// Open mode: everyone. Password mode: only valid admin sessions.
+/// Read-only mode: nobody (there is no admin in strict read-only mode).
+pub fn can_view_system_details(state: &AppState, headers: &axum::http::HeaderMap) -> bool {
+    let auth_cfg = &state.config.auth;
+    if auth_cfg.readonly {
+        return false;
+    }
+    if auth_cfg.admin_password.is_none() {
+        return true;
+    }
+    extract_session_token(headers)
+        .map(|token| state.auth_manager.is_valid_session(&token))
+        .unwrap_or(false)
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -371,10 +389,8 @@ mod tests {
     use axum::routing::post;
     use axum::Router;
     use downloader::DownloadManager;
-    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use tokio::sync::RwLock;
     use tower::ServiceExt;
     use types::Config;
 
@@ -402,7 +418,7 @@ mod tests {
             model_manager: Arc::new(ModelManager::new(config)),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(AuthManager::new()),
-            mbtiles_format_cache: Arc::new(RwLock::new(HashMap::new())),
+            mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
         })
     }
 
@@ -414,6 +430,31 @@ mod tests {
                 require_admin,
             ))
             .with_state(state)
+    }
+
+    #[test]
+    fn system_details_visibility_follows_access_mode() {
+        let open = test_state(false, None);
+        assert!(can_view_system_details(&open, &axum::http::HeaderMap::new()));
+
+        let protected = test_state(false, Some("secret"));
+        assert!(!can_view_system_details(&protected, &axum::http::HeaderMap::new()));
+        let token = protected.auth_manager.create_session();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
+        );
+        assert!(can_view_system_details(&protected, &headers));
+
+        let readonly = test_state(true, Some("secret"));
+        let token = readonly.auth_manager.create_session();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
+        );
+        assert!(!can_view_system_details(&readonly, &headers));
     }
 
     #[test]

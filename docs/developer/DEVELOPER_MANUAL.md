@@ -224,6 +224,10 @@ Fyr implements a two-level access control system controlled entirely by environm
 - **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
 - **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (`ConnectInfo<SocketAddr>`), so clients cannot bypass limits by spoofing `X-Forwarded-For` headers. When Fyr runs behind a reverse proxy, all requests share the proxy's IP; in that case the proxy should handle rate limiting.
 - **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
+- **`can_view_system_details`** — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:
+  - `/api/status`, `/api/config`, `/api/storage` and `/api/reader/zim/:filename/meta` return empty strings for filesystem paths (and `server_host`); `/api/storage` also omits `free_*`/`capacity_*` while keeping per-category usage.
+  - `/api/content/*` listings return the bare filename as `file_path`, and `/api/downloads` / `/api/download/:task_id/status` reduce `LocalFile` source paths to the filename.
+  New public endpoints that expose paths or disk details must apply the same check.
 
 ### Adding new protected endpoints
 
@@ -243,7 +247,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/settings`
 - `GET /api/content/maps`
 - `GET /api/maps/tiles/:filename/metadata` — MBTiles metadata as JSON
-- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention)
+- `GET /api/maps/tiles/:filename/:z/:x/:y` — MBTiles tile endpoint (XYZ convention). Tiles and metadata are read through `mbtiles::MbtilesPool`, which keeps up to 8 idle read-only SQLite connections plus the cached tile format per archive, keyed by file size + mtime so a replaced archive is reopened instead of served from stale handles.
 - `GET /api/content/books`
 - `GET /api/content/poi`
 - `GET /api/content/models`
@@ -264,6 +268,8 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
+
+Download routing: URL downloads stream into `inbox/<task_id>-<filename>.part` (unique per task, so concurrent downloads of the same filename cannot corrupt each other) and are then moved to their content folder with `DownloadManager::move_file`, which falls back to copy + delete when `rename` fails across filesystems (for example when `maps/` or `books/` is a separate Docker volume).
 
 `ModelManager::import_model` and `load_model` accept only bare `.gguf` filenames (`validate_model_filename`; anything with directory components or `..` returns `ModelError::InvalidFilename` → `400`). GGUF parsing/weight loading and the inbox→models move run on Tokio's blocking pool (`spawn_blocking`) so a multi-second model load never stalls other requests.
 
@@ -309,6 +315,7 @@ Reader and ZIM endpoints:
 - `GET /api/reader/zim/:filename/native/content/*path`
 
 Static content aliases:
+- `GET /static/*path` — SPA build output. Content-hashed bundles under `/static/js/` and `/static/css/` are served with `Cache-Control: public, max-age=31536000, immutable` (`static_cache_headers` in `main.rs`); `index.html`, `/static/assets/` (unhashed files copied from `crates/ui/frontend/public/`) and all other responses keep the global `no-store` policy.
 - `GET /data/maps/*path`, `GET /data/books/*path`, `GET /data/poi/*path` and `GET /data/curated-content.json` — the only published parts of `DATA_DIR`. `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are intentionally not served; unmatched `/data/*` and `/api/*` paths return `404` instead of the SPA `index.html`.
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
 - Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.
