@@ -68,7 +68,7 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 - Content Manager (downloads, imports, file deletion)
 - Settings (location and preferences)
 - Model uploads and model management
-- Storage details on the Overview page
+- Storage details on the Overview page (the server also hides data-directory paths and disk capacity from guests; per-category usage stays visible)
 
 **How to log in:**
 1. Click **Log in** in the top-right navbar.
@@ -87,7 +87,7 @@ Click **Log out** in the navbar. Your session is cleared immediately.
 ### Strict read-only mode (`FYR_READONLY`)
 Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
 
-Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed.
+Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.
 
 ### Header behavior
 - The top header shows the current page context together with the clock, weekday, and date.

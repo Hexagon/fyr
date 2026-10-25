@@ -376,7 +376,9 @@ impl DownloadManager {
             return;
         }
 
-        let temp_path = inbox_path.join(format!("{}.part", filename));
+        // Prefix with the task id so two concurrent downloads of the same
+        // filename never write into the same partial file.
+        let temp_path = inbox_path.join(format!("{}-{}.part", task_id, filename));
         let final_inbox_path = inbox_path.join(&filename);
 
         let mut file = match tokio::fs::File::create(&temp_path).await {
@@ -530,7 +532,7 @@ impl DownloadManager {
                 }
             }
 
-            if let Err(error) = tokio::fs::rename(&final_inbox_path, &destination).await {
+            if let Err(error) = Self::move_file(&final_inbox_path, &destination).await {
                 let message = format!("failed to route file to destination: {error}");
                 let _ = Self::set_task_state(
                     &runtime,
@@ -843,7 +845,7 @@ impl DownloadManager {
                 }
             }
 
-            if let Err(error) = tokio::fs::rename(&final_inbox_path, &destination).await {
+            if let Err(error) = Self::move_file(&final_inbox_path, &destination).await {
                 let message = format!("failed to route file to destination: {error}");
                 let _ = Self::set_task_state(
                     &runtime,
@@ -1034,7 +1036,13 @@ impl DownloadManager {
 
             let temp_path = match &task.source {
                 DownloadSource::Url { url } => {
-                    inbox.join(format!("{}.part", Self::filename_from_url(url, &task.id)))
+                    let filename = Self::filename_from_url(url, &task.id);
+                    // Older releases used `<filename>.part` without the task id.
+                    let legacy = inbox.join(format!("{}.part", filename));
+                    if legacy.exists() {
+                        let _ = std::fs::remove_file(&legacy);
+                    }
+                    inbox.join(format!("{}-{}.part", task.id, filename))
                 }
                 DownloadSource::LocalFile { path } => {
                     let source_name = path
@@ -1064,6 +1072,37 @@ impl DownloadManager {
         }
 
         recovered
+    }
+
+    /// Move `source` to `destination`, falling back to copy + delete when a
+    /// plain rename fails (for example when `maps/` or `books/` is a separate
+    /// Docker volume or mount point, which makes rename return EXDEV).
+    async fn move_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+        match tokio::fs::rename(source, destination).await {
+            Ok(()) => Ok(()),
+            Err(rename_error) => {
+                let copy_target = destination.with_extension(format!(
+                    "{}.fyr-move",
+                    destination.extension().and_then(|ext| ext.to_str()).unwrap_or("")
+                ));
+                if let Err(copy_error) = tokio::fs::copy(source, &copy_target).await {
+                    let _ = tokio::fs::remove_file(&copy_target).await;
+                    warn!(
+                        "Moving {} to {} failed (rename: {}; copy: {})",
+                        source.display(),
+                        destination.display(),
+                        rename_error,
+                        copy_error
+                    );
+                    return Err(copy_error);
+                }
+                if let Err(error) = tokio::fs::rename(&copy_target, destination).await {
+                    let _ = tokio::fs::remove_file(&copy_target).await;
+                    return Err(error);
+                }
+                tokio::fs::remove_file(source).await
+            }
+        }
     }
 
     fn cleanup_stale_temp_files(data_dir: &Path) {
@@ -1265,7 +1304,8 @@ mod tests {
             serde_json::to_vec(&persisted).expect("serialize tasks"),
         )
         .expect("write persisted tasks");
-        std::fs::write(inbox.join("atlas.pmtiles.part"), b"partial").expect("write url partial");
+        std::fs::write(inbox.join("url-task-atlas.pmtiles.part"), b"partial").expect("write url partial");
+        std::fs::write(inbox.join("atlas.pmtiles.part"), b"legacy").expect("write legacy url partial");
         std::fs::write(inbox.join("local-task-novel.epub.part"), b"partial").expect("write local partial");
 
         let manager = DownloadManager::new(&data_dir);
@@ -1279,6 +1319,7 @@ mod tests {
         assert_eq!(done.status, DownloadStatus::Completed);
         assert!(done.error.is_none());
 
+        assert!(!inbox.join("url-task-atlas.pmtiles.part").exists());
         assert!(!inbox.join("atlas.pmtiles.part").exists());
         assert!(!inbox.join("local-task-novel.epub.part").exists());
 
@@ -1287,6 +1328,33 @@ mod tests {
             .expect("reload tasks");
         assert_eq!(reloaded["url-task"].status, DownloadStatus::Failed);
 
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn move_file_moves_and_replaces_destination() {
+        let data_dir = test_data_dir();
+        let source = data_dir.join("inbox.epub");
+        let destination_dir = data_dir.join("books");
+        std::fs::create_dir_all(&destination_dir).expect("create destination dir");
+        let destination = destination_dir.join("inbox.epub");
+        std::fs::write(&source, b"new").expect("write source");
+        std::fs::write(&destination, b"old").expect("write existing destination");
+
+        DownloadManager::move_file(&source, &destination).await.expect("move file");
+
+        assert!(!source.exists());
+        assert_eq!(std::fs::read(&destination).expect("read destination"), b"new");
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn move_file_reports_missing_source() {
+        let data_dir = test_data_dir();
+        let result = DownloadManager::move_file(&data_dir.join("absent.epub"), &data_dir.join("x.epub")).await;
+        assert!(result.is_err());
+        assert!(!data_dir.join("x.epub").exists());
+        assert!(!data_dir.join("x.epub.fyr-move").exists());
         let _ = std::fs::remove_dir_all(data_dir);
     }
 

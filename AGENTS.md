@@ -52,6 +52,7 @@ Rules to always respect:
 4. **`FYR_READONLY` is absolute** — it returns `403` even if a valid session cookie is present.
 5. **Session tokens** are UUIDs stored in-memory (no persistence across restarts), set as HttpOnly cookies.
 6. Frontend components that reveal sensitive system information (storage paths, disk usage) must also check `isAdminLocked()` from `crates/ui/frontend/src/services/auth.js`.
+7. Public endpoints must not leak host details (filesystem paths, bind host, disk capacity) in restricted modes: gate them with `auth::can_view_system_details` as `/api/status`, `/api/config`, `/api/storage`, content listings and download task responses do.
 
 See `docs/developer/DEVELOPER_MANUAL.md § 3.5` for the full architecture description.
 

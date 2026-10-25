@@ -204,7 +204,11 @@ pub struct ReaderOpenResponse {
 }
 
 /// GET /api/status — Server status and content inventory
-pub async fn status(State(state): State<Arc<AppState>>) -> Result<Json<StatusResponse>, StatusCode> {
+pub async fn status(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<StatusResponse>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
     let config = Arc::clone(&state.config);
     let content_count = run_blocking(move || {
         Ok(ContentCountResponse {
@@ -220,26 +224,42 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Result<Json<StatusRes
     Ok(Json(StatusResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         status: "running".to_string(),
-        data_dir: state.config.data_dir.display().to_string(),
+        data_dir: visible_path(show_paths, &state.config.data_dir),
         content_count,
     }))
 }
 
 /// GET /api/config — Current configuration
-pub async fn config(State(state): State<Arc<AppState>>) -> Json<ConfigResponse> {
+pub async fn config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<ConfigResponse> {
+    let show = crate::auth::can_view_system_details(&state, &headers);
+    let config = &state.config;
     Json(ConfigResponse {
-        data_dir: state.config.data_dir.display().to_string(),
-        server_host: state.config.server.host.clone(),
-        server_port: state.config.server.port,
+        data_dir: visible_path(show, &config.data_dir),
+        server_host: if show { config.server.host.clone() } else { String::new() },
+        server_port: config.server.port,
         directories: DirectoriesResponse {
-            maps: state.config.maps_dir().display().to_string(),
-            books: state.config.books_dir().display().to_string(),
-            poi: state.config.poi_dir().display().to_string(),
-            inbox: state.config.inbox_dir().display().to_string(),
-            models: state.config.models_dir().display().to_string(),
-            misc: state.config.misc_dir().display().to_string(),
+            maps: visible_path(show, &config.maps_dir()),
+            books: visible_path(show, &config.books_dir()),
+            poi: visible_path(show, &config.poi_dir()),
+            inbox: visible_path(show, &config.inbox_dir()),
+            models: visible_path(show, &config.models_dir()),
+            misc: visible_path(show, &config.misc_dir()),
         },
     })
+}
+
+/// Render a filesystem path for API output, or an empty string when the
+/// caller is not allowed to see host details (see
+/// `auth::can_view_system_details`).
+fn visible_path(show: bool, path: &FsPath) -> String {
+    if show {
+        path.display().to_string()
+    } else {
+        String::new()
+    }
 }
 
 /// GET /api/settings — Current persisted application settings
@@ -270,8 +290,22 @@ pub async fn update_settings(
 }
 
 /// GET /api/storage — Get storage usage information
-pub async fn get_storage(State(state): State<Arc<AppState>>) -> Result<Json<StorageResponse>, StatusCode> {
-    run_blocking(move || Ok(Json(compute_storage(&state)))).await
+pub async fn get_storage(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<StorageResponse>, StatusCode> {
+    let show = crate::auth::can_view_system_details(&state, &headers);
+    let mut storage = run_blocking(move || Ok(compute_storage(&state))).await?;
+    if !show {
+        // Per-category usage stays public (Home cards); host path and disk
+        // capacity are admin-only details.
+        storage.data_dir = String::new();
+        storage.free_bytes = None;
+        storage.free_human = None;
+        storage.capacity_bytes = None;
+        storage.capacity_human = None;
+    }
+    Ok(Json(storage))
 }
 
 fn compute_storage(state: &AppState) -> StorageResponse {
@@ -358,8 +392,10 @@ fn compute_storage(state: &AppState) -> StorageResponse {
 /// GET /api/content/maps — List available maps
 pub async fn list_maps(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    list_content_files(state.config.maps_dir(), ContentType::Map).await
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.maps_dir(), ContentType::Map, show_paths).await
 }
 
 /// GET /api/maps/tiles/:filename/:z/:x/:y — Serve a single tile from an MBTiles archive
@@ -488,15 +524,19 @@ pub async fn serve_mbtiles_metadata(
 /// GET /api/content/books — List available books
 pub async fn list_books(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    list_content_files(state.config.books_dir(), ContentType::Book).await
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.books_dir(), ContentType::Book, show_paths).await
 }
 
 /// GET /api/content/poi — List available POI datasets
 pub async fn list_poi(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    list_content_files(state.config.poi_dir(), ContentType::Poi).await
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.poi_dir(), ContentType::Poi, show_paths).await
 }
 
 /// PUT /api/poi/:filename — Create or overwrite a GeoJSON POI file
@@ -566,15 +606,19 @@ pub async fn save_poi_file(
 /// GET /api/content/models — List available local GGUF models
 pub async fn list_models(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    list_content_files(state.config.models_dir(), ContentType::Model).await
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.models_dir(), ContentType::Model, show_paths).await
 }
 
 /// GET /api/content/misc — List available generic files
 pub async fn list_misc(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    list_content_files(state.config.misc_dir(), ContentType::Misc).await
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
+    list_content_files(state.config.misc_dir(), ContentType::Misc, show_paths).await
 }
 
 /// GET /api/models — List model registry entries and load states
@@ -977,18 +1021,28 @@ pub async fn create_import_download(
 pub async fn get_download_status(
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<types::DownloadTask>, StatusCode> {
-    state
+    let mut task = state
         .download_manager
         .get_task(&task_id)
         .await
-        .ok_or(StatusCode::NOT_FOUND)
-        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    if !crate::auth::can_view_system_details(&state, &headers) {
+        redact_task_paths(&mut task);
+    }
+    Ok(Json(task))
 }
 
 /// GET /api/downloads — List all download tasks
-pub async fn list_downloads(State(state): State<Arc<AppState>>) -> Json<Vec<types::DownloadTask>> {
-    let tasks = state.download_manager.list_tasks().await;
+pub async fn list_downloads(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<Vec<types::DownloadTask>> {
+    let mut tasks = state.download_manager.list_tasks().await;
+    if !crate::auth::can_view_system_details(&state, &headers) {
+        tasks.iter_mut().for_each(redact_task_paths);
+    }
     Json(tasks)
 }
 
@@ -1302,7 +1356,9 @@ pub async fn reader_open(
 pub async fn reader_zim_meta(
     State(state): State<Arc<AppState>>,
     Path(filename): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<ZimArchiveMetaResponse>, StatusCode> {
+    let show_paths = crate::auth::can_view_system_details(&state, &headers);
     let sanitized = sanitize_upload_filename(&filename).ok_or(StatusCode::BAD_REQUEST)?;
     if !sanitized.to_lowercase().ends_with(".zim") {
         return Err(StatusCode::BAD_REQUEST);
@@ -1326,7 +1382,7 @@ pub async fn reader_zim_meta(
         filename: sanitized.clone(),
         size_bytes: metadata.len(),
         content_url: format!("/docs/books/{}", sanitized),
-        source_path: source_path.display().to_string(),
+        source_path: visible_path(show_paths, &source_path),
     }))
 }
 
@@ -1710,8 +1766,28 @@ fn build_content_catalog_summary(config: &types::Config) -> String {
 async fn list_content_files(
     dir: std::path::PathBuf,
     content_type: ContentType,
+    show_paths: bool,
 ) -> Result<Json<Vec<ContentMetadata>>, StatusCode> {
-    run_blocking(move || Ok(Json(collect_content_files(dir, content_type)))).await
+    run_blocking(move || {
+        let mut files = collect_content_files(dir, content_type);
+        if !show_paths {
+            for file in &mut files {
+                file.file_path = std::path::PathBuf::from(&file.name);
+            }
+        }
+        Ok(Json(files))
+    })
+    .await
+}
+
+/// Reduce a local import source path to its bare filename for callers that
+/// may not see host paths.
+fn redact_task_paths(task: &mut types::DownloadTask) {
+    if let DownloadSource::LocalFile { path } = &mut task.source {
+        if let Some(name) = path.file_name() {
+            *path = std::path::PathBuf::from(name);
+        }
+    }
 }
 
 fn collect_content_files(dir: std::path::PathBuf, content_type: ContentType) -> Vec<ContentMetadata> {
