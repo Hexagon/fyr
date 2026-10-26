@@ -1376,9 +1376,17 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) {
+  /* minmax(0, 1fr): a plain 1fr track never shrinks below its widest child
+     (file table, URL/SHA-256 row), which made the page scroll sideways on
+     phones. */
   .manager-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     min-height: auto;
+  }
+
+  .manager-main,
+  .folder-sidebar {
+    min-width: 0;
   }
 
   .folder-sidebar,
@@ -1387,11 +1395,11 @@ onUnmounted(() => {
   }
 
   .download-create {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .manager-panels {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .curated-item {

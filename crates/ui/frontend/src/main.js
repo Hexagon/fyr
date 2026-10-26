@@ -3,15 +3,19 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 
 import Home from './pages/Home.vue'
-import ContentManager from './pages/ContentManager.vue'
-import Login from './pages/Login.vue'
-import Maps from './pages/Maps.vue'
-import Books from './pages/Books.vue'
-import Assistant from './pages/Assistant.vue'
-import Settings from './pages/Settings.vue'
-import Tools from './pages/Tools.vue'
-import Search from './pages/Search.vue'
-import Messages from './pages/Messages.vue'
+
+// Every page except the landing page is loaded on demand, so phones on a
+// weak hotspot link only download MapLibre, epub.js, the crypto libraries,
+// etc. when the page that needs them is opened.
+const ContentManager = () => import('./pages/ContentManager.vue')
+const Login = () => import('./pages/Login.vue')
+const Maps = () => import('./pages/Maps.vue')
+const Books = () => import('./pages/Books.vue')
+const Assistant = () => import('./pages/Assistant.vue')
+const Settings = () => import('./pages/Settings.vue')
+const Tools = () => import('./pages/Tools.vue')
+const Search = () => import('./pages/Search.vue')
+const Messages = () => import('./pages/Messages.vue')
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
