@@ -1260,6 +1260,12 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+/* The floating "expand library" button sits at the stage's top-left corner;
+   keep the reader toolbar (Back button) out from under it. */
+.books-layout.library-collapsed .reader-toolbar-main {
+  padding-left: 2.6rem;
+}
+
 .library-header {
   display: flex;
   justify-content: space-between;
@@ -1922,6 +1928,10 @@ onBeforeUnmount(() => {
   .library-toggle {
     width: 2.4rem;
     height: 2.4rem;
+  }
+
+  .books-layout.library-collapsed .reader-toolbar-main {
+    padding-left: 2.8rem;
   }
 
   .reader-toolbar-main {
