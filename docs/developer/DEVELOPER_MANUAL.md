@@ -624,8 +624,34 @@ GitHub Pages deploys `docs/site/` verbatim, so generated site files are committe
 
 Images: landing-page AVIF/WebP variants and `img/og-image.jpg` are generated from the source PNGs with `node optimize-images.js` after `npm install --no-save sharp@0.34.5` (not part of the regular build).
 
-## 8. Current Known Gaps
+## 8. Road to 1.0 and Known Gaps
+
+Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) as a hotspot and get maps for navigation, a searchable offline library, a local assistant grounded in that library, and local communication, with nothing that silently loses data or locks up the device.
+
+### Delivered on `next` (1.0 candidates)
+- **Library:** global search across books, ZIM article titles, Markdown/EPUB text, maps and POIs (§11); deep links, reading positions, bookmarks, "Continue reading", reader themes (§12).
+- **Maps:** deep links, coordinate readout/copy/go-to (decimal, DMS, `geo:`), GPX import/export, track recording, line/polygon POIs.
+- **Assistant:** "Ask your library" answers with cited sources (§1.1), context-window budgeting, prompt-injection hardening of library text, POST inference.
+- **Messages:** public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).
+- **Content:** resumable, checksum-verified downloads; graceful shutdown that keeps partial downloads.
+- **Platform:** installable web app manifest, lazy-loaded pages, `FYR_TRUSTED_PROXIES`, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.
+
+### Remaining before 1.0 (priority order)
+1. **HTTPS without a separate proxy.** Browsers only allow geolocation (My Location, track recording) on HTTPS or localhost, and encrypted channels only resist active attackers over HTTPS. Offer built-in TLS (`FYR_TLS_CERT`/`FYR_TLS_KEY`, rustls) plus an installer option, or a documented Caddy recipe.
+2. **Real-hardware validation.** Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.
+3. **Full-text recall for ZIM.** Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by `search.rs` and `ai/retrieval.rs`.
+4. **Accent-insensitive search** (`zurich` → `Zürich`): Unicode normalization in `search::fold` and retrieval keywords.
+5. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
+6. **Internationalization** (at least Swedish): the UI is English-only today.
+7. **PDF via pdf.js** for page memory, bookmarks and in-book search parity with EPUB.
+8. **Backup and portability:** export/import of POI files, settings and (encrypted) channel keys; optional server-side reading progress for guests on shared devices.
+9. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
+10. **Release engineering:** verified multi-arch Docker builds of `next`, an upgrade guide from 0.5.x (new `messages.sqlite`, new env vars), version bump to 1.0.0.
+
+### Known gaps
 - Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.
+- In open mode anyone on the network can post Board alerts (shown on Home); rate limits and admin deletion are the only mitigation. Use `FYR_ADMIN_PASSWORD` without `FYR_GUEST_MESSAGING` where that matters.
+- Reading positions and bookmarks are per browser; there is no cross-device sync.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
 ## 9. Recommended Validation Sequence
