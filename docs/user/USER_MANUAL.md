@@ -372,8 +372,12 @@ The **Maps** page is built to be usable for navigation without network access.
 - Markdown manuals are distributed as regular `.md` files in `public/data/books/`.
 
 ## 5b. PDF Reading
-- Select a `.pdf` file in Books to open it inline in the built-in reader panel.
-- If your browser blocks inline PDF rendering, use the "open it in a new tab" link shown under the reader panel.
+- Select a `.pdf` file in Books to open it in the built-in PDF reader. Fyr renders PDFs itself (with pdf.js, bundled with Fyr), so it works offline and the same way in every browser.
+- Pages scroll continuously. Only the pages near the screen are drawn, so long manuals (hundreds of pages) stay fast on phones.
+- Pages fit the width of the reader by default. Use **−** / **+** (or `-` / `+`) to zoom; 100% means "fit width". The zoom shares the saved text-size setting with EPUB and Markdown.
+- The **Light**, **Sepia** and **Dark** themes recolor PDF pages too. Dark inverts the page colors, so photos and colored diagrams also appear inverted; switch back to Light for those.
+- You can select and copy text on pages that contain real text. Scanned PDFs (images of pages) have no text, so selection and search find nothing in them.
+- Password-protected (encrypted) and damaged PDFs show an error message with a link to download the file, so you can open it in another app.
 
 ## 5c. Reader Shell
 - Books uses a unified reader shell with a single top toolbar.
@@ -383,15 +387,16 @@ The **Maps** page is built to be usable for navigation without network access.
 - Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.
 
 ## 5d. Reading Progress, Bookmarks and Links
-- **Resume where you left off:** Fyr remembers your last position per book: the EPUB location, the ZIM article, and the Markdown section. Opening the book again takes you back there. PDF files open inline through the browser's PDF viewer, so Fyr cannot see the page number and starts from the first page.
-- **Bookmarks:** use **＋ Bookmark** in the reader toolbar (or press `b`) to save the current position. **Bookmarks (n)** lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown and ZIM.
+- **Resume where you left off:** Fyr remembers your last position per book: the EPUB location, the ZIM article, the Markdown section and the PDF page (including how far down the page you were). Opening the book again takes you back there.
+- **Bookmarks:** use **＋ Bookmark** in the reader toolbar (or press `b`) to save the current position. **Bookmarks (n)** lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown, PDF and ZIM. A PDF has at most one bookmark per page (named "Page N").
 - **Continue reading:** the Overview page lists your recently opened books that are still in the library. Click a card to resume reading.
-- **Search inside a book:** EPUB, Markdown and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it.
+- **Search inside a book:** EPUB, Markdown, PDF and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it. PDF search runs in your browser over the PDF's text: it ignores case and accents, lists every match with its page and surrounding text (up to 200 matches), highlights the matches on the pages, and clicking a result scrolls to that match. Searching a long PDF the first time takes a few seconds; the progress is shown while it runs.
 - **ZIM history:** the ‹ / › buttons (or `[` / `]`) move back and forward between articles you opened in the current archive.
-- **Text size and theme:** for EPUB and Markdown, use A− / A+ (or `-` / `+`) to change the text size, and pick a Light, Sepia or Dark theme. These settings are saved in your browser.
+- **Text size and theme:** for EPUB and Markdown, use A− / A+ (or `-` / `+`) to change the text size, and pick a Light, Sepia or Dark theme. For PDFs the same buttons zoom the page. These settings are saved in your browser.
 - **Links to books:** the address bar follows what you are reading, so you can bookmark or share the link, and reloading the page reopens the same book and article:
   - `/books?file=<filename>` opens a book.
   - `/books?file=<archive>.zim&path=<article path>` opens a specific ZIM article.
+  - `/books?file=<filename>.pdf&page=<n>` opens a PDF at page *n*. While you read a PDF, the address bar follows the current page.
   - `/books?file=<filename>&q=<words>` opens a book and runs an in-book search.
   - The **←** button (Back to library) closes the book and removes these parameters from the address.
 - Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.
@@ -537,7 +542,7 @@ If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/
 - If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.
 
 ### "Use library" finds no sources
-- Make sure the books are in the `books/` data folder (ZIM, EPUB or Markdown; PDFs are not searched).
+- Make sure the books are in the `books/` data folder (ZIM, EPUB or Markdown; global search matches PDFs by title only, so open the PDF and use its in-book search).
 - For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.
 - Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.
 

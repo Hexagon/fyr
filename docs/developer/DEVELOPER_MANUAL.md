@@ -683,7 +683,7 @@ Images: landing-page AVIF/WebP variants and `img/og-image.jpg` are generated fro
 Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) as a hotspot and get maps for navigation, a searchable offline library, a local assistant grounded in that library, and local communication, with nothing that silently loses data or locks up the device.
 
 ### Delivered on `next` (1.0 candidates)
-- **Library:** accent- and case-insensitive global search across books, ZIM article titles, Markdown/EPUB text, maps and POIs (§11); deep links, reading positions, bookmarks, "Continue reading", reader themes (§12).
+- **Library:** accent- and case-insensitive global search across books, ZIM article titles, Markdown/EPUB text, maps and POIs (§11); deep links, reading positions, bookmarks, "Continue reading", reader themes (§12); PDF reader on pdf.js with the same features plus in-book search (§12).
 - **Maps:** deep links, coordinate readout/copy/go-to (decimal, DMS, `geo:`), GPX import/export, track recording, line/polygon POIs.
 - **Assistant:** "Ask your library" answers with cited sources (§1.1), context-window budgeting, prompt-injection hardening of library text, POST inference.
 - **Messages:** public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).
@@ -697,7 +697,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 3. **Full-text recall for ZIM.** Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by `search.rs` and `ai/retrieval.rs`.
 4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
 5. **Internationalization** (at least Swedish): the UI is English-only today.
-6. **PDF via pdf.js** for page memory, bookmarks and in-book search parity with EPUB.
+6. **PDF via pdf.js — delivered on `next`** (§ 12): pdf.js reader with page memory, bookmarks, `&page=` deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).
 7. **Backup and portability (remaining):** optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.
 8. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
 9. **Release engineering:** verified multi-arch Docker builds of `next`, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).
@@ -707,6 +707,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 - In open mode anyone on the network can post Board alerts (shown on Home); rate limits and admin deletion are the only mitigation. Use `FYR_ADMIN_PASSWORD` without `FYR_GUEST_MESSAGING` where that matters.
 - Reading positions and bookmarks are per browser; there is no automatic cross-device sync (manual export/import only).
 - A restored messages database and download history only take effect after a restart.
+- PDF text is only searched inside the open PDF (in the browser). Global search and the assistant still match PDFs by title only, and scanned PDFs without a text layer cannot be searched at all.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
 ## 9. Recommended Validation Sequence
@@ -757,9 +758,10 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
 All of this lives in the browser. There are no server endpoints or server writes, so guests in password mode and in `FYR_READONLY` mode get the same features.
 
 Modules (`crates/ui/frontend/src/modules/`):
-- `library/deepLink.js`: pure mapping between `route.query` and reader state. Other pages should use `buildBookDeepLink(file, { path, q })` or `bookRoute(...)` rather than building URLs by hand. The contract is:
+- `library/deepLink.js`: pure mapping between `route.query` and reader state. Other pages should use `buildBookDeepLink(file, { path, page, q })` or `bookRoute(...)` rather than building URLs by hand. The contract is:
   - `file`: a library filename. Values containing `/`, `\`, `..` or control characters are rejected.
   - `path`: a ZIM article path. A `#fragment` is allowed and leading slashes are stripped.
+  - `page`: a PDF page (positive integer, at most 7 digits). Invalid values are ignored rather than rejecting the link, and links without `page` behave as before. The reader clamps a page past the end of the document.
   - `q`: an in-book search query.
 - `library/progress.js`: `createProgressStore()` / `progressStore`, stored under the localStorage key `fyr.library.progress.v1`:
   - Stores the last-opened time, the position and the bookmarks for each book.
@@ -767,7 +769,7 @@ Modules (`crates/ui/frontend/src/modules/`):
   - Entries are held in an array rather than an object keyed by filename, so filenames such as `__proto__` cannot collide with prototype keys.
   - Every storage access is wrapped in try/catch (see `library/safeStorage.js`). If stored JSON is corrupt or has the wrong shape, it is treated as empty.
   - If storage is missing or throws, the store falls back to an in-memory copy. If a write fails because the quota is full, the store drops the older half of the books and retries once.
-- Position shapes: `{type:'epub', cfi, href, label}`, `{type:'zim', path, label}`, `{type:'md', line, label}`. A `{type:'pdf', page}` shape is reserved; it is unused because the PDF iframe has no page API.
+- Position shapes: `{type:'epub', cfi, href, label}`, `{type:'zim', path, label}`, `{type:'md', line, label}`, `{type:'pdf', page, offset, label}`. For PDFs, `offset` is the fraction (0–1) of the page height above the top of the viewport, so a position survives zoom and a different screen width. PDF bookmarks are de-duplicated per page (`positionKey` is `pdf:<page>`).
 - Export/import: `progressStore.exportData()` returns `{ format: "fyr-reading-progress", v: 1, exported_at, books }`; `importData(raw)` normalizes the input with the same validators as stored data and merges without deleting: new books are added, the newer `updatedAt` position wins, `lastOpened` takes the max, missing title/format are filled, bookmarks are united by `positionKey` (local titles win, colliding ids get a suffix). `Books.vue` exposes this as **Move reading progress** (files ≤ 5 MiB via `services/fileTransfer.js`).
 - `library/readerPrefs.js`: theme (`light`/`sepia`/`dark`) and font scale (70–200%), stored under `fyr.reader.prefs.v1`.
 - `library/continueReading.js`: intersects `progressStore.listRecent()` with `GET /api/content/books` for the Home page.
@@ -778,7 +780,14 @@ Reader behaviour:
 - EPUB positions come from epub.js `relocated` events (saved after an 800 ms debounce) and are restored with `rendition.display(cfi)`. If the CFI is invalid, the reader falls back to the start of the book.
 - Markdown is rendered block by block. `renderMarkdownWithLines` wraps each top-level block in `data-md-line="<source line>"`. Positions use the top visible block, and `/api/library/books/:f/search` hits (`#<line>`) scroll to the block that contains that line.
 - ZIM positions are the current article path (including any `#hash`). If the start path fails to load, the reader shows the main page and displays a notice.
+- PDFs (`reader/usePdfReader.js`, `reader/PdfViewer.vue`, `reader/pdfLayout.js`, `reader/pdfSearch.js`, `reader/pdfjsLoader.js`):
+  - pdf.js (`pdfjs-dist`, pinned exact version, **legacy** build because the modern build needs very recent JS such as `Map.prototype.getOrInsertComputed`) is loaded with a dynamic `import()` only when a PDF is opened, so it is a separate chunk of the Books route and no other page pays for it. The worker is imported with `?url` (like MapLibre's worker) and emitted as a content-hashed `.mjs` under `/static/assets/`. CMaps, standard fonts, the JPEG 2000/JBIG2 wasm decoders and ICC profiles are copied from `pdfjs-dist` to `/static/pdfjs/<version>/` by a small plugin in `vite.config.js` (and served from `node_modules` by the dev server). Nothing is loaded from a CDN.
+  - `usePdfReader.open(descriptor, token)` follows the unified reader's cancellation token. `dispose()` (called by `useUnifiedReader` on every new selection) destroys the in-flight loading task, which aborts the download and terminates its worker; a document that finishes loading after its selection was cancelled is destroyed instead of shown. The document proxy is held in a `shallowRef` with `markRaw`, because pdf.js uses private class fields that break behind Vue proxies. Load errors are mapped by `describePdfError` (password-protected, invalid/damaged, missing, other).
+  - `PdfViewer.vue` stacks pages in one scroll container. `pdfLayout.js` computes the layout from page sizes (page 1's size is the estimate until a page's real size is known) and maps scroll offsets to `{ page, offset }` and back. Only the pages in the viewport ±1 have DOM nodes; they are rendered one at a time, nearest first, into a fresh canvas that replaces the old one when done (so zooming does not flash). Canvases are capped at 8 M device pixels and a pixel ratio of 2; pages leaving the range have their render task and text layer cancelled and their canvas shrunk to 0×0. Whenever the layout changes (zoom, resize, a corrected page size) the viewer scrolls back to the same `{ page, offset }`.
+  - Fit width is the default; zoom is `readerPrefs.fontScale / 100`. Themes are CSS filters on the page canvas (sepia tone, or `invert(0.88) hue-rotate(180deg)` for dark); the transparent pdf.js `TextLayer` on top provides selection and copy.
+  - In-book search is client-side: the server's `/api/library/books/:f/search` does not read PDFs (a pure-Rust PDF text extractor would be a new, heavier dependency). `pdfSearch.js` folds case, accents and ligatures (NFKD) with an index map back to the original text, builds each page's text from pdf.js text items (the same items, in the same order, as the TextLayer's spans), and returns `{ page, occurrence, snippet }` results, at most 200. Page text (strings only) is cached per document. Highlights split the matched text-layer spans into `<span class="highlight">` segments; the selected result also gets `selected` and is scrolled into view.
+  - The viewer reports positions 250 ms after scrolling stops; `Books.vue` saves them with the usual 800 ms debounce and mirrors the page to `?page=`. Before switching or closing a book (and on `pagehide`) Books reads the viewer's exact current position so the last scroll is not lost. Positions from a viewer that belongs to another book are ignored.
 - `Books.vue` mirrors the reader state to the URL with `router.replace`. It records the queries it set itself, so its route watcher can tell its own URL updates apart from external navigation (for example a `/books` nav click, which closes the book). If the requested file is not in the library listing, the page shows a notice and clears the query.
 - Pending saves are written immediately on book switch, on `pagehide`, when the page becomes hidden, and on unmount.
 
-Tests: `cd crates/ui/frontend && npm test` runs Vitest with the shared happy-dom environment. Tests live next to the modules in `*.test.js` files. `readerHelpers.test.js` replaces DOMPurify with an identity function, because happy-dom's parser makes DOMPurify unwrap the first top-level element of each fragment; real browsers are not affected. That file tests line anchoring, not sanitization.
+Tests: `cd crates/ui/frontend && npm test` runs Vitest with the shared happy-dom environment. Tests live next to the modules in `*.test.js` files. `readerHelpers.test.js` replaces DOMPurify with an identity function, because happy-dom's parser makes DOMPurify unwrap the first top-level element of each fragment; real browsers are not affected. That file tests line anchoring, not sanitization. `pdfReader.test.js` mocks `pdfjsLoader` (no real pdf.js in happy-dom) to test PDF load cancellation, cleanup and error messages; `pdfLayout.test.js` and `pdfSearch.test.js` cover the pure position and search helpers. Canvas rendering is checked in a real browser (Playwright against the server), not in Vitest.
