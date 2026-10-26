@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/site.css?v=ceee88d895">
+    <link rel="stylesheet" href="/css/site.css?v=487691a610">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://fyr.guide/docs/developer-manual/">
@@ -112,7 +112,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Developer Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Developer Manual</h1>
-            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
             <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
         </div>
     </header>
@@ -127,6 +127,7 @@
                             <li class="pl-4"><a href="#cpu-optimization-and-thread-pool-sizing" class="text-gray-600 hover:text-brand-600">CPU optimization and thread pool sizing</a></li>
                             <li class="pl-4"><a href="#inference-hardening" class="text-gray-600 hover:text-brand-600">Inference hardening</a></li>
                             <li class="pl-4"><a href="#recommended-model-files" class="text-gray-600 hover:text-brand-600">Recommended model files</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-retrieval-augmented-answers" class="text-gray-600 hover:text-brand-600">Ask your library (retrieval-augmented answers)</a></li>
                             <li class=""><a href="#2-local-development" class="text-gray-600 hover:text-brand-600">2. Local Development</a></li>
                             <li class="pl-4"><a href="#prerequisites" class="text-gray-600 hover:text-brand-600">Prerequisites</a></li>
                             <li class="pl-4"><a href="#frontend-unit-tests" class="text-gray-600 hover:text-brand-600">Frontend unit tests</a></li>
@@ -152,6 +153,7 @@
                             <li class=""><a href="#8-current-known-gaps" class="text-gray-600 hover:text-brand-600">8. Current Known Gaps</a></li>
                             <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
                             <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
+                            <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
                     </ol>
                 </details>
             <div class="lg:grid lg:grid-cols-12 lg:gap-10">
@@ -331,12 +333,58 @@ Remove-Item Env:RUSTFLAGS
 <li>Manual override: set <code>settings.modules.assistant.high_ram_context = true</code> or <code>settings.modules.assistant.num_ctx</code> to an explicit value</li>
 </ul>
 <p>Conversation context: the SSE endpoint accepts an optional <code>history</code> query parameter — a JSON array of <code>{&quot;role&quot;:&quot;user&quot;|&quot;assistant&quot;,&quot;text&quot;:&quot;...&quot;}</code> objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.</p>
+<p>Prompt budgeting (<code>crates/server/src/ai/prompt.rs</code>): the prompt is fitted into <code>num_ctx</code> with the loaded tokenizer before inference. <code>input_token_budget()</code> reserves room for <code>max_tokens</code> (at most half the window); <code>fit_prompt()</code> always keeps the system prompt and question, then library sources (up to two thirds of the remaining room when there is history; the last one that does not fit is trimmed with <code>trim_text_to_tokens()</code>), then as much recent history as fits, dropping the oldest turns first and never keeping an orphaned assistant reply at the start. Tail-trimming the token ids (<code>trim_context_window</code>, which cuts the system prompt) is now only a last resort when even the bare prompt exceeds the budget.</p>
+<h3 id="ask-your-library-retrieval-augmented-answers">Ask your library (retrieval-augmented answers)<a class="heading-anchor" href="#ask-your-library-retrieval-augmented-answers" aria-label="Link to this section">#</a></h3>
+<p><code>GET /api/models/:filename/infer/stream</code> accepts two optional query params:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>use_library</code></td>
+<td><code>false</code></td>
+<td><code>true</code> enables retrieval; any value other than <code>true</code>/<code>false</code> is <code>400</code></td>
+</tr>
+<tr>
+<td><code>sources_limit</code></td>
+<td><code>4</code></td>
+<td>Clamped to <code>1..=8</code></td>
+</tr>
+</tbody></table>
+</div>
+<p>Flow (<code>ai_infer_stream</code> in <code>handlers.rs</code>):</p>
+<ol>
+<li><code>ModelManager::ensure_inference_ready()</code> runs first, so an unloaded model still returns <code>409</code> (validation-only models <code>500</code>) without doing any retrieval. The old path (no <code>use_library</code>) is unchanged.</li>
+<li><code>ai::retrieval::retrieve()</code> runs on the blocking pool inside <code>tokio::time::timeout(time_budget + 1.5 s)</code>; a timeout or panic degrades to &quot;no sources&quot;.</li>
+<li><code>ModelManager::infer_stream(filename, InferRequest { .., library })</code> fits the prompt (above) and returns <code>InferStream { sources, tokens }</code>. <code>sources</code> lists only the passages that survived budgeting, numbered as the model sees them.</li>
+<li>The SSE stream emits <code>event: sources</code> (JSON array) before the first <code>token</code>, then <code>token</code> events and <code>done</code>:</li>
+</ol>
+<pre><code class="language-json">[{&quot;n&quot;:1,&quot;title&quot;:&quot;Gustav Vasa&quot;,&quot;source&quot;:&quot;wikipedia_sv.zim&quot;,&quot;link&quot;:&quot;/books?file=wikipedia_sv.zim&amp;path=Gustav_Vasa&quot;},
+ {&quot;n&quot;:2,&quot;title&quot;:&quot;Survival Guide › Water&quot;,&quot;source&quot;:&quot;survival.md&quot;,&quot;link&quot;:&quot;/books?file=survival.md&amp;q=boil%20water&quot;}]
+</code></pre>
+<p><code>link</code> follows the Books deep-link contract: <code>/books?file=&lt;filename&gt;&amp;path=&lt;zim article path&gt;</code> for ZIM articles (the path is the same normalized entry URL the native article endpoint accepts), <code>/books?file=&lt;filename&gt;&amp;q=&lt;phrase&gt;</code> for Markdown/EPUB, where the phrase is a keyword bigram or keyword that occurs in the passage. Only bare filenames and archive-internal paths are ever emitted; no host paths, in any mode.</p>
+<p>Retrieval (<code>crates/server/src/ai/retrieval.rs</code>, pure helpers unit-tested):</p>
+<ul>
+<li><strong>Keywords:</strong> lowercase, split on non-alphanumeric characters, drop tokens under 3 characters (2-digit numbers kept) and English/Swedish stop words, max 10.</li>
+<li><strong>ZIM candidates</strong> (per archive, max 6 articles): exact <code>get_by_path</code> binary-search lookups for phrase variants (<code>Gustav_Vasa</code>, <code>Gustav_vasa</code>, as typed) in the <code>C</code> and <code>A</code> namespaces; a prefix scan over the <code>X/listing/titleOrdered/v1</code> article listing via <code>lower_bound</code>; and a linear title scan only for archives with at most 50 000 entries. Redirects are resolved; only HTML articles are read. Large archives are never walked end to end.</li>
+<li><strong>Markdown:</strong> heading sections → paragraphs. <strong>EPUB:</strong> OPF spine documents → block-level paragraphs. PDFs are skipped.</li>
+<li><strong>Text:</strong> <code>html_to_blocks()</code> drops <code>script</code>/<code>style</code>/<code>head</code>/…, splits at block elements, reuses <code>library::strip_html_tags</code>, decodes entities and removes <code>[12]</code>-style reference markers so they cannot be confused with the model&#39;s <code>[n]</code> citations.</li>
+<li><strong>Scoring:</strong> paragraphs are chunked to <code>max_passage_chars</code> (900), scored with BM25 (k1 = 1.2, b = 0.75, statistics over the candidate set) plus a title bonus, grouped per document (best chunk + 0.25 × second), and the top <code>sources_limit</code> documents become sources combining their two best chunks in document order.</li>
+<li><strong>Budgets</strong> (<code>RetrievalLimits::default()</code>): 2.5 s wall clock, 8 ZIM archives, 64 Markdown/EPUB files, 4 MiB per file/article/chapter, 32 MiB total bytes read. ZIM archives are probed first (cheap, most relevant). Each file is wrapped in <code>catch_unwind</code>; broken files are skipped with a warning.</li>
+</ul>
+<p>The system block appends the numbered sources (<code>[n] Title — file</code> + excerpt) and instructs the model to cite <code>[n]</code>, to cite only listed numbers, and to say when the sources do not contain the answer. With no passages it says so instead.</p>
+<p>Frontend: <code>services/citations.js</code> validates the <code>sources</code> payload (internal <code>/…</code> links only) and turns <code>[n]</code> / <code>[1, 2]</code> citations into <code>&lt;a class=&quot;citation&quot;&gt;</code> links (skipping code spans, fenced blocks, markdown links and reference definitions) before <code>marked</code> + DOMPurify. <code>services/api.js</code> routes SSE frames through <code>dispatchInferenceEvent()</code> (<code>onSources</code>, <code>onToken</code>, <code>onDone</code>). <code>Assistant.vue</code> persists the <strong>Use library</strong> toggle (<code>fyr_assistant_use_library</code>) and preset (<code>fyr_assistant_preset</code>) in <code>localStorage</code>, renders sources as <code>router-link</code> chips and routes citation clicks through the router. Tests: <code>citations.test.js</code>, <code>citations.render.test.js</code>, <code>api.test.js</code>.</p>
 <p>Catalog file:</p>
 <ul>
 <li>Fyr seeds <code>DATA_DIR/curated-content.json</code> from the bundled <code>public/data/curated-content.json</code> when the file is missing.</li>
 <li>Existing <code>DATA_DIR/curated-content.json</code> files are preserved so operators can maintain a local curated list across upgrades.</li>
 <li>The frontend content manager reads <code>/data/curated-content.json</code>, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.</li>
 <li>Curated entries may include an optional <code>download_url</code> field that queues a direct download from the content manager UI.</li>
+<li>Curated entries with a <code>download_url</code> may also carry an optional <code>sha256</code> (64 hex chars); the content manager passes it to <code>POST /api/download</code> so the finished file is verified.</li>
 </ul>
 <p>Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their <code>&lt;think&gt;…&lt;/think&gt;</code> output is displayed in the UI as a collapsible &quot;Thinking&quot; block above the live response stream.</p>
 <p>Prompt formatting is architecture-specific:</p>
@@ -517,6 +565,7 @@ New public endpoints that expose paths or disk details must apply the same check
 <li><code>GET /api/content/:type/:filename/download</code> — browser file download endpoint used by Content Manager. Streams via <code>tower_http::services::ServeFile</code> (no in-memory buffering), supports <code>Range</code>/<code>If-Range</code>/<code>HEAD</code>, and sets <code>Content-Disposition: attachment</code> with an ASCII <code>filename</code> plus RFC 5987 <code>filename*</code>.</li>
 <li><code>GET /api/download/:task_id/status</code></li>
 <li><code>GET /api/downloads</code></li>
+<li><code>GET /api/search?q=&amp;limit=&amp;kinds=</code> — global offline search (see § 11). Returns filenames and frontend routes only, never host paths, so no <code>can_view_system_details</code> gating is needed.</li>
 </ul>
 <h3 id="admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly">Admin-only endpoints (require auth when <code>FYR_ADMIN_PASSWORD</code> is set; always blocked when <code>FYR_READONLY</code>)<a class="heading-anchor" href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -525,6 +574,7 @@ New public endpoints that expose paths or disk details must apply the same check
 <li><code>POST /api/download</code></li>
 <li><code>DELETE /api/download/:task_id</code></li>
 <li><code>DELETE /api/download/:task_id/dismiss</code></li>
+<li><code>POST /api/download/:task_id/retry</code> — re-queue a failed/cancelled URL task, resuming from its kept partial (200 with the task, 404 unknown, 409 not retriable: local import, still active, completed, or server shutting down)</li>
 <li><code>POST /api/import/upload</code></li>
 <li><code>POST /api/import/download/:filename</code></li>
 <li><code>POST /api/models/upload</code></li>
@@ -538,7 +588,7 @@ New public endpoints that expose paths or disk details must apply the same check
 <ul>
 <li><code>GET /api/models</code></li>
 <li><code>GET /api/models/:filename/health</code></li>
-<li><code>GET /api/models/:filename/infer/stream</code></li>
+<li><code>GET /api/models/:filename/infer/stream</code> (optional <code>use_library</code> / <code>sources_limit</code>; source links carry bare filenames only, see § 1.1)</li>
 </ul>
 <p>Model upload/import flow:</p>
 <ul>
@@ -614,7 +664,24 @@ New public endpoints that expose paths or disk details must apply the same check
 <li>Persisted tasks are loaded on startup and immediately available through <code>GET /api/downloads</code>.</li>
 <li>URL downloads and local file imports both run in background workers with bounded retry/copy status updates.</li>
 <li>Cancellation is cooperative: <code>DELETE /api/download/:task_id</code> marks the task as cancelled and worker state transitions preserve that terminal status.</li>
-<li>Startup cleanup prunes stale <code>*.part</code> temp files from <code>DATA_DIR/inbox</code> (older than 24h).</li>
+<li>Startup cleanup prunes stale <code>*.part</code> temp files from <code>DATA_DIR/inbox</code> (older than 24h), except partials of URL tasks that are still <code>resumable</code>.</li>
+</ul>
+<p>Resumable URL downloads (<code>crates/downloader/src/manager.rs</code>, <code>fetch_url_to_partial</code>):</p>
+<ul>
+<li><code>POST /api/download</code> takes <code>{ &quot;url&quot;: &quot;...&quot;, &quot;sha256&quot;: &quot;&lt;hex&gt;&quot;? }</code>; a malformed <code>sha256</code> returns <code>400 {&quot;message&quot;: ...}</code>. <code>normalize_sha256</code> lowercases it and it is stored on the task.</li>
+<li><code>DownloadTask</code> gained <code>sha256</code>, <code>etag</code>, <code>last_modified</code>, <code>resumable</code> and <code>resumed_from</code> (all <code>#[serde(default)]</code>, so older <code>download_tasks.json</code> files still load) and the <code>verifying</code> status.</li>
+<li>Every attempt checks the partial file <code>inbox/&lt;task_id&gt;-&lt;filename&gt;.part</code>. When it is non-empty the request carries <code>Range: bytes=&lt;len&gt;-</code> plus <code>If-Range</code> with the strong ETag (weak <code>W/</code> ETags are skipped) or else <code>Last-Modified</code>, both persisted from the <code>200</code> response that started the file.</li>
+<li><code>206</code> with a <code>Content-Range</code> starting at <code>&lt;len&gt;</code> (and an unchanged ETag) appends; <code>200</code> truncates and restarts (no Range support, or If-Range mismatch); <code>416</code> accepts the partial only when its size equals the <code>Content-Range: bytes */&lt;total&gt;</code> total (or the persisted <code>total_bytes</code>), otherwise truncates and restarts. A stream that ends short of the announced length is treated as a network failure.</li>
+<li>Network/stream errors and retriable HTTP codes (408/429/5xx) are retried in-task with backoff (<code>MAX_DOWNLOAD_ATTEMPTS</code> consecutive failures). An attempt that grows the partial beyond its largest size so far resets the counter, so a link that keeps making progress is resumed until done, while a server that ignores Range and drops at the same offset still runs out of attempts.</li>
+<li>On final failure the partial is kept and the task is <code>failed</code> + <code>resumable</code> (non-retriable HTTP errors keep an existing partial too; disk write errors and checksum mismatches delete it). User cancel deletes the partial; dismissing an idle task deletes its partial; a running worker deletes its own partial when it sees the cancel flag (workers hold their own flag <code>Arc</code>, so dismiss removing the map entry cannot hide the cancellation).</li>
+<li><code>retry_task</code> holds the <code>cancel_flags</code> and <code>tasks</code> locks together (always in that order) so the &quot;no worker running&quot; check and the re-queue to <code>queued</code> are atomic.</li>
+<li>With a <code>sha256</code>, the finished partial is hashed with <code>ring</code> on the blocking pool (<code>verifying</code>) before it is renamed into the inbox; a mismatch fails the task and removes the file.</li>
+<li>Restart recovery (<code>recover_interrupted_tasks</code>) marks non-terminal URL tasks <code>failed</code> with &quot;interrupted by server restart – retry to resume&quot;, keeps the partial and sets <code>bytes_downloaded</code> to its on-disk size; local-import partials are still removed.</li>
+</ul>
+<p>Graceful shutdown (<code>crates/server/src/main.rs</code>):</p>
+<ul>
+<li><code>axum::serve(...).with_graceful_shutdown</code> listens for Ctrl+C everywhere and SIGTERM on Unix (<code>tokio::signal</code>).</li>
+<li>On the signal, <code>DownloadManager::shutdown</code> first sets a shutdown flag and wakes workers through a <code>Notify</code> (so workers blocked on a stalled stream or a retry backoff stop at once). URL workers flush their partial and record themselves as <code>failed</code> + <code>resumable</code> (&quot;interrupted by server shutdown – retry to resume&quot;); local imports fail and drop their temp copy. After up to 3 s it persists all tasks with partial sizes read from disk. Open connections then get up to 5 s to drain before the process exits, so SSE streams or large file transfers cannot block shutdown.</li>
 </ul>
 <h2 id="4-platform-support-guidance">4. Platform Support Guidance<a class="heading-anchor" href="#4-platform-support-guidance" aria-label="Link to this section">#</a></h2>
 <p>Primary support targets:</p>
@@ -756,7 +823,7 @@ git push origin vX.Y.Z
 <p>Images: landing-page AVIF/WebP variants and <code>img/og-image.jpg</code> are generated from the source PNGs with <code>node optimize-images.js</code> after <code>npm install --no-save sharp@0.34.5</code> (not part of the regular build).</p>
 <h2 id="8-current-known-gaps">8. Current Known Gaps<a class="heading-anchor" href="#8-current-known-gaps" aria-label="Link to this section">#</a></h2>
 <ul>
-<li>Download resume/range continuation is not yet implemented for interrupted <em>URL</em> downloads into Fyr. On startup <code>DownloadManager::recover_interrupted_tasks</code> marks persisted non-terminal tasks (<code>queued</code>/<code>downloading</code>/<code>validating</code>/<code>routing</code>) as <code>failed</code> (&quot;interrupted by server restart&quot;) and deletes their <code>.part</code> files, because workers do not survive a restart. (Browser downloads <em>from</em> Fyr via <code>/api/content/:type/:filename/download</code> do support <code>Range</code>.)</li>
+<li>Interrupted URL downloads are not resumed automatically after a restart; the user clicks <strong>Resume</strong> (<code>POST /api/download/:task_id/retry</code>). Interrupted local imports are not resumable and must be re-imported.</li>
 <li>CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.</li>
 </ul>
 <h2 id="9-recommended-validation-sequence">9. Recommended Validation Sequence<a class="heading-anchor" href="#9-recommended-validation-sequence" aria-label="Link to this section">#</a></h2>
@@ -782,6 +849,27 @@ git push origin vX.Y.Z
 <li>Maintain clean-room implementation boundaries: all ZIM reader logic must be implemented directly in Fyr&#39;s Rust server code using the <code>zim</code> crate. Do not bundle or wrap third-party reader JavaScript bundles.</li>
 <li>Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.</li>
 </ol>
+<h2 id="11-global-search-apisearch">11. Global Search (<code>/api/search</code>)<a class="heading-anchor" href="#11-global-search-apisearch" aria-label="Link to this section">#</a></h2>
+<p>Implemented in <code>crates/server/src/search.rs</code>, routed publicly in <code>main.rs</code>; frontend in <code>pages/Search.vue</code>, <code>components/HeaderSearch.vue</code> and <code>modules/search/searchResults.js</code>.</p>
+<p><strong>Request:</strong> <code>GET /api/search?q=&lt;text&gt;&amp;limit=&lt;1..200, default 40&gt;&amp;kinds=&lt;comma list&gt;</code>. <code>kinds</code> accepts <code>book</code>, <code>article</code>, <code>content</code>, <code>map</code>, <code>poi</code> (unknown names are ignored; omitted = all). Blank <code>q</code> returns an empty result set; <code>q</code> is truncated to 200 characters.</p>
+<p><strong>Response:</strong> <code>{ query, results: [{ kind, title, subtitle?, source, score, link, lat?, lng? }], total, truncated, partial, elapsed_ms }</code>. <code>source</code> is a filename. <code>partial</code> means the time budget ran out before every source was searched.</p>
+<p><strong>Link contracts</strong> (consumed by Books/Maps; values are percent-encoded):</p>
+<ul>
+<li>book: <code>/books?file=&lt;filename&gt;</code>; ZIM article: <code>/books?file=&lt;filename&gt;&amp;path=&lt;zim path&gt;</code> (same path form as <code>/native/search</code>); text hit: <code>/books?file=&lt;filename&gt;&amp;q=&lt;query&gt;</code></li>
+<li>map: <code>/maps?map=&lt;filename&gt;</code>; POI: <code>/maps?lat=&lt;lat&gt;&amp;lng=&lt;lng&gt;&amp;zoom=14&amp;label=&lt;name&gt;</code> (no map param; Maps picks a covering map)</li>
+</ul>
+<p><strong>Sources</strong> (cheapest first): map filenames → book titles (<code>library::extract_title</code>, cached per path+size+mtime; PDFs &gt; 16 MB use the filename) → GeoJSON POIs (FeatureCollection/Feature/array; Point or mean of line/polygon positions; parsed records cached; files &gt; 32 MB skipped, ≤ 150k records per file) → ZIM titles → Markdown/EPUB full text via <code>library::search_book</code> (queries ≥ 3 chars, ≤ 40 books, size caps 8 MB / 32 MB).</p>
+<p><strong>ZIM titles:</strong> per archive, <code>article_list_by_title</code> (v1) or <code>entry_list_by_title</code> (v0) is used.</p>
+<ul>
+<li>≤ 60k entries: a folded-title index is built synchronously and cached.</li>
+<li>≤ 250k entries: the index is built on one background thread (one build at a time); meanwhile prefix lookup is used.</li>
+<li>Larger: prefix lookup only — binary search on the title-ordered listing for several case variants of the query (<code>as typed</code>, <code>Capitalised</code>, <code>Title Case</code>, lower, UPPER, underscores), walking forward while titles match. Cost is O(variants × (log n + limit)) directory reads regardless of archive size.</li>
+<li>No title listing: URL-order scan bounded by the deadline.
+Redirects resolve to their target; duplicates by resolved path are dropped; at most 15 hits per archive. Index cache is LRU-bounded to 500k entries total (~20 MB).</li>
+</ul>
+<p><strong>Ranking (pure, unit-tested):</strong> case-folded (Unicode lowercase, <code>_</code> → space) tiers: exact 1000 &gt; prefix 800 &gt; word-start 600 &gt; all tokens at word starts 450 &gt; substring 300 (2+ chars) &gt; text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. <code>merge_results</code> de-duplicates by <code>link</code> (best score wins), reserves 5 slots per kind, then fills by score.</p>
+<p><strong>Bounds:</strong> whole search runs in one <code>run_blocking</code> task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.</p>
+<p><strong>Testing:</strong> pure ranking/merge/limit/link/cache tests and temp-file source tests live in <code>search.rs</code>; a router test in <code>main.rs</code> covers kinds, links, limits and path leakage in read-only mode. There is no ZIM writer, so ZIM paths are tested by <code>zim_title_search_against_fixture_archives</code>, which runs only when <code>FYR_TEST_ZIM_DIR</code> points at a folder of <code>.zim</code> files (for example the openZIM testing-suite <code>data/</code> archives). Frontend logic is tested in <code>modules/search/searchResults.test.js</code>.</p>
 
                 </article>
                 <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
@@ -793,6 +881,7 @@ git push origin vX.Y.Z
                             <li class="pl-4"><a href="#cpu-optimization-and-thread-pool-sizing" class="text-gray-600 hover:text-brand-600">CPU optimization and thread pool sizing</a></li>
                             <li class="pl-4"><a href="#inference-hardening" class="text-gray-600 hover:text-brand-600">Inference hardening</a></li>
                             <li class="pl-4"><a href="#recommended-model-files" class="text-gray-600 hover:text-brand-600">Recommended model files</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-retrieval-augmented-answers" class="text-gray-600 hover:text-brand-600">Ask your library (retrieval-augmented answers)</a></li>
                             <li class=""><a href="#2-local-development" class="text-gray-600 hover:text-brand-600">2. Local Development</a></li>
                             <li class="pl-4"><a href="#prerequisites" class="text-gray-600 hover:text-brand-600">Prerequisites</a></li>
                             <li class="pl-4"><a href="#frontend-unit-tests" class="text-gray-600 hover:text-brand-600">Frontend unit tests</a></li>
@@ -818,6 +907,7 @@ git push origin vX.Y.Z
                             <li class=""><a href="#8-current-known-gaps" class="text-gray-600 hover:text-brand-600">8. Current Known Gaps</a></li>
                             <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
                             <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
+                            <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
                         </ol>
                     </div>
                 </aside>

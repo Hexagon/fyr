@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/site.css?v=ceee88d895">
+    <link rel="stylesheet" href="/css/site.css?v=487691a610">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://fyr.guide/docs/user-manual/">
@@ -112,7 +112,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
-            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
             <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
         </div>
     </header>
@@ -136,7 +136,9 @@
                             <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
                             <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
                             <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
                             <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
@@ -160,6 +162,7 @@
                             <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
                             <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
                             <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#use-library-finds-no-sources" class="text-gray-600 hover:text-brand-600">&quot;Use library&quot; finds no sources</a></li>
                             <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
                             <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
                             <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>
@@ -218,6 +221,7 @@ It runs as a local server and is accessed from a browser.</p>
 <li><strong>Maps:</strong> map selection and viewer controls.</li>
 <li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
 <li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
+<li><strong>Search:</strong> one search box for the whole offline library (see <a href="#3c-searching-everything">3c. Searching Everything</a>).</li>
 <li><strong>Tools:</strong> unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.</li>
 </ul>
 <h2 id="3a-access-control-and-admin-login">3a. Access Control and Admin Login<a class="heading-anchor" href="#3a-access-control-and-admin-login" aria-label="Link to this section">#</a></h2>
@@ -330,8 +334,65 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 </tr>
 </tbody></table>
 </div>
+<h3 id="ask-your-library-answers-with-sources">Ask your library (answers with sources)<a class="heading-anchor" href="#ask-your-library-answers-with-sources" aria-label="Link to this section">#</a></h3>
+<p>Turn on <strong>Use library</strong> next to the mode buttons to have the assistant answer from your own offline books instead of only from what the model remembers.</p>
+<ul>
+<li>Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: <strong>ZIM</strong> archives by article title (for example <em>Gustav Vasa</em> or <em>Water purification</em>), <strong>Markdown</strong> files by section, and <strong>EPUB</strong> books by chapter. PDFs are not searched yet.</li>
+<li>The best-matching passages (up to four) are given to the model as numbered sources. The model is asked to cite them as <code>[1]</code>, <code>[2]</code>, … and to say when your library does not cover the question.</li>
+<li>Sources appear as chips under the answer; clicking a chip or a <code>[n]</code> citation in the text opens that article or book in <strong>Books</strong> (ZIM articles open directly; other books open with the matching words searched).</li>
+<li>If nothing matches, the answer shows <em>No matching passages found in your library.</em></li>
+<li>Tips: name the topic explicitly (&quot;Who was Gustav Vasa?&quot; works better than &quot;who was he?&quot;), and prefer article-style titles for ZIM archives. The search is capped at a few seconds, so very large libraries return the best matches found within that time.</li>
+<li>Sources take room in the model&#39;s context window. On small windows (2048 tokens) Fyr shortens sources and drops older conversation turns first; your question is always kept.</li>
+</ul>
+<p>The <strong>Use library</strong> setting and your chosen mode are remembered per browser.</p>
 <h3 id="persisting-the-default-model">Persisting the default model<a class="heading-anchor" href="#persisting-the-default-model" aria-label="Link to this section">#</a></h3>
 <p>The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.</p>
+<p>The conversation (including answer sources) is also kept in browser storage until you press <strong>Restart Conversation</strong>. <strong>Regenerate</strong> replaces the last answer instead of appending a duplicate question. If generation fails, the error is shown in the answer bubble; if the model was unloaded meanwhile, select it again in the model library.</p>
+<h2 id="3c-searching-everything">3c. Searching Everything<a class="heading-anchor" href="#3c-searching-everything" aria-label="Link to this section">#</a></h2>
+<p>Use the <strong>Search…</strong> box in the header (or press <kbd>/</kbd> anywhere outside a text field) and press Enter to open the <strong>Search</strong> page (<code>/search?q=...</code>). One query covers:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Group</th>
+<th>What is matched</th>
+<th>Opening a result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Books</strong></td>
+<td>Book titles (EPUB/PDF/Markdown/ZIM metadata) and filenames</td>
+<td>Opens the book</td>
+</tr>
+<tr>
+<td><strong>Articles</strong></td>
+<td>Article titles in every <code>.zim</code> archive in <code>books/</code></td>
+<td>Opens that article in the ZIM reader</td>
+</tr>
+<tr>
+<td><strong>In book text</strong></td>
+<td>Text inside Markdown and EPUB books (queries of 3+ characters)</td>
+<td>Opens the book with the search term</td>
+</tr>
+<tr>
+<td><strong>Maps</strong></td>
+<td>Map filenames in <code>maps/</code></td>
+<td>Opens that map</td>
+</tr>
+<tr>
+<td><strong>Places</strong></td>
+<td><code>name</code> / <code>title</code> / <code>description</code> of features in GeoJSON files in <code>poi/</code></td>
+<td>Opens Maps centred on the place</td>
+</tr>
+</tbody></table>
+</div>
+<ul>
+<li>Results are grouped by kind with the most relevant group first; exact and &quot;starts with&quot; matches rank above matches in the middle of a word. Matching ignores upper/lower case (accents are not ignored: <code>zurich</code> does not find <code>Zürich</code>).</li>
+<li>Use the filter chips (All, Books, Articles, Book text, Maps, Places) to narrow the search.</li>
+<li>Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.</li>
+<li>Search is read-only and available in every access mode, including <code>FYR_READONLY</code>.</li>
+<li>Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
+<li><code>.fgb</code> (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.</li>
+</ul>
 <h2 id="4-add-content">4. Add Content<a class="heading-anchor" href="#4-add-content" aria-label="Link to this section">#</a></h2>
 <h3 id="data-directories-and-supported-file-types">Data directories and supported file types<a class="heading-anchor" href="#data-directories-and-supported-file-types" aria-label="Link to this section">#</a></h3>
 <p>All data is stored under <code>public/data/</code> (or <code>DATA_DIR</code> if you override it).</p>
@@ -430,7 +491,12 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li>Use the <strong>Download</strong> button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.</li>
 <li>Downloads are auto-routed by recognized extension to the correct folder.</li>
 <li>If a URL points to an unrecognized extension, the file remains in <code>inbox/</code> until you move it manually.</li>
-<li>The task list persists across restarts. Tasks that were still queued or in progress when the server stopped are marked <strong>failed</strong> with the reason &quot;interrupted by server restart&quot; (their partial files are removed); re-queue the URL or re-import the file to try again.</li>
+<li>The task list persists across restarts.</li>
+<li><strong>Resumable URL downloads</strong> (for flaky off-grid links): when a URL download drops mid-transfer, Fyr keeps the bytes it already has and automatically continues from that point (HTTP <code>Range</code>) instead of starting over. If the link stays down, or Fyr is stopped or restarted mid-download, the task is marked <strong>failed</strong> but keeps its partial file; the task shows how much was kept (e.g. &quot;1.2 GB of 4 GB kept&quot;) and a <strong>Resume</strong> button. Click it to continue where it stopped. Servers that do not support resuming, or whose file changed in the meantime, are downloaded again from the start automatically.</li>
+<li>Stopping Fyr cleanly (Ctrl+C, <code>docker stop</code>, or a service stop) saves the progress of running downloads so they can be resumed after the next start.</li>
+<li>Failed or cancelled URL downloads without kept data show a <strong>Retry</strong> button that starts them again. Dismissing a failed task deletes any kept partial data; cancelling a running download deletes it as well. Local imports that were interrupted must be re-imported.</li>
+<li><strong>Checksum verification</strong>: enter an optional <strong>SHA-256 checksum</strong> next to the URL field. After the download finishes, Fyr verifies the file (status <strong>verifying</strong>) before moving it into place; on a mismatch the task fails with &quot;checksum mismatch&quot; and the file is removed. Curated catalog entries that include a <code>sha256</code> value are verified automatically when you click <strong>Download now</strong>.</li>
+<li>Resume, Retry and other download actions require admin access when Fyr runs with <code>FYR_ADMIN_PASSWORD</code>, and are unavailable in <code>FYR_READONLY</code> mode.</li>
 <li>Content listings and download tasks refresh automatically as task state changes.</li>
 <li>You can cancel queued or in-progress downloads from the download manager.</li>
 <li>Fyr does not overwrite your <code>curated-content.json</code> catalog when it already exists in <code>DATA_DIR</code>, so you can keep local recommendations there across updates.</li>
@@ -515,7 +581,9 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <ul>
 <li>Open Content Manager and inspect the download status/error line.</li>
 <li>Cancel the task and retry the URL.</li>
-<li>A task that shows &quot;interrupted by server restart&quot; was running when Fyr stopped; dismiss it and queue it again.</li>
+<li>A task that shows &quot;interrupted by server restart – retry to resume&quot; (or &quot;…server shutdown…&quot;) was running when Fyr stopped; click <strong>Resume</strong> to continue from the kept bytes.</li>
+<li>A task that failed after several attempts on an unreliable link keeps its data too; click <strong>Resume</strong> once the connection is back.</li>
+<li>&quot;checksum mismatch&quot; means the downloaded file differs from the expected SHA-256: check the checksum value and the source, then retry.</li>
 <li>For repeated failures, verify the source URL is reachable and supports direct file transfer.</li>
 </ul>
 <h3 id="zim-view-not-loading">ZIM view not loading<a class="heading-anchor" href="#zim-view-not-loading" aria-label="Link to this section">#</a></h3>
@@ -536,6 +604,12 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li>Confirm the <code>.gguf</code> model includes tokenizer metadata.</li>
 <li>For <code>phi3</code>/<code>phi-3.5</code>, confirm a sidecar tokenizer JSON exists next to the <code>.gguf</code> model.</li>
 <li>If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.</li>
+</ul>
+<h3 id="use-library-finds-no-sources">&quot;Use library&quot; finds no sources<a class="heading-anchor" href="#use-library-finds-no-sources" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Make sure the books are in the <code>books/</code> data folder (ZIM, EPUB or Markdown; PDFs are not searched).</li>
+<li>For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.</li>
+<li>Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.</li>
 </ul>
 <h3 id="assistant-load-fails-or-runs-slowly">Assistant load fails or runs slowly<a class="heading-anchor" href="#assistant-load-fails-or-runs-slowly" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -661,7 +735,9 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
                             <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
                             <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
                             <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
@@ -685,6 +761,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
                             <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
                             <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#use-library-finds-no-sources" class="text-gray-600 hover:text-brand-600">&quot;Use library&quot; finds no sources</a></li>
                             <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
                             <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
                             <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>

@@ -195,7 +195,7 @@ ${nav(active)}
         <div class="${wide ? 'max-w-7xl' : 'max-w-5xl'} mx-auto px-4 sm:px-6 lg:px-8">
             ${crumbs ? breadcrumbsHtml(crumbs) : ''}
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">${esc(h1)}</h1>
-            ${lead ? `<p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">${lead}</p>` : ''}
+            ${lead ? `<p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">${lead}</p>` : ''}
             ${meta ? `<p class="mt-4 text-sm text-gray-400">${meta}</p>` : ''}
         </div>
     </header>
