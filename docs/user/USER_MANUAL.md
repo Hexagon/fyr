@@ -183,7 +183,7 @@ Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside 
 | **Maps** | Map filenames in `maps/` | Opens that map |
 | **Places** | `name` / `title` / `description` of features in GeoJSON files in `poi/` | Opens Maps centred on the place |
 
-- Results are grouped by kind with the most relevant group first; exact and "starts with" matches rank above matches in the middle of a word. Matching ignores upper/lower case (accents are not ignored: `zurich` does not find `Zürich`).
+- Results are grouped by kind with the most relevant group first; exact and "starts with" matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (`zurich` finds `Zürich`, `malmo` finds `Malmö`).
 - Use the filter chips (All, Books, Articles, Book text, Maps, Places) to narrow the search.
 - Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.
 - Search is read-only and available in every access mode, including `FYR_READONLY`.

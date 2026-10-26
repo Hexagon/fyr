@@ -450,9 +450,15 @@ impl SearchQuery {
 /// Case-fold for matching: Unicode lowercase, `_` treated as a space (ZIM
 /// paths and filenames), whitespace collapsed.
 pub fn fold(text: &str) -> String {
+    use unicode_normalization::char::is_combining_mark;
+    use unicode_normalization::UnicodeNormalization;
+
     let mut out = String::with_capacity(text.len());
     let mut prev_space = true;
-    for ch in text.chars() {
+    // NFKD splits accented letters into base letter + combining marks (and
+    // compatibility forms such as ligatures into plain letters); dropping
+    // the marks makes "zurich" match "Zürich" and "malmo" match "Malmö".
+    for ch in text.nfkd().filter(|c| !is_combining_mark(*c)) {
         let ch = if ch == '_' { ' ' } else { ch };
         if ch.is_whitespace() {
             if !prev_space {
@@ -1714,13 +1720,24 @@ mod tests {
         assert!(SearchQuery::new("   \t\n ").is_none());
         let query = q("  Ärzte   OHNE_Grenzen ");
         assert_eq!(query.display, "Ärzte OHNE_Grenzen");
-        assert_eq!(query.folded, "ärzte ohne grenzen");
-        assert_eq!(query.tokens, vec!["ärzte", "ohne", "grenzen"]);
+        assert_eq!(query.folded, "arzte ohne grenzen");
+        assert_eq!(query.tokens, vec!["arzte", "ohne", "grenzen"]);
         let long = "x".repeat(10_000);
         assert_eq!(q(&long).char_len, MAX_QUERY_CHARS);
         // Multi-byte input is truncated on character boundaries.
         let long_unicode = "ü".repeat(500);
         assert_eq!(q(&long_unicode).display.chars().count(), MAX_QUERY_CHARS);
+    }
+
+    #[test]
+    fn folding_ignores_case_and_accents() {
+        assert_eq!(fold("Zürich"), "zurich");
+        assert_eq!(fold("MALMÖ  Ångström"), "malmo angstrom");
+        assert_eq!(fold("ﬁre_Café"), "fire cafe");
+        let query = SearchQuery::new("zurich").unwrap();
+        assert!(match_score("Zürich Hauptbahnhof", &query).is_some());
+        let query = SearchQuery::new("Göteborg").unwrap();
+        assert!(match_score("Goteborg", &query).is_some(), "accents in the query fold too");
     }
 
     #[test]

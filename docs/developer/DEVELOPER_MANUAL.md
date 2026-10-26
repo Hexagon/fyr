@@ -629,7 +629,7 @@ Images: landing-page AVIF/WebP variants and `img/og-image.jpg` are generated fro
 Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) as a hotspot and get maps for navigation, a searchable offline library, a local assistant grounded in that library, and local communication, with nothing that silently loses data or locks up the device.
 
 ### Delivered on `next` (1.0 candidates)
-- **Library:** global search across books, ZIM article titles, Markdown/EPUB text, maps and POIs (§11); deep links, reading positions, bookmarks, "Continue reading", reader themes (§12).
+- **Library:** accent- and case-insensitive global search across books, ZIM article titles, Markdown/EPUB text, maps and POIs (§11); deep links, reading positions, bookmarks, "Continue reading", reader themes (§12).
 - **Maps:** deep links, coordinate readout/copy/go-to (decimal, DMS, `geo:`), GPX import/export, track recording, line/polygon POIs.
 - **Assistant:** "Ask your library" answers with cited sources (§1.1), context-window budgeting, prompt-injection hardening of library text, POST inference.
 - **Messages:** public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).
@@ -640,13 +640,12 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 1. **HTTPS without a separate proxy.** Browsers only allow geolocation (My Location, track recording) on HTTPS or localhost, and encrypted channels only resist active attackers over HTTPS. Offer built-in TLS (`FYR_TLS_CERT`/`FYR_TLS_KEY`, rustls) plus an installer option, or a documented Caddy recipe.
 2. **Real-hardware validation.** Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.
 3. **Full-text recall for ZIM.** Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by `search.rs` and `ai/retrieval.rs`.
-4. **Accent-insensitive search** (`zurich` → `Zürich`): Unicode normalization in `search::fold` and retrieval keywords.
-5. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
-6. **Internationalization** (at least Swedish): the UI is English-only today.
-7. **PDF via pdf.js** for page memory, bookmarks and in-book search parity with EPUB.
-8. **Backup and portability:** export/import of POI files, settings and (encrypted) channel keys; optional server-side reading progress for guests on shared devices.
-9. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
-10. **Release engineering:** verified multi-arch Docker builds of `next`, an upgrade guide from 0.5.x (new `messages.sqlite`, new env vars), version bump to 1.0.0.
+4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
+5. **Internationalization** (at least Swedish): the UI is English-only today.
+6. **PDF via pdf.js** for page memory, bookmarks and in-book search parity with EPUB.
+7. **Backup and portability:** export/import of POI files, settings and (encrypted) channel keys; optional server-side reading progress for guests on shared devices.
+8. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
+9. **Release engineering:** verified multi-arch Docker builds of `next`, an upgrade guide from 0.5.x (new `messages.sqlite`, new env vars), version bump to 1.0.0.
 
 ### Known gaps
 - Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.
@@ -692,7 +691,7 @@ Implemented in `crates/server/src/search.rs`, routed publicly in `main.rs`; fron
 - No title listing: URL-order scan bounded by the deadline.
 Redirects resolve to their target; duplicates by resolved path are dropped; at most 15 hits per archive. Index cache is LRU-bounded to 500k entries total (~20 MB).
 
-**Ranking (pure, unit-tested):** case-folded (Unicode lowercase, `_` → space) tiers: exact 1000 > prefix 800 > word-start 600 > all tokens at word starts 450 > substring 300 (2+ chars) > text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. `merge_results` de-duplicates by `link` (best score wins), reserves 5 slots per kind, then fills by score.
+**Ranking (pure, unit-tested):** case- and accent-folded (NFKD with combining marks removed, Unicode lowercase, `_` → space) tiers: exact 1000 > prefix 800 > word-start 600 > all tokens at word starts 450 > substring 300 (2+ chars) > text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. `merge_results` de-duplicates by `link` (best score wins), reserves 5 slots per kind, then fills by score.
 
 **Bounds:** whole search runs in one `run_blocking` task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.
 
