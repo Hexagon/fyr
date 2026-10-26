@@ -41,7 +41,18 @@ aes.workspace = true
 cbc.workspace = true
 base64 = "0.21"
 unicode-normalization = "0.1"
+# Built-in HTTPS: rustls with the ring provider (no OpenSSL / aws-lc build),
+# axum-server for TLS accept + graceful shutdown, rcgen for self-signed certs.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rcgen = { version = "0.13", default-features = false, features = ["crypto", "pem", "ring"] }
+if-addrs = "0.13"
+time = "0.3"
+axum-server = { version = "0.7.2", default-features = false, features = ["tls-rustls-no-provider"] }
+libc = "0.2"
 
 [[bin]]
 name = "fyr"
 path = "src/main.rs"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots", "json"] }

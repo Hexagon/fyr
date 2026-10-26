@@ -40,6 +40,7 @@ Config overrides:
 - `FYR_GUEST_MESSAGING` — in password mode, lets guests post messages and create encrypted channels (see rule 8)
 - `FYR_TRUSTED_PROXIES` — reverse proxy IPs/CIDRs; only for these peers is `X-Forwarded-For` used to find the client IP. Always derive client IPs via `auth::client_ip`, never from headers directly.
 - `FYR_MESSAGING`, `FYR_MESSAGES_MAX_PER_CHANNEL`, `FYR_MESSAGES_MAX_AGE_DAYS` — Messages on/off and retention
+- `FYR_TLS` (`self-signed`), `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (rustls, `crates/server/src/tls.rs`); invalid combinations fail startup. The session cookie gets `Secure` and `/api/status` shows the certificate fingerprint only via `auth::can_view_system_details`. See `docs/developer/DEVELOPER_MANUAL.md § 3.6`.
 
 ## Core Security Function: Access Control
 

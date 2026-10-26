@@ -47,6 +47,12 @@ curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy
 irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy
 ```
 
+To serve HTTPS (needed for GPS / My Location on phones over the LAN) with a self-signed certificate, add `--https` (`-Https` on Windows), or set `FYR_TLS=self-signed` yourself; see the [User Manual §2a](/docs/user/USER_MANUAL.md#2a-https-and-trusting-this-server).
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
+```
+
 See [fyr.guide/#installation](https://fyr.guide/#installation) for the full installation guide, including manual Docker commands, building from source, and Raspberry Pi deployment.
 
 ## One-Minute Start (From Source)

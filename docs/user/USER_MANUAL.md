@@ -33,10 +33,51 @@ irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
 
 All arguments are documented inline via `--help` (Linux/macOS) or `-Help` (Windows), and the full reference table is available at [fyr.guide/#installation](https://fyr.guide/#installation).
 
+To serve HTTPS (needed for GPS on phones, see §2a), add `--https` (`-Https` on Windows) for a self-signed certificate, or `--tls-cert <file> --tls-key <file>` (`-TlsCert`/`-TlsKey`) for your own. The choice is remembered for `update`; `--no-https` (`-NoHttps`) turns it off again.
+
 ## 2. Start Fyr
 For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use [fyr.guide/#installation](https://fyr.guide/#installation). (If viewing this file locally, open `docs/site/index.html` in a browser for the same installation guide.)
 
-Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device.
+Once Fyr is running, open `http://localhost:8080` on the same machine, or `http://<host-or-device-ip>:8080` if Fyr runs in Docker or on another device. With HTTPS enabled (§2a) use `https://` instead.
+
+## 2a. HTTPS and Trusting This Server
+Browsers only allow the location features (**My Location**, **Record Track**, **Add location** on the Board) on `https://` pages or on `localhost`. Fyr is usually opened over plain `http://` on a LAN or a Raspberry Pi hotspot, where these are blocked. HTTPS also stops a rogue hotspot from altering the Fyr page in transit, which is what keeps encrypted message channels safe against active attackers (§3d), and the admin login cookie is then only ever sent over the encrypted connection.
+
+Fyr can serve HTTPS itself; no separate proxy is needed.
+
+| Setting | Effect |
+|---------|--------|
+| `FYR_TLS=self-signed` | Fyr creates its own certificate on first start and keeps it in `DATA_DIR/tls/`. Every device shows a one-time warning that you accept (below). |
+| `FYR_TLS_CERT` + `FYR_TLS_KEY` | Use your own certificate (PEM chain and private key), for example from your own CA or Let's Encrypt. No warnings if devices trust the issuer. Restart Fyr after renewing it. |
+| `FYR_TLS_SANS` | Extra names/IPs for the self-signed certificate, comma-separated (for example `fyr.lan,192.168.4.1`). |
+| `FYR_HTTP_REDIRECT_PORT` | Optional: also listen on this port with plain HTTP and send visitors to HTTPS (for example `80`). Off by default. |
+
+Examples:
+
+```bash
+# Docker: HTTPS on port 8080, certificate valid for the Pi's hotspot address
+docker run -d -p 8080:8080 -e FYR_TLS=self-signed -e FYR_TLS_SANS=192.168.4.1 \
+  -v fyr-data:/data --name fyr hexagon/fyr:latest
+
+# Installer (adds the host's name and LAN addresses automatically)
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
+```
+
+Once enabled, the port speaks **only** HTTPS: open `https://<host-or-ip>:8080`. A plain `http://` address on that port no longer loads (use `FYR_HTTP_REDIRECT_PORT` if people have the old address bookmarked).
+
+**Which names the self-signed certificate covers:** `localhost`, `127.0.0.1`, `::1`, the computer's host name and `<hostname>.local`, its LAN IPv4 addresses (and private `fd…` IPv6 addresses) found at startup, plus `FYR_TLS_SANS`. In Docker the container cannot see the host's addresses, so pass them in `FYR_TLS_SANS` (the installers do this for you). The certificate is valid for 825 days. Fyr creates a new one when a new name or address appears, or 30 days before it expires; devices then show the warning once more. The private key (`key.pem`) is readable only by the Fyr user.
+
+### Trust this server (self-signed certificate)
+The first time a device opens Fyr over HTTPS it warns that the connection is "not private": the certificate was made by your Fyr server, not by a public authority. Before accepting, **compare its SHA-256 fingerprint** with the real one. Admins find it on the **Overview** page (next to the data directory) and in the server log at startup (`docker logs fyr 2>&1 | grep fingerprint`). If the fingerprints differ, do not continue: someone may be imitating your server (unless the log shows Fyr just created a new certificate).
+
+- **Chrome / Edge (Windows, macOS, Linux, Android):** on the warning page choose **Advanced** → **Proceed to … (unsafe)**. To see the fingerprint, click **Not secure** in the address bar → certificate details (*SHA-256 Fingerprint*).
+- **Firefox (desktop and Android):** **Advanced…** → **View Certificate** (check *SHA-256*) → back → **Accept the Risk and Continue**. Firefox remembers the exception.
+- **Safari (macOS):** **Show Details** → **View the certificate** to check the fingerprint → **visit this website** → confirm (macOS may ask for your password to remember it).
+- **iPhone / iPad (Safari):** **Show Details** → **visit this website** → **Visit Website**. Tapping **View Certificate** on the details page shows the fingerprint on recent iOS versions.
+
+After accepting, the page counts as a secure connection, so the browser can ask for location permission and **My Location** / **Record Track** work. Some browsers ask again after a restart or when the certificate changes; some optional features (such as **Install app**) may still require a fully trusted certificate. For warning-free access on your own devices, use `FYR_TLS_CERT`/`FYR_TLS_KEY` with a certificate they trust, or add `DATA_DIR/tls/cert.pem` to the device's trusted certificates.
+
+With your own certificate (`FYR_TLS_CERT`), Fyr also sends `Strict-Transport-Security`, so browsers that have visited once will insist on HTTPS for this address for 180 days. It is not sent for self-signed certificates.
 
 ---
 
@@ -215,7 +256,7 @@ Open **Join or create an encrypted channel**, enter a channel name and a passphr
 
 ### What the encryption protects (threat model)
 - **Protects against:** people passively sniffing the Wi-Fi, and anyone who copies or reads the server's disk.
-- **Does not protect against:** an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over **HTTPS** through a reverse proxy if that matters to you.
+- **Does not protect against:** an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over **HTTPS** (built in, see §2a, or through a reverse proxy) if that matters to you.
 - Anyone who knows the passphrase can read everything in the channel and post under any nickname.
 - The Board is never encrypted.
 
@@ -276,7 +317,7 @@ The **Maps** page is built to be usable for navigation without network access.
 - **Click any point** on the map (with no tool active) to see its coordinate in both formats with **Copy** and **Copy link** buttons. Clicking a POI or track shows its name (and length for tracks).
 - **Go to coordinate:** in *Tools*, type a coordinate and press **Go**. Accepted forms include `59.33, 18.07`, `59.33 18.07`, `-33.86, 151.21`, `59,33 18,07`, `59.33N 18.07E`, `59°19'48"N 18°4'12"E`, `N 59° 19.8' E 18° 4.2'` and `59 19 48, 18 4 12`. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.
 - **Links to a place:** other pages (and people) can link to `/maps?lat=59.33&lng=18.07&zoom=14&label=Camp`. All parameters are optional; `map=<file>` selects a specific map. Without `map`, Fyr picks the most detailed installed map whose coverage contains the point.
-- **My Location / Record Track** need the browser's location permission **and a secure connection**: open Fyr through `https://…` or `http://localhost`. Browsers block GPS on plain `http://` LAN addresses (for example `http://192.168.1.10:8080`); Fyr then shows an explanation instead of failing silently.
+- **My Location / Record Track** need the browser's location permission **and a secure connection**: open Fyr through `https://…` or `http://localhost`. Browsers block GPS on plain `http://` LAN addresses (for example `http://192.168.1.10:8080`); Fyr then shows an explanation instead of failing silently. To fix this on a LAN, enable HTTPS (§2a).
 - **Record Track:** press **⏺ Record Track** to log your GPS position (inaccurate fixes and jitter under a few metres are ignored). Distance, duration and point count update live and the track is drawn in red. Recording keeps running while you visit other Fyr pages, but keep the browser tab open and the screen on (Fyr requests a screen wake lock where supported). **⏹ Stop Recording** keeps the track: name it and **Save** it into a POI file (admins; default `tracks.geojson`, timestamps are kept), download it as **GPX**, or **Discard** it. An unsaved track survives a page reload and is offered again.
 - **GPX import/export:** open **Edit POIs** (**View POIs** for guests). **⬆ Import GPX** reads a `.gpx` file in the browser: waypoints become points, tracks and routes become lines (each track segment is its own line; elevation and timestamps are kept). With a POI file selected the data is appended to it; otherwise a new, not yet saved file named after the GPX is created. **⬇ GPX** and **⬇ GeoJSON** download the selected file. Polygons cannot be expressed in GPX and are skipped (the panel says how many).
 - **Read-only/guest users** can view POI files, tracks and imported GPX data, measure distances, record and download tracks, and export GPX/GeoJSON. Creating files, placing or removing POIs and saving require admin access (the server rejects saves in read-only mode regardless).
@@ -395,6 +436,10 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000)
 - `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages in days (default 90)
 - `FYR_TRUSTED_PROXIES` — comma-separated IPs or CIDR blocks of your reverse proxy (for example `127.0.0.1` or `172.16.0.0/12` for a Docker network). Only for connections from these addresses does Fyr read the visitor's address from `X-Forwarded-For`, so login and messaging rate limits apply per visitor instead of to everyone behind the proxy. Leave unset when Fyr is reached directly.
+- `FYR_TLS` — `self-signed` to serve HTTPS with a generated certificate (see §2a); `off` (default) for plain HTTP
+- `FYR_TLS_CERT`, `FYR_TLS_KEY` — paths to your own PEM certificate chain and private key; set both to serve HTTPS with them
+- `FYR_TLS_SANS` — extra comma-separated host names/IPs for the self-signed certificate
+- `FYR_HTTP_REDIRECT_PORT` — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from `FYR_PORT`)
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
@@ -429,7 +474,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 2. **Replace the program or image.** Docker: `docker pull hexagon/fyr:latest`, then remove and re-create the container with the **same** volume (`-v fyr-data:/data -e DATA_DIR=/data`). The image is multi-arch: the same tag works on Intel/AMD (`x86_64`) and ARM64 (`aarch64`, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same `DATA_DIR`.
 3. **Start it.** Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.
 
-**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only). Other 1.0 features may add their own folders (for example a search `index/` or `tls/` certificates); all of them live inside the data folder, so keep mounting the whole folder.
+**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only) and, only with `FYR_TLS=self-signed`, `tls/` (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). Other 1.0 features may add their own folders (for example a search `index/`); all of them live inside the data folder, so keep mounting the whole folder.
 
 **New environment variables** (all optional; defaults keep 0.5.x behaviour except that Messages is on):
 
@@ -438,6 +483,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 - `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000).
 - `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages (default 90).
 - `FYR_TRUSTED_PROXIES` — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.
+- `FYR_TLS`, `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (§2a), off by default. Turning it on changes the address to `https://`.
 
 If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/`FYR_READONLY` (§3a) and the Messages posting rules (§3d) after upgrading.
 
@@ -454,6 +500,11 @@ If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/
 - Stop old `fyr` processes and retry.
 - If startup reports bind failure details, verify `FYR_HOST` and `FYR_PORT` values.
 - If startup reports write permission issues, ensure `DATA_DIR` points to a writable folder.
+- `Invalid HTTPS configuration` or `Cannot read TLS certificate/private key`: check the `FYR_TLS*` settings (§2a). Fyr refuses to start rather than silently falling back to plain HTTP. In Docker, the container user (UID 1000) must be able to read mounted certificate and key files.
+
+### Page does not load after enabling HTTPS
+- Use `https://` in the address; with HTTPS on, the port no longer answers plain `http://`.
+- A certificate warning on each device is expected with `FYR_TLS=self-signed` (§2a). If the warning says the name does not match, add the address you use to `FYR_TLS_SANS` and restart.
 
 ### Content not visible in UI
 - Verify file extension is supported.

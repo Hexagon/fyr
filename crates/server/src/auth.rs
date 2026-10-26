@@ -132,24 +132,26 @@ const SESSION_COOKIE_NAME: &str = "fyr_session";
 
 /// Build a `Set-Cookie` header value for the session token.
 ///
-/// NOTE: The `Secure` flag is intentionally omitted because Fyr is designed
-/// for local and LAN deployments where HTTPS is typically not available.
-/// For public HTTPS deployments, a TLS-terminating reverse proxy (nginx,
-/// Caddy, etc.) should be placed in front of Fyr and should be configured
-/// to set the `Secure` flag via response-header manipulation if required.
-fn set_cookie_header(token: &str) -> HeaderValue {
+/// `secure` is true when Fyr serves HTTPS itself (`FYR_TLS` /
+/// `FYR_TLS_CERT`): the cookie then gets the `Secure` flag. Over plain HTTP
+/// (the LAN default) the flag must be omitted or browsers drop the cookie.
+/// Behind a TLS-terminating reverse proxy, the proxy may add `Secure`.
+fn set_cookie_header(token: &str, secure: bool) -> HeaderValue {
     HeaderValue::from_str(&format!(
-        "{}={}; HttpOnly; Path=/; SameSite=Strict",
-        SESSION_COOKIE_NAME, token
+        "{}={}; HttpOnly; Path=/; SameSite=Strict{}",
+        SESSION_COOKIE_NAME,
+        token,
+        if secure { "; Secure" } else { "" }
     ))
     .unwrap()
 }
 
 /// Build a `Set-Cookie` header that clears the session cookie.
-fn clear_cookie_header() -> HeaderValue {
+fn clear_cookie_header(secure: bool) -> HeaderValue {
     HeaderValue::from_str(&format!(
-        "{}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0",
-        SESSION_COOKIE_NAME
+        "{}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0{}",
+        SESSION_COOKIE_NAME,
+        if secure { "; Secure" } else { "" }
     ))
     .unwrap()
 }
@@ -423,7 +425,10 @@ pub async fn login_handler(
 
     response
         .headers_mut()
-        .insert(header::SET_COOKIE, set_cookie_header(&token));
+        .insert(
+            header::SET_COOKIE,
+            set_cookie_header(&token, state.config.server.tls.is_enabled()),
+        );
 
     response
 }
@@ -445,7 +450,10 @@ pub async fn logout_handler(
 
     response
         .headers_mut()
-        .insert(header::SET_COOKIE, clear_cookie_header());
+        .insert(
+            header::SET_COOKIE,
+            clear_cookie_header(state.config.server.tls.is_enabled()),
+        );
 
     response
 }
@@ -534,6 +542,16 @@ mod tests {
             HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
         );
         assert!(!can_view_system_details(&readonly, &headers));
+    }
+
+    #[test]
+    fn session_cookie_is_secure_only_over_https() {
+        let plain = set_cookie_header("t", false);
+        assert_eq!(plain, "fyr_session=t; HttpOnly; Path=/; SameSite=Strict");
+        let secure = set_cookie_header("t", true);
+        assert!(secure.to_str().unwrap().ends_with("; Secure"));
+        assert!(!clear_cookie_header(false).to_str().unwrap().contains("Secure"));
+        assert!(clear_cookie_header(true).to_str().unwrap().contains("Max-Age=0; Secure"));
     }
 
     #[test]

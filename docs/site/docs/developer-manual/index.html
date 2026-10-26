@@ -151,6 +151,7 @@
                             <li class="pl-4"><a href="#channel-crypto-specification-v1" class="text-gray-600 hover:text-brand-600">Channel crypto specification (v1)</a></li>
                             <li class="pl-4"><a href="#messages-frontend" class="text-gray-600 hover:text-brand-600">Messages frontend</a></li>
                             <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
+                            <li class=""><a href="#36-built-in-https-cratesserversrctlsrs" class="text-gray-600 hover:text-brand-600">3.6 Built-in HTTPS (crates/server/src/tls.rs)</a></li>
                             <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
                             <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
                             <li class=""><a href="#6-documentation-rules" class="text-gray-600 hover:text-brand-600">6. Documentation Rules</a></li>
@@ -457,6 +458,7 @@ Remove-Item Env:RUSTFLAGS
 <li><code>FYR_READONLY</code> (optional; enables strict read-only mode; all mutating endpoints return 403)</li>
 <li><code>FYR_GUEST_MESSAGING</code> (optional; with <code>FYR_ADMIN_PASSWORD</code>, guests may post messages / create channels)</li>
 <li><code>FYR_TRUSTED_PROXIES</code> (optional; reverse proxy IPs/CIDRs whose <code>X-Forwarded-For</code> is honoured for client IPs)</li>
+<li><code>FYR_TLS</code> (<code>self-signed</code> or <code>off</code>), <code>FYR_TLS_CERT</code> + <code>FYR_TLS_KEY</code> (PEM paths), <code>FYR_TLS_SANS</code>, <code>FYR_HTTP_REDIRECT_PORT</code> (optional; built-in HTTPS, see § 3.6)</li>
 <li><code>FYR_MESSAGING</code> (default <code>true</code>; <code>false</code> disables Messages), <code>FYR_MESSAGES_MAX_PER_CHANNEL</code> (default <code>1000</code>, clamped 10–100000), <code>FYR_MESSAGES_MAX_AGE_DAYS</code> (default <code>90</code>, clamped 1–3650)</li>
 <li><code>FYR_DEV_PROXY_TARGET</code> (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)</li>
 </ul>
@@ -473,7 +475,8 @@ Remove-Item Env:RUSTFLAGS
 <li>The final Rust image build uses <code>FYR_USE_PREBUILT_FRONTEND=1</code> so <code>crates/server/build.rs</code> reuses those prebuilt assets instead of running <code>npm ci</code> again in the Rust builder stage.</li>
 <li>Writable content directory is mounted to <code>/data</code>.</li>
 <li>Startup sync overwrites <code>user-manual.md</code> and <code>developer-manual.md</code> in <code>DATA_DIR/books/</code> from image-bundled manuals.</li>
-<li>Healthcheck uses <code>GET /api/status</code>.</li>
+<li>Healthcheck uses <code>GET /api/status</code> on <code>${FYR_PORT:-8080}</code>: plain HTTP first, then <code>curl -k https://</code> so it also passes in HTTPS mode (<code>-k</code> only skips verifying Fyr&#39;s own certificate for this local probe).</li>
+<li>HTTPS in Docker: <code>-e FYR_TLS=self-signed</code> (certificate persisted in the <code>/data</code> volume under <code>tls/</code>) and pass the host&#39;s names/LAN IPs in <code>FYR_TLS_SANS</code>, because the container only sees its bridge address. Provided certificates are bind-mounted read-only (the installers use <code>/run/fyr-tls/cert.pem</code> and <code>key.pem</code>) and must be readable by UID 1000.</li>
 <li>Startup performs writable-path preflight checks and fails fast if <code>DATA_DIR</code> is not writable.</li>
 <li>Bind failures now include actionable diagnostics for <code>FYR_HOST</code> and <code>FYR_PORT</code>.</li>
 </ul>
@@ -545,11 +548,12 @@ Remove-Item Env:RUSTFLAGS
 <li>Otherwise → validate the <code>fyr_session</code> cookie value against <code>AuthManager::tokens</code>.</li>
 </ol>
 </li>
-<li><strong>Session cookie</strong> — <code>HttpOnly; Path=/; SameSite=Strict</code>. Not accessible to JavaScript.</li>
+<li><strong>Session cookie</strong> — <code>HttpOnly; Path=/; SameSite=Strict</code>, plus <code>Secure</code> when Fyr serves HTTPS itself (<code>config.server.tls.is_enabled()</code>; plain HTTP keeps the flag off or browsers would drop the cookie). Not accessible to JavaScript.</li>
 <li><strong>Rate limiting</strong> — 10 failed attempts per 5-minute window per client IP. The key comes from <code>auth::client_ip</code>: the real TCP peer address (<code>ConnectInfo&lt;SocketAddr&gt;</code>), unless that peer is listed in <code>FYR_TRUSTED_PROXIES</code> (IPs/CIDRs, parsed into <code>types::TrustedProxies</code>). Only then is <code>X-Forwarded-For</code> read, from the right, taking the first hop that is not itself a trusted proxy; client-supplied hops further left are never used, and unparsable values fall back to the peer. IPv4-mapped IPv6 peers are matched as IPv4. Messaging rate limits and stream caps (<code>messaging::routes::ClientIp</code>) use the same function.</li>
 <li><strong><code>AuthConfig</code></strong> lives in <code>crates/types/src/config.rs</code> and is populated from env vars in <code>Config::default()</code>.</li>
 <li><strong><code>can_view_system_details</code></strong> — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:<ul>
 <li><code>/api/status</code>, <code>/api/config</code>, <code>/api/storage</code> and <code>/api/reader/zim/:filename/meta</code> return empty strings for filesystem paths (and <code>server_host</code>); <code>/api/storage</code> also omits <code>free_*</code>/<code>capacity_*</code> while keeping per-category usage.</li>
+<li><code>/api/status</code> always reports <code>tls.enabled</code>/<code>tls.mode</code> but includes <code>tls.fingerprint_sha256</code> only for these callers.</li>
 <li><code>/api/content/*</code> listings return the bare filename as <code>file_path</code>, and <code>/api/downloads</code> / <code>/api/download/:task_id/status</code> reduce <code>LocalFile</code> source paths to the filename.
 New public endpoints that expose paths or disk details must apply the same check.</li>
 </ul>
@@ -835,6 +839,45 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 <li><code>axum::serve(...).with_graceful_shutdown</code> listens for Ctrl+C everywhere and SIGTERM on Unix (<code>tokio::signal</code>).</li>
 <li>On the signal, <code>DownloadManager::shutdown</code> first sets a shutdown flag and wakes workers through a <code>Notify</code> (so workers blocked on a stalled stream or a retry backoff stop at once). URL workers flush their partial and record themselves as <code>failed</code> + <code>resumable</code> (&quot;interrupted by server shutdown – retry to resume&quot;); local imports fail and drop their temp copy. After up to 3 s it persists all tasks with partial sizes read from disk. Open connections then get up to 5 s to drain before the process exits, so SSE streams or large file transfers cannot block shutdown.</li>
 </ul>
+<h2 id="36-built-in-https-cratesserversrctlsrs">3.6 Built-in HTTPS (<code>crates/server/src/tls.rs</code>)<a class="heading-anchor" href="#36-built-in-https-cratesserversrctlsrs" aria-label="Link to this section">#</a></h2>
+<p>Configuration is parsed in <code>crates/types/src/tls.rs</code> (<code>TlsConfig::from_lookup</code>, pure and unit-tested) into <code>config.server.tls</code>. Invalid combinations are stored in <code>config.server.tls_error</code> and <code>Config::validate()</code> makes startup fail:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Variables</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>none, or <code>FYR_TLS=off</code></td>
+<td>plain HTTP (<code>off</code> with cert paths set: warning, HTTP)</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_CERT</code> + <code>FYR_TLS_KEY</code></td>
+<td><code>TlsMode::Provided</code>; only one of them → error</td>
+</tr>
+<tr>
+<td><code>FYR_TLS=self-signed</code></td>
+<td><code>TlsMode::SelfSigned</code>; combined with cert paths → error</td>
+</tr>
+<tr>
+<td>other <code>FYR_TLS</code> values</td>
+<td>error</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_SANS</code></td>
+<td>normalised DNS names (optional <code>*.</code>) / IPs; invalid entry → error; ignored with a warning outside self-signed mode</td>
+</tr>
+<tr>
+<td><code>FYR_HTTP_REDIRECT_PORT</code></td>
+<td>requires TLS, 1–65535, must differ from <code>FYR_PORT</code></td>
+</tr>
+</tbody></table>
+</div>
+<p><strong>Serving.</strong> <code>main::serve</code> uses <code>axum-server</code> 0.7 for both HTTP and HTTPS (<code>from_tcp</code> / <code>tls_rustls::from_tcp_rustls</code>) with <code>into_make_service_with_connect_info::&lt;SocketAddr&gt;()</code>, so <code>ConnectInfo</code> (login and messaging rate limits) works in both modes. rustls 0.23 uses the <code>ring</code> provider (no OpenSSL, no aws-lc build; builds for x86_64 and aarch64), TLS 1.2+1.3, ALPN <code>h2</code>/<code>http/1.1</code>, 10 s handshake timeout. Shutdown is unchanged in behaviour: on SIGINT/SIGTERM download workers stop first (<code>DOWNLOAD_SHUTDOWN_GRACE</code>), then both listeners get <code>Handle::graceful_shutdown(Some(CONNECTION_DRAIN_TIMEOUT))</code>, after which remaining connections (SSE streams) are closed. The optional redirect listener (<code>tls::redirect_router</code>) answers every request with <code>308</code> to <code>https://&lt;Host without port&gt;[:FYR_PORT]&lt;path?query&gt;</code>; Host values that are not a DNS name or IP literal get <code>400</code>. <code>Strict-Transport-Security: max-age=15552000</code> is added only in provided mode (with a self-signed certificate it would make the warning unskippable).</p>
+<p><strong>Provided certificates.</strong> <code>load_pem_files</code> reads the chain and key (PKCS#8, PKCS#1 or SEC1) with errors that name the file and variable but never include contents; rustls rejects a key that does not match. Files are read once at startup (restart after renewal). A world-readable key is logged as a warning, not modified.</p>
+<p><strong>Self-signed lifecycle.</strong> Files in <code>DATA_DIR/tls/</code> (directory <code>0700</code>): <code>key.pem</code> (ECDSA P-256, PKCS#8, <code>0600</code>), <code>cert.pem</code>, <code>meta.json</code> (<code>sans</code>, <code>not_before_unix</code>, <code>not_after_unix</code>, <code>fingerprint_sha256</code>). Each file is written to a temporary sibling and renamed; <code>meta.json</code> last. Required names (<code>compute_sans</code>): <code>localhost</code>, <code>127.0.0.1</code>, <code>::1</code>, the hostname and <code>&lt;hostname&gt;.local</code>, a specific <code>FYR_HOST</code>, interface IPv4 addresses except loopback/link-local, IPv6 unique-local (<code>fc00::/7</code>) addresses, and <code>FYR_TLS_SANS</code>. Global IPv6 addresses are skipped because privacy addresses rotate and would force a new certificate on every restart. <code>regeneration_reason</code> (pure) regenerates when: no certificate; files unreadable or not matching <code>meta.json</code>; a required name is missing (the new certificate keeps the old names too, so an interface that is down at boot does not cause churn); or fewer than 30 days remain (renewal starts from the current name set). Certificates are leaf certificates (<code>CA:FALSE</code>, EKU serverAuth, random 128-bit serial so Firefox never sees a reused issuer+serial), valid 825 days (Apple&#39;s maximum), backdated one day. If the clock reads earlier than 2026-01-01 (RTC-less Pi booted offline) generation uses that date instead and logs a warning. The private key is never logged; startup logs the path, validity, names and SHA-256 fingerprint, which <code>/api/status</code> also returns to callers allowed by <code>can_view_system_details</code> (shown on the Overview page for admins).</p>
+<p><strong>Tests.</strong> <code>types::tls::tests</code> (parsing/validation), <code>tls::tests</code> (SANs, regeneration decisions, persistence/permissions, clock floor, PEM errors, redirect targets) and <code>tls_tests</code> (real router + <code>serve</code> on <code>127.0.0.1:0</code>, reqwest/rustls client trusting only the generated certificate: status over TLS, <code>Secure</code> cookie on login, fingerprint visibility, 308 redirect, HSTS only in provided mode, graceful shutdown with an open SSE stream).</p>
 <h2 id="4-platform-support-guidance">4. Platform Support Guidance<a class="heading-anchor" href="#4-platform-support-guidance" aria-label="Link to this section">#</a></h2>
 <p>Primary support targets:</p>
 <ul>
@@ -987,7 +1030,7 @@ git push origin vX.Y.Z
 </ul>
 <h3 id="remaining-before-10-priority-order">Remaining before 1.0 (priority order)<a class="heading-anchor" href="#remaining-before-10-priority-order" aria-label="Link to this section">#</a></h3>
 <ol>
-<li><strong>HTTPS without a separate proxy.</strong> Browsers only allow geolocation (My Location, track recording) on HTTPS or localhost, and encrypted channels only resist active attackers over HTTPS. Offer built-in TLS (<code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code>, rustls) plus an installer option, or a documented Caddy recipe.</li>
+<li><strong>HTTPS without a separate proxy — delivered on <code>next</code></strong> (§ 3.6): <code>FYR_TLS=self-signed</code> or <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code> (rustls), optional <code>FYR_HTTP_REDIRECT_PORT</code>, installer <code>--https</code>. Remaining: validate the &quot;accept the warning&quot; flow and geolocation on real Android/iOS devices.</li>
 <li><strong>Real-hardware validation.</strong> Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.</li>
 <li><strong>Full-text recall for ZIM.</strong> Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by <code>search.rs</code> and <code>ai/retrieval.rs</code>.</li>
 <li><strong>Place search on maps</strong> from vector-tile place labels or bundled gazetteers, not only POI files.</li>
@@ -1118,6 +1161,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                             <li class="pl-4"><a href="#channel-crypto-specification-v1" class="text-gray-600 hover:text-brand-600">Channel crypto specification (v1)</a></li>
                             <li class="pl-4"><a href="#messages-frontend" class="text-gray-600 hover:text-brand-600">Messages frontend</a></li>
                             <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
+                            <li class=""><a href="#36-built-in-https-cratesserversrctlsrs" class="text-gray-600 hover:text-brand-600">3.6 Built-in HTTPS (crates/server/src/tls.rs)</a></li>
                             <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
                             <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
                             <li class=""><a href="#6-documentation-rules" class="text-gray-600 hover:text-brand-600">6. Documentation Rules</a></li>

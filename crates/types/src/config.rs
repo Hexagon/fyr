@@ -76,6 +76,14 @@ pub struct ServerConfig {
     /// warning at startup.
     #[serde(skip)]
     pub trusted_proxies_rejected: Vec<String>,
+    /// Built-in HTTPS (`FYR_TLS`, `FYR_TLS_CERT`/`FYR_TLS_KEY`,
+    /// `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT`). Off by default.
+    #[serde(default)]
+    pub tls: crate::tls::TlsConfig,
+    /// Invalid TLS environment combination; the server refuses to start
+    /// with this message (see [`Config::validate`]).
+    #[serde(skip)]
+    pub tls_error: Option<String>,
 }
 
 /// Local AI inference runtime configuration.
@@ -97,6 +105,8 @@ impl Config {
                 port: 8080,
                 trusted_proxies: crate::proxy::TrustedProxies::default(),
                 trusted_proxies_rejected: Vec::new(),
+                tls: crate::tls::TlsConfig::default(),
+                tls_error: None,
             },
             data_dir,
             auth: AuthConfig {
@@ -144,6 +154,21 @@ impl Config {
     /// folders under `/data/*` are).
     pub fn messages_db_path(&self) -> PathBuf {
         self.data_dir.join("messages.sqlite")
+    }
+
+    /// Directory holding the generated self-signed certificate
+    /// (`FYR_TLS=self-signed`). Never served over HTTP.
+    pub fn tls_dir(&self) -> PathBuf {
+        self.data_dir.join("tls")
+    }
+
+    /// Reject configuration errors detected while reading the environment
+    /// (currently: invalid TLS combinations). Call before serving.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(error) = &self.server.tls_error {
+            anyhow::bail!("Invalid HTTPS configuration: {error}");
+        }
+        Ok(())
     }
 
     /// Get path to the curated content catalog
@@ -221,6 +246,10 @@ impl Default for Config {
             config.server.trusted_proxies = trusted;
             config.server.trusted_proxies_rejected = rejected;
         }
+        match crate::tls::TlsConfig::from_lookup(|name| std::env::var(name).ok(), port) {
+            Ok(tls) => config.server.tls = tls,
+            Err(error) => config.server.tls_error = Some(error),
+        }
 
         let admin_password = std::env::var("FYR_ADMIN_PASSWORD")
             .ok()
@@ -288,6 +317,17 @@ mod tests {
             assert_eq!(parse_flag(raw), Some(false), "{raw}");
         }
         assert_eq!(parse_flag("maybe"), None);
+    }
+
+    #[test]
+    fn tls_is_off_by_default_and_validate_reports_errors() {
+        let mut config = Config::default_with_data_dir("/tmp/x");
+        assert!(!config.server.tls.is_enabled());
+        assert!(config.validate().is_ok());
+        assert!(config.tls_dir().ends_with("tls"));
+        config.server.tls_error = Some("boom".into());
+        let error = config.validate().unwrap_err().to_string();
+        assert!(error.contains("HTTPS") && error.contains("boom"), "{error}");
     }
 
     #[test]

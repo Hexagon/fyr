@@ -205,6 +205,7 @@ CI-pinned versions for parity:
 - `FYR_READONLY` (optional; enables strict read-only mode; all mutating endpoints return 403)
 - `FYR_GUEST_MESSAGING` (optional; with `FYR_ADMIN_PASSWORD`, guests may post messages / create channels)
 - `FYR_TRUSTED_PROXIES` (optional; reverse proxy IPs/CIDRs whose `X-Forwarded-For` is honoured for client IPs)
+- `FYR_TLS` (`self-signed` or `off`), `FYR_TLS_CERT` + `FYR_TLS_KEY` (PEM paths), `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` (optional; built-in HTTPS, see § 3.6)
 - `FYR_MESSAGING` (default `true`; `false` disables Messages), `FYR_MESSAGES_MAX_PER_CHANNEL` (default `1000`, clamped 10–100000), `FYR_MESSAGES_MAX_AGE_DAYS` (default `90`, clamped 1–3650)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
@@ -223,7 +224,8 @@ Container expectations:
 - The final Rust image build uses `FYR_USE_PREBUILT_FRONTEND=1` so `crates/server/build.rs` reuses those prebuilt assets instead of running `npm ci` again in the Rust builder stage.
 - Writable content directory is mounted to `/data`.
 - Startup sync overwrites `user-manual.md` and `developer-manual.md` in `DATA_DIR/books/` from image-bundled manuals.
-- Healthcheck uses `GET /api/status`.
+- Healthcheck uses `GET /api/status` on `${FYR_PORT:-8080}`: plain HTTP first, then `curl -k https://` so it also passes in HTTPS mode (`-k` only skips verifying Fyr's own certificate for this local probe).
+- HTTPS in Docker: `-e FYR_TLS=self-signed` (certificate persisted in the `/data` volume under `tls/`) and pass the host's names/LAN IPs in `FYR_TLS_SANS`, because the container only sees its bridge address. Provided certificates are bind-mounted read-only (the installers use `/run/fyr-tls/cert.pem` and `key.pem`) and must be readable by UID 1000.
 - Startup performs writable-path preflight checks and fails fast if `DATA_DIR` is not writable.
 - Bind failures now include actionable diagnostics for `FYR_HOST` and `FYR_PORT`.
 
@@ -273,11 +275,12 @@ Fyr implements a two-level access control system controlled entirely by environm
   1. If `FYR_READONLY` → return `403`.
   2. If no password configured → pass through (open mode).
   3. Otherwise → validate the `fyr_session` cookie value against `AuthManager::tokens`.
-- **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
+- **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`, plus `Secure` when Fyr serves HTTPS itself (`config.server.tls.is_enabled()`; plain HTTP keeps the flag off or browsers would drop the cookie). Not accessible to JavaScript.
 - **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The key comes from `auth::client_ip`: the real TCP peer address (`ConnectInfo<SocketAddr>`), unless that peer is listed in `FYR_TRUSTED_PROXIES` (IPs/CIDRs, parsed into `types::TrustedProxies`). Only then is `X-Forwarded-For` read, from the right, taking the first hop that is not itself a trusted proxy; client-supplied hops further left are never used, and unparsable values fall back to the peer. IPv4-mapped IPv6 peers are matched as IPv4. Messaging rate limits and stream caps (`messaging::routes::ClientIp`) use the same function.
 - **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
 - **`can_view_system_details`** — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:
   - `/api/status`, `/api/config`, `/api/storage` and `/api/reader/zim/:filename/meta` return empty strings for filesystem paths (and `server_host`); `/api/storage` also omits `free_*`/`capacity_*` while keeping per-category usage.
+  - `/api/status` always reports `tls.enabled`/`tls.mode` but includes `tls.fingerprint_sha256` only for these callers.
   - `/api/content/*` listings return the bare filename as `file_path`, and `/api/downloads` / `/api/download/:task_id/status` reduce `LocalFile` source paths to the filename.
   New public endpoints that expose paths or disk details must apply the same check.
 
@@ -536,6 +539,27 @@ Graceful shutdown (`crates/server/src/main.rs`):
 - `axum::serve(...).with_graceful_shutdown` listens for Ctrl+C everywhere and SIGTERM on Unix (`tokio::signal`).
 - On the signal, `DownloadManager::shutdown` first sets a shutdown flag and wakes workers through a `Notify` (so workers blocked on a stalled stream or a retry backoff stop at once). URL workers flush their partial and record themselves as `failed` + `resumable` ("interrupted by server shutdown – retry to resume"); local imports fail and drop their temp copy. After up to 3 s it persists all tasks with partial sizes read from disk. Open connections then get up to 5 s to drain before the process exits, so SSE streams or large file transfers cannot block shutdown.
 
+## 3.6 Built-in HTTPS (`crates/server/src/tls.rs`)
+
+Configuration is parsed in `crates/types/src/tls.rs` (`TlsConfig::from_lookup`, pure and unit-tested) into `config.server.tls`. Invalid combinations are stored in `config.server.tls_error` and `Config::validate()` makes startup fail:
+
+| Variables | Result |
+|-----------|--------|
+| none, or `FYR_TLS=off` | plain HTTP (`off` with cert paths set: warning, HTTP) |
+| `FYR_TLS_CERT` + `FYR_TLS_KEY` | `TlsMode::Provided`; only one of them → error |
+| `FYR_TLS=self-signed` | `TlsMode::SelfSigned`; combined with cert paths → error |
+| other `FYR_TLS` values | error |
+| `FYR_TLS_SANS` | normalised DNS names (optional `*.`) / IPs; invalid entry → error; ignored with a warning outside self-signed mode |
+| `FYR_HTTP_REDIRECT_PORT` | requires TLS, 1–65535, must differ from `FYR_PORT` |
+
+**Serving.** `main::serve` uses `axum-server` 0.7 for both HTTP and HTTPS (`from_tcp` / `tls_rustls::from_tcp_rustls`) with `into_make_service_with_connect_info::<SocketAddr>()`, so `ConnectInfo` (login and messaging rate limits) works in both modes. rustls 0.23 uses the `ring` provider (no OpenSSL, no aws-lc build; builds for x86_64 and aarch64), TLS 1.2+1.3, ALPN `h2`/`http/1.1`, 10 s handshake timeout. Shutdown is unchanged in behaviour: on SIGINT/SIGTERM download workers stop first (`DOWNLOAD_SHUTDOWN_GRACE`), then both listeners get `Handle::graceful_shutdown(Some(CONNECTION_DRAIN_TIMEOUT))`, after which remaining connections (SSE streams) are closed. The optional redirect listener (`tls::redirect_router`) answers every request with `308` to `https://<Host without port>[:FYR_PORT]<path?query>`; Host values that are not a DNS name or IP literal get `400`. `Strict-Transport-Security: max-age=15552000` is added only in provided mode (with a self-signed certificate it would make the warning unskippable).
+
+**Provided certificates.** `load_pem_files` reads the chain and key (PKCS#8, PKCS#1 or SEC1) with errors that name the file and variable but never include contents; rustls rejects a key that does not match. Files are read once at startup (restart after renewal). A world-readable key is logged as a warning, not modified.
+
+**Self-signed lifecycle.** Files in `DATA_DIR/tls/` (directory `0700`): `key.pem` (ECDSA P-256, PKCS#8, `0600`), `cert.pem`, `meta.json` (`sans`, `not_before_unix`, `not_after_unix`, `fingerprint_sha256`). Each file is written to a temporary sibling and renamed; `meta.json` last. Required names (`compute_sans`): `localhost`, `127.0.0.1`, `::1`, the hostname and `<hostname>.local`, a specific `FYR_HOST`, interface IPv4 addresses except loopback/link-local, IPv6 unique-local (`fc00::/7`) addresses, and `FYR_TLS_SANS`. Global IPv6 addresses are skipped because privacy addresses rotate and would force a new certificate on every restart. `regeneration_reason` (pure) regenerates when: no certificate; files unreadable or not matching `meta.json`; a required name is missing (the new certificate keeps the old names too, so an interface that is down at boot does not cause churn); or fewer than 30 days remain (renewal starts from the current name set). Certificates are leaf certificates (`CA:FALSE`, EKU serverAuth, random 128-bit serial so Firefox never sees a reused issuer+serial), valid 825 days (Apple's maximum), backdated one day. If the clock reads earlier than 2026-01-01 (RTC-less Pi booted offline) generation uses that date instead and logs a warning. The private key is never logged; startup logs the path, validity, names and SHA-256 fingerprint, which `/api/status` also returns to callers allowed by `can_view_system_details` (shown on the Overview page for admins).
+
+**Tests.** `types::tls::tests` (parsing/validation), `tls::tests` (SANs, regeneration decisions, persistence/permissions, clock floor, PEM errors, redirect targets) and `tls_tests` (real router + `serve` on `127.0.0.1:0`, reqwest/rustls client trusting only the generated certificate: status over TLS, `Secure` cookie on login, fingerprint visibility, 308 redirect, HSTS only in provided mode, graceful shutdown with an open SSE stream).
+
 ## 4. Platform Support Guidance
 
 Primary support targets:
@@ -668,7 +692,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 - **Backup and portability:** admin backup/restore of settings, POIs, catalog, download history and the messages database (§3.5); encrypted export/import of channel keys; export/import of reading progress and bookmarks (§12); upgrade guide from 0.5.x in the User Manual (§6b).
 
 ### Remaining before 1.0 (priority order)
-1. **HTTPS without a separate proxy.** Browsers only allow geolocation (My Location, track recording) on HTTPS or localhost, and encrypted channels only resist active attackers over HTTPS. Offer built-in TLS (`FYR_TLS_CERT`/`FYR_TLS_KEY`, rustls) plus an installer option, or a documented Caddy recipe.
+1. **HTTPS without a separate proxy — delivered on `next`** (§ 3.6): `FYR_TLS=self-signed` or `FYR_TLS_CERT`/`FYR_TLS_KEY` (rustls), optional `FYR_HTTP_REDIRECT_PORT`, installer `--https`. Remaining: validate the "accept the warning" flow and geolocation on real Android/iOS devices.
 2. **Real-hardware validation.** Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.
 3. **Full-text recall for ZIM.** Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by `search.rs` and `ai/retrieval.rs`.
 4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.

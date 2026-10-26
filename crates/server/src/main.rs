@@ -33,6 +33,9 @@ mod messaging;
 mod search;
 mod state;
 mod settings;
+mod tls;
+#[cfg(test)]
+mod tls_tests;
 
 pub use state::AppState;
 
@@ -48,7 +51,8 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting Fyr");
 
     // Initialize configuration
-    let config = Config::default();
+    let mut config = Config::default();
+    config.validate()?;
     config.initialize_directories()?;
     config.validate_writable()?;
     sync_managed_manuals(&config)?;
@@ -71,10 +75,20 @@ async fn main() -> anyhow::Result<()> {
             config.server.trusted_proxies_rejected.join(", ")
         );
     }
+    for warning in &config.server.tls.warnings {
+        warn!("{}", warning);
+    }
     info!("Data directory: {}", config.data_dir.display());
     info!("Server will run on: {}:{}", config.server.host, config.server.port);
     let bind_host = config.server.host.clone();
     let bind_port = config.server.port;
+    // Load or generate the certificate before anything else binds, so a
+    // broken TLS setup fails fast instead of silently serving plain HTTP.
+    let tls_setup = tls::prepare(&config)?;
+    if let Some(setup) = &tls_setup {
+        config.server.tls.fingerprint_sha256 = Some(setup.fingerprint_sha256.clone());
+    }
+    let redirect_port = config.server.tls.http_redirect_port;
     let config = Arc::new(config);
     let static_path: PathBuf = first_existing_path("public/static", "static");
 
@@ -112,48 +126,116 @@ async fn main() -> anyhow::Result<()> {
     let app = create_router(app_state);
 
     // Run server
-    let bind_addr = format!("{}:{}", bind_host, bind_port);
-    let listener = tokio::net::TcpListener::bind(&bind_addr)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to bind server to {}. Check FYR_HOST/FYR_PORT and ensure the port is free.",
-                bind_addr
-            )
-        })?;
-
-    info!("Server listening on http://{}:{}", bind_host, bind_port);
-
-    // Graceful shutdown: on SIGINT/SIGTERM, first stop download workers and
-    // persist their byte counts (they become resumable), then let axum drain
-    // open connections for a bounded time. Long-lived responses (SSE, large
-    // file transfers) must not keep the process alive indefinitely.
-    let (drain_started_tx, drain_started_rx) = tokio::sync::oneshot::channel::<()>();
-    let server = axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-    )
-    .with_graceful_shutdown(async move {
-        shutdown_signal().await;
-        info!("Shutdown requested; persisting download state");
-        shutdown_downloads.shutdown(DOWNLOAD_SHUTDOWN_GRACE).await;
-        let _ = drain_started_tx.send(());
-    });
-
-    tokio::select! {
-        result = std::future::IntoFuture::into_future(server) => result?,
-        _ = async {
-            if drain_started_rx.await.is_ok() {
-                tokio::time::sleep(CONNECTION_DRAIN_TIMEOUT).await;
-            } else {
-                std::future::pending::<()>().await;
-            }
-        } => {
-            warn!("Open connections did not close within {:?}; exiting", CONNECTION_DRAIN_TIMEOUT);
-        }
+    let listener = bind_listener(&bind_host, bind_port, "FYR_HOST/FYR_PORT")?;
+    let redirect = match redirect_port {
+        Some(port) => Some((
+            bind_listener(&bind_host, port, "FYR_HOST/FYR_HTTP_REDIRECT_PORT")?,
+            bind_port,
+        )),
+        None => None,
+    };
+    let scheme = if tls_setup.is_some() { "https" } else { "http" };
+    info!("Server listening on {}://{}:{}", scheme, bind_host, bind_port);
+    if let Some(port) = redirect_port {
+        info!(
+            "Redirecting plain HTTP on {}:{} to https:// port {}",
+            bind_host, port, bind_port
+        );
     }
 
+    serve(
+        app,
+        listener,
+        tls_setup.map(|setup| setup.server_config),
+        redirect,
+        shutdown_signal(),
+        shutdown_downloads,
+    )
+    .await?;
+
     info!("Fyr stopped");
+    Ok(())
+}
+
+fn bind_listener(host: &str, port: u16, settings: &str) -> anyhow::Result<std::net::TcpListener> {
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    std::net::TcpListener::bind((host, port)).with_context(|| {
+        format!(
+            "Failed to bind server to {}:{}. Check {} and ensure the port is free.",
+            host, port, settings
+        )
+    })
+}
+
+/// Serve `app` on `listener` (HTTPS when `tls` is set) plus the optional
+/// HTTP → HTTPS redirect listener, until `shutdown` resolves.
+///
+/// Graceful shutdown: first stop download workers and persist their byte
+/// counts (they become resumable), then stop accepting and let open
+/// connections drain for a bounded time. Long-lived responses (SSE, large
+/// file transfers) must not keep the process alive indefinitely.
+async fn serve(
+    app: Router,
+    listener: std::net::TcpListener,
+    tls: Option<Arc<rustls::ServerConfig>>,
+    redirect: Option<(std::net::TcpListener, u16)>,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+    downloads: Arc<DownloadManager>,
+) -> anyhow::Result<()> {
+    let handle = axum_server::Handle::new();
+    let redirect_handle = axum_server::Handle::new();
+    {
+        let handle = handle.clone();
+        let redirect_handle = redirect_handle.clone();
+        tokio::spawn(async move {
+            shutdown.await;
+            info!("Shutdown requested; persisting download state");
+            downloads.shutdown(DOWNLOAD_SHUTDOWN_GRACE).await;
+            redirect_handle.graceful_shutdown(Some(CONNECTION_DRAIN_TIMEOUT));
+            handle.graceful_shutdown(Some(CONNECTION_DRAIN_TIMEOUT));
+        });
+    }
+
+    // ConnectInfo<SocketAddr> is required by login/messaging rate limiting.
+    let make_service = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
+    let main_server = async {
+        match tls {
+            Some(config) => {
+                axum_server::tls_rustls::from_tcp_rustls(
+                    listener,
+                    axum_server::tls_rustls::RustlsConfig::from_config(config),
+                )
+                .handle(handle.clone())
+                .serve(make_service)
+                .await
+            }
+            None => {
+                axum_server::from_tcp(listener)
+                    .handle(handle.clone())
+                    .serve(make_service)
+                    .await
+            }
+        }
+    };
+    let redirect_server = async {
+        match redirect {
+            Some((listener, https_port)) => {
+                axum_server::from_tcp(listener)
+                    .handle(redirect_handle.clone())
+                    .serve(tls::redirect_router(https_port).into_make_service())
+                    .await
+            }
+            None => Ok(()),
+        }
+    };
+    tokio::try_join!(main_server, redirect_server).context("Server error")?;
+
+    if handle.connection_count() > 0 {
+        warn!(
+            "Open connections did not close within {:?}; exiting",
+            CONNECTION_DRAIN_TIMEOUT
+        );
+    }
     Ok(())
 }
 
@@ -282,7 +364,7 @@ fn create_router(state: AppState) -> Router {
         Router::new().route("/api/messages/config", get(messaging::routes::config_handler))
     };
 
-    Router::new()
+    let router = Router::new()
         // Public read-only API
         .route("/api/status", get(handlers::status))
         .route("/api/config", get(handlers::config))
@@ -361,8 +443,18 @@ fn create_router(state: AppState) -> Router {
             header::ACCEPT_RANGES,
             HeaderValue::from_static("bytes"),
         ))
-        .layer(cors)
-        .with_state(state_arc)
+        .layer(cors);
+    // HSTS only with an operator-provided (browser-trusted) certificate: with
+    // a self-signed one it would make the certificate warning unskippable.
+    let router = if state_arc.config.server.tls.sends_hsts() {
+        router.layer(SetResponseHeaderLayer::overriding(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static(tls::HSTS_VALUE),
+        ))
+    } else {
+        router
+    };
+    router.with_state(state_arc)
 }
 
 /// Vite emits content-hashed bundles under `js/` and `css/`, so they can be
