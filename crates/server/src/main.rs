@@ -28,6 +28,7 @@ mod auth;
 mod handlers;
 mod library;
 mod mbtiles;
+mod messaging;
 mod search;
 mod state;
 mod settings;
@@ -87,7 +88,13 @@ async fn main() -> anyhow::Result<()> {
         settings_manager,
         auth_manager: Arc::new(auth::AuthManager::new()),
         mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
+        messaging: Arc::new(messaging::Messaging::open(&config)?),
     };
+    if app_state.messaging.enabled() {
+        app_state.messaging.spawn_pruner();
+    } else {
+        info!("Messages are disabled (FYR_MESSAGING=false)");
+    }
 
     // Build router
     let app = create_router(app_state);
@@ -225,8 +232,34 @@ fn create_router(state: AppState) -> Router {
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/settings", put(handlers::update_settings))
-        .route("/api/poi/:filename", put(handlers::save_poi_file))
-        .route_layer(admin_mw);
+        .route("/api/poi/:filename", put(handlers::save_poi_file));
+    // Messaging moderation (delete/pin message, delete channel) is admin-only.
+    let protected = if state_arc.messaging.enabled() {
+        protected.merge(messaging::routes::moderation_routes())
+    } else {
+        protected
+    }
+    .route_layer(admin_mw);
+
+    // Messaging writes (post message, create channel): an explicit,
+    // narrowly-scoped exception to "mutations are admin-only". Guarded by
+    // `require_messaging_write` (read-only → 403; password mode → admin
+    // session or FYR_GUEST_MESSAGING) plus per-IP rate limits in handlers.
+    let messaging_write = if state_arc.messaging.enabled() {
+        messaging::routes::write_routes()
+            .layer(DefaultBodyLimit::max(messaging::MAX_BODY_BYTES))
+            .route_layer(middleware::from_fn_with_state(
+                Arc::clone(&state_arc),
+                auth::require_messaging_write,
+            ))
+    } else {
+        Router::new()
+    };
+    let messaging_public = if state_arc.messaging.enabled() {
+        messaging::routes::public_routes()
+    } else {
+        Router::new().route("/api/messages/config", get(messaging::routes::config_handler))
+    };
 
     Router::new()
         // Public read-only API
@@ -270,6 +303,9 @@ fn create_router(state: AppState) -> Router {
         .route("/api/auth/status", get(auth::auth_status_handler))
         .route("/api/auth/login", post(auth::login_handler))
         .route("/api/auth/logout", post(auth::logout_handler))
+        // Messages: public reads/streams, guarded writes
+        .merge(messaging_public)
+        .merge(messaging_write)
         // Protected (admin) routes
         .merge(protected)
         // Data file serving (PMTiles, books, POI, curated catalog). Only the
@@ -515,6 +551,7 @@ mod tests {
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(auth::AuthManager::new()),
             mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
+            messaging: Arc::new(messaging::Messaging::open(&config).expect("open messages db")),
         }
     }
 
