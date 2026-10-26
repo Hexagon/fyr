@@ -40,6 +40,22 @@
 
         <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
 
+        <details class="progress-transfer">
+          <summary>Move reading progress</summary>
+          <p class="library-hint">
+            Positions and bookmarks are stored in this browser. Export them to a file and import it on another
+            device; imports merge (newest position wins, bookmarks are combined).
+          </p>
+          <div class="progress-transfer-actions">
+            <button type="button" class="progress-transfer-btn" @click="exportProgress">Export</button>
+            <label class="progress-transfer-btn">
+              Import
+              <input type="file" accept=".json,application/json" class="progress-file-input" @change="importProgress" />
+            </label>
+          </div>
+          <p v-if="progressTransferStatus" class="library-hint" role="status">{{ progressTransferStatus }}</p>
+        </details>
+
         <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">Loading books...</p>
         <p v-else-if="booksError" class="status-card status-error" role="alert" aria-live="assertive">{{ booksError }}</p>
 
@@ -330,6 +346,7 @@ import { createArticleHistory } from '../modules/reader/articleHistory'
 import { findBlockForLine, headingLabelFor, topVisibleLine } from '../modules/reader/markdownPosition'
 import { shortcutForEvent } from '../modules/reader/shortcuts'
 import { progressStore } from '../modules/library/progress'
+import { datedFilename, readFileText, saveText } from '../services/fileTransfer'
 import { BOOKS_ROUTE_PATH, buildReaderQuery, parseReaderQuery, readerStateEquals } from '../modules/library/deepLink'
 import {
   FONT_SCALE_MAX,
@@ -714,6 +731,32 @@ const changeFontScale = (direction) => {
 
 const refreshBookmarks = () => {
   bookmarks.value = selectedBook.value ? progressStore.getBookmarks(selectedBook.value.filename) : []
+}
+
+// Export/import of reading progress + bookmarks (client-side only).
+const progressTransferStatus = ref('')
+
+const exportProgress = () => {
+  const data = progressStore.exportData()
+  saveText(JSON.stringify(data, null, 2), datedFilename('reading-progress'))
+  progressTransferStatus.value = `Exported ${data.books.length} book(s).`
+}
+
+const importProgress = async (event) => {
+  const input = event.target
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const raw = JSON.parse(await readFileText(file))
+    const result = progressStore.importData(raw)
+    refreshBookmarks()
+    progressTransferStatus.value =
+      `Imported: ${result.booksAdded} new book(s), ${result.booksUpdated} updated, ${result.bookmarksAdded} bookmark(s) added.`
+  } catch (err) {
+    progressTransferStatus.value = err instanceof SyntaxError ? 'Import failed: the file is not valid JSON.' : `Import failed: ${err?.message || err}`
+  } finally {
+    input.value = ''
+  }
 }
 
 const addBookmarkHere = () => {
@@ -1348,6 +1391,42 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.progress-transfer {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.progress-transfer summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.progress-transfer-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+}
+
+.progress-transfer-btn {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.progress-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .books-list {

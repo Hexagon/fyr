@@ -17,6 +17,7 @@ import { getDefaultStorage, readJson, writeJson } from './safeStorage'
 export const PROGRESS_STORAGE_KEY = 'fyr.library.progress.v1'
 export const DEFAULT_MAX_BOOKS = 200
 export const DEFAULT_MAX_BOOKMARKS = 100
+export const PROGRESS_EXPORT_FORMAT = 'fyr-reading-progress'
 
 const MAX_FILENAME = 1024
 const MAX_TEXT = 200
@@ -288,7 +289,80 @@ export const createProgressStore = ({
 
   const clearAll = () => write(emptyState())
 
+  /** Portable snapshot of all progress + bookmarks (for moving devices). */
+  const exportData = () => ({
+    format: PROGRESS_EXPORT_FORMAT,
+    v: 1,
+    exported_at: now(),
+    books: read().books.map(cloneEntry)
+  })
+
+  /**
+   * Merge an exported snapshot into this store. Never deletes anything:
+   * - unknown books are added;
+   * - for known books the newer position (by `updatedAt`) wins, `lastOpened`
+   *   takes the later value and missing title/format are filled in;
+   * - bookmarks are united, de-duplicated by position (local titles win).
+   * Everything is normalized first, so hostile files cannot inject bad data.
+   * @returns {{ booksAdded: number, booksUpdated: number, bookmarksAdded: number }}
+   */
+  const importData = (raw) => {
+    if (!raw || typeof raw !== 'object' || raw.format !== PROGRESS_EXPORT_FORMAT || raw.v !== 1) {
+      throw new Error('Not a Fyr reading progress file')
+    }
+    const incoming = normalizeState(raw, Number.MAX_SAFE_INTEGER, maxBookmarks).books
+    const state = read()
+    const result = { booksAdded: 0, booksUpdated: 0, bookmarksAdded: 0 }
+    for (const other of incoming) {
+      const mine = state.books.find((book) => book.filename === other.filename)
+      if (!mine) {
+        state.books.push(other)
+        result.booksAdded += 1
+        result.bookmarksAdded += other.bookmarks.length
+        continue
+      }
+      let changed = false
+      if (other.position && (!mine.position || other.updatedAt > mine.updatedAt)) {
+        mine.position = other.position
+        mine.updatedAt = Math.max(mine.updatedAt, other.updatedAt)
+        changed = true
+      }
+      if (other.lastOpened > mine.lastOpened) {
+        mine.lastOpened = other.lastOpened
+        changed = true
+      }
+      if (!mine.title && other.title) {
+        mine.title = other.title
+        changed = true
+      }
+      if (!mine.format && other.format) {
+        mine.format = other.format
+        changed = true
+      }
+      const keys = new Set(mine.bookmarks.map((bookmark) => positionKey(bookmark.position)))
+      const ids = new Set(mine.bookmarks.map((bookmark) => bookmark.id))
+      for (const bookmark of other.bookmarks) {
+        const key = positionKey(bookmark.position)
+        if (keys.has(key)) continue
+        keys.add(key)
+        mine.bookmarks.push(ids.has(bookmark.id) ? { ...bookmark, id: `${bookmark.id}-i` } : bookmark)
+        ids.add(bookmark.id)
+        result.bookmarksAdded += 1
+        changed = true
+      }
+      if (changed) {
+        mine.bookmarks.sort((a, b) => a.createdAt - b.createdAt)
+        if (mine.bookmarks.length > maxBookmarks) mine.bookmarks.splice(0, mine.bookmarks.length - maxBookmarks)
+        result.booksUpdated += 1
+      }
+    }
+    write(state)
+    return result
+  }
+
   return {
+    exportData,
+    importData,
     getEntry,
     touchBook,
     savePosition,

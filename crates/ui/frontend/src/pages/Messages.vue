@@ -51,6 +51,32 @@
         </form>
         </details>
 
+        <details class="join-details">
+          <summary>🔑 Move channel keys to another device</summary>
+          <div class="join-form">
+            <p class="hint">
+              Exports the keys of remembered channels as a file encrypted with a passphrase you choose
+              (never the channel passphrases). Keys only work on this Fyr server, or one restored from its backup.
+            </p>
+            <label>
+              <span>File passphrase</span>
+              <input v-model="keyTransfer.passphrase" type="password" minlength="8" autocomplete="new-password" placeholder="8+ characters" />
+            </label>
+            <button type="button" class="btn btn-primary" :disabled="keyTransfer.busy || !rememberedCount" @click="exportKeys">
+              {{ keyTransfer.busy === 'export' ? `Encrypting… ${Math.round(keyTransfer.progress * 100)}%` : `Export ${rememberedCount} channel key(s)` }}
+            </button>
+            <label>
+              <span>Import a key file</span>
+              <input ref="keyFileInput" type="file" accept=".json,application/json" @change="onKeyFile" />
+            </label>
+            <button type="button" class="btn btn-ghost" :disabled="keyTransfer.busy || !keyTransfer.file" @click="importKeys">
+              {{ keyTransfer.busy === 'import' ? `Decrypting… ${Math.round(keyTransfer.progress * 100)}%` : 'Import keys' }}
+            </button>
+            <p v-if="keyTransfer.status" class="hint" role="status">{{ keyTransfer.status }}</p>
+            <p v-if="keyTransfer.error" class="form-error" role="alert">{{ keyTransfer.error }}</p>
+          </div>
+        </details>
+
         <div class="identity">
           <label>
             <span>Your nickname</span>
@@ -217,6 +243,8 @@ import {
   buildPayload,
   channelVerifier,
   deriveChannelKeys,
+  exportChannelKeys,
+  importChannelKeys,
   encryptMessage,
   keyFromHex,
   keyToHex
@@ -226,6 +254,7 @@ import { PUBLIC_CHANNEL_ID, dropExpired, latestId, mergeMessages, removeMessage,
 import { messagingStorage } from '../modules/messaging/storage.js'
 import { createChannelStream } from '../modules/messaging/stream.js'
 import { markBoardSeen, setBoardViewing, startBoardFeed, subscribeBoard, useBoardFeed } from '../modules/messaging/boardFeed.js'
+import { datedFilename, readFileText, saveText } from '../services/fileTransfer'
 
 const storage = messagingStorage()
 const authState = useAuthState()
@@ -659,6 +688,70 @@ const forgetChannel = (channel) => {
   sessionPassphrases.delete(channel.id)
   rememberedVersion.value += 1
   activeId.value = PUBLIC_CHANNEL_ID
+}
+
+// Encrypted export/import of remembered channel keys (client-side only).
+const keyTransfer = reactive({ passphrase: '', file: null, busy: '', progress: 0, status: '', error: '' })
+const keyFileInput = ref(null)
+const rememberedCount = computed(() => {
+  void rememberedVersion.value
+  return storage.channels().length
+})
+
+const exportKeys = async () => {
+  keyTransfer.error = ''
+  keyTransfer.status = ''
+  keyTransfer.busy = 'export'
+  keyTransfer.progress = 0
+  try {
+    const text = await exportChannelKeys(storage.channels(), keyTransfer.passphrase, {
+      onProgress: (p) => { keyTransfer.progress = p }
+    })
+    saveText(text, datedFilename('channel-keys'))
+    keyTransfer.status = 'Key file saved. Keep it and its passphrase safe.'
+    keyTransfer.passphrase = ''
+  } catch (err) {
+    keyTransfer.error = err?.message || 'Export failed'
+  } finally {
+    keyTransfer.busy = ''
+  }
+}
+
+const onKeyFile = (event) => {
+  keyTransfer.file = event.target.files?.[0] || null
+  keyTransfer.status = ''
+  keyTransfer.error = ''
+}
+
+const importKeys = async () => {
+  keyTransfer.error = ''
+  keyTransfer.status = ''
+  keyTransfer.busy = 'import'
+  keyTransfer.progress = 0
+  try {
+    const text = await readFileText(keyTransfer.file, 256 * 1024)
+    const { channels: imported } = await importChannelKeys(text, keyTransfer.passphrase, {
+      onProgress: (p) => { keyTransfer.progress = p }
+    })
+    let count = 0
+    for (const entry of imported) {
+      try {
+        storage.rememberChannel(entry)
+        count += 1
+      } catch {
+        // invalid entry: skipped
+      }
+    }
+    rememberedVersion.value += 1
+    keyTransfer.status = `Imported ${count} channel key(s).`
+    keyTransfer.file = null
+    keyTransfer.passphrase = ''
+    if (keyFileInput.value) keyFileInput.value.value = ''
+  } catch (err) {
+    keyTransfer.error = err?.message || 'Import failed'
+  } finally {
+    keyTransfer.busy = ''
+  }
 }
 
 const sessionPassphrase = (id) => sessionPassphrases.get(id) || ''

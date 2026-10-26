@@ -138,6 +138,61 @@ const dispatchInferenceEvent = (parsed, handlers = {}) => {
 // Exported for unit tests.
 export { mapContentItem, encodePathPreservingSlashes, parseSseFrame, extractNextSseFrame, dispatchInferenceEvent }
 
+// Multipart upload of one file (field "file") with progress and abort.
+const xhrUpload = (url, file, onProgress, abortHandle) => {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+
+    xhr.timeout = REQUEST_TIMEOUT_MS
+
+    if (abortHandle) {
+      abortHandle.abort = () => xhr.abort()
+    }
+
+    if (typeof onProgress === 'function') {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(event.loaded, event.total)
+        }
+      })
+    }
+
+    xhr.addEventListener('load', () => {
+      let payload = null
+      const responseType = xhr.getResponseHeader('content-type') || ''
+      if (responseType.includes('application/json')) {
+        try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
+      } else if (xhr.responseText) {
+        payload = { message: xhr.responseText }
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ data: payload })
+      } else {
+        reject({ response: { status: xhr.status, data: payload } })
+      }
+    })
+
+    xhr.addEventListener('error', () => {
+      reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
+    })
+
+    xhr.addEventListener('timeout', () => {
+      reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
+    })
+
+    xhr.addEventListener('abort', () => {
+      reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
+    })
+
+    xhr.open('POST', url)
+    xhr.send(formData)
+  })
+}
+
 export const apiService = {
   getReaderCapabilities: async () => {
     const response = await api.get('/reader/capabilities')
@@ -270,59 +325,24 @@ export const apiService = {
 
     return { data: payload }
   },
-  uploadFile: (file, onProgress, abortHandle) => {
-    return new Promise((resolve, reject) => {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const xhr = new XMLHttpRequest()
-
-      xhr.timeout = REQUEST_TIMEOUT_MS
-
-      if (abortHandle) {
-        abortHandle.abort = () => xhr.abort()
+  uploadFile: (file, onProgress, abortHandle) => xhrUpload('/api/import/upload', file, onProgress, abortHandle),
+  // Server backup (admin): download the zip as a Blob, restore from a zip.
+  downloadBackup: async () => {
+    const response = await fetch('/api/backup', { credentials: 'same-origin' })
+    if (!response.ok) {
+      let message = `Backup failed (${response.status}).`
+      try {
+        message = (await response.json()).message || message
+      } catch (_) {
+        // non-JSON error body
       }
-
-      if (typeof onProgress === 'function') {
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            onProgress(event.loaded, event.total)
-          }
-        })
-      }
-
-      xhr.addEventListener('load', () => {
-        let payload = null
-        const responseType = xhr.getResponseHeader('content-type') || ''
-        if (responseType.includes('application/json')) {
-          try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
-        } else if (xhr.responseText) {
-          payload = { message: xhr.responseText }
-        }
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve({ data: payload })
-        } else {
-          reject({ response: { status: xhr.status, data: payload } })
-        }
-      })
-
-      xhr.addEventListener('error', () => {
-        reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
-      })
-
-      xhr.addEventListener('timeout', () => {
-        reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
-      })
-
-      xhr.addEventListener('abort', () => {
-        reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
-      })
-
-      xhr.open('POST', '/api/import/upload')
-      xhr.send(formData)
-    })
+      throw new Error(message)
+    }
+    const disposition = response.headers.get('content-disposition') || ''
+    const match = /filename="([^"]+)"/.exec(disposition)
+    return { blob: await response.blob(), filename: match ? match[1] : 'fyr-backup.zip' }
   },
+  restoreBackup: (file, onProgress, abortHandle) => xhrUpload('/api/restore', file, onProgress, abortHandle),
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
   createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),
   loadModel: (filename) => api.post(`/models/${encodeURIComponent(filename)}/load`),

@@ -250,3 +250,79 @@ describe('normalizePosition / positionKey', () => {
     expect(positionKey(null)).toBe('')
   })
 })
+
+describe('progress store: export / import', () => {
+  const clockAt = (start) => {
+    let t = start
+    return () => (t += 1)
+  }
+
+  it('round-trips everything into an empty store', () => {
+    const source = createProgressStore({ storage: createMemoryStorage(), now: createClock() })
+    source.touchBook('a.epub', { title: 'A', format: 'epub' })
+    source.savePosition('a.epub', epub('epubcfi(/6/2)', 'Ch 1'))
+    source.addBookmark('a.epub', { title: 'Mark', position: epub('epubcfi(/6/8)') })
+    source.savePosition('b.pdf', { type: 'pdf', page: 7 })
+
+    const exported = JSON.parse(JSON.stringify(source.exportData()))
+    expect(exported.format).toBe('fyr-reading-progress')
+
+    const target = createProgressStore({ storage: createMemoryStorage(), now: createClock() })
+    expect(target.importData(exported)).toEqual({ booksAdded: 2, booksUpdated: 0, bookmarksAdded: 1 })
+    expect(target.getEntry('a.epub')).toEqual(source.getEntry('a.epub'))
+    expect(target.getPosition('b.pdf')).toEqual({ type: 'pdf', page: 7 })
+  })
+
+  it('merges: newer position wins, bookmarks are united without duplicates', () => {
+    const laptop = createProgressStore({ storage: createMemoryStorage(), now: clockAt(1_000) })
+    laptop.savePosition('a.epub', epub('epubcfi(/6/2)', 'old'))
+    laptop.addBookmark('a.epub', { title: 'Shared', position: epub('epubcfi(/6/4)') })
+    laptop.savePosition('c.md', { type: 'md', line: 40 })
+
+    const phone = createProgressStore({ storage: createMemoryStorage(), now: clockAt(5_000) })
+    phone.savePosition('a.epub', epub('epubcfi(/6/10)', 'new'))
+    phone.addBookmark('a.epub', { title: 'Shared (phone)', position: epub('epubcfi(/6/4)') })
+    phone.addBookmark('a.epub', { title: 'Phone only', position: epub('epubcfi(/6/12)') })
+    phone.savePosition('c.md', { type: 'md', line: 1 })
+
+    // Phone data is newer for a.epub; laptop keeps its own title for the shared mark.
+    const summary = laptop.importData(phone.exportData())
+    expect(summary.bookmarksAdded).toBe(1)
+    expect(laptop.getPosition('a.epub').cfi).toBe('epubcfi(/6/10)')
+    const marks = laptop.getBookmarks('a.epub')
+    expect(marks.map((m) => m.title)).toEqual(['Shared', 'Phone only'])
+
+    // Importing the older laptop data into the phone does not roll it back.
+    const phoneBefore = phone.getPosition('a.epub')
+    const older = createProgressStore({ storage: createMemoryStorage(), now: clockAt(10) })
+    older.savePosition('a.epub', epub('epubcfi(/6/1)', 'ancient'))
+    phone.importData(older.exportData())
+    expect(phone.getPosition('a.epub')).toEqual(phoneBefore)
+
+    // Importing the same data twice changes nothing.
+    const again = laptop.importData(phone.exportData())
+    expect(again.bookmarksAdded).toBe(0)
+    expect(laptop.getBookmarks('a.epub')).toHaveLength(2)
+  })
+
+  it('rejects foreign files and sanitizes hostile entries', () => {
+    const store = createProgressStore({ storage: createMemoryStorage(), now: createClock() })
+    expect(() => store.importData({ books: [] })).toThrow(/Not a Fyr reading progress file/)
+    expect(() => store.importData(null)).toThrow()
+    const result = store.importData({
+      format: 'fyr-reading-progress',
+      v: 1,
+      books: [
+        { filename: '__proto__', position: { type: 'md', line: 3 } },
+        { filename: 'x.epub', position: { type: 'epub', cfi: 'x'.repeat(10_000) }, bookmarks: [{ id: 'b', position: { type: 'evil' } }] },
+        { filename: '', position: { type: 'pdf', page: 1 } },
+        'nonsense'
+      ]
+    })
+    expect(result.booksAdded).toBe(2)
+    expect(store.getPosition('__proto__')).toEqual({ type: 'md', line: 3 })
+    expect(store.getPosition('x.epub')).toBeNull()
+    expect(store.getBookmarks('x.epub')).toEqual([])
+    expect(Object.prototype.line).toBeUndefined()
+  })
+})
