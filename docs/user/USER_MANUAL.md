@@ -226,7 +226,7 @@ Open **Join or create an encrypted channel**, enter a channel name and a passphr
 | `FYR_ADMIN_PASSWORD` + `FYR_GUEST_MESSAGING=true` | Everyone | Everyone | Admin only |
 | `FYR_READONLY` | Everyone | Nobody | Nobody |
 
-Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy's address, so these limits are shared too.
+Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy's address, so these limits are shared too — unless you list the proxy in `FYR_TRUSTED_PROXIES` (§6).
 
 Set `FYR_MESSAGING=false` to switch Messages off entirely.
 
@@ -390,6 +390,7 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_MESSAGING` — set to `false` to disable Messages (default on)
 - `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000)
 - `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages in days (default 90)
+- `FYR_TRUSTED_PROXIES` — comma-separated IPs or CIDR blocks of your reverse proxy (for example `127.0.0.1` or `172.16.0.0/12` for a Docker network). Only for connections from these addresses does Fyr read the visitor's address from `X-Forwarded-For`, so login and messaging rate limits apply per visitor instead of to everyone behind the proxy. Leave unset when Fyr is reached directly.
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.

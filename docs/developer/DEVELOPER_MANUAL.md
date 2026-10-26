@@ -204,6 +204,7 @@ CI-pinned versions for parity:
 - `FYR_ADMIN_PASSWORD` (optional; enables password-protected admin mode)
 - `FYR_READONLY` (optional; enables strict read-only mode; all mutating endpoints return 403)
 - `FYR_GUEST_MESSAGING` (optional; with `FYR_ADMIN_PASSWORD`, guests may post messages / create channels)
+- `FYR_TRUSTED_PROXIES` (optional; reverse proxy IPs/CIDRs whose `X-Forwarded-For` is honoured for client IPs)
 - `FYR_MESSAGING` (default `true`; `false` disables Messages), `FYR_MESSAGES_MAX_PER_CHANNEL` (default `1000`, clamped 10–100000), `FYR_MESSAGES_MAX_AGE_DAYS` (default `90`, clamped 1–3650)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
@@ -273,7 +274,7 @@ Fyr implements a two-level access control system controlled entirely by environm
   2. If no password configured → pass through (open mode).
   3. Otherwise → validate the `fyr_session` cookie value against `AuthManager::tokens`.
 - **Session cookie** — `HttpOnly; Path=/; SameSite=Strict`. Not accessible to JavaScript.
-- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (`ConnectInfo<SocketAddr>`), so clients cannot bypass limits by spoofing `X-Forwarded-For` headers. When Fyr runs behind a reverse proxy, all requests share the proxy's IP; in that case the proxy should handle rate limiting.
+- **Rate limiting** — 10 failed attempts per 5-minute window per client IP. The key comes from `auth::client_ip`: the real TCP peer address (`ConnectInfo<SocketAddr>`), unless that peer is listed in `FYR_TRUSTED_PROXIES` (IPs/CIDRs, parsed into `types::TrustedProxies`). Only then is `X-Forwarded-For` read, from the right, taking the first hop that is not itself a trusted proxy; client-supplied hops further left are never used, and unparsable values fall back to the peer. IPv4-mapped IPv6 peers are matched as IPv4. Messaging rate limits and stream caps (`messaging::routes::ClientIp`) use the same function.
 - **`AuthConfig`** lives in `crates/types/src/config.rs` and is populated from env vars in `Config::default()`.
 - **`can_view_system_details`** — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:
   - `/api/status`, `/api/config`, `/api/storage` and `/api/reader/zim/:filename/meta` return empty strings for filesystem paths (and `server_host`); `/api/storage` also omits `free_*`/`capacity_*` while keeping per-category usage.

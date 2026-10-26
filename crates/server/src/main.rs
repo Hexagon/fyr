@@ -59,6 +59,15 @@ async fn main() -> anyhow::Result<()> {
         info!("Server is running in password-protected admin mode (FYR_ADMIN_PASSWORD)");
     }
 
+    if !config.server.trusted_proxies.is_empty() {
+        info!("Honouring X-Forwarded-For from trusted proxies (FYR_TRUSTED_PROXIES)");
+    }
+    if !config.server.trusted_proxies_rejected.is_empty() {
+        warn!(
+            "Ignoring invalid FYR_TRUSTED_PROXIES entries: {}",
+            config.server.trusted_proxies_rejected.join(", ")
+        );
+    }
     info!("Data directory: {}", config.data_dir.display());
     info!("Server will run on: {}:{}", config.server.host, config.server.port);
     let bind_host = config.server.host.clone();
@@ -737,6 +746,68 @@ mod tests {
 
         let malformed = post_json(&app, "/api/models/missing.gguf/infer/stream", "{\"history\": 1}", None).await;
         assert!(malformed.status().is_client_error(), "{}", malformed.status());
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    async fn login_from(app: &Router, peer: &str, forwarded_for: &str, password: &str) -> StatusCode {
+        let mut request = Request::post("/api/auth/login")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(format!(r#"{{"password":"{password}"}}"#)))
+            .expect("request");
+        request
+            .extensions_mut()
+            .insert(axum::extract::ConnectInfo(format!("{peer}:40000").parse::<std::net::SocketAddr>().unwrap()));
+        if !forwarded_for.is_empty() {
+            request
+                .headers_mut()
+                .insert("x-forwarded-for", forwarded_for.parse().unwrap());
+        }
+        app.clone().oneshot(request).await.expect("response").status()
+    }
+
+    fn password_state(trusted_proxies: &str) -> AppState {
+        let mut state = test_state();
+        let mut config = (*state.config).clone();
+        config.auth.admin_password = Some("secret".to_string());
+        config.server.trusted_proxies = types::TrustedProxies::parse(trusted_proxies).0;
+        state.config = Arc::new(config);
+        state
+    }
+
+    #[tokio::test]
+    async fn login_rate_limit_is_per_client_behind_a_trusted_proxy() {
+        let state = password_state("127.0.0.1");
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+
+        for _ in 0..10 {
+            assert_eq!(login_from(&app, "127.0.0.1", "192.168.1.10", "wrong").await, StatusCode::UNAUTHORIZED);
+        }
+        assert_eq!(login_from(&app, "127.0.0.1", "192.168.1.10", "secret").await, StatusCode::TOO_MANY_REQUESTS);
+        // Another client behind the same proxy is unaffected...
+        assert_eq!(login_from(&app, "127.0.0.1", "192.168.1.11", "secret").await, StatusCode::OK);
+        // ...and a blocked client cannot escape by prepending a fake hop.
+        assert_eq!(
+            login_from(&app, "127.0.0.1", "10.9.9.9, 192.168.1.10", "secret").await,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn forwarded_for_is_ignored_without_trusted_proxies() {
+        let state = password_state("");
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+
+        for i in 0..10 {
+            let spoofed = format!("192.168.1.{i}");
+            assert_eq!(login_from(&app, "192.168.1.50", &spoofed, "wrong").await, StatusCode::UNAUTHORIZED);
+        }
+        // Rotating X-Forwarded-For does not help: the peer address is the key.
+        assert_eq!(login_from(&app, "192.168.1.50", "192.168.1.99", "secret").await, StatusCode::TOO_MANY_REQUESTS);
 
         let _ = fs::remove_dir_all(data_dir);
     }

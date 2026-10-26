@@ -168,6 +168,23 @@ pub fn extract_session_token(headers: &axum::http::HeaderMap) -> Option<String> 
     None
 }
 
+/// The client address for rate limiting: the TCP peer, or — only when the
+/// peer is a trusted reverse proxy (`FYR_TRUSTED_PROXIES`) — the rightmost
+/// untrusted hop in `X-Forwarded-For`.
+pub fn client_ip(
+    state: &AppState,
+    peer: std::net::IpAddr,
+    headers: &axum::http::HeaderMap,
+) -> std::net::IpAddr {
+    state.config.server.trusted_proxies.client_ip(
+        peer,
+        headers
+            .get_all("x-forwarded-for")
+            .iter()
+            .filter_map(|value| value.to_str().ok()),
+    )
+}
+
 /// Return `true` when the caller may see host-level details such as
 /// filesystem paths, bind host and disk capacity.
 ///
@@ -344,6 +361,7 @@ pub async fn auth_status_handler(
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Response {
     let auth_cfg = &state.config.auth;
@@ -369,12 +387,10 @@ pub async fn login_handler(
             .into_response();
     };
 
-    // Always rate-limit by the real TCP peer address to prevent clients from
-    // spoofing X-Forwarded-For headers to bypass limits.  When running behind
-    // a reverse proxy the proxy's address will be used; in that scenario the
-    // proxy itself should handle rate limiting or strip/validate
-    // X-Forwarded-For before forwarding.
-    let client_ip = addr.ip().to_string();
+    // Rate-limit by the real TCP peer address. X-Forwarded-For is only
+    // honoured when the peer is a configured trusted proxy
+    // (FYR_TRUSTED_PROXIES), so clients cannot spoof it to bypass limits.
+    let client_ip = client_ip(&state, addr.ip(), &headers).to_string();
 
     if state.auth_manager.is_rate_limited(&client_ip) {
         return (

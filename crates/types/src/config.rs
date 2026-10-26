@@ -68,6 +68,14 @@ impl Default for MessagingConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// Reverse proxies whose `X-Forwarded-For` is honoured for client IPs
+    /// (`FYR_TRUSTED_PROXIES`). Empty by default: trust nobody.
+    #[serde(default)]
+    pub trusted_proxies: crate::proxy::TrustedProxies,
+    /// `FYR_TRUSTED_PROXIES` entries that could not be parsed; logged as a
+    /// warning at startup.
+    #[serde(skip)]
+    pub trusted_proxies_rejected: Vec<String>,
 }
 
 /// Local AI inference runtime configuration.
@@ -87,6 +95,8 @@ impl Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
+                trusted_proxies: crate::proxy::TrustedProxies::default(),
+                trusted_proxies_rejected: Vec::new(),
             },
             data_dir,
             auth: AuthConfig {
@@ -206,6 +216,11 @@ impl Default for Config {
         let mut config = Self::default_with_data_dir(data_dir);
         config.server.host = host;
         config.server.port = port;
+        if let Ok(raw) = std::env::var("FYR_TRUSTED_PROXIES") {
+            let (trusted, rejected) = crate::proxy::TrustedProxies::parse(&raw);
+            config.server.trusted_proxies = trusted;
+            config.server.trusted_proxies_rejected = rejected;
+        }
 
         let admin_password = std::env::var("FYR_ADMIN_PASSWORD")
             .ok()

@@ -466,7 +466,7 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 </tr>
 </tbody></table>
 </div>
-<p>Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy&#39;s address, so these limits are shared too.</p>
+<p>Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy&#39;s address, so these limits are shared too — unless you list the proxy in <code>FYR_TRUSTED_PROXIES</code> (§6).</p>
 <p>Set <code>FYR_MESSAGING=false</code> to switch Messages off entirely.</p>
 <h2 id="4-add-content">4. Add Content<a class="heading-anchor" href="#4-add-content" aria-label="Link to this section">#</a></h2>
 <h3 id="data-directories-and-supported-file-types">Data directories and supported file types<a class="heading-anchor" href="#data-directories-and-supported-file-types" aria-label="Link to this section">#</a></h3>
@@ -665,6 +665,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_MESSAGING</code> — set to <code>false</code> to disable Messages (default on)</li>
 <li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000)</li>
 <li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages in days (default 90)</li>
+<li><code>FYR_TRUSTED_PROXIES</code> — comma-separated IPs or CIDR blocks of your reverse proxy (for example <code>127.0.0.1</code> or <code>172.16.0.0/12</code> for a Docker network). Only for connections from these addresses does Fyr read the visitor&#39;s address from <code>X-Forwarded-For</code>, so login and messaging rate limits apply per visitor instead of to everyone behind the proxy. Leave unset when Fyr is reached directly.</li>
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>

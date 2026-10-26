@@ -76,21 +76,22 @@ fn too_many(retry_after: Duration, message: &str) -> Response {
     response
 }
 
-/// Real TCP peer address (never `X-Forwarded-For`, which is spoofable).
-/// Falls back to 0.0.0.0 when connect info is unavailable (tests).
+/// Client address for rate limits and stream caps: the real TCP peer, or
+/// the forwarded client when the peer is a trusted reverse proxy
+/// (`FYR_TRUSTED_PROXIES`; see `auth::client_ip`). Falls back to 0.0.0.0
+/// when connect info is unavailable (tests).
 pub struct ClientIp(pub IpAddr);
 
 #[async_trait]
-impl<S: Send + Sync> FromRequestParts<S> for ClientIp {
+impl FromRequestParts<Shared> for ClientIp {
     type Rejection = Infallible;
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        Ok(ClientIp(
-            parts
-                .extensions
-                .get::<ConnectInfo<SocketAddr>>()
-                .map(|info| info.0.ip())
-                .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
-        ))
+    async fn from_request_parts(parts: &mut Parts, state: &Shared) -> Result<Self, Self::Rejection> {
+        let peer = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|info| info.0.ip())
+            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+        Ok(ClientIp(crate::auth::client_ip(state, peer, &parts.headers)))
     }
 }
 

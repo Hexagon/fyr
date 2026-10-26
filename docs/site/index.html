@@ -633,6 +633,11 @@
                                         <td class="py-2 pr-4"><code class="text-gray-500">false</code></td>
                                         <td class="py-2">With an admin password set, let guests post in Messages</td>
                                     </tr>
+                                    <tr>
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_TRUSTED_PROXIES</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Reverse proxy IPs/CIDRs (e.g. <code class="text-brand-400">127.0.0.1</code>) whose <code>X-Forwarded-For</code> is trusted for per-client rate limits</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -819,6 +824,11 @@ git checkout main   # or dev, or a specific tag</code></pre>
                                     <td class="py-2 pr-4 font-mono text-brand-400">FYR_GUEST_MESSAGING</td>
                                     <td class="py-2 pr-4"><code class="text-gray-500">false</code></td>
                                     <td class="py-2">With an admin password set, let guests post in Messages</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_TRUSTED_PROXIES</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Reverse proxy IPs/CIDRs (e.g. <code class="text-brand-400">127.0.0.1</code>) whose <code>X-Forwarded-For</code> is trusted for per-client rate limits</td>
                                 </tr>
                             </tbody>
                         </table>

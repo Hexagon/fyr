@@ -38,6 +38,7 @@ Config overrides:
 - `FYR_ADMIN_PASSWORD` — enables password-protected admin mode; mutating endpoints require a valid session
 - `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 regardless of session state
 - `FYR_GUEST_MESSAGING` — in password mode, lets guests post messages and create encrypted channels (see rule 8)
+- `FYR_TRUSTED_PROXIES` — reverse proxy IPs/CIDRs; only for these peers is `X-Forwarded-For` used to find the client IP. Always derive client IPs via `auth::client_ip`, never from headers directly.
 - `FYR_MESSAGING`, `FYR_MESSAGES_MAX_PER_CHANNEL`, `FYR_MESSAGES_MAX_AGE_DAYS` — Messages on/off and retention
 
 ## Core Security Function: Access Control

@@ -452,6 +452,7 @@ Remove-Item Env:RUSTFLAGS
 <li><code>FYR_ADMIN_PASSWORD</code> (optional; enables password-protected admin mode)</li>
 <li><code>FYR_READONLY</code> (optional; enables strict read-only mode; all mutating endpoints return 403)</li>
 <li><code>FYR_GUEST_MESSAGING</code> (optional; with <code>FYR_ADMIN_PASSWORD</code>, guests may post messages / create channels)</li>
+<li><code>FYR_TRUSTED_PROXIES</code> (optional; reverse proxy IPs/CIDRs whose <code>X-Forwarded-For</code> is honoured for client IPs)</li>
 <li><code>FYR_MESSAGING</code> (default <code>true</code>; <code>false</code> disables Messages), <code>FYR_MESSAGES_MAX_PER_CHANNEL</code> (default <code>1000</code>, clamped 10–100000), <code>FYR_MESSAGES_MAX_AGE_DAYS</code> (default <code>90</code>, clamped 1–3650)</li>
 <li><code>FYR_DEV_PROXY_TARGET</code> (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)</li>
 </ul>
@@ -541,7 +542,7 @@ Remove-Item Env:RUSTFLAGS
 </ol>
 </li>
 <li><strong>Session cookie</strong> — <code>HttpOnly; Path=/; SameSite=Strict</code>. Not accessible to JavaScript.</li>
-<li><strong>Rate limiting</strong> — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (<code>ConnectInfo&lt;SocketAddr&gt;</code>), so clients cannot bypass limits by spoofing <code>X-Forwarded-For</code> headers. When Fyr runs behind a reverse proxy, all requests share the proxy&#39;s IP; in that case the proxy should handle rate limiting.</li>
+<li><strong>Rate limiting</strong> — 10 failed attempts per 5-minute window per client IP. The key comes from <code>auth::client_ip</code>: the real TCP peer address (<code>ConnectInfo&lt;SocketAddr&gt;</code>), unless that peer is listed in <code>FYR_TRUSTED_PROXIES</code> (IPs/CIDRs, parsed into <code>types::TrustedProxies</code>). Only then is <code>X-Forwarded-For</code> read, from the right, taking the first hop that is not itself a trusted proxy; client-supplied hops further left are never used, and unparsable values fall back to the peer. IPv4-mapped IPv6 peers are matched as IPv4. Messaging rate limits and stream caps (<code>messaging::routes::ClientIp</code>) use the same function.</li>
 <li><strong><code>AuthConfig</code></strong> lives in <code>crates/types/src/config.rs</code> and is populated from env vars in <code>Config::default()</code>.</li>
 <li><strong><code>can_view_system_details</code></strong> — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:<ul>
 <li><code>/api/status</code>, <code>/api/config</code>, <code>/api/storage</code> and <code>/api/reader/zim/:filename/meta</code> return empty strings for filesystem paths (and <code>server_host</code>); <code>/api/storage</code> also omits <code>free_*</code>/<code>capacity_*</code> while keeping per-category usage.</li>
