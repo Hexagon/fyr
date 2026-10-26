@@ -575,3 +575,32 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
 **Bounds:** whole search runs in one `run_blocking` task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.
 
 **Testing:** pure ranking/merge/limit/link/cache tests and temp-file source tests live in `search.rs`; a router test in `main.rs` covers kinds, links, limits and path leakage in read-only mode. There is no ZIM writer, so ZIM paths are tested by `zim_title_search_against_fixture_archives`, which runs only when `FYR_TEST_ZIM_DIR` points at a folder of `.zim` files (for example the openZIM testing-suite `data/` archives). Frontend logic is tested in `modules/search/searchResults.test.js`.
+
+## 12. Library Reading State (progress, bookmarks, deep links)
+All of this lives in the browser. There are no server endpoints or server writes, so guests in password mode and in `FYR_READONLY` mode get the same features.
+
+Modules (`crates/ui/frontend/src/modules/`):
+- `library/deepLink.js`: pure mapping between `route.query` and reader state. Other pages should use `buildBookDeepLink(file, { path, q })` or `bookRoute(...)` rather than building URLs by hand. The contract is:
+  - `file`: a library filename. Values containing `/`, `\`, `..` or control characters are rejected.
+  - `path`: a ZIM article path. A `#fragment` is allowed and leading slashes are stripped.
+  - `q`: an in-book search query.
+- `library/progress.js`: `createProgressStore()` / `progressStore`, stored under the localStorage key `fyr.library.progress.v1`:
+  - Stores the last-opened time, the position and the bookmarks for each book.
+  - Keeps the 200 most recent books and 100 bookmarks per book.
+  - Entries are held in an array rather than an object keyed by filename, so filenames such as `__proto__` cannot collide with prototype keys.
+  - Every storage access is wrapped in try/catch (see `library/safeStorage.js`). If stored JSON is corrupt or has the wrong shape, it is treated as empty.
+  - If storage is missing or throws, the store falls back to an in-memory copy. If a write fails because the quota is full, the store drops the older half of the books and retries once.
+- Position shapes: `{type:'epub', cfi, href, label}`, `{type:'zim', path, label}`, `{type:'md', line, label}`. A `{type:'pdf', page}` shape is reserved; it is unused because the PDF iframe has no page API.
+- `library/readerPrefs.js`: theme (`light`/`sepia`/`dark`) and font scale (70–200%), stored under `fyr.reader.prefs.v1`.
+- `library/continueReading.js`: intersects `progressStore.listRecent()` with `GET /api/content/books` for the Home page.
+- `reader/articleHistory.js`, `reader/shortcuts.js`, `reader/markdownPosition.js`: pure helpers. `shortcutForEvent` ignores inputs, textareas, selects, contenteditable elements and events with modifier keys.
+
+Reader behaviour:
+- `useUnifiedReader.selectBook()` creates a cancellation token for each selection. Readers check `token.cancelled` after every `await`, so a slow earlier book, or its error, never replaces the book the user switched to. `useZimReader.loadNativeArticle()` numbers its requests in sequence and returns `null` for a superseded request.
+- EPUB positions come from epub.js `relocated` events (saved after an 800 ms debounce) and are restored with `rendition.display(cfi)`. If the CFI is invalid, the reader falls back to the start of the book.
+- Markdown is rendered block by block. `renderMarkdownWithLines` wraps each top-level block in `data-md-line="<source line>"`. Positions use the top visible block, and `/api/library/books/:f/search` hits (`#<line>`) scroll to the block that contains that line.
+- ZIM positions are the current article path (including any `#hash`). If the start path fails to load, the reader shows the main page and displays a notice.
+- `Books.vue` mirrors the reader state to the URL with `router.replace`. It records the queries it set itself, so its route watcher can tell its own URL updates apart from external navigation (for example a `/books` nav click, which closes the book). If the requested file is not in the library listing, the page shows a notice and clears the query.
+- Pending saves are written immediately on book switch, on `pagehide`, when the page becomes hidden, and on unmount.
+
+Tests: `cd crates/ui/frontend && npm test` runs Vitest with the shared happy-dom environment. Tests live next to the modules in `*.test.js` files. `readerHelpers.test.js` replaces DOMPurify with an identity function, because happy-dom's parser makes DOMPurify unwrap the first top-level element of each fragment; real browsers are not affected. That file tests line anchoring, not sanitization.
