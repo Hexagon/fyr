@@ -1638,9 +1638,10 @@ impl DownloadManager {
                 task.id,
                 task.status
             );
-            task.error = Some(match task.source {
-                DownloadSource::Url { .. } => INTERRUPTED_BY_RESTART_MESSAGE.to_string(),
-                DownloadSource::LocalFile { .. } => "interrupted by server restart; please retry".to_string(),
+            task.error = Some(if task.resumable {
+                INTERRUPTED_BY_RESTART_MESSAGE.to_string()
+            } else {
+                "interrupted by server restart; please retry".to_string()
             });
             task.status = DownloadStatus::Failed;
             Self::recompute_progress(task);
