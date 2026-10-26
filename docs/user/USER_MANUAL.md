@@ -283,6 +283,21 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --b
 - Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.
 - Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.
 
+## 5d. Reading Progress, Bookmarks and Links
+- **Resume where you left off:** Fyr remembers your last position per book: the EPUB location, the ZIM article, and the Markdown section. Opening the book again takes you back there. PDF files open inline through the browser's PDF viewer, so Fyr cannot see the page number and starts from the first page.
+- **Bookmarks:** use **＋ Bookmark** in the reader toolbar (or press `b`) to save the current position. **Bookmarks (n)** lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown and ZIM.
+- **Continue reading:** the Overview page lists your recently opened books that are still in the library. Click a card to resume reading.
+- **Search inside a book:** EPUB, Markdown and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it.
+- **ZIM history:** the ‹ / › buttons (or `[` / `]`) move back and forward between articles you opened in the current archive.
+- **Text size and theme:** for EPUB and Markdown, use A− / A+ (or `-` / `+`) to change the text size, and pick a Light, Sepia or Dark theme. These settings are saved in your browser.
+- **Links to books:** the address bar follows what you are reading, so you can bookmark or share the link, and reloading the page reopens the same book and article:
+  - `/books?file=<filename>` opens a book.
+  - `/books?file=<archive>.zim&path=<article path>` opens a specific ZIM article.
+  - `/books?file=<filename>&q=<words>` opens a book and runs an in-book search.
+  - The **←** button (Back to library) closes the book and removes these parameters from the address.
+- Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.
+- **Privacy and storage:** progress, bookmarks and display settings are stored only in this browser's local storage. They are not stored on the server, so they also work for read-only guests. They do not sync between browsers or devices, and clearing site data removes them. Fyr keeps the 200 most recently used books.
+
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:
 

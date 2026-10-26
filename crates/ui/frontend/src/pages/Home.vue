@@ -1,5 +1,27 @@
 <template>
   <div class="home-page">
+    <section v-if="continueReading.length" class="continue-section" aria-labelledby="continue-reading-heading">
+      <h3 id="continue-reading-heading">📖 Continue reading</h3>
+      <ul class="continue-list">
+        <li v-for="item in continueReading" :key="item.filename">
+          <router-link
+            :to="item.href"
+            class="continue-card"
+            :aria-label="`Resume ${item.title}`"
+          >
+            <span class="continue-title-row">
+              <span class="continue-title">{{ item.title }}</span>
+              <span class="continue-format">{{ item.format }}</span>
+            </span>
+            <span v-if="item.positionLabel" class="continue-position">{{ item.positionLabel }}</span>
+            <span class="continue-meta">
+              {{ formatRelativeTime(item.lastOpened) }}<template v-if="item.bookmarkCount"> · {{ item.bookmarkCount }} bookmark{{ item.bookmarkCount === 1 ? '' : 's' }}</template>
+            </span>
+          </router-link>
+        </li>
+      </ul>
+    </section>
+
     <div class="stats-grid" v-if="status">
       <div class="stat-card">
         <h3>📊 System Status</h3>
@@ -111,6 +133,8 @@ import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { getLocationClock } from '../services/locationClock'
 import { isAdminLocked } from '../services/auth'
+import { progressStore } from '../modules/library/progress'
+import { formatRelativeTime, selectContinueReading } from '../modules/library/continueReading'
 
 const status = ref(null)
 const storage = ref(null)
@@ -151,7 +175,23 @@ const categoryStorageSummary = (category) => {
   return `${categoryInfo.human} • ${fileCount} ${fileLabel}`
 }
 
+// Continue reading: recent books from this browser's progress store, limited
+// to files still present in the library listing.
+const continueReading = ref([])
+
+const loadContinueReading = async () => {
+  const recent = progressStore.listRecent(30)
+  if (!recent.length) return
+  try {
+    const response = await apiService.getBooks()
+    continueReading.value = selectContinueReading(recent, response.data || [], 6)
+  } catch {
+    continueReading.value = []
+  }
+}
+
 onMounted(async () => {
+  loadContinueReading()
   try {
     const response = await apiService.getStatus()
     status.value = response.data
@@ -171,6 +211,90 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+}
+
+.continue-section {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #40c0b5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.continue-section h3 {
+  color: #e0e0e0;
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.continue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.continue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  height: 100%;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 0.7rem 0.8rem;
+  color: #e0e0e0;
+  text-decoration: none;
+  transition: border-color 0.2s ease;
+}
+
+.continue-card:hover,
+.continue-card:focus-visible {
+  border-color: #40c0b5;
+}
+
+.continue-card:focus-visible {
+  outline: 2px solid #40c0b5;
+  outline-offset: 2px;
+}
+
+.continue-title-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.continue-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continue-format {
+  background: rgba(64, 192, 181, 0.2);
+  border: 1px solid rgba(64, 192, 181, 0.5);
+  color: #b9fff6;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.68rem;
+}
+
+.continue-position {
+  color: #b0b0b0;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continue-meta {
+  color: #808080;
+  font-size: 0.75rem;
 }
 
 .stats-grid {
