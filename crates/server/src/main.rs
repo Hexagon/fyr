@@ -25,6 +25,7 @@ use settings::SettingsManager;
 
 mod ai;
 mod auth;
+mod backup;
 mod handlers;
 mod library;
 mod mbtiles;
@@ -51,6 +52,8 @@ async fn main() -> anyhow::Result<()> {
     config.initialize_directories()?;
     config.validate_writable()?;
     sync_managed_manuals(&config)?;
+    // Before the download manager and messages database open their files.
+    backup::prepare_on_startup(&config).context("Failed to apply a pending restore")?;
     configure_ai_runtime(&config);
 
     if config.auth.readonly {
@@ -241,7 +244,16 @@ fn create_router(state: AppState) -> Router {
             post(handlers::upload_file_to_import).layer(DefaultBodyLimit::disable()),
         )
         .route("/api/settings", put(handlers::update_settings))
-        .route("/api/poi/:filename", put(handlers::save_poi_file));
+        .route("/api/poi/:filename", put(handlers::save_poi_file))
+        // Backup/restore. GET /api/backup is protected even though it is a
+        // read: the archive holds all user data (settings, messages DB with
+        // channel verifiers, POIs). See DEVELOPER_MANUAL §3.5.
+        .route("/api/backup", get(backup::download_backup))
+        .route(
+            "/api/restore",
+            post(backup::restore_backup)
+                .layer(DefaultBodyLimit::max(backup::MAX_UPLOAD_BYTES as usize + 64 * 1024)),
+        );
     // Messaging moderation (delete/pin message, delete channel) is admin-only.
     let protected = if state_arc.messaging.enabled() {
         protected.merge(messaging::routes::moderation_routes())

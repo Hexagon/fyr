@@ -50,6 +50,10 @@ const MIGRATIONS: &[&str] = &[
         VALUES ('public', 'public', NULL, 0, 0);",
 ];
 
+/// Newest schema version this build understands (used to reject backups
+/// from a newer Fyr in `crate::backup`).
+pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelKind {

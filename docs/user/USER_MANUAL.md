@@ -208,6 +208,7 @@ Open **Join or create an encrypted channel**, enter a channel name and a passphr
 
 - Use a strong passphrase — four or more random words. Anyone who captures the channel id on the network can try to guess a weak passphrase offline.
 - **Remember on this device** stores the channel keys (never the passphrase) in the browser so the channel stays in your list; **Forget** removes them. Without it the channel lasts until you close the tab.
+- **Move channel keys to another device** (below the join form) exports all remembered channel keys as a file encrypted with a passphrase you choose (at least 8 characters), and imports such a file on another device. Without that file passphrase the file is useless; a wrong passphrase or a modified file is rejected. The keys only work on the same Fyr server (or one restored from its backup, §6a), because channel ids depend on the server.
 - **Share** gives a link (`/messages#join=<name>`) and a QR code. The part after `#` never reaches the server. You can choose to include the passphrase in the link — anyone who sees that link or QR code can then read and post, so share it only in person. Opening such a link only fills in the form; the passphrase is removed from the address bar immediately.
 - Messages are end-to-end encrypted on your device; the server only stores scrambled data. Channels keep the newest 1000 messages and messages younger than 90 days. Channels with no messages are removed after a week of inactivity — anyone with the name and passphrase can simply create them again (**Create it again**).
 - Admins can delete a channel and its messages, but cannot read them.
@@ -354,6 +355,7 @@ The **Maps** page is built to be usable for navigation without network access.
   - The **←** button (Back to library) closes the book and removes these parameters from the address.
 - Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.
 - **Privacy and storage:** progress, bookmarks and display settings are stored only in this browser's local storage. They are not stored on the server, so they also work for read-only guests. They do not sync between browsers or devices, and clearing site data removes them. Fyr keeps the 200 most recently used books.
+- **Move to another device:** in the Library panel open **Move reading progress**. **Export** saves a JSON file with your positions and bookmarks; **Import** on the other device merges it: books you do not have yet are added, the newer position of each book wins, and bookmarks are combined without duplicates. Nothing is deleted by an import.
 
 ## 6. Data Storage Layout
 `public/data/` is created automatically and contains the following directories:
@@ -366,6 +368,8 @@ The **Maps** page is built to be usable for navigation without network access.
 - `public/data/misc/`
 
 Messages are stored in `messages.sqlite` directly in the data directory (owner-readable only, never published).
+
+Two more folders may appear briefly: `.backup-tmp/` (temporary files while a backup or restore runs; removed automatically) and `restore-pending/` (files from a restore that are applied at the next start, see §6a).
 
 Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
@@ -394,6 +398,50 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
+
+## 6a. Backup and Restore
+
+Admins can back up and restore the server's own data from **Settings → Backup & restore** (the section is only shown to admins; in read-only mode it is not available at all).
+
+**What is in a backup:** settings, POI files (`.geojson`/`.json`, and `.fgb` files up to 16 MB), the curated catalog, the download history and all Messages (the Board in plain text, encrypted channels still encrypted, plus the server salt that channel ids depend on). Maps, books, models, misc files and the inbox are **not** included: copy the data folder (or Docker volume) for those. The backup is a `.zip` with a `manifest.json` listing every file with its SHA-256 checksum.
+
+Keep backup files private: they contain every Board post with nicknames and locations, and anyone holding one can try to guess weak channel passphrases offline.
+
+**Download backup** creates the file. Taking a backup is safe while people are posting; Fyr copies the messages database consistently.
+
+**Restore:** choose a backup `.zip`, press **Restore backup** and confirm. Fyr checks the whole file first (checksums, file names, sizes, content) and refuses damaged, modified or foreign files without changing anything. Then:
+
+- settings, the curated catalog and POI files from the backup are replaced **immediately** (other POI files that are not in the backup are kept);
+- Messages and the download history are replaced at the **next restart** of Fyr. Until you restart, the old messages stay in use. Restart with `docker restart fyr`, `systemctl restart fyr` or by stopping and starting the program.
+
+Uploads are limited to 512 MB. Restoring a backup from a newer Fyr version into an older one is refused if the messages database format is newer.
+
+Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart field `file`) with an admin session cookie. Without `FYR_ADMIN_PASSWORD`, anyone who can reach the server can use them, like every other admin function.
+
+## 6b. Upgrading from 0.5.x to 1.0
+
+1. **Take a backup first.** On 0.5.x there is no backup button: stop Fyr and copy the data folder (`public/data/` or your `DATA_DIR`), or for Docker copy the volume, for example:
+   ```sh
+   docker stop fyr
+   docker run --rm -v fyr-data:/data -v "$PWD":/backup alpine tar czf /backup/fyr-data-0.5.tar.gz -C /data .
+   ```
+   After the upgrade, use **Settings → Backup & restore** for future backups.
+2. **Replace the program or image.** Docker: `docker pull hexagon/fyr:latest`, then remove and re-create the container with the **same** volume (`-v fyr-data:/data -e DATA_DIR=/data`). The image is multi-arch: the same tag works on Intel/AMD (`x86_64`) and ARM64 (`aarch64`, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same `DATA_DIR`.
+3. **Start it.** Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.
+
+**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only). Other 1.0 features may add their own folders (for example a search `index/` or `tls/` certificates); all of them live inside the data folder, so keep mounting the whole folder.
+
+**New environment variables** (all optional; defaults keep 0.5.x behaviour except that Messages is on):
+
+- `FYR_MESSAGING` — `false` turns Messages off.
+- `FYR_GUEST_MESSAGING` — with `FYR_ADMIN_PASSWORD`, let guests post and create encrypted channels.
+- `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000).
+- `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages (default 90).
+- `FYR_TRUSTED_PROXIES` — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.
+
+If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/`FYR_READONLY` (§3a) and the Messages posting rules (§3d) after upgrading.
+
+**Going back to 0.5.x:** stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores `messages.sqlite`.
 
 ## 7. Platform Notes
 - Intel/AMD (`x86_64`) and ARM64 (`aarch64`) are both supported.

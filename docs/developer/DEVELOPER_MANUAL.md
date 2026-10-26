@@ -285,6 +285,32 @@ Fyr implements a two-level access control system controlled entirely by environm
 
 Add the route to the `protected` `Router` in `create_router` in `crates/server/src/main.rs`. The `route_layer(admin_mw)` call automatically covers all routes in that sub-router.
 
+### Backup and restore (`crates/server/src/backup.rs`)
+
+`GET /api/backup` and `POST /api/restore` are both mounted in the `protected` router. **The backup GET is protected even though it does not change state**: the archive contains all user data that the public API deliberately never returns in bulk — `settings.json`, the download history, and a full copy of `messages.sqlite` (every Board post with nick/device tag/location, all encrypted ciphertexts, the server salt and the per-channel verifiers `sha256(auth_key)`, which allow offline passphrase guessing at scrypt cost). Treat it like any other admin function: open mode → anyone, password mode → admin session (401 otherwise), `FYR_READONLY` → 403 for both routes.
+
+Backup (blocking work in `spawn_blocking`, temp files in `DATA_DIR/.backup-tmp/`, mode 0700, wiped at startup):
+- `settings.json` and `download_tasks.json` are serialized from memory (`SettingsManager::current`, `DownloadManager::list_tasks`), never read from half-written files.
+- `messages.sqlite` is snapshotted with `VACUUM INTO` through a separate connection. That runs in one read transaction, so the copy is transactionally consistent while the live WAL database keeps accepting writes; the live file is never copied directly.
+- `curated-content.json`, `poi/*.geojson|json` (≤ 64 MiB) and `poi/*.fgb` ≤ 16 MiB; symlinks are skipped. Maps, books, models, misc, inbox and indexes are excluded.
+- `manifest.json`: `{ format: "fyr-backup", format_version: 1, fyr_version, created_at, files: [{ path, size, sha256 }] }`. The zip is streamed from a temp file that is deleted after streaming (also on client disconnect). No response contains host paths.
+
+Restore (`prepare_restore` validates everything before `apply_files` touches the data directory):
+- Upload: multipart field `file`, streamed to disk, capped at 512 MiB (`MAX_UPLOAD_BYTES`; `DefaultBodyLimit` slightly above) → 413.
+- Entry names: fixed allow-list (`manifest.json`, `settings.json`, `curated-content.json`, `download_tasks.json`, `messages.sqlite`, `poi/<name>` with a POI extension). Absolute paths, `..`/`.`/empty segments, backslashes, `:`, hidden files, directories, symlinks/special files (Unix mode bits), and duplicate names (case-insensitive) are rejected. Files are written to fixed names inside a private staging dir, never to archive-supplied paths.
+- Zip bombs: ≤ 1000 entries, per-entry caps (64 MiB JSON, 64 MiB fgb, 1 MiB manifest, 1 GiB messages DB) and 1 GiB total. Caps are enforced on the bytes actually decompressed (`copy_capped` reads at most cap + 1), so lying headers do not help; each entry is also capped at its manifest size.
+- Manifest: format/version check; the manifest and archive must list exactly the same files; size and SHA-256 must match.
+- Content: settings must deserialize as `AppSettings`, catalog/POI JSON must parse, `.fgb` must start with `fgb`. `download_tasks.json` is sanitized: only URL tasks (http/https) whose id is `[A-Za-z0-9_-]{1,64}` and equals its key are kept (ids name partial files), everything becomes terminal and non-resumable, local-import tasks are dropped.
+- `messages.sqlite`: SQLite header check, opened with `SQLITE_DBCONFIG_DEFENSIVE`, `TRUSTED_SCHEMA=off`, triggers and views disabled; `integrity_check` must be `ok`; `schema_version` ≤ `store::SCHEMA_VERSION` (newer → refused); at the current version the `sqlite_schema` must equal that of a freshly created store exactly (no extra tables, triggers or views). It is stored in rollback-journal mode as one self-contained file.
+
+Applying:
+- `settings.json` → `SettingsManager::replace` (persisted and reloaded in memory; the download timeout is re-applied).
+- `curated-content.json` and POI files → atomic rename into place (copy + rename across filesystems). POI files not in the backup are kept.
+- `messages.sqlite` and `download_tasks.json` belong to services that hold them open / in memory (`Messaging` keeps one connection and the server salt; `DownloadManager` rewrites its JSON from memory). Swapping them live would race those services, so they are staged in `DATA_DIR/restore-pending/` and **applied at the next start** by `backup::prepare_on_startup`, which runs in `main` before `DownloadManager::new` and `Messaging::open`. It deletes `messages.sqlite-wal`/`-shm`/`-journal` *before* renaming the new file in (a stale WAL must never be replayed into a different database) and is idempotent if interrupted. The response has `restart_required: true` and lists `pending_restart`; the UI tells the admin to restart. A newer restore replaces an older pending one.
+- One restore at a time per data directory (409 otherwise). Error messages name archive entries only, never host paths.
+
+Response: `{ message, backup_created_at, backup_fyr_version, restored: [...], pending_restart: [...], restart_required }`.
+
 ### Messaging write exception (`require_messaging_write`)
 
 Messaging is the single, deliberate exception to "mutating endpoints are admin-only". Only `POST /api/channels` and `POST /api/channels/:id/messages` are mounted in the `messaging_write` sub-router, layered with `auth::require_messaging_write` (`route_layer`) and a 32 KiB body limit:
@@ -383,6 +409,7 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 
 - `pages/Messages.vue` (route `/messages`), `modules/messaging/`: `model.js` (row → view model, merge/expiry/alerts), `format.js` (linkify, day grouping, Maps deep links `/maps?lat=&lng=&zoom=15&label=`), `storage.js` (guarded `localStorage`: nickname, device id/tag, remembered channels, read markers, own message ids, dismissed alerts), `stream.js` (fetch-based SSE so the key header can be sent; `ready`-triggered catch-up; exponential backoff with jitter; 400/401/403/404 terminal), `boardFeed.js` (one shared Board stream for the nav badge, Board view and `AlertBanner.vue` on Home).
 - The UI hides the composer when `can_post` is false and moderation controls when `can_moderate` is false; the server enforces both.
+- Channel key export/import ("Move channel keys to another device") is client-side only, implemented in `crypto.js` (`exportChannelKeys`, `importChannelKeys`), tests in `keyExport.test.js`. File format v1: `{ format: "fyr-channel-keys", v: 1, kdf: { name: "scrypt", N, r: 8, p: 1 }, salt: b64(16), nonce: b64(24), ciphertext: b64 }`; `key = scrypt(NFKC(passphrase), salt, N=2^15)`, `XChaCha20-Poly1305(key, nonce, aad = "fyr-channel-keys/v1|N|r|p|<salt b64>")` over `JSON { exported_at, channels: [{ name, channelId, authKey, encKey, version }] }`. The header is bound as AAD, so a modified KDF/salt fails like a wrong passphrase. The importer only accepts `N` in 2^10..2^18 (power of two), `r=8`, `p=1` and files ≤ 256 KiB. Export requires a passphrase of ≥ 8 characters; keys are never exported in plaintext. Keys are tied to the server salt, so they work on the same server or one restored from its backup.
 
 ### Admin-only endpoints (require auth when `FYR_ADMIN_PASSWORD` is set; always blocked when `FYR_READONLY`)
 - `PUT /api/settings`
@@ -397,6 +424,8 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 - `POST /api/models/import`
 - `POST /api/models/:filename/load`
 - `DELETE /api/models/:filename/load`
+- `GET /api/backup` — stream a backup zip (protected although it is a GET; see "Backup and restore" above)
+- `POST /api/restore` — multipart restore of a backup zip
 
 Download routing: URL downloads stream into `inbox/<task_id>-<filename>.part` (unique per task, so concurrent downloads of the same filename cannot corrupt each other) and are then moved to their content folder with `DownloadManager::move_file`, which falls back to copy + delete when `rename` fails across filesystems (for example when `maps/` or `books/` is a separate Docker volume).
 
@@ -636,6 +665,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 - **Messages:** public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).
 - **Content:** resumable, checksum-verified downloads; graceful shutdown that keeps partial downloads.
 - **Platform:** installable web app manifest, lazy-loaded pages, `FYR_TRUSTED_PROXIES`, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.
+- **Backup and portability:** admin backup/restore of settings, POIs, catalog, download history and the messages database (§3.5); encrypted export/import of channel keys; export/import of reading progress and bookmarks (§12); upgrade guide from 0.5.x in the User Manual (§6b).
 
 ### Remaining before 1.0 (priority order)
 1. **HTTPS without a separate proxy.** Browsers only allow geolocation (My Location, track recording) on HTTPS or localhost, and encrypted channels only resist active attackers over HTTPS. Offer built-in TLS (`FYR_TLS_CERT`/`FYR_TLS_KEY`, rustls) plus an installer option, or a documented Caddy recipe.
@@ -644,14 +674,15 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
 5. **Internationalization** (at least Swedish): the UI is English-only today.
 6. **PDF via pdf.js** for page memory, bookmarks and in-book search parity with EPUB.
-7. **Backup and portability:** export/import of POI files, settings and (encrypted) channel keys; optional server-side reading progress for guests on shared devices.
+7. **Backup and portability (remaining):** optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.
 8. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
-9. **Release engineering:** verified multi-arch Docker builds of `next`, an upgrade guide from 0.5.x (new `messages.sqlite`, new env vars), version bump to 1.0.0.
+9. **Release engineering:** verified multi-arch Docker builds of `next`, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).
 
 ### Known gaps
 - Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.
 - In open mode anyone on the network can post Board alerts (shown on Home); rate limits and admin deletion are the only mitigation. Use `FYR_ADMIN_PASSWORD` without `FYR_GUEST_MESSAGING` where that matters.
-- Reading positions and bookmarks are per browser; there is no cross-device sync.
+- Reading positions and bookmarks are per browser; there is no automatic cross-device sync (manual export/import only).
+- A restored messages database and download history only take effect after a restart.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
 ## 9. Recommended Validation Sequence
@@ -713,6 +744,7 @@ Modules (`crates/ui/frontend/src/modules/`):
   - Every storage access is wrapped in try/catch (see `library/safeStorage.js`). If stored JSON is corrupt or has the wrong shape, it is treated as empty.
   - If storage is missing or throws, the store falls back to an in-memory copy. If a write fails because the quota is full, the store drops the older half of the books and retries once.
 - Position shapes: `{type:'epub', cfi, href, label}`, `{type:'zim', path, label}`, `{type:'md', line, label}`. A `{type:'pdf', page}` shape is reserved; it is unused because the PDF iframe has no page API.
+- Export/import: `progressStore.exportData()` returns `{ format: "fyr-reading-progress", v: 1, exported_at, books }`; `importData(raw)` normalizes the input with the same validators as stored data and merges without deleting: new books are added, the newer `updatedAt` position wins, `lastOpened` takes the max, missing title/format are filled, bookmarks are united by `positionKey` (local titles win, colliding ids get a suffix). `Books.vue` exposes this as **Move reading progress** (files ≤ 5 MiB via `services/fileTransfer.js`).
 - `library/readerPrefs.js`: theme (`light`/`sepia`/`dark`) and font scale (70–200%), stored under `fyr.reader.prefs.v1`.
 - `library/continueReading.js`: intersects `progressStore.listRecent()` with `GET /api/content/books` for the Home page.
 - `reader/articleHistory.js`, `reader/shortcuts.js`, `reader/markdownPosition.js`: pure helpers. `shortcutForEvent` ignores inputs, textareas, selects, contenteditable elements and events with modifier keys.

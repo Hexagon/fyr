@@ -117,6 +117,53 @@
         </div>
       </div>
     </section>
+
+    <section v-if="!adminLocked" class="panel" aria-labelledby="backup-heading">
+      <div class="panel-header">
+        <h3 id="backup-heading">Backup &amp; restore</h3>
+        <span class="badge inactive">Admin</span>
+      </div>
+      <p class="body-copy">
+        A backup contains settings, POI files, the curated catalog, download history and all messages
+        (the Board and encrypted channels, which stay encrypted). Maps, books, models and other large
+        content are not included; copy the data folder for those. Keep backups private.
+      </p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" :disabled="backup.busy" @click="handleDownloadBackup">
+          {{ backup.busy === 'download' ? 'Preparing backup…' : 'Download backup' }}
+        </button>
+      </div>
+
+      <div class="module-editor">
+        <h4>Restore from a backup</h4>
+        <p class="body-copy">
+          Restoring replaces settings, the curated catalog and POI files with the same names right away
+          (other POI files are kept). Messages and download history are replaced when Fyr restarts.
+        </p>
+        <label>
+          Backup file (.zip)
+          <input ref="restoreInput" type="file" accept=".zip,application/zip" :disabled="Boolean(backup.busy)" @change="onRestoreFile" />
+        </label>
+        <div class="actions">
+          <button type="button" class="btn btn-secondary" :disabled="!backup.file || Boolean(backup.busy)" @click="handleRestore">
+            {{ backup.busy === 'restore' ? `Restoring… ${backup.progress}%` : 'Restore backup' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="backup.result" class="restore-result" role="status">
+        <p class="status-message">{{ backup.result.message }}</p>
+        <p class="body-copy">
+          Backup from {{ backup.result.backup_created_at || 'unknown date' }} (Fyr {{ backup.result.backup_fyr_version || '?' }}).
+        </p>
+        <p v-if="backup.result.restored?.length" class="body-copy">Restored now: {{ backup.result.restored.join(', ') }}</p>
+        <p v-if="backup.result.restart_required" class="restart-note">
+          Restart Fyr (for Docker: <code>docker restart fyr</code>) to finish restoring
+          {{ backup.result.pending_restart.join(' and ') }}. Until then the old messages stay in use.
+        </p>
+      </div>
+      <p v-if="backup.error" class="error-message" role="alert">{{ backup.error }}</p>
+    </section>
   </div>
 </template>
 
@@ -124,6 +171,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { apiService } from '../services/api'
 import { clearModuleState, clearSavedLocation, loadAppSettings, saveLocation, updateModuleState, useSettingsState } from '../services/settings'
+import { isAdminLocked } from '../services/auth'
+import { saveBlob } from '../services/fileTransfer'
 
 const settingsState = useSettingsState()
 const saving = ref(false)
@@ -141,6 +190,59 @@ const moduleForm = reactive({
   payload: '{"source":"settings-page","updatedAt":""}'
 })
 const downloadTimeoutSeconds = ref('300')
+
+// Backup & restore (admin only; the server enforces this independently).
+const adminLocked = computed(() => isAdminLocked())
+const restoreInput = ref(null)
+const backup = reactive({ busy: '', progress: 0, file: null, result: null, error: '' })
+
+const handleDownloadBackup = async () => {
+  backup.error = ''
+  backup.busy = 'download'
+  try {
+    const { blob, filename } = await apiService.downloadBackup()
+    saveBlob(blob, filename)
+  } catch (downloadError) {
+    backup.error = downloadError?.message || apiService.handleError(downloadError)
+  } finally {
+    backup.busy = ''
+  }
+}
+
+const onRestoreFile = (event) => {
+  backup.file = event.target.files?.[0] || null
+  backup.result = null
+  backup.error = ''
+}
+
+const handleRestore = async () => {
+  const file = backup.file
+  if (!file) return
+  const confirmed = window.confirm(
+    `Restore "${file.name}"?\n\nThis replaces the current settings, curated catalog and matching POI files now, ` +
+      'and all messages and download history after the next restart. Take a backup first if you may want them back.'
+  )
+  if (!confirmed) return
+  backup.error = ''
+  backup.result = null
+  backup.progress = 0
+  backup.busy = 'restore'
+  try {
+    const response = await apiService.restoreBackup(file, (loaded, total) => {
+      backup.progress = total ? Math.round((loaded / total) * 100) : 0
+    })
+    backup.result = response.data
+    backup.file = null
+    if (restoreInput.value) restoreInput.value.value = ''
+    await loadAppSettings()
+    hydrateForm()
+    hydrateDownloadTimeout()
+  } catch (restoreError) {
+    backup.error = apiService.handleError(restoreError)
+  } finally {
+    backup.busy = ''
+  }
+}
 
 const browserGeoNote = computed(() => {
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
@@ -509,6 +611,28 @@ input:focus {
   margin: 0.5rem 0 0;
   color: #b8bfd0;
   font-size: 0.85rem;
+}
+
+.restore-result {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.restore-result p {
+  margin: 0;
+}
+
+.restart-note {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(90, 78, 45, 0.55);
+  color: #f4de9a;
+}
+
+input[type="file"] {
+  padding: 0.6rem;
 }
 
 @media (max-width: 768px) {
