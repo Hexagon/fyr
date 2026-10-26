@@ -422,7 +422,7 @@ Remove-Item Env:RUSTFLAGS
 </ul>
 <h3 id="frontend-unit-tests">Frontend unit tests<a class="heading-anchor" href="#frontend-unit-tests" aria-label="Link to this section">#</a></h3>
 <ul>
-<li><code>cd crates/ui/frontend &amp;&amp; npm test</code> runs Vitest (<code>happy-dom</code> environment) over <code>src/**/*.test.js</code>; CI runs it before the frontend build.</li>
+<li><code>cd crates/ui/frontend &amp;&amp; npm test</code> runs Vitest (<code>happy-dom</code> environment) over <code>src/**/*.test.js</code>. CI runs it as its own <strong>Frontend Unit Tests</strong> check (separate from <strong>Frontend Build</strong>), followed by <code>npm audit --omit=dev --audit-level=high</code>, so a vulnerable production dependency fails the PR.</li>
 <li>Keep testable logic in plain modules under <code>src/services/</code> or <code>src/modules/</code> (pure functions, composables) and colocate <code>*.test.js</code> next to them. Vue pages should stay thin glue around those modules.</li>
 </ul>
 <h3 id="web-app-manifest">Web app manifest<a class="heading-anchor" href="#web-app-manifest" aria-label="Link to this section">#</a></h3>
@@ -733,7 +733,8 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 </ul>
 <p>Static content aliases:</p>
 <ul>
-<li><code>GET /static/*path</code> — SPA build output. Content-hashed bundles under <code>/static/js/</code> and <code>/static/css/</code> are served with <code>Cache-Control: public, max-age=31536000, immutable</code> (<code>static_cache_headers</code> in <code>main.rs</code>); <code>index.html</code>, <code>/static/assets/</code> (unhashed files copied from <code>crates/ui/frontend/public/</code>) and all other responses keep the global <code>no-store</code> policy.</li>
+<li><code>GET /static/*path</code> — SPA build output. Content-hashed bundles under <code>/static/js/</code> and <code>/static/css/</code> are served with <code>Cache-Control: public, max-age=31536000, immutable</code> (<code>static_cache_headers</code> in <code>main.rs</code>), as are content-hashed Vite assets under <code>/static/assets/</code> (<code>name-&lt;hash&gt;.ext</code>, e.g. MapLibre&#39;s worker; <code>has_content_hash</code>). <code>index.html</code>, unhashed files copied from <code>crates/ui/frontend/public/</code> (<code>fyr-icon.svg</code>, <code>icons/</code>) and all other responses keep the global <code>no-store</code> policy.</li>
+<li>MapLibre 6 runs its renderer in a separate module worker. <code>Maps.vue</code> imports <code>maplibre-gl/dist/maplibre-gl-worker.mjs?url</code> and calls <code>maplibregl.setWorkerUrl()</code>, so the worker ships as a local asset (no CDN, works offline). Vite asset names keep their extension (<code>assets/[name]-[hash][extname]</code>) because browsers refuse module workers served with a non-JavaScript MIME type.</li>
 <li><code>GET /data/maps/*path</code>, <code>GET /data/books/*path</code>, <code>GET /data/poi/*path</code> and <code>GET /data/curated-content.json</code> — the only published parts of <code>DATA_DIR</code>. <code>settings.json</code>, <code>download_tasks.json</code>, <code>messages.sqlite</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are intentionally not served; unmatched <code>/data/*</code> and <code>/api/*</code> paths return <code>404</code> instead of the SPA <code>index.html</code>.</li>
 <li><code>GET /docs/books/*path</code> (book-only alias used by reader integrations)</li>
 <li>Content Manager&#39;s per-file <strong>Download</strong> action calls <code>/api/content/:type/:filename/download</code>.</li>

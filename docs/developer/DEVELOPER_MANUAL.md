@@ -176,7 +176,7 @@ CI-pinned versions for parity:
 - Rust stable (Docker build uses `rust:bookworm`)
 
 ### Frontend unit tests
-- `cd crates/ui/frontend && npm test` runs Vitest (`happy-dom` environment) over `src/**/*.test.js`; CI runs it before the frontend build.
+- `cd crates/ui/frontend && npm test` runs Vitest (`happy-dom` environment) over `src/**/*.test.js`. CI runs it as its own **Frontend Unit Tests** check (separate from **Frontend Build**), followed by `npm audit --omit=dev --audit-level=high`, so a vulnerable production dependency fails the PR.
 - Keep testable logic in plain modules under `src/services/` or `src/modules/` (pure functions, composables) and colocate `*.test.js` next to them. Vue pages should stay thin glue around those modules.
 
 ### Web app manifest
@@ -444,7 +444,8 @@ Reader and ZIM endpoints:
 - `GET /api/reader/zim/:filename/native/content/*path`
 
 Static content aliases:
-- `GET /static/*path` — SPA build output. Content-hashed bundles under `/static/js/` and `/static/css/` are served with `Cache-Control: public, max-age=31536000, immutable` (`static_cache_headers` in `main.rs`); `index.html`, `/static/assets/` (unhashed files copied from `crates/ui/frontend/public/`) and all other responses keep the global `no-store` policy.
+- `GET /static/*path` — SPA build output. Content-hashed bundles under `/static/js/` and `/static/css/` are served with `Cache-Control: public, max-age=31536000, immutable` (`static_cache_headers` in `main.rs`), as are content-hashed Vite assets under `/static/assets/` (`name-<hash>.ext`, e.g. MapLibre's worker; `has_content_hash`). `index.html`, unhashed files copied from `crates/ui/frontend/public/` (`fyr-icon.svg`, `icons/`) and all other responses keep the global `no-store` policy.
+- MapLibre 6 runs its renderer in a separate module worker. `Maps.vue` imports `maplibre-gl/dist/maplibre-gl-worker.mjs?url` and calls `maplibregl.setWorkerUrl()`, so the worker ships as a local asset (no CDN, works offline). Vite asset names keep their extension (`assets/[name]-[hash][extname]`) because browsers refuse module workers served with a non-JavaScript MIME type.
 - `GET /data/maps/*path`, `GET /data/books/*path`, `GET /data/poi/*path` and `GET /data/curated-content.json` — the only published parts of `DATA_DIR`. `settings.json`, `download_tasks.json`, `messages.sqlite`, `inbox/`, `models/` and `misc/` are intentionally not served; unmatched `/data/*` and `/api/*` paths return `404` instead of the SPA `index.html`.
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
 - Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.

@@ -26,7 +26,9 @@ export default defineConfig({
           if (assetInfo.name.endsWith('.css')) {
             return 'css/[name]-[hash].css'
           }
-          return 'assets/[name]-[hash]'
+          // Keep the extension so the server sends the right MIME type
+          // (module workers such as MapLibre's refuse non-JS types).
+          return 'assets/[name]-[hash][extname]'
         }
       }
     }

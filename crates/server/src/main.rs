@@ -362,7 +362,9 @@ async fn static_cache_headers(
     next: middleware::Next,
 ) -> axum::response::Response {
     let path = request.uri().path();
-    let is_hashed_bundle = path.starts_with("/static/js/") || path.starts_with("/static/css/");
+    let is_hashed_bundle = path.starts_with("/static/js/")
+        || path.starts_with("/static/css/")
+        || (path.starts_with("/static/assets/") && has_content_hash(path));
     let mut response = next.run(request).await;
     if is_hashed_bundle && (response.status().is_success() || response.status() == axum::http::StatusCode::NOT_MODIFIED) {
         response.headers_mut().insert(
@@ -371,6 +373,21 @@ async fn static_cache_headers(
         );
     }
     response
+}
+
+/// `true` for Vite's `name-<hash>.ext` asset names (e.g. MapLibre's worker
+/// `maplibre-gl-worker-CMkqA50c.mjs`). Unhashed files copied from the
+/// frontend `public/` folder (`fyr-icon.svg`, `icons/fyr-192.png`) do not
+/// match: their last `-` segment is shorter than 8 characters.
+fn has_content_hash(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or("");
+    let Some((stem, _ext)) = name.rsplit_once('.') else {
+        return false;
+    };
+    let Some((_, hash)) = stem.rsplit_once('-') else {
+        return false;
+    };
+    hash.len() >= 8 && hash.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// Log detected CPU SIMD capabilities and size Candle's CPU thread pool.
@@ -675,6 +692,10 @@ mod tests {
         let bundle = get(&app, "/static/js/index-abc123.js", None).await;
         assert_eq!(bundle.status(), StatusCode::OK);
         assert_eq!(bundle.headers()[header::CACHE_CONTROL], "public, max-age=31536000, immutable");
+
+        assert!(has_content_hash("/static/assets/maplibre-gl-worker-CMkqA50c.mjs"));
+        assert!(!has_content_hash("/static/assets/icons/fyr-192.png"));
+        assert!(!has_content_hash("/static/assets/fyr-icon.svg"));
 
         let icon = get(&app, "/static/assets/fyr-icon.svg", None).await;
         assert_eq!(icon.status(), StatusCode::OK);

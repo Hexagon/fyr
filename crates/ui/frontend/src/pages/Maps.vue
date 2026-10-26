@@ -354,7 +354,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { isAdminLocked } from '../services/auth'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+// MapLibre 6 runs its renderer worker from a separate module file. Ship it
+// as a local asset (Fyr is offline) and point MapLibre at it explicitly.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { PMTiles, Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -395,6 +398,8 @@ import { parseGpx, toGpx } from '../modules/maps/gpx'
 import { checkGeolocationSupport, geolocationErrorMessage, defaultTrackName, trackToFeature, trackToGeoJSON } from '../modules/maps/tracking'
 import { getTrackRecorder } from '../modules/maps/useTrackRecorder'
 import { copyText, downloadText, readFileText } from '../modules/maps/browser'
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
 const route = useRoute()
 const router = useRouter()
