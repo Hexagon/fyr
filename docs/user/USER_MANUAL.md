@@ -44,7 +44,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Home:** system status, location, sunrise/sunset, and storage overview.
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
 - **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
-- **Maps:** map selection and viewer controls.
+- **Maps:** map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see *Navigating with maps off-grid*).
 - **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
 - **Search:** one search box for the whole offline library (see [3c. Searching Everything](#3c-searching-everything)).
@@ -267,9 +267,23 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles sweden.pmtiles --
 pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
 ```
 
+### Navigating with maps off-grid
+The **Maps** page is built to be usable for navigation without network access.
+
+- **Opening a map:** pick a map in *Available Maps*. When nothing else positions the view, the map opens on its own coverage area (or on your saved location if that lies inside it). The selected map is written to the address bar (`/maps?map=<file>`), so the view can be bookmarked or shared.
+- **Coordinates:** the bottom status bar shows the coordinate under the mouse pointer (🖱) or, on touch screens, the map centre (⊕). Click it to copy it. The **DEC/DMS** button switches between decimal degrees (`59.32930, 18.06860`) and degrees-minutes-seconds (`59°19'45.5"N 18°04'07.0"E`); the choice is remembered in the browser. A scale bar is shown in the lower-right corner.
+- **Click any point** on the map (with no tool active) to see its coordinate in both formats with **Copy** and **Copy link** buttons. Clicking a POI or track shows its name (and length for tracks).
+- **Go to coordinate:** in *Tools*, type a coordinate and press **Go**. Accepted forms include `59.33, 18.07`, `59.33 18.07`, `-33.86, 151.21`, `59,33 18,07`, `59.33N 18.07E`, `59°19'48"N 18°4'12"E`, `N 59° 19.8' E 18° 4.2'` and `59 19 48, 18 4 12`. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.
+- **Links to a place:** other pages (and people) can link to `/maps?lat=59.33&lng=18.07&zoom=14&label=Camp`. All parameters are optional; `map=<file>` selects a specific map. Without `map`, Fyr picks the most detailed installed map whose coverage contains the point.
+- **My Location / Record Track** need the browser's location permission **and a secure connection**: open Fyr through `https://…` or `http://localhost`. Browsers block GPS on plain `http://` LAN addresses (for example `http://192.168.1.10:8080`); Fyr then shows an explanation instead of failing silently.
+- **Record Track:** press **⏺ Record Track** to log your GPS position (inaccurate fixes and jitter under a few metres are ignored). Distance, duration and point count update live and the track is drawn in red. Recording keeps running while you visit other Fyr pages, but keep the browser tab open and the screen on (Fyr requests a screen wake lock where supported). **⏹ Stop Recording** keeps the track: name it and **Save** it into a POI file (admins; default `tracks.geojson`, timestamps are kept), download it as **GPX**, or **Discard** it. An unsaved track survives a page reload and is offered again.
+- **GPX import/export:** open **Edit POIs** (**View POIs** for guests). **⬆ Import GPX** reads a `.gpx` file in the browser: waypoints become points, tracks and routes become lines (each track segment is its own line; elevation and timestamps are kept). With a POI file selected the data is appended to it; otherwise a new, not yet saved file named after the GPX is created. **⬇ GPX** and **⬇ GeoJSON** download the selected file. Polygons cannot be expressed in GPX and are skipped (the panel says how many).
+- **Read-only/guest users** can view POI files, tracks and imported GPX data, measure distances, record and download tracks, and export GPX/GeoJSON. Creating files, placing or removing POIs and saving require admin access (the server rejects saves in read-only mode regardless).
+
 ### POI
 - Put `.geojson`, `.fgb`, or `.json` POI datasets in `public/data/poi/`.
 - If using `.json`, make sure it follows a valid geo dataset structure used by your workflow.
+- GeoJSON files may contain points, lines (tracks/routes) and polygons; all three are drawn on the map when the file is selected in the POI panel. Saved tracks carry `coordTimes` (one ISO timestamp per point), `time`, `endTime` and `distanceKm` properties.
 
 ### Models
 - Open **Content Manager** and upload a `.gguf` file in the Models section.
