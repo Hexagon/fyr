@@ -1,0 +1,78 @@
+<!--meta
+{
+  "order": 3,
+  "path": "/guides/local-ai-assistant-offline/",
+  "title": "Offline Local AI Assistant on CPU (Raspberry Pi, No GPU) | Fyr",
+  "description": "Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.",
+  "h1": "Run a local AI assistant offline — no GPU required",
+  "crumb": "Local AI assistant",
+  "lead": "Chat with Qwen2.5, Llama 3.2, or Phi-3.5 language models entirely on your own CPU — on a Raspberry Pi 5, a mini PC, or a desktop — with prompts that never leave your network.",
+  "published": "2026-10-26",
+  "totalTime": "PT30M"
+}
+-->
+<p>Fyr includes an <strong>Assistant</strong> page backed by a native Rust inference runtime (built on <a href="https://github.com/huggingface/candle" rel="noopener">Candle</a>) that runs quantized <strong>GGUF</strong> models on the CPU. There is no GPU requirement, no cloud API, and no separate model server to install: the model file sits in Fyr's data directory and replies stream into the browser token by token.</p>
+
+<h2>How fast is CPU inference?</h2>
+<p>Inference uses the CPU's SIMD instructions: <strong>NEON</strong> on ARM (aarch64, including Raspberry Pi 4 and 5) and <strong>AVX2/FMA</strong> on x86_64. Speed depends mostly on model size and memory bandwidth, so small quantized models are the sweet spot for single-board computers. Fyr logs the prompt-processing and generation speed (tokens per second) of every run in its server log, so you can measure your own hardware instead of guessing.</p>
+
+<h2>Pick a model for your RAM</h2>
+<p>These tiers come from Fyr's curated model catalog. All are instruct (chat) models in GGUF format with tokenizer metadata:</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Tier</th><th>Model</th><th>Quantization</th><th>Size</th><th>Suggested hardware</th></tr></thead>
+<tbody>
+<tr><td>Small</td><td>Qwen2.5-1.5B-Instruct</td><td>Q8_0</td><td>~1.7 GB</td><td>Raspberry Pi 5 with 4 GB RAM, or fast and simple answers</td></tr>
+<tr><td>Standard (recommended)</td><td>Qwen2.5-3B-Instruct</td><td>Q6_K</td><td>~2.6 GB</td><td>Best balance on Raspberry Pi 5</td></tr>
+<tr><td>Large</td><td>Qwen2.5-7B-Instruct</td><td>Q4_K_M</td><td>~4.5 GB</td><td>Raspberry Pi 5 with 8 GB RAM</td></tr>
+<tr><td>Extra large</td><td>Qwen2.5-14B-Instruct</td><td>Q4_K_M</td><td>~9.8 GB</td><td>Desktops with 16 GB+ RAM</td></tr>
+<tr><td>Extra large (alt)</td><td>Qwen2.5-7B-Instruct</td><td>Q8_0</td><td>~8.5 GB</td><td>Desktops with 16 GB+ RAM</td></tr>
+<tr><td>Llama alternative</td><td>Llama-3.2-3B-Instruct</td><td>Q4_K_M</td><td>~2.0 GB</td><td>Broadly compatible multilingual model</td></tr>
+<tr><td>Phi alternative</td><td>Phi-3.5-mini-instruct</td><td>Q4_K_M</td><td>~2.4 GB</td><td>Compact, reasoning-oriented</td></tr>
+</tbody>
+</table>
+</div>
+<p>Rule of thumb: larger models and higher-precision quantizations (Q8 vs. Q4) use more memory and run slower. If replies are slow, step down a tier or pick a smaller quantization.</p>
+<p>Fyr's runtime currently supports the <strong>Qwen2</strong>, <strong>Llama</strong>, and <strong>Phi-3/Phi-3.5</strong> GGUF architectures. Models with a reasoning mode that emit <code>&lt;think&gt;…&lt;/think&gt;</code> blocks are shown with a collapsible <em>Thinking</em> section.</p>
+
+<h2 id="install" data-step>Step 1: Install Fyr</h2>
+<p>Use the hosted installer on the machine that will run the model:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>Default Docker images are optimized for newer CPUs (AVX2 on x86_64, dotprod on ARM). On older hardware that fails with an <em>illegal instruction</em> error, use the legacy images via the installer's <code>--legacy</code> shortcut. All options are in the <a href="/#installation">installation guide</a>.</p>
+
+<h2 id="download" data-step>Step 2: Download a GGUF model</h2>
+<p>Open <strong>Content Manager → Models</strong>. When the folder is empty, Fyr shows the curated recommendations from its catalog, and entries with a direct download link can be queued with one click. You can also download GGUF files yourself from <a href="https://huggingface.co/models?library=gguf&amp;sort=trending" rel="noopener">Hugging Face</a> — for example from the official <code>Qwen/Qwen2.5-3B-Instruct-GGUF</code> repository — and upload the <code>.gguf</code> file in Content Manager. Fyr checks the GGUF header and moves the file into its <code>models/</code> folder.</p>
+<p>Some Llama downloads require accepting a license on Hugging Face first; in that case Content Manager links to the source page instead of downloading directly.</p>
+
+<h2 id="chat" data-step>Step 3: Load the model and chat</h2>
+<p>Open <strong>Assistant</strong>, select the model in the Model Library, and send a prompt. Fyr loads the model automatically, shows a <em>Thinking</em> indicator right away, and streams the reply as it is generated. The last model you used is remembered and reloaded next time.</p>
+
+<h2 id="tune" data-step>Step 4: Choose a response mode</h2>
+<p>Pick the mode under the prompt box. The assistant also sends the last six messages as context, so follow-up questions work.</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Mode</th><th>Settings</th><th>Use it for</th></tr></thead>
+<tbody>
+<tr><td>Precise</td><td>temperature 0.1, up to 512 tokens</td><td>Focused, factual answers</td></tr>
+<tr><td>Balanced (default)</td><td>temperature 0.2, up to 512 tokens</td><td>Concise, reliable answers</td></tr>
+<tr><td>Creative</td><td>temperature 0.7, up to 1024 tokens</td><td>Longer, more varied writing</td></tr>
+</tbody>
+</table>
+</div>
+<p>The context window defaults to 2,048 tokens and expands automatically to 8,192 on machines with more than 16 GB of RAM.</p>
+
+<h2>Performance tips for Raspberry Pi and small PCs</h2>
+<ul>
+<li>Start with the <strong>Standard</strong> tier on a Pi 5 and only move up if you have 8 GB of RAM and can accept slower replies.</li>
+<li>Fyr sizes its inference thread pool to the CPU cores available to the container; override it with <code>FYR_AI_THREADS=&lt;n&gt;</code> if the machine also has other work to do.</li>
+<li>Check the server startup log: it reports which CPU features the binary uses versus what the hardware supports. On ARM boards that support <code>dotprod</code> but run a build without it, a custom image built with <code>--build-arg RUST_TARGET_FEATURES=+dotprod</code> speeds up quantized inference.</li>
+<li>Building from source on the target machine with <code>RUSTFLAGS="-C target-cpu=native"</code> tunes the binary to that exact CPU (see <em>Advanced Setup</em> in the <a href="/#installation">installation guide</a>).</li>
+</ul>
+
+<h2>Troubleshooting</h2>
+<ul>
+<li><strong>Upload rejected:</strong> the file must be a <code>.gguf</code> with GGUF magic bytes and a plain file name.</li>
+<li><strong>Loads but will not generate:</strong> confirm the architecture is Qwen2, Llama, or Phi-3, and that the GGUF includes tokenizer metadata. Phi-3/Phi-3.5 models also need the original <code>tokenizer.json</code> placed next to the model file.</li>
+<li><strong>Slow or out of memory:</strong> choose a smaller model or quantization.</li>
+</ul>
+<p>Full details are in the <a href="/docs/user-manual/#3b-using-the-ai-assistant">AI Assistant section of the User Manual</a> and the <a href="/docs/developer-manual/#11-ai-integration-with-candle">Candle integration notes in the Developer Manual</a>.</p>

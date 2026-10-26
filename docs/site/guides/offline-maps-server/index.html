@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Hosted Offline Maps Server with PMTiles and MBTiles | Fyr</title>
+    <meta name="description" content="Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/guides/offline-maps-server/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=487691a610">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/guides/offline-maps-server/">
+    <meta property="og:title" content="Self-Hosted Offline Maps Server with PMTiles and MBTiles | Fyr">
+    <meta property="og:description" content="Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Self-Hosted Offline Maps Server with PMTiles and MBTiles | Fyr">
+    <meta name="twitter:description" content="Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "Build a self-hosted offline maps server",
+      "description": "Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.",
+      "url": "https://fyr.guide/guides/offline-maps-server/",
+      "mainEntityOfPage": "https://fyr.guide/guides/offline-maps-server/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-10-26",
+      "dateModified": "2026-10-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://fyr.guide/guides/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Offline maps server",
+          "item": "https://fyr.guide/guides/offline-maps-server/"
+        }
+      ]
+    },
+    {
+      "@type": "HowTo",
+      "name": "Build a self-hosted offline maps server",
+      "description": "Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "name": "Step 1: Install Fyr",
+          "text": "Any Linux, macOS, or Windows machine with Docker works, including a 64-bit Raspberry Pi. The quickest route is the hosted installer:",
+          "url": "https://fyr.guide/guides/offline-maps-server/#install"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 2: Get map data for your region",
+          "text": "You have two well-trodden options, both listed in Fyr's curated content catalog.",
+          "url": "https://fyr.guide/guides/offline-maps-server/#get-maps"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 3: Load the maps into Fyr",
+          "text": "In Content Manager, paste a download URL or use Local Imports to upload the file. .pmtiles and .mbtiles files are routed to the maps/ folder automatically. With a bind-mounted data directory you can also copy files straight into <data-dir>/maps/.",
+          "url": "https://fyr.guide/guides/offline-maps-server/#load"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 4: Open the map",
+          "text": "Go to Maps, choose an archive in the map picker, and pan and zoom as usual. Nothing leaves your network: the browser reads tiles from Fyr only.",
+          "url": "https://fyr.guide/guides/offline-maps-server/#view"
+        }
+      ],
+      "totalTime": "PT45M"
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/guides/" class="hover:text-brand-200 transition-colors">Guides</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Offline maps server</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Build a self-hosted offline maps server</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Serve OpenStreetMap vector and raster maps from PMTiles or MBTiles files on your own hardware, and browse them from any device — without a tile server, map API key, or internet connection.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · 3 min read · Applies to Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#install" class="text-gray-600 hover:text-brand-600">Step 1: Install Fyr</a></li>
+                            <li class=""><a href="#get-maps" class="text-gray-600 hover:text-brand-600">Step 2: Get map data for your region</a></li>
+                            <li class=""><a href="#load" class="text-gray-600 hover:text-brand-600">Step 3: Load the maps into Fyr</a></li>
+                            <li class=""><a href="#view" class="text-gray-600 hover:text-brand-600">Step 4: Open the map</a></li>
+                            <li class=""><a href="#add-points-of-interest" class="text-gray-600 hover:text-brand-600">Add points of interest</a></li>
+                            <li class=""><a href="#storage-and-hardware-tips" class="text-gray-600 hover:text-brand-600">Storage and hardware tips</a></li>
+                            <li class=""><a href="#troubleshooting" class="text-gray-600 hover:text-brand-600">Troubleshooting</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p>Online map apps fetch tiles from someone else's server. An offline maps server keeps the tiles on your own disk instead. Fyr reads the two common single-file tile formats directly:</p>
+<ul>
+<li><strong>PMTiles</strong> — a single-file archive designed to be read with HTTP range requests. Fyr's browser map reads <code>.pmtiles</code> files directly, without a tile server process.</li>
+<li><strong>MBTiles</strong> — a SQLite database of tiles. Fyr serves <code>.mbtiles</code> tile by tile through its built-in tile endpoint.</li>
+</ul>
+<p>Both vector and raster archives work, and the map renders in the browser with MapLibre, so every phone, tablet, and laptop on the network gets a full interactive map with nothing to install.</p>
+
+<h2 id="install" data-step>Step 1: Install Fyr<a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
+<p>Any Linux, macOS, or Windows machine with Docker works, including a 64-bit Raspberry Pi. The quickest route is the hosted installer:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>On Windows, use <code>irm https://fyr.guide/install.ps1 | iex</code> in PowerShell. Manual Docker commands and data-directory options are in the <a href="/#installation">installation guide</a>. Make sure other devices can reach Fyr: the installer and the documented <code>docker run</code> command bind to all interfaces (<code>FYR_HOST=0.0.0.0</code>).</p>
+
+<h2 id="get-maps" data-step>Step 2: Get map data for your region<a class="heading-anchor" href="#get-maps" aria-label="Link to this section">#</a></h2>
+<p>You have two well-trodden options, both listed in Fyr's curated content catalog.</p>
+<h3 id="option-a-download-a-ready-made-pmtiles-extract">Option A: download a ready-made PMTiles extract<a class="heading-anchor" href="#option-a-download-a-ready-made-pmtiles-extract" aria-label="Link to this section">#</a></h3>
+<p><a href="https://data.bbbike.org/osm/region/" rel="noopener">BBBike</a> publishes pre-generated OpenStreetMap extracts for many cities and regions, including PMTiles files in the Shortbread vector schema. Download the <code>.pmtiles</code> file for your area — it is ready to use as-is.</p>
+<h3 id="option-b-cut-your-own-region-with-the-pmtiles-cli">Option B: cut your own region with the pmtiles CLI<a class="heading-anchor" href="#option-b-cut-your-own-region-with-the-pmtiles-cli" aria-label="Link to this section">#</a></h3>
+<p>Install the <a href="https://docs.protomaps.com/pmtiles/cli" rel="noopener"><code>pmtiles</code> command-line tool</a>, find the latest dated planet build at <a href="https://maps.protomaps.com/builds/" rel="noopener">maps.protomaps.com/builds</a>, and extract a bounding box. The tool only downloads the tiles inside your box:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15</code></pre>
+<p>A low-zoom world basemap is a good companion for the overview levels:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8</code></pre>
+<p>The <code>--bbox</code> order is <em>west,south,east,north</em> in degrees. Each extra zoom level roughly quadruples the tile count, so lower <code>--maxzoom</code> if the file gets too large for your storage; street-level detail generally needs zoom 14–15.</p>
+<h3 id="already-have-mbtiles">Already have MBTiles?<a class="heading-anchor" href="#already-have-mbtiles" aria-label="Link to this section">#</a></h3>
+<p>Existing <code>.mbtiles</code> archives — vector or raster — can be used as they are.</p>
+
+<h2 id="load" data-step>Step 3: Load the maps into Fyr<a class="heading-anchor" href="#load" aria-label="Link to this section">#</a></h2>
+<p>In <strong>Content Manager</strong>, paste a download URL or use <strong>Local Imports</strong> to upload the file. <code>.pmtiles</code> and <code>.mbtiles</code> files are routed to the <code>maps/</code> folder automatically. With a bind-mounted data directory you can also copy files straight into <code>&lt;data-dir&gt;/maps/</code>.</p>
+
+<h2 id="view" data-step>Step 4: Open the map<a class="heading-anchor" href="#view" aria-label="Link to this section">#</a></h2>
+<p>Go to <strong>Maps</strong>, choose an archive in the map picker, and pan and zoom as usual. Nothing leaves your network: the browser reads tiles from Fyr only.</p>
+
+<h2 id="add-points-of-interest">Add points of interest<a class="heading-anchor" href="#add-points-of-interest" aria-label="Link to this section">#</a></h2>
+<p>Fyr also stores POI layers. Put GeoJSON (<code>.geojson</code>), FlatGeobuf (<code>.fgb</code>), or geo <code>.json</code> datasets in the <code>poi/</code> folder — useful for shelters, water points, trailheads, or anything you export from your own GIS tools.</p>
+
+<h2 id="storage-and-hardware-tips">Storage and hardware tips<a class="heading-anchor" href="#storage-and-hardware-tips" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Map archives are read in place, so a Raspberry Pi with a USB SSD is plenty for a country-sized extract.</li>
+<li>Keep the ARM board's memory and storage limits in mind when loading very large map or ZIM archives together.</li>
+<li>Pair maps with a <a href="/guides/off-grid-emergency-knowledge-server/">Wi-Fi hotspot</a> to have a navigable map available to every phone in a cabin, boat, or field camp.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting<a class="heading-anchor" href="#troubleshooting" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>The map is not listed:</strong> check that the file ends in <code>.pmtiles</code> or <code>.mbtiles</code> and is in <code>maps/</code>, then refresh.</li>
+<li><strong>A URL download stops partway:</strong> increase <strong>Settings → Downloads → Request timeout (seconds)</strong> and queue it again, or download the file elsewhere and import it.</li>
+</ul>
+<p>See the <a href="/docs/user-manual/#maps">Maps section of the User Manual</a> for details.</p>
+
+<h2 id="related">Related guides<a class="heading-anchor" href="#related" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="/guides/offline-wikipedia-raspberry-pi/">Offline Wikipedia on a Raspberry Pi</a> — How to run a full offline copy of Wikipedia on a Raspberry Pi: pick the right Kiwix ZIM file, install Fyr, load the archive, and read and search it from any browser on your network.</li>
+<li><a href="/guides/local-ai-assistant-offline/">Run a local AI assistant offline — no GPU required</a> — Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.</li>
+<li><a href="/guides/off-grid-emergency-knowledge-server/">Build an off-grid emergency knowledge server</a> — Build an off-grid emergency knowledge server: a Raspberry Pi running Fyr as its own Wi-Fi hotspot, preloaded with offline maps, Wikipedia, medical and repair references, ebooks and a local AI assistant.</li>
+<li><a href="/compare/">Fyr compared with the alternatives</a> — An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.</li>
+</ul>
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#install" class="text-gray-600 hover:text-brand-600">Step 1: Install Fyr</a></li>
+                            <li class=""><a href="#get-maps" class="text-gray-600 hover:text-brand-600">Step 2: Get map data for your region</a></li>
+                            <li class=""><a href="#load" class="text-gray-600 hover:text-brand-600">Step 3: Load the maps into Fyr</a></li>
+                            <li class=""><a href="#view" class="text-gray-600 hover:text-brand-600">Step 4: Open the map</a></li>
+                            <li class=""><a href="#add-points-of-interest" class="text-gray-600 hover:text-brand-600">Add points of interest</a></li>
+                            <li class=""><a href="#storage-and-hardware-tips" class="text-gray-600 hover:text-brand-600">Storage and hardware tips</a></li>
+                            <li class=""><a href="#troubleshooting" class="text-gray-600 hover:text-brand-600">Troubleshooting</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>

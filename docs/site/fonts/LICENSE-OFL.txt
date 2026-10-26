@@ -1,0 +1,7 @@
+Fonts in this directory are self-hosted copies of the Google Fonts builds of:
+
+- Inter, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+- Fira Code, Copyright 2014-2020 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
+
+Both are licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://openfontlicense.org/open-font-license-official-text/
