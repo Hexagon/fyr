@@ -516,6 +516,18 @@ Run:
 1. `cd docs/build`
 2. `npm run build`
 
+### Website (fyr.guide)
+GitHub Pages deploys `docs/site/` verbatim, so generated site files are committed. `npm run build` also runs `docs/build/build-site.js`, which generates:
+- `docs/site/css/site.css` — minified Tailwind CSS (pinned `tailwindcss` 3.4 + typography; config in `docs/build/site/tailwind.config.js`, source `docs/build/site/input.css`). There is no runtime CDN; fonts are self-hosted in `docs/site/fonts/`.
+- `docs/site/guides/**`, `docs/site/compare/` — from HTML fragments with a `<!--meta {...} -->` header in `docs/build/site/content/`, wrapped in the shared layout (`docs/build/site/layout.js`).
+- `docs/site/docs/user-manual/` and `docs/site/docs/developer-manual/` — rendered from the two canonical manuals (GitHub-compatible heading anchors).
+- `docs/site/guides/index.html`, `docs/site/docs/index.html`, `docs/site/404.html`, `docs/site/sitemap.xml` (lastmod tracked by content hash in `docs/build/site/lastmod.json`).
+- In `docs/site/index.html`, only the `<!-- build:… -->` regions (JSON-LD with `softwareVersion` from the workspace `Cargo.toml` and the FAQ, CTA band, footer, GitHub script) and the CSS cache-buster. Everything else on the landing page is hand-edited.
+
+`npm run check` fails if any generated file is stale and runs `check-site.js` (one `<h1>`, heading order, unique title/description, canonical/OG tags, JSON-LD parsing, internal links and anchors, image alt/size, sitemap coverage, and `data-sync="index"` snippets matching the landing page). PR validation runs it, so edits to the manuals, `Cargo.toml` version, `index.html` FAQ or site sources need `npm run build` and a commit of the regenerated files. The deploy workflow (`.github/workflows/docs-site.yml`) rebuilds and checks before uploading.
+
+Images: landing-page AVIF/WebP variants and `img/og-image.jpg` are generated from the source PNGs with `node optimize-images.js` after `npm install --no-save sharp@0.34.5` (not part of the regular build).
+
 ## 8. Current Known Gaps
 - Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.

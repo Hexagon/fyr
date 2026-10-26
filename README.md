@@ -90,7 +90,7 @@ Docker release tags are intentionally simple:
 
 ## Documentation Map
 
-- Website + installation playbooks: [fyr.guide](https://fyr.guide/)
+- Website + installation playbooks: [fyr.guide](https://fyr.guide/) (step-by-step [guides](https://fyr.guide/guides/); site sources and build in `docs/build/`, see Developer Manual §7)
 - End-user operations and troubleshooting: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
 - Architecture and implementation details: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
 - Contributor workflow and validation requirements: [/CONTRIBUTING.md](/CONTRIBUTING.md)

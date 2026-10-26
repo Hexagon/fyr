@@ -69,5 +69,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # docs/site is deployed verbatim, so generated pages, CSS and sitemap are
+      # committed. This fails if they are stale (run `npm run build` in docs/build)
+      # and validates links, headings, meta tags and JSON-LD across docs/site.
+      - name: Check Generated Site Is Up To Date
+        run: npm run check
+
       - name: Build Documentation
         run: npm run build
