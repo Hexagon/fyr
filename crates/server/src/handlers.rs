@@ -104,6 +104,9 @@ pub struct DirectoriesResponse {
 #[derive(Deserialize)]
 pub struct CreateDownloadRequest {
     pub url: String,
+    /// Optional expected SHA-256 (64 hex characters) verified before routing.
+    #[serde(default)]
+    pub sha256: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -972,18 +975,67 @@ pub async fn ai_infer_stream(
 }
 
 /// POST /api/download — Create a new download task
+///
+/// Body: `{ "url": "...", "sha256": "<64 hex chars>"? }`. An empty `sha256`
+/// is treated as absent; a malformed one is rejected with 400.
 pub async fn create_download(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateDownloadRequest>,
-) -> (StatusCode, Json<CreateDownloadResponse>) {
-    let source = DownloadSource::Url { url: req.url };
-    let task_id = state.download_manager.create_task(source).await;
+) -> Result<(StatusCode, Json<CreateDownloadResponse>), (StatusCode, Json<serde_json::Value>)> {
+    let sha256 = match req.sha256.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+        None => None,
+        Some(value) => Some(downloader::normalize_sha256(value).ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "message": "sha256 must be 64 hexadecimal characters" })),
+            )
+        })?),
+    };
 
-    (
+    let source = DownloadSource::Url { url: req.url };
+    let task_id = state
+        .download_manager
+        .create_task_with_options(source, downloader::DownloadOptions { sha256 })
+        .await;
+
+    Ok((
         StatusCode::CREATED,
         Json(CreateDownloadResponse { task_id }),
-    )
+    ))
 }
+
+// --- Download resume / retry -------------------------------------------------
+
+/// POST /api/download/:task_id/retry — Re-queue a failed or cancelled URL
+/// download, resuming from its kept partial file via HTTP `Range`.
+///
+/// Returns the re-queued task (200), 404 for an unknown task, and 409 when
+/// the task cannot be retried (local import, still active, or completed).
+pub async fn retry_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<Json<types::DownloadTask>, (StatusCode, Json<serde_json::Value>)> {
+    match state.download_manager.retry_task(&task_id).await {
+        Ok(task) => Ok(Json(task)),
+        Err(downloader::RetryError::NotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "message": "download task not found" })),
+        )),
+        Err(downloader::RetryError::NotRetriable(reason)) => Err((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "message": reason })),
+        )),
+        Err(downloader::RetryError::Persist(error)) => {
+            error!("Failed to retry download task {}: {}", task_id, error);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "failed to save download state" })),
+            ))
+        }
+    }
+}
+
+// --- End download resume / retry ---------------------------------------------
 
 /// POST /api/import/download/:filename — Create local import task from inbox
 pub async fn create_import_download(

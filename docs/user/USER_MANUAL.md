@@ -216,7 +216,12 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --b
 - Use the **Download** button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.
 - Downloads are auto-routed by recognized extension to the correct folder.
 - If a URL points to an unrecognized extension, the file remains in `inbox/` until you move it manually.
-- The task list persists across restarts. Tasks that were still queued or in progress when the server stopped are marked **failed** with the reason "interrupted by server restart" (their partial files are removed); re-queue the URL or re-import the file to try again.
+- The task list persists across restarts.
+- **Resumable URL downloads** (for flaky off-grid links): when a URL download drops mid-transfer, Fyr keeps the bytes it already has and automatically continues from that point (HTTP `Range`) instead of starting over. If the link stays down, or Fyr is stopped or restarted mid-download, the task is marked **failed** but keeps its partial file; the task shows how much was kept (e.g. "1.2 GB of 4 GB kept") and a **Resume** button. Click it to continue where it stopped. Servers that do not support resuming, or whose file changed in the meantime, are downloaded again from the start automatically.
+- Stopping Fyr cleanly (Ctrl+C, `docker stop`, or a service stop) saves the progress of running downloads so they can be resumed after the next start.
+- Failed or cancelled URL downloads without kept data show a **Retry** button that starts them again. Dismissing a failed task deletes any kept partial data; cancelling a running download deletes it as well. Local imports that were interrupted must be re-imported.
+- **Checksum verification**: enter an optional **SHA-256 checksum** next to the URL field. After the download finishes, Fyr verifies the file (status **verifying**) before moving it into place; on a mismatch the task fails with "checksum mismatch" and the file is removed. Curated catalog entries that include a `sha256` value are verified automatically when you click **Download now**.
+- Resume, Retry and other download actions require admin access when Fyr runs with `FYR_ADMIN_PASSWORD`, and are unavailable in `FYR_READONLY` mode.
 - Content listings and download tasks refresh automatically as task state changes.
 - You can cancel queued or in-progress downloads from the download manager.
 - Fyr does not overwrite your `curated-content.json` catalog when it already exists in `DATA_DIR`, so you can keep local recommendations there across updates.
@@ -298,7 +303,9 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 ### Download is stuck or failed
 - Open Content Manager and inspect the download status/error line.
 - Cancel the task and retry the URL.
-- A task that shows "interrupted by server restart" was running when Fyr stopped; dismiss it and queue it again.
+- A task that shows "interrupted by server restart – retry to resume" (or "…server shutdown…") was running when Fyr stopped; click **Resume** to continue from the kept bytes.
+- A task that failed after several attempts on an unreliable link keeps its data too; click **Resume** once the connection is back.
+- "checksum mismatch" means the downloaded file differs from the expected SHA-256: check the checksum value and the source, then retry.
 - For repeated failures, verify the source URL is reachable and supports direct file transfer.
 
 ### ZIM view not loading

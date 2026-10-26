@@ -408,7 +408,10 @@ export const apiService = {
   },
 
   // Download Management
-  createDownload: (url) => api.post('/download', { url }),
+  // `sha256` is optional; when set the server verifies the finished file.
+  createDownload: (url, sha256 = null) => api.post('/download', sha256 ? { url, sha256 } : { url }),
+  // Re-queue a failed URL download; resumes from the kept partial file.
+  retryDownload: (taskId) => api.post(`/download/${encodeURIComponent(taskId)}/retry`),
   cancelDownload: (taskId) => api.delete(`/download/${taskId}`),
   dismissDownload: (taskId) => api.delete(`/download/${taskId}/dismiss`),
   getDownloadStatus: (taskId) => api.get(`/download/${taskId}/status`),

@@ -112,6 +112,7 @@ Catalog file:
 - Existing `DATA_DIR/curated-content.json` files are preserved so operators can maintain a local curated list across upgrades.
 - The frontend content manager reads `/data/curated-content.json`, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.
 - Curated entries may include an optional `download_url` field that queues a direct download from the content manager UI.
+- Curated entries with a `download_url` may also carry an optional `sha256` (64 hex chars); the content manager passes it to `POST /api/download` so the finished file is verified.
 
 Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their `<think>…</think>` output is displayed in the UI as a collapsible "Thinking" block above the live response stream.
 
@@ -270,6 +271,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `POST /api/download`
 - `DELETE /api/download/:task_id`
 - `DELETE /api/download/:task_id/dismiss`
+- `POST /api/download/:task_id/retry` — re-queue a failed/cancelled URL task, resuming from its kept partial (200 with the task, 404 unknown, 409 not retriable: local import, still active, completed, or server shutting down)
 - `POST /api/import/upload`
 - `POST /api/import/download/:filename`
 - `POST /api/models/upload`
@@ -352,7 +354,22 @@ Download lifecycle notes:
 - Persisted tasks are loaded on startup and immediately available through `GET /api/downloads`.
 - URL downloads and local file imports both run in background workers with bounded retry/copy status updates.
 - Cancellation is cooperative: `DELETE /api/download/:task_id` marks the task as cancelled and worker state transitions preserve that terminal status.
-- Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h).
+- Startup cleanup prunes stale `*.part` temp files from `DATA_DIR/inbox` (older than 24h), except partials of URL tasks that are still `resumable`.
+
+Resumable URL downloads (`crates/downloader/src/manager.rs`, `fetch_url_to_partial`):
+- `POST /api/download` takes `{ "url": "...", "sha256": "<hex>"? }`; a malformed `sha256` returns `400 {"message": ...}`. `normalize_sha256` lowercases it and it is stored on the task.
+- `DownloadTask` gained `sha256`, `etag`, `last_modified`, `resumable` and `resumed_from` (all `#[serde(default)]`, so older `download_tasks.json` files still load) and the `verifying` status.
+- Every attempt checks the partial file `inbox/<task_id>-<filename>.part`. When it is non-empty the request carries `Range: bytes=<len>-` plus `If-Range` with the strong ETag (weak `W/` ETags are skipped) or else `Last-Modified`, both persisted from the `200` response that started the file.
+- `206` with a `Content-Range` starting at `<len>` (and an unchanged ETag) appends; `200` truncates and restarts (no Range support, or If-Range mismatch); `416` accepts the partial only when its size equals the `Content-Range: bytes */<total>` total (or the persisted `total_bytes`), otherwise truncates and restarts. A stream that ends short of the announced length is treated as a network failure.
+- Network/stream errors and retriable HTTP codes (408/429/5xx) are retried in-task with backoff (`MAX_DOWNLOAD_ATTEMPTS` consecutive failures). An attempt that grows the partial beyond its largest size so far resets the counter, so a link that keeps making progress is resumed until done, while a server that ignores Range and drops at the same offset still runs out of attempts.
+- On final failure the partial is kept and the task is `failed` + `resumable` (non-retriable HTTP errors keep an existing partial too; disk write errors and checksum mismatches delete it). User cancel deletes the partial; dismissing an idle task deletes its partial; a running worker deletes its own partial when it sees the cancel flag (workers hold their own flag `Arc`, so dismiss removing the map entry cannot hide the cancellation).
+- `retry_task` holds the `cancel_flags` and `tasks` locks together (always in that order) so the "no worker running" check and the re-queue to `queued` are atomic.
+- With a `sha256`, the finished partial is hashed with `ring` on the blocking pool (`verifying`) before it is renamed into the inbox; a mismatch fails the task and removes the file.
+- Restart recovery (`recover_interrupted_tasks`) marks non-terminal URL tasks `failed` with "interrupted by server restart – retry to resume", keeps the partial and sets `bytes_downloaded` to its on-disk size; local-import partials are still removed.
+
+Graceful shutdown (`crates/server/src/main.rs`):
+- `axum::serve(...).with_graceful_shutdown` listens for Ctrl+C everywhere and SIGTERM on Unix (`tokio::signal`).
+- On the signal, `DownloadManager::shutdown` first sets a shutdown flag and wakes workers through a `Notify` (so workers blocked on a stalled stream or a retry backoff stop at once). URL workers flush their partial and record themselves as `failed` + `resumable` ("interrupted by server shutdown – retry to resume"); local imports fail and drop their temp copy. After up to 3 s it persists all tasks with partial sizes read from disk. Open connections then get up to 5 s to drain before the process exits, so SSE streams or large file transfers cannot block shutdown.
 
 ## 4. Platform Support Guidance
 
@@ -461,7 +478,7 @@ Run:
 2. `npm run build`
 
 ## 8. Current Known Gaps
-- Download resume/range continuation is not yet implemented for interrupted *URL* downloads into Fyr. On startup `DownloadManager::recover_interrupted_tasks` marks persisted non-terminal tasks (`queued`/`downloading`/`validating`/`routing`) as `failed` ("interrupted by server restart") and deletes their `.part` files, because workers do not survive a restart. (Browser downloads *from* Fyr via `/api/content/:type/:filename/download` do support `Range`.)
+- Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.
 - CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.
 
 ## 9. Recommended Validation Sequence

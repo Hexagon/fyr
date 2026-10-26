@@ -75,6 +75,8 @@ async fn main() -> anyhow::Result<()> {
         .set_request_timeout_secs(initial_download_timeout)
         .await;
 
+    let shutdown_downloads = Arc::clone(&download_manager);
+
     // Create shared application state
     let app_state = AppState {
         config: config.clone(),
@@ -102,13 +104,73 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Server listening on http://{}:{}", bind_host, bind_port);
 
-    axum::serve(
+    // Graceful shutdown: on SIGINT/SIGTERM, first stop download workers and
+    // persist their byte counts (they become resumable), then let axum drain
+    // open connections for a bounded time. Long-lived responses (SSE, large
+    // file transfers) must not keep the process alive indefinitely.
+    let (drain_started_tx, drain_started_rx) = tokio::sync::oneshot::channel::<()>();
+    let server = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .await?;
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        info!("Shutdown requested; persisting download state");
+        shutdown_downloads.shutdown(DOWNLOAD_SHUTDOWN_GRACE).await;
+        let _ = drain_started_tx.send(());
+    });
 
+    tokio::select! {
+        result = std::future::IntoFuture::into_future(server) => result?,
+        _ = async {
+            if drain_started_rx.await.is_ok() {
+                tokio::time::sleep(CONNECTION_DRAIN_TIMEOUT).await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        } => {
+            warn!("Open connections did not close within {:?}; exiting", CONNECTION_DRAIN_TIMEOUT);
+        }
+    }
+
+    info!("Fyr stopped");
     Ok(())
+}
+
+/// How long download workers get to stop and record their partial files.
+const DOWNLOAD_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+/// How long open HTTP connections may drain after shutdown starts.
+const CONNECTION_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Resolves on Ctrl+C (all platforms) or SIGTERM (Unix, e.g. `docker stop`).
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            warn!("Failed to listen for Ctrl+C: {}", error);
+            std::future::pending::<()>().await;
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                warn!("Failed to listen for SIGTERM: {}", error);
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 /// Create the API router with all endpoints
@@ -147,6 +209,7 @@ fn create_router(state: AppState) -> Router {
         .route("/api/download", post(handlers::create_download))
         .route("/api/download/:task_id", delete(handlers::cancel_download))
         .route("/api/download/:task_id/dismiss", delete(handlers::dismiss_download))
+        .route("/api/download/:task_id/retry", post(handlers::retry_download))
         .route("/api/import/download/:filename", post(handlers::create_import_download))
         .route("/api/content/:content_type/:filename", delete(handlers::delete_content_file))
         .route(
@@ -607,6 +670,79 @@ mod tests {
 
         let _ = fs::remove_dir_all(data_dir);
     }
+
+    // --- Download retry endpoint -------------------------------------------
+
+    async fn post_json(app: &Router, uri: &str, body: &str, cookie: Option<&str>) -> axum::response::Response {
+        let mut request = Request::post(uri).header(header::CONTENT_TYPE, "application/json");
+        if let Some(token) = cookie {
+            request = request.header(header::COOKIE, format!("fyr_session={token}"));
+        }
+        app.clone()
+            .oneshot(request.body(Body::from(body.to_string())).expect("request"))
+            .await
+            .expect("response")
+    }
+
+    #[tokio::test]
+    async fn download_retry_endpoint_requires_admin() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let mut config = (*state.config).clone();
+        config.auth.admin_password = Some("secret".to_string());
+        state.config = Arc::new(config);
+        let token = state.auth_manager.create_session();
+        let app = create_router(state);
+
+        let anonymous = post_json(&app, "/api/download/some-task/retry", "", None).await;
+        assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+
+        // With a session the middleware lets it through to the handler.
+        let admin = post_json(&app, "/api/download/some-task/retry", "", Some(&token)).await;
+        assert_eq!(admin.status(), StatusCode::NOT_FOUND);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn download_retry_endpoint_is_blocked_in_readonly_mode() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let mut config = (*state.config).clone();
+        config.auth.readonly = true;
+        state.config = Arc::new(config);
+        let app = create_router(state);
+
+        let response = post_json(&app, "/api/download/some-task/retry", "", None).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn create_download_validates_sha256() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+
+        let bad = post_json(&app, "/api/download", r#"{"url":"http://127.0.0.1:9/x.zip","sha256":"abc"}"#, None).await;
+        assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
+        let message = String::from_utf8(body_bytes(bad).await).unwrap();
+        assert!(message.contains("sha256"), "{message}");
+
+        let good = post_json(
+            &app,
+            "/api/download",
+            &format!(r#"{{"url":"http://127.0.0.1:9/x.zip","sha256":"{}"}}"#, "A".repeat(64)),
+            None,
+        )
+        .await;
+        assert_eq!(good.status(), StatusCode::CREATED);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    // --- End download retry endpoint ---------------------------------------
 
     #[tokio::test]
     async fn content_download_streams_with_filename_and_range_support() {
