@@ -139,7 +139,7 @@ export const deserializeTrack = (text) => {
 // ── Geolocation availability / errors ──────────────────────────────
 
 export const INSECURE_CONTEXT_MESSAGE =
-  'Location needs a secure connection: open Fyr via https:// or http://localhost. Browsers block GPS on plain http:// LAN addresses.'
+  'Location needs a secure connection: open Fyr via https:// or http://localhost. Browsers block GPS on plain http:// LAN addresses; the server operator can turn on HTTPS (FYR_TLS=self-signed).'
 
 /**
  * Check whether geolocation can work here.

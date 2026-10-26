@@ -97,6 +97,10 @@
       <p class="storage-path">
         Data Directory: <code>{{ storage.data_dir }}</code>
       </p>
+      <p v-if="status?.tls?.fingerprint_sha256" class="storage-path tls-fingerprint">
+        HTTPS certificate ({{ status.tls.mode }}) SHA-256:
+        <code>{{ status.tls.fingerprint_sha256 }}</code>
+      </p>
       <div class="storage-info compact">
         <div class="total-storage compact-item">
           <p class="storage-label">Used</p>
@@ -490,5 +494,8 @@ onMounted(async () => {
 .storage-manage-link:hover {
   opacity: 1;
   text-decoration: underline;
+}
+.tls-fingerprint code {
+  word-break: break-all;
 }
 </style>
