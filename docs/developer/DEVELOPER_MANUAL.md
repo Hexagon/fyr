@@ -264,6 +264,7 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager. Streams via `tower_http::services::ServeFile` (no in-memory buffering), supports `Range`/`If-Range`/`HEAD`, and sets `Content-Disposition: attachment` with an ASCII `filename` plus RFC 5987 `filename*`.
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+- `GET /api/search?q=&limit=&kinds=` — global offline search (see § 11). Returns filenames and frontend routes only, never host paths, so no `can_view_system_details` gating is needed.
 
 ### Admin-only endpoints (require auth when `FYR_ADMIN_PASSWORD` is set; always blocked when `FYR_READONLY`)
 - `PUT /api/settings`
@@ -498,3 +499,29 @@ Run from repository root unless noted:
   - `/api/reader/zim/:filename/native/content/*path`
 2. Maintain clean-room implementation boundaries: all ZIM reader logic must be implemented directly in Fyr's Rust server code using the `zim` crate. Do not bundle or wrap third-party reader JavaScript bundles.
 3. Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.
+
+## 11. Global Search (`/api/search`)
+Implemented in `crates/server/src/search.rs`, routed publicly in `main.rs`; frontend in `pages/Search.vue`, `components/HeaderSearch.vue` and `modules/search/searchResults.js`.
+
+**Request:** `GET /api/search?q=<text>&limit=<1..200, default 40>&kinds=<comma list>`. `kinds` accepts `book`, `article`, `content`, `map`, `poi` (unknown names are ignored; omitted = all). Blank `q` returns an empty result set; `q` is truncated to 200 characters.
+
+**Response:** `{ query, results: [{ kind, title, subtitle?, source, score, link, lat?, lng? }], total, truncated, partial, elapsed_ms }`. `source` is a filename. `partial` means the time budget ran out before every source was searched.
+
+**Link contracts** (consumed by Books/Maps; values are percent-encoded):
+- book: `/books?file=<filename>`; ZIM article: `/books?file=<filename>&path=<zim path>` (same path form as `/native/search`); text hit: `/books?file=<filename>&q=<query>`
+- map: `/maps?map=<filename>`; POI: `/maps?lat=<lat>&lng=<lng>&zoom=14&label=<name>` (no map param; Maps picks a covering map)
+
+**Sources** (cheapest first): map filenames → book titles (`library::extract_title`, cached per path+size+mtime; PDFs > 16 MB use the filename) → GeoJSON POIs (FeatureCollection/Feature/array; Point or mean of line/polygon positions; parsed records cached; files > 32 MB skipped, ≤ 150k records per file) → ZIM titles → Markdown/EPUB full text via `library::search_book` (queries ≥ 3 chars, ≤ 40 books, size caps 8 MB / 32 MB).
+
+**ZIM titles:** per archive, `article_list_by_title` (v1) or `entry_list_by_title` (v0) is used.
+- ≤ 60k entries: a folded-title index is built synchronously and cached.
+- ≤ 250k entries: the index is built on one background thread (one build at a time); meanwhile prefix lookup is used.
+- Larger: prefix lookup only — binary search on the title-ordered listing for several case variants of the query (`as typed`, `Capitalised`, `Title Case`, lower, UPPER, underscores), walking forward while titles match. Cost is O(variants × (log n + limit)) directory reads regardless of archive size.
+- No title listing: URL-order scan bounded by the deadline.
+Redirects resolve to their target; duplicates by resolved path are dropped; at most 15 hits per archive. Index cache is LRU-bounded to 500k entries total (~20 MB).
+
+**Ranking (pure, unit-tested):** case-folded (Unicode lowercase, `_` → space) tiers: exact 1000 > prefix 800 > word-start 600 > all tokens at word starts 450 > substring 300 (2+ chars) > text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. `merge_results` de-duplicates by `link` (best score wins), reserves 5 slots per kind, then fills by score.
+
+**Bounds:** whole search runs in one `run_blocking` task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.
+
+**Testing:** pure ranking/merge/limit/link/cache tests and temp-file source tests live in `search.rs`; a router test in `main.rs` covers kinds, links, limits and path leakage in read-only mode. There is no ZIM writer, so ZIM paths are tested by `zim_title_search_against_fixture_archives`, which runs only when `FYR_TEST_ZIM_DIR` points at a folder of `.zim` files (for example the openZIM testing-suite `data/` archives). Frontend logic is tested in `modules/search/searchResults.test.js`.

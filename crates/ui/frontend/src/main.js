@@ -10,6 +10,7 @@ import Books from './pages/Books.vue'
 import Assistant from './pages/Assistant.vue'
 import Settings from './pages/Settings.vue'
 import Tools from './pages/Tools.vue'
+import Search from './pages/Search.vue'
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
@@ -72,6 +73,16 @@ const routes = [
       title: 'Tools',
       subtitle: 'Unit converters, encryption, and ciphering utilities',
       headerLabel: 'Offline utilities'
+    }
+  },
+  {
+    path: '/search',
+    name: 'Search',
+    component: Search,
+    meta: {
+      title: 'Search',
+      subtitle: 'Search books, articles, maps and places across the offline library',
+      headerLabel: 'Search everything'
     }
   },
   {

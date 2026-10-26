@@ -833,18 +833,55 @@ fn read_zip_entry(
 fn extract_snippet(html: &str, needle_lower: &str) -> Option<String> {
     // Strip HTML tags for a plain-text snippet
     let text = strip_html_tags(html);
-    let text_lower = text.to_lowercase();
+    snippet_around(&text, needle_lower, 60)
+}
 
-    let idx = text_lower.find(needle_lower)?;
-    let start = idx.saturating_sub(60);
-    let end = (idx + needle_lower.len() + 60).min(text.len());
+/// Build a short snippet of `text` centred on the first case-insensitive
+/// occurrence of `needle_lower`, with up to `context` characters either side.
+///
+/// Works on character boundaries: lowercasing can change the byte length of
+/// non-ASCII text, so offsets found in the lowercased copy are mapped back to
+/// the original string instead of being used to slice it directly (which
+/// panics on multi-byte characters).
+pub(crate) fn snippet_around(text: &str, needle_lower: &str, context: usize) -> Option<String> {
+    if needle_lower.is_empty() {
+        return None;
+    }
 
-    let snippet = if start > 0 {
-        format!("…{}…", &text[start..end])
+    // Lowercase char-by-char, remembering which original char each lowercase
+    // byte came from.
+    let chars: Vec<char> = text.chars().collect();
+    let mut lower = String::with_capacity(text.len());
+    let mut lower_byte_to_char: Vec<usize> = Vec::with_capacity(text.len());
+    for (char_idx, ch) in chars.iter().enumerate() {
+        for lc in ch.to_lowercase() {
+            let before = lower.len();
+            lower.push(lc);
+            lower_byte_to_char.extend(std::iter::repeat(char_idx).take(lower.len() - before));
+        }
+    }
+
+    let idx = lower.find(needle_lower)?;
+    let match_start = lower_byte_to_char[idx];
+    let match_end_byte = idx + needle_lower.len();
+    let match_end = if match_end_byte >= lower_byte_to_char.len() {
+        chars.len()
     } else {
-        text[start..end].to_string()
+        lower_byte_to_char[match_end_byte]
     };
 
+    let start = match_start.saturating_sub(context);
+    let end = (match_end + context).min(chars.len());
+    let body: String = chars[start..end].iter().collect();
+
+    let mut snippet = String::with_capacity(body.len() + 6);
+    if start > 0 {
+        snippet.push('…');
+    }
+    snippet.push_str(&body);
+    if end < chars.len() {
+        snippet.push('…');
+    }
     Some(snippet)
 }
 
@@ -980,6 +1017,20 @@ mod tests {
         assert_eq!(toc[3].title, "Chapter 2");
         assert_eq!(toc[3].depth, 0);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn snippet_around_respects_multibyte_characters() {
+        // Lowercasing "İ" grows it from 2 to 3 bytes; slicing the original
+        // with offsets from the lowercased copy used to panic.
+        let text = format!("{}İstanbul ÅLESUND café{}", "ä".repeat(100), "ö".repeat(100));
+        let snippet = snippet_around(&text, "ålesund", 10).expect("match");
+        assert!(snippet.contains("ÅLESUND"), "{snippet}");
+        assert!(snippet.starts_with('…') && snippet.ends_with('…'));
+        assert_eq!(snippet_around("short", "short", 60).as_deref(), Some("short"));
+        assert!(snippet_around("abc", "", 5).is_none());
+        assert!(snippet_around("abc", "zzz", 5).is_none());
+        assert!(extract_snippet("<p>Ünïcödé — <b>Wörd</b> here</p>", "wörd").is_some());
     }
 
     #[test]

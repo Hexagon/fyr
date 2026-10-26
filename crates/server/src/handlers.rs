@@ -1724,7 +1724,7 @@ pub async fn serve_index(State(state): State<Arc<AppState>>, uri: axum::http::Ur
 /// large archives or slow storage (SD cards). Running them inline would stall
 /// an async worker thread and, on small boards with few cores, freeze map
 /// tiles and every other request until the scan finishes.
-async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
+pub(crate) async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
 where
     F: FnOnce() -> Result<T, StatusCode> + Send + 'static,
     T: Send + 'static,
@@ -2153,7 +2153,7 @@ fn find_any_entry_by_basename(zim: &Zim, filename: &str) -> Option<DirectoryEntr
     resolve_redirect(zim, direct, 0).ok()
 }
 
-fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
+pub(crate) fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
     if matches!(entry.namespace, Namespace::Articles) {
         return true;
     }

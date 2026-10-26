@@ -28,6 +28,7 @@ mod auth;
 mod handlers;
 mod library;
 mod mbtiles;
+mod search;
 mod state;
 mod settings;
 
@@ -260,6 +261,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/library/books/:filename", get(handlers::library_book_metadata))
         .route("/api/library/books/:filename/toc", get(handlers::library_book_toc))
         .route("/api/library/books/:filename/search", get(handlers::library_book_search))
+        // Global offline search across books, ZIM articles, maps and POIs (read-only)
+        .route("/api/search", get(search::global_search))
         // Tools endpoints (read-only computation, no state mutation)
         .route("/api/tools/aes", post(handlers::tools_aes))
         .route("/api/tools/hash", post(handlers::tools_hash))
@@ -768,6 +771,85 @@ mod tests {
 
         let missing = get(&app, "/api/content/misc/absent.zip/download", None).await;
         assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+    // --- Global search (/api/search) ---------------------------------------
+    #[tokio::test]
+    async fn global_search_aggregates_sources_without_leaking_paths() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        fs::write(
+            state.config.books_dir().join("alpine-guide.md"),
+            "# Alpine Survival Guide\n\nBoil water from alpine streams.\n",
+        )
+        .expect("write book");
+        fs::write(state.config.maps_dir().join("alpine_region.pmtiles"), "PMTiles").expect("write map");
+        fs::write(
+            state.config.poi_dir().join("huts.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[7.5,46.5]},"properties":{"name":"Alpine Hut"}}]}"#,
+        )
+        .expect("write poi");
+        fs::write(state.config.poi_dir().join("broken.geojson"), "{ not json").expect("write broken poi");
+        // Strict read-only mode: search is a public read-only endpoint.
+        let mut config = (*state.config).clone();
+        config.auth.readonly = true;
+        state.config = Arc::new(config);
+        let app = create_router(state);
+        let data_dir_str = data_dir.display().to_string();
+
+        let response = get(&app, "/api/search?q=Alpine", None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let text = String::from_utf8(body_bytes(response).await).unwrap();
+        assert!(!text.contains(&data_dir_str), "search leaked a host path: {text}");
+        let body: serde_json::Value = serde_json::from_str(&text).expect("json");
+        assert_eq!(body["query"], "Alpine");
+        let results = body["results"].as_array().expect("results");
+        let link_of = |kind: &str| {
+            results
+                .iter()
+                .find(|r| r["kind"] == kind)
+                .and_then(|r| r["link"].as_str())
+                .unwrap_or_else(|| panic!("missing {kind} result in {text}"))
+                .to_string()
+        };
+        assert_eq!(link_of("book"), "/books?file=alpine-guide.md");
+        assert_eq!(link_of("map"), "/maps?map=alpine_region.pmtiles");
+        assert_eq!(link_of("poi"), "/maps?lat=46.5&lng=7.5&zoom=14&label=Alpine%20Hut");
+        assert_eq!(link_of("content"), "/books?file=alpine-guide.md&q=Alpine");
+        for result in results {
+            assert!(result["source"].as_str().is_some_and(|s| !s.contains('/')), "{result}");
+            assert!(result["score"].is_number());
+            assert!(result["title"].is_string());
+        }
+        let book = results.iter().find(|r| r["kind"] == "book").unwrap();
+        assert_eq!(book["title"], "Alpine Survival Guide");
+
+        // kinds filter + limit
+        let maps_only: serde_json::Value = serde_json::from_slice(
+            &body_bytes(get(&app, "/api/search?q=alpine&kinds=map&limit=5", None).await).await,
+        )
+        .unwrap();
+        let maps_only = maps_only["results"].as_array().unwrap();
+        assert_eq!(maps_only.len(), 1);
+        assert_eq!(maps_only[0]["kind"], "map");
+
+        let limited: serde_json::Value = serde_json::from_slice(
+            &body_bytes(get(&app, "/api/search?q=alpine&limit=1", None).await).await,
+        )
+        .unwrap();
+        assert_eq!(limited["results"].as_array().unwrap().len(), 1);
+        assert_eq!(limited["truncated"], true);
+
+        // Empty, missing and huge queries are fine.
+        for uri in ["/api/search", "/api/search?q=", "/api/search?q=%20%20"] {
+            let response = get(&app, uri, None).await;
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            let body: serde_json::Value = serde_json::from_slice(&body_bytes(response).await).unwrap();
+            assert!(body["results"].as_array().unwrap().is_empty(), "{uri}");
+        }
+        let huge = format!("/api/search?q={}", "x".repeat(5000));
+        assert_eq!(get(&app, &huge, None).await.status(), StatusCode::OK);
 
         let _ = fs::remove_dir_all(data_dir);
     }
