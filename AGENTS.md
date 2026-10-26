@@ -37,6 +37,8 @@ Config overrides:
 - `FYR_PORT`
 - `FYR_ADMIN_PASSWORD` — enables password-protected admin mode; mutating endpoints require a valid session
 - `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 regardless of session state
+- `FYR_GUEST_MESSAGING` — in password mode, lets guests post messages and create encrypted channels (see rule 8)
+- `FYR_MESSAGING`, `FYR_MESSAGES_MAX_PER_CHANNEL`, `FYR_MESSAGES_MAX_AGE_DAYS` — Messages on/off and retention
 
 ## Core Security Function: Access Control
 
@@ -53,6 +55,7 @@ Rules to always respect:
 5. **Session tokens** are UUIDs stored in-memory (no persistence across restarts), set as HttpOnly cookies.
 6. Frontend components that reveal sensitive system information (storage paths, disk usage) must also check `isAdminLocked()` from `crates/ui/frontend/src/services/auth.js`.
 7. Public endpoints must not leak host details (filesystem paths, bind host, disk capacity) in restricted modes: gate them with `auth::can_view_system_details` as `/api/status`, `/api/config`, `/api/storage`, content listings and download task responses do.
+8. **Messaging is the one explicit exception to rule 1.** Exactly two write endpoints — `POST /api/channels` (register an encrypted channel) and `POST /api/channels/:id/messages` (post) — live in the separate `messaging_write` sub-router guarded by `auth::require_messaging_write`: `FYR_READONLY` → 403 always; open mode → allowed; password mode → admin session, or anyone when `FYR_GUEST_MESSAGING=true`, else 401. Handlers add per-IP token-bucket rate limits (in memory, IPv6 keyed by /64, never persisted). Encrypted channels additionally require the `X-Fyr-Channel-Key` header (constant-time check against the stored `sha256(auth_key)`). All messaging **moderation** (delete message, pin/unpin, delete channel) stays in the admin `protected` router. Do not add other mutating routes to the messaging sub-router, and never store or log message plaintext of encrypted channels, passphrases or channel keys server-side.
 
 See `docs/developer/DEVELOPER_MANUAL.md § 3.5` for the full architecture description.
 
@@ -75,7 +78,8 @@ Responsibilities:
 - Axum API handlers and routing
 - Static serving for `/static`, `/assets`, `/data`, `/docs/books`
 - Native ZIM reader API endpoints
-- Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` middleware
+- Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` and `require_messaging_write` middleware
+- Messages (`messaging/`): SQLite store (`DATA_DIR/messages.sqlite`), public board channel, encrypted-channel ciphertext storage, SSE streams, retention
 
 ### Downloader Module: downloader
 Path: [crates/downloader/src](crates/downloader/src)
@@ -94,6 +98,7 @@ Responsibilities:
 - Vue SPA pages and API integration
 - Maps rendering (MapLibre/PMTiles)
 - Books reading flows (EPUB + native ZIM)
+- Messages page and client-side channel crypto (`src/modules/messaging/`; all crypto in `crypto.js`)
 
 ## Development Workflow
 

@@ -478,6 +478,25 @@ export const apiService = {
     return response.data
   },
 
+  // Messages (public board channel + encrypted channels). `channelKey` is
+  // the hex auth key for encrypted channels; it travels in a header so it
+  // never appears in URLs or server logs.
+  getMessagesConfig: async () => (await api.get('/messages/config')).data,
+  listChannelMessages: async (channelId, params = {}, channelKey = null) =>
+    (await api.get(`/channels/${encodeURIComponent(channelId)}/messages`, {
+      params,
+      headers: channelKey ? { 'X-Fyr-Channel-Key': channelKey } : {}
+    })).data,
+  postChannelMessage: async (channelId, body, channelKey = null) =>
+    (await api.post(`/channels/${encodeURIComponent(channelId)}/messages`, body, {
+      headers: channelKey ? { 'X-Fyr-Channel-Key': channelKey } : {}
+    })).data,
+  createChannel: async (channelId, verifier) => (await api.post('/channels', { channel_id: channelId, verifier })).data,
+  deleteChannelMessage: (channelId, messageId) => api.delete(`/channels/${encodeURIComponent(channelId)}/messages/${messageId}`),
+  pinChannelMessage: async (messageId, pinned) => (await api.post(`/channels/public/messages/${messageId}/pin`, { pinned })).data,
+  deleteChannel: (channelId) => api.delete(`/channels/${encodeURIComponent(channelId)}`),
+  channelStreamUrl: (channelId) => `${API_BASE}/channels/${encodeURIComponent(channelId)}/stream`,
+
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)

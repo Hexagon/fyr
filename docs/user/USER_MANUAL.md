@@ -48,6 +48,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
 - **Search:** one search box for the whole offline library (see [3c. Searching Everything](#3c-searching-everything)).
+- **Messages:** a public Board for everyone on the network plus end-to-end encrypted channels protected by a passphrase (see [3d. Messages](#3d-messages)).
 - **Tools:** unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
 ## 3a. Access Control and Admin Login
@@ -66,6 +67,8 @@ The server operator sets an admin password via the `FYR_ADMIN_PASSWORD` environm
 - Read content
 
 **What requires admin login:**
+- Posting in Messages and creating encrypted channels — unless the operator also sets `FYR_GUEST_MESSAGING=true` (see §3d)
+- Message moderation (pin/unpin, delete messages and channels)
 - Content Manager (downloads, imports, file deletion)
 - Settings (location and preferences)
 - Model uploads and model management
@@ -86,7 +89,7 @@ Click **Log out** in the navbar. Your session is cleared immediately.
 - If you forget the password, restart the server with the correct `FYR_ADMIN_PASSWORD` value.
 
 ### Strict read-only mode (`FYR_READONLY`)
-Setting `FYR_READONLY=true` disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
+Setting `FYR_READONLY=true` disables all mutating operations permanently, including posting in Messages (reading still works). No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a **Read-only** badge in the navbar.
 
 Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.
 
@@ -186,6 +189,46 @@ Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside 
 - Search is read-only and available in every access mode, including `FYR_READONLY`.
 - Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by **title prefix** ("albert ein" finds "Albert Einstein"); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.
 - `.fgb` (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.
+
+## 3d. Messages
+
+Messages has no user accounts. Everyone picks a nickname once per device (stored in the browser, editable at any time). Each device also gets a random **device tag** — a short code shown as a coloured dot next to its messages so you can tell people with the same nickname apart. Nicknames and tags are **not verified**: anyone can type any nickname.
+
+### The Board (public)
+The **Board** is always listed first. It is a public chat that everyone who can reach the server can read; the server stores it in plain text.
+
+- Posts can carry a **category** chip — *Info*, *Need*, *Offer* or *Alert* — and an optional **location** (📍). A location links to the Maps page centred on that spot. **Add location** uses the browser's location when the page is served over HTTPS (or localhost); on a plain-HTTP hotspot it falls back to the location saved in Settings.
+- Board posts expire after 30 days by default; pick 1 day to 1 year in the composer.
+- Admins can **pin** important posts (pinned posts stay at the top and never expire) and **delete** posts.
+- Active **Alert** posts also appear as a banner on the Overview page. Each visitor can dismiss them.
+- The **Messages** nav link shows how many new Board posts arrived since you last looked.
+
+### Encrypted channels
+Open **Join or create an encrypted channel**, enter a channel name and a passphrase, and press **Join**. Your device derives the keys (this takes about a second). If nobody has created that channel yet you are offered **Create this channel**. Everyone who enters the same name and passphrase ends up in the same channel; a different passphrase gives a different, unrelated channel. There is no list of channels on the server.
+
+- Use a strong passphrase — four or more random words. Anyone who captures the channel id on the network can try to guess a weak passphrase offline.
+- **Remember on this device** stores the channel keys (never the passphrase) in the browser so the channel stays in your list; **Forget** removes them. Without it the channel lasts until you close the tab.
+- **Share** gives a link (`/messages#join=<name>`) and a QR code. The part after `#` never reaches the server. You can choose to include the passphrase in the link — anyone who sees that link or QR code can then read and post, so share it only in person. Opening such a link only fills in the form; the passphrase is removed from the address bar immediately.
+- Messages are end-to-end encrypted on your device; the server only stores scrambled data. Channels keep the newest 1000 messages and messages younger than 90 days. Channels with no messages are removed after a week of inactivity — anyone with the name and passphrase can simply create them again (**Create it again**).
+- Admins can delete a channel and its messages, but cannot read them.
+
+### What the encryption protects (threat model)
+- **Protects against:** people passively sniffing the Wi-Fi, and anyone who copies or reads the server's disk.
+- **Does not protect against:** an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over **HTTPS** through a reverse proxy if that matters to you.
+- Anyone who knows the passphrase can read everything in the channel and post under any nickname.
+- The Board is never encrypted.
+
+### Who can post
+| Mode | Read Board / channels | Post and create channels | Pin / delete |
+|------|-----------------------|--------------------------|--------------|
+| Open (default) | Everyone | Everyone | Everyone (there is no admin login) |
+| `FYR_ADMIN_PASSWORD` | Everyone | Admin only | Admin only |
+| `FYR_ADMIN_PASSWORD` + `FYR_GUEST_MESSAGING=true` | Everyone | Everyone | Admin only |
+| `FYR_READONLY` | Everyone | Nobody | Nobody |
+
+Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy's address, so these limits are shared too.
+
+Set `FYR_MESSAGING=false` to switch Messages off entirely.
 
 ## 4. Add Content
 ### Data directories and supported file types
@@ -308,6 +351,8 @@ pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles world.pmtiles --b
 - `public/data/models/`
 - `public/data/misc/`
 
+Messages are stored in `messages.sqlite` directly in the data directory (owner-readable only, never published).
+
 Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
 
@@ -327,6 +372,10 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_PORT`
 - `FYR_ADMIN_PASSWORD` — enables password-protected admin mode (see §3a)
 - `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 (see §3a)
+- `FYR_GUEST_MESSAGING` — with `FYR_ADMIN_PASSWORD` set, let guests post in Messages and create encrypted channels (see §3d)
+- `FYR_MESSAGING` — set to `false` to disable Messages (default on)
+- `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000)
+- `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages in days (default 90)
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.

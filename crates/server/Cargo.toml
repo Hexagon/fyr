@@ -39,6 +39,7 @@ md-5.workspace = true
 digest.workspace = true
 aes.workspace = true
 cbc.workspace = true
+base64 = "0.21"
 
 [[bin]]
 name = "fyr"

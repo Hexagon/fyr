@@ -203,6 +203,8 @@ CI-pinned versions for parity:
 - `FYR_PORT` (default `8080`)
 - `FYR_ADMIN_PASSWORD` (optional; enables password-protected admin mode)
 - `FYR_READONLY` (optional; enables strict read-only mode; all mutating endpoints return 403)
+- `FYR_GUEST_MESSAGING` (optional; with `FYR_ADMIN_PASSWORD`, guests may post messages / create channels)
+- `FYR_MESSAGING` (default `true`; `false` disables Messages), `FYR_MESSAGES_MAX_PER_CHANNEL` (default `1000`, clamped 10–100000), `FYR_MESSAGES_MAX_AGE_DAYS` (default `90`, clamped 1–3650)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
 ## 3. Docker
@@ -282,6 +284,20 @@ Fyr implements a two-level access control system controlled entirely by environm
 
 Add the route to the `protected` `Router` in `create_router` in `crates/server/src/main.rs`. The `route_layer(admin_mw)` call automatically covers all routes in that sub-router.
 
+### Messaging write exception (`require_messaging_write`)
+
+Messaging is the single, deliberate exception to "mutating endpoints are admin-only". Only `POST /api/channels` and `POST /api/channels/:id/messages` are mounted in the `messaging_write` sub-router, layered with `auth::require_messaging_write` (`route_layer`) and a 32 KiB body limit:
+
+| Mode | Result |
+|------|--------|
+| `FYR_READONLY` | `403` always (even with a session or `FYR_GUEST_MESSAGING`) |
+| Open (no password) | allowed |
+| Password, valid admin session | allowed |
+| Password, guest, `FYR_GUEST_MESSAGING=true` | allowed |
+| Password, guest otherwise | `401` |
+
+`auth::messaging_write_access` implements the table and also feeds `can_post` in `GET /api/messages/config`; `auth::has_admin_access` (same rule as `can_view_system_details`) feeds `can_moderate`. Moderation routes are merged into `protected` and therefore use `require_admin`. Handlers apply per-IP token buckets (`messaging::limits::RateLimiter`; posts: burst 8, then 1 per 4 s; channel creation: burst 3, then 1 per 60 s) keyed by the TCP peer address (`ConnectInfo`, never `X-Forwarded-For`), with IPv6 truncated to /64; nothing is persisted and the tables are bounded (4096 IPs).
+
 
 
 ### Auth endpoints (always public)
@@ -305,6 +321,67 @@ Add the route to the `protected` `Router` in `create_router` in `crates/server/s
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
 - `GET /api/search?q=&limit=&kinds=` — global offline search (see § 11). Returns filenames and frontend routes only, never host paths, so no `can_view_system_details` gating is needed.
+
+### Messages endpoints
+
+One model for the built-in public channel (id `public`, "Board") and encrypted channels (id = 32 lowercase hex chars):
+
+Public (reads; encrypted channels need `X-Fyr-Channel-Key: <hex auth_key>`):
+- `GET /api/messages/config` — `{ enabled, can_post, can_moderate, guest_messaging, server_salt (hex, 32 bytes), public_channel_id, limits: { max_text_chars, max_nick_chars, max_ciphertext_bytes, default_ttl_days, max_ttl_days, max_messages_per_channel, max_age_days } }`. Always mounted (reports `enabled: false` when `FYR_MESSAGING=false`; all other messaging routes are then not mounted).
+- `GET /api/channels/:id/messages?since=&before=&limit=&category=` — `{ channel_id, kind: "public"|"encrypted", messages: [...ascending], pinned: [...], has_more }`. `since` returns the oldest `limit` messages with `id > since` (catch-up); otherwise the newest `limit` (optionally `id < before`). `limit` defaults to 100, max 500. `pinned` is filled for the public channel's first page only. Expired messages are never returned.
+- `GET /api/channels/:id/stream` — SSE. Events: `ready` (sent first; clients then catch up with `?since=`), `message` (row JSON), `deleted` (`{id}`), `pinned` (row JSON), `resync` (subscriber lagged: catch up), `channel_deleted` (stream ends). Keep-alive comments every 20 s, `X-Accel-Buffering: no`, closed after 30 min (clients reconnect). Capped at 256 concurrent streams and 8 per client IP (`429`).
+
+Status codes for channel access: malformed id `400`, unknown channel `404` (UI offers "create"), missing/malformed key `401`, wrong key `403`. There is **no** channel listing endpoint.
+
+Messaging writes (`require_messaging_write`, rate-limited):
+- `POST /api/channels` — `{ channel_id, verifier }` where `verifier = hex(sha256(auth_key))`. `201`, `409` if it exists (never overwritten), `507` when 5000 encrypted channels exist.
+- `POST /api/channels/:id/messages` — public channel body `{ nick (1–40 chars), device_tag (4–16 lowercase hex), text (1–2000 chars), category?: info|need|offer|alert, lat?, lng? (both or neither), ttl_days? (1–365, default 30) }`; encrypted channel body exactly `{ nonce (base64, 24 bytes), ciphertext (base64, 16–8192 bytes) }`. Unknown fields are rejected (`422`), so plaintext can never be stored for an encrypted channel. Control characters and bidi overrides are rejected in public nick/text. Returns the stored row (`201`).
+
+Admin-only (in `protected`):
+- `DELETE /api/channels/:id/messages/:msg_id` (any channel)
+- `POST /api/channels/public/messages/:msg_id/pin` — `{ pinned: bool }` (public channel only)
+- `DELETE /api/channels/:id` — encrypted channels only; cascades to its messages.
+
+Row shape: `{ id, channel_id, created_at, expires_at, pinned }` plus either the public fields (`nick, device_tag, category?, text, lat?, lng?`) or `nonce`/`ciphertext` (base64). Timestamps are Unix milliseconds; ids are monotonically increasing and double as the `since`/`before` cursor.
+
+### Messages storage and retention (`crates/server/src/messaging/`)
+
+- `store.rs` — SQLite at `DATA_DIR/messages.sqlite` (created `0600`, WAL, `secure_delete`), versioned migrations (`schema_version` table + ordered `MIGRATIONS`), tables `meta` (random 32-byte `server_salt`, generated with `ring::rand` on first start), `channels` (`id, kind, verifier, created_at, last_activity`; the `public` row is seeded by migration 1) and `messages`. One connection behind a `Mutex`; every DB call runs on the blocking pool.
+- Retention: public messages have `expires_at` (default 30 days, max 365; pinned never expire); encrypted messages expire after `FYR_MESSAGES_MAX_AGE_DAYS`. Each insert trims its channel to the newest `FYR_MESSAGES_MAX_PER_CHANNEL` unpinned messages. A Tokio task (`Messaging::spawn_pruner`, every 10 min) deletes expired messages, re-applies per-channel caps, enforces a global cap of 200 000 messages, drops encrypted channels that have had no messages and no activity for 7 days (re-creatable, ids are deterministic) and prunes rate-limit tables.
+- `limits.rs` — token buckets and the SSE `StreamLimiter` (permit released on drop).
+- `routes.rs` — handlers and the three route groups (`public_routes`, `write_routes`, `moderation_routes`); `router_tests.rs` covers the access matrix.
+- Live fan-out uses one `tokio::sync::broadcast` channel (capacity 512); each SSE connection forwards events for its channel into an `mpsc` and ends when the client disconnects.
+
+### Channel crypto specification (v1)
+
+All client crypto is in `crates/ui/frontend/src/modules/messaging/crypto.js`, using `@noble/hashes` and `@noble/ciphers` 2.4.0 (pure JS; WebCrypto `crypto.subtle` is unavailable on plain-HTTP origins, `crypto.getRandomValues` is used for randomness):
+
+```
+name'       = lowercase(trim(NFKC(name)))
+passphrase' = NFKC(passphrase)                      (no trimming / case folding)
+salt        = SHA-256("fyr-channel/v1" || server_salt[32 bytes] || UTF-8(name'))
+master      = scrypt(UTF-8(passphrase'), salt, N = 2^15, r = 8, p = 1, dkLen = 32)
+channel_id  = hex(HKDF-SHA256(ikm = master, salt = empty, info = "fyr/v1/id",   L = 16))
+auth_key    =     HKDF-SHA256(ikm = master, salt = empty, info = "fyr/v1/auth", L = 32)
+enc_key     =     HKDF-SHA256(ikm = master, salt = empty, info = "fyr/v1/enc",  L = 32)
+verifier    = hex(SHA-256(auth_key))                 (registered with the server)
+payload     = JSON { v: 1, nick, device_tag, text, sent_at, [category], [lat, lng] },
+              UTF-8, right-padded with spaces to a multiple of 64 bytes
+message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
+                                 aad = UTF-8(channel_id), plaintext = payload)
+```
+
+- KDF parameters are versioned in `KDF_VERSIONS`; never edit an existing version, add a new one. scrypt v1 takes ~0.3 s in Node/Chromium on a desktop x86 CPU (expect ~1 s on a mid-range phone); progress is shown while deriving.
+- The server never receives the passphrase or `enc_key`; it sees `channel_id` and `auth_key` (header) and stores only `sha256(auth_key)`, compared in constant time. Message plaintext of encrypted channels is never sent to the server.
+- Decrypted payloads are validated and cleaned (lengths, device tag format, control/bidi characters) before display; message text is rendered via `linkify()` segments and Vue text interpolation, never as HTML.
+- "Remember on this device" stores `{ name, channelId, authKey, encKey, version }` in `localStorage` (never the passphrase). Share links use the URL fragment (`/messages#join=<name>[&pass=<passphrase>]`), which the page strips with `history.replaceState` after reading.
+- Tests: `crypto.test.js` has RFC 7914 scrypt and draft-irtf-cfrg-xchacha known answers, a v1 derivation known answer cross-checked with Python `hashlib`, normalization, tamper, wrong-passphrase and AAD tests.
+- Threat model: protects against passive Wi-Fi sniffing and server-disk disclosure; does not protect against an active attacker who modifies page code on plain HTTP (use HTTPS), and anyone with the passphrase can post under any nickname. A captured `channel_id` allows offline passphrase guessing at scrypt cost, so the UI asks for long passphrases.
+
+### Messages frontend
+
+- `pages/Messages.vue` (route `/messages`), `modules/messaging/`: `model.js` (row → view model, merge/expiry/alerts), `format.js` (linkify, day grouping, Maps deep links `/maps?lat=&lng=&zoom=15&label=`), `storage.js` (guarded `localStorage`: nickname, device id/tag, remembered channels, read markers, own message ids, dismissed alerts), `stream.js` (fetch-based SSE so the key header can be sent; `ready`-triggered catch-up; exponential backoff with jitter; 400/401/403/404 terminal), `boardFeed.js` (one shared Board stream for the nav badge, Board view and `AlertBanner.vue` on Home).
+- The UI hides the composer when `can_post` is false and moderation controls when `can_moderate` is false; the server enforces both.
 
 ### Admin-only endpoints (require auth when `FYR_ADMIN_PASSWORD` is set; always blocked when `FYR_READONLY`)
 - `PUT /api/settings`
@@ -367,7 +444,7 @@ Reader and ZIM endpoints:
 
 Static content aliases:
 - `GET /static/*path` — SPA build output. Content-hashed bundles under `/static/js/` and `/static/css/` are served with `Cache-Control: public, max-age=31536000, immutable` (`static_cache_headers` in `main.rs`); `index.html`, `/static/assets/` (unhashed files copied from `crates/ui/frontend/public/`) and all other responses keep the global `no-store` policy.
-- `GET /data/maps/*path`, `GET /data/books/*path`, `GET /data/poi/*path` and `GET /data/curated-content.json` — the only published parts of `DATA_DIR`. `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are intentionally not served; unmatched `/data/*` and `/api/*` paths return `404` instead of the SPA `index.html`.
+- `GET /data/maps/*path`, `GET /data/books/*path`, `GET /data/poi/*path` and `GET /data/curated-content.json` — the only published parts of `DATA_DIR`. `settings.json`, `download_tasks.json`, `messages.sqlite`, `inbox/`, `models/` and `misc/` are intentionally not served; unmatched `/data/*` and `/api/*` paths return `404` instead of the SPA `index.html`.
 - `GET /docs/books/*path` (book-only alias used by reader integrations)
 - Content Manager's per-file **Download** action calls `/api/content/:type/:filename/download`.
 

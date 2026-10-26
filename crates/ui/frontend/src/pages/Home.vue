@@ -1,5 +1,6 @@
 <template>
   <div class="home-page">
+    <AlertBanner />
     <section v-if="continueReading.length" class="continue-section" aria-labelledby="continue-reading-heading">
       <h3 id="continue-reading-heading">📖 Continue reading</h3>
       <ul class="continue-list">
@@ -135,6 +136,7 @@ import { getLocationClock } from '../services/locationClock'
 import { isAdminLocked } from '../services/auth'
 import { progressStore } from '../modules/library/progress'
 import { formatRelativeTime, selectContinueReading } from '../modules/library/continueReading'
+import AlertBanner from '../modules/messaging/AlertBanner.vue'
 
 const status = ref(null)
 const storage = ref(null)

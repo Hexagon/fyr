@@ -27,6 +27,7 @@
           <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }" :aria-current="$route.name === 'Maps' ? 'page' : undefined">Maps</router-link></li>
           <li><router-link to="/books" :class="{ active: $route.name === 'Books' }" :aria-current="$route.name === 'Books' ? 'page' : undefined">Library</router-link></li>
           <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }" :aria-current="$route.name === 'ContentManager' ? 'page' : undefined">Content Manager</router-link></li>
+          <li><router-link to="/messages" :class="{ active: $route.name === 'Messages' }" :aria-current="$route.name === 'Messages' ? 'page' : undefined">Messages<span v-if="boardFeed.unread" class="nav-badge" :aria-label="`${boardFeed.unread} unread`">{{ boardFeed.unread > 99 ? '99+' : boardFeed.unread }}</span></router-link></li>
           <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }" :aria-current="$route.name === 'Assistant' ? 'page' : undefined">Assistant</router-link></li>
           <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }" :aria-current="$route.name === 'Tools' ? 'page' : undefined">Tools</router-link></li>
           <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }" :aria-current="$route.name === 'Settings' ? 'page' : undefined">Settings</router-link></li>
@@ -73,10 +74,12 @@ import { useLocationState } from './services/location'
 import { getLocationClock } from './services/locationClock'
 import { loadAuthStatus, logout, useAuthState, isAdminLocked } from './services/auth'
 import HeaderSearch from './components/HeaderSearch.vue'
+import { startBoardFeed, useBoardFeed } from './modules/messaging/boardFeed.js'
 
 const route = useRoute()
 const locationState = useLocationState()
 const authState = useAuthState()
+const boardFeed = useBoardFeed()
 const now = ref(new Date())
 let timer = null
 const mobileMenuOpen = ref(false)
@@ -118,6 +121,7 @@ onMounted(async () => {
     loadAppSettings().catch(() => {}),
     loadAuthStatus().catch(() => {})
   ])
+  startBoardFeed()
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
@@ -339,6 +343,20 @@ watch(() => route.fullPath, () => {
   border-radius: 4px;
   transition: background 0.3s;
   white-space: nowrap;
+}
+
+.nav-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #e05d5d;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
 }
 
 .navbar-menu a:hover {

@@ -117,7 +117,7 @@ impl AuthManager {
 /// Returns `true` only when `a` and `b` have equal length and identical
 /// contents.  The fold loop runs for all bytes regardless of where a
 /// mismatch occurs, so the runtime does not leak positional information.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -235,6 +235,66 @@ pub async fn require_admin(
             })),
         )
             .into_response()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Messaging write access (explicit exception to "mutations are admin-only")
+// ---------------------------------------------------------------------------
+
+/// Return `true` when the caller is an administrator: open mode (no
+/// password, not read-only) or a valid admin session. Same rule as
+/// [`can_view_system_details`]; used for messaging moderation UI hints.
+pub fn has_admin_access(state: &AppState, headers: &axum::http::HeaderMap) -> bool {
+    can_view_system_details(state, headers)
+}
+
+/// Decide whether the caller may post messages / create channels.
+///
+/// * `FYR_READONLY` → 403, always (rule 4 stays absolute).
+/// * Open mode (no admin password) → allowed.
+/// * Password mode → allowed for valid admin sessions; for guests only
+///   when `FYR_GUEST_MESSAGING=true`, otherwise 401.
+pub fn messaging_write_access(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), (StatusCode, &'static str)> {
+    let auth_cfg = &state.config.auth;
+    if auth_cfg.readonly {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "This server is in read-only mode. Posting messages is disabled.",
+        ));
+    }
+    if auth_cfg.admin_password.is_none() || auth_cfg.guest_messaging {
+        return Ok(());
+    }
+    let authenticated = extract_session_token(headers)
+        .map(|token| state.auth_manager.is_valid_session(&token))
+        .unwrap_or(false);
+    if authenticated {
+        Ok(())
+    } else {
+        Err((
+            StatusCode::UNAUTHORIZED,
+            "Posting messages requires an admin login on this server.",
+        ))
+    }
+}
+
+/// Middleware for the messaging write sub-router (`POST /api/channels`,
+/// `POST /api/channels/:id/messages`). Moderation endpoints do NOT use this;
+/// they live in the admin `protected` router behind [`require_admin`].
+pub async fn require_messaging_write(
+    State(state): State<Arc<AppState>>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    match messaging_write_access(&state, request.headers()) {
+        Ok(()) => next.run(request).await,
+        Err((status, message)) => {
+            (status, Json(serde_json::json!({ "error": message }))).into_response()
+        }
     }
 }
 
@@ -415,10 +475,13 @@ mod tests {
             config: Arc::clone(&config),
             static_dir: PathBuf::from("."),
             download_manager: Arc::new(DownloadManager::new(&data_dir)),
-            model_manager: Arc::new(ModelManager::new(config)),
+            model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(AuthManager::new()),
             mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
+            messaging: Arc::new(
+                crate::messaging::Messaging::open(&config).expect("open messages db"),
+            ),
         })
     }
 

@@ -142,8 +142,13 @@
                             <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
                             <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
                             <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#messaging-write-exception-require_messaging_write" class="text-gray-600 hover:text-brand-600">Messaging write exception (require_messaging_write)</a></li>
                             <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
                             <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#messages-endpoints" class="text-gray-600 hover:text-brand-600">Messages endpoints</a></li>
+                            <li class="pl-4"><a href="#messages-storage-and-retention-cratesserversrcmessaging" class="text-gray-600 hover:text-brand-600">Messages storage and retention (crates/server/src/messaging/)</a></li>
+                            <li class="pl-4"><a href="#channel-crypto-specification-v1" class="text-gray-600 hover:text-brand-600">Channel crypto specification (v1)</a></li>
+                            <li class="pl-4"><a href="#messages-frontend" class="text-gray-600 hover:text-brand-600">Messages frontend</a></li>
                             <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
                             <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
                             <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
@@ -446,6 +451,8 @@ Remove-Item Env:RUSTFLAGS
 <li><code>FYR_PORT</code> (default <code>8080</code>)</li>
 <li><code>FYR_ADMIN_PASSWORD</code> (optional; enables password-protected admin mode)</li>
 <li><code>FYR_READONLY</code> (optional; enables strict read-only mode; all mutating endpoints return 403)</li>
+<li><code>FYR_GUEST_MESSAGING</code> (optional; with <code>FYR_ADMIN_PASSWORD</code>, guests may post messages / create channels)</li>
+<li><code>FYR_MESSAGING</code> (default <code>true</code>; <code>false</code> disables Messages), <code>FYR_MESSAGES_MAX_PER_CHANNEL</code> (default <code>1000</code>, clamped 10–100000), <code>FYR_MESSAGES_MAX_AGE_DAYS</code> (default <code>90</code>, clamped 1–3650)</li>
 <li><code>FYR_DEV_PROXY_TARGET</code> (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)</li>
 </ul>
 <h2 id="3-docker">3. Docker<a class="heading-anchor" href="#3-docker" aria-label="Link to this section">#</a></h2>
@@ -545,6 +552,38 @@ New public endpoints that expose paths or disk details must apply the same check
 </ul>
 <h3 id="adding-new-protected-endpoints">Adding new protected endpoints<a class="heading-anchor" href="#adding-new-protected-endpoints" aria-label="Link to this section">#</a></h3>
 <p>Add the route to the <code>protected</code> <code>Router</code> in <code>create_router</code> in <code>crates/server/src/main.rs</code>. The <code>route_layer(admin_mw)</code> call automatically covers all routes in that sub-router.</p>
+<h3 id="messaging-write-exception-require_messaging_write">Messaging write exception (<code>require_messaging_write</code>)<a class="heading-anchor" href="#messaging-write-exception-require_messaging_write" aria-label="Link to this section">#</a></h3>
+<p>Messaging is the single, deliberate exception to &quot;mutating endpoints are admin-only&quot;. Only <code>POST /api/channels</code> and <code>POST /api/channels/:id/messages</code> are mounted in the <code>messaging_write</code> sub-router, layered with <code>auth::require_messaging_write</code> (<code>route_layer</code>) and a 32 KiB body limit:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FYR_READONLY</code></td>
+<td><code>403</code> always (even with a session or <code>FYR_GUEST_MESSAGING</code>)</td>
+</tr>
+<tr>
+<td>Open (no password)</td>
+<td>allowed</td>
+</tr>
+<tr>
+<td>Password, valid admin session</td>
+<td>allowed</td>
+</tr>
+<tr>
+<td>Password, guest, <code>FYR_GUEST_MESSAGING=true</code></td>
+<td>allowed</td>
+</tr>
+<tr>
+<td>Password, guest otherwise</td>
+<td><code>401</code></td>
+</tr>
+</tbody></table>
+</div>
+<p><code>auth::messaging_write_access</code> implements the table and also feeds <code>can_post</code> in <code>GET /api/messages/config</code>; <code>auth::has_admin_access</code> (same rule as <code>can_view_system_details</code>) feeds <code>can_moderate</code>. Moderation routes are merged into <code>protected</code> and therefore use <code>require_admin</code>. Handlers apply per-IP token buckets (<code>messaging::limits::RateLimiter</code>; posts: burst 8, then 1 per 4 s; channel creation: burst 3, then 1 per 60 s) keyed by the TCP peer address (<code>ConnectInfo</code>, never <code>X-Forwarded-For</code>), with IPv6 truncated to /64; nothing is persisted and the tables are bounded (4096 IPs).</p>
 <h3 id="auth-endpoints-always-public">Auth endpoints (always public)<a class="heading-anchor" href="#auth-endpoints-always-public" aria-label="Link to this section">#</a></h3>
 <ul>
 <li><code>GET /api/auth/status</code> — returns <code>{ readonly, requires_auth, authenticated }</code>. Use this to determine the current access mode.</li>
@@ -568,6 +607,63 @@ New public endpoints that expose paths or disk details must apply the same check
 <li><code>GET /api/download/:task_id/status</code></li>
 <li><code>GET /api/downloads</code></li>
 <li><code>GET /api/search?q=&amp;limit=&amp;kinds=</code> — global offline search (see § 11). Returns filenames and frontend routes only, never host paths, so no <code>can_view_system_details</code> gating is needed.</li>
+</ul>
+<h3 id="messages-endpoints">Messages endpoints<a class="heading-anchor" href="#messages-endpoints" aria-label="Link to this section">#</a></h3>
+<p>One model for the built-in public channel (id <code>public</code>, &quot;Board&quot;) and encrypted channels (id = 32 lowercase hex chars):</p>
+<p>Public (reads; encrypted channels need <code>X-Fyr-Channel-Key: &lt;hex auth_key&gt;</code>):</p>
+<ul>
+<li><code>GET /api/messages/config</code> — <code>{ enabled, can_post, can_moderate, guest_messaging, server_salt (hex, 32 bytes), public_channel_id, limits: { max_text_chars, max_nick_chars, max_ciphertext_bytes, default_ttl_days, max_ttl_days, max_messages_per_channel, max_age_days } }</code>. Always mounted (reports <code>enabled: false</code> when <code>FYR_MESSAGING=false</code>; all other messaging routes are then not mounted).</li>
+<li><code>GET /api/channels/:id/messages?since=&amp;before=&amp;limit=&amp;category=</code> — <code>{ channel_id, kind: &quot;public&quot;|&quot;encrypted&quot;, messages: [...ascending], pinned: [...], has_more }</code>. <code>since</code> returns the oldest <code>limit</code> messages with <code>id &gt; since</code> (catch-up); otherwise the newest <code>limit</code> (optionally <code>id &lt; before</code>). <code>limit</code> defaults to 100, max 500. <code>pinned</code> is filled for the public channel&#39;s first page only. Expired messages are never returned.</li>
+<li><code>GET /api/channels/:id/stream</code> — SSE. Events: <code>ready</code> (sent first; clients then catch up with <code>?since=</code>), <code>message</code> (row JSON), <code>deleted</code> (<code>{id}</code>), <code>pinned</code> (row JSON), <code>resync</code> (subscriber lagged: catch up), <code>channel_deleted</code> (stream ends). Keep-alive comments every 20 s, <code>X-Accel-Buffering: no</code>, closed after 30 min (clients reconnect). Capped at 256 concurrent streams and 8 per client IP (<code>429</code>).</li>
+</ul>
+<p>Status codes for channel access: malformed id <code>400</code>, unknown channel <code>404</code> (UI offers &quot;create&quot;), missing/malformed key <code>401</code>, wrong key <code>403</code>. There is <strong>no</strong> channel listing endpoint.</p>
+<p>Messaging writes (<code>require_messaging_write</code>, rate-limited):</p>
+<ul>
+<li><code>POST /api/channels</code> — <code>{ channel_id, verifier }</code> where <code>verifier = hex(sha256(auth_key))</code>. <code>201</code>, <code>409</code> if it exists (never overwritten), <code>507</code> when 5000 encrypted channels exist.</li>
+<li><code>POST /api/channels/:id/messages</code> — public channel body <code>{ nick (1–40 chars), device_tag (4–16 lowercase hex), text (1–2000 chars), category?: info|need|offer|alert, lat?, lng? (both or neither), ttl_days? (1–365, default 30) }</code>; encrypted channel body exactly <code>{ nonce (base64, 24 bytes), ciphertext (base64, 16–8192 bytes) }</code>. Unknown fields are rejected (<code>422</code>), so plaintext can never be stored for an encrypted channel. Control characters and bidi overrides are rejected in public nick/text. Returns the stored row (<code>201</code>).</li>
+</ul>
+<p>Admin-only (in <code>protected</code>):</p>
+<ul>
+<li><code>DELETE /api/channels/:id/messages/:msg_id</code> (any channel)</li>
+<li><code>POST /api/channels/public/messages/:msg_id/pin</code> — <code>{ pinned: bool }</code> (public channel only)</li>
+<li><code>DELETE /api/channels/:id</code> — encrypted channels only; cascades to its messages.</li>
+</ul>
+<p>Row shape: <code>{ id, channel_id, created_at, expires_at, pinned }</code> plus either the public fields (<code>nick, device_tag, category?, text, lat?, lng?</code>) or <code>nonce</code>/<code>ciphertext</code> (base64). Timestamps are Unix milliseconds; ids are monotonically increasing and double as the <code>since</code>/<code>before</code> cursor.</p>
+<h3 id="messages-storage-and-retention-cratesserversrcmessaging">Messages storage and retention (<code>crates/server/src/messaging/</code>)<a class="heading-anchor" href="#messages-storage-and-retention-cratesserversrcmessaging" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>store.rs</code> — SQLite at <code>DATA_DIR/messages.sqlite</code> (created <code>0600</code>, WAL, <code>secure_delete</code>), versioned migrations (<code>schema_version</code> table + ordered <code>MIGRATIONS</code>), tables <code>meta</code> (random 32-byte <code>server_salt</code>, generated with <code>ring::rand</code> on first start), <code>channels</code> (<code>id, kind, verifier, created_at, last_activity</code>; the <code>public</code> row is seeded by migration 1) and <code>messages</code>. One connection behind a <code>Mutex</code>; every DB call runs on the blocking pool.</li>
+<li>Retention: public messages have <code>expires_at</code> (default 30 days, max 365; pinned never expire); encrypted messages expire after <code>FYR_MESSAGES_MAX_AGE_DAYS</code>. Each insert trims its channel to the newest <code>FYR_MESSAGES_MAX_PER_CHANNEL</code> unpinned messages. A Tokio task (<code>Messaging::spawn_pruner</code>, every 10 min) deletes expired messages, re-applies per-channel caps, enforces a global cap of 200 000 messages, drops encrypted channels that have had no messages and no activity for 7 days (re-creatable, ids are deterministic) and prunes rate-limit tables.</li>
+<li><code>limits.rs</code> — token buckets and the SSE <code>StreamLimiter</code> (permit released on drop).</li>
+<li><code>routes.rs</code> — handlers and the three route groups (<code>public_routes</code>, <code>write_routes</code>, <code>moderation_routes</code>); <code>router_tests.rs</code> covers the access matrix.</li>
+<li>Live fan-out uses one <code>tokio::sync::broadcast</code> channel (capacity 512); each SSE connection forwards events for its channel into an <code>mpsc</code> and ends when the client disconnects.</li>
+</ul>
+<h3 id="channel-crypto-specification-v1">Channel crypto specification (v1)<a class="heading-anchor" href="#channel-crypto-specification-v1" aria-label="Link to this section">#</a></h3>
+<p>All client crypto is in <code>crates/ui/frontend/src/modules/messaging/crypto.js</code>, using <code>@noble/hashes</code> and <code>@noble/ciphers</code> 2.4.0 (pure JS; WebCrypto <code>crypto.subtle</code> is unavailable on plain-HTTP origins, <code>crypto.getRandomValues</code> is used for randomness):</p>
+<pre><code>name&#39;       = lowercase(trim(NFKC(name)))
+passphrase&#39; = NFKC(passphrase)                      (no trimming / case folding)
+salt        = SHA-256(&quot;fyr-channel/v1&quot; || server_salt[32 bytes] || UTF-8(name&#39;))
+master      = scrypt(UTF-8(passphrase&#39;), salt, N = 2^15, r = 8, p = 1, dkLen = 32)
+channel_id  = hex(HKDF-SHA256(ikm = master, salt = empty, info = &quot;fyr/v1/id&quot;,   L = 16))
+auth_key    =     HKDF-SHA256(ikm = master, salt = empty, info = &quot;fyr/v1/auth&quot;, L = 32)
+enc_key     =     HKDF-SHA256(ikm = master, salt = empty, info = &quot;fyr/v1/enc&quot;,  L = 32)
+verifier    = hex(SHA-256(auth_key))                 (registered with the server)
+payload     = JSON { v: 1, nick, device_tag, text, sent_at, [category], [lat, lng] },
+              UTF-8, right-padded with spaces to a multiple of 64 bytes
+message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
+                                 aad = UTF-8(channel_id), plaintext = payload)
+</code></pre>
+<ul>
+<li>KDF parameters are versioned in <code>KDF_VERSIONS</code>; never edit an existing version, add a new one. scrypt v1 takes ~0.3 s in Node/Chromium on a desktop x86 CPU (expect ~1 s on a mid-range phone); progress is shown while deriving.</li>
+<li>The server never receives the passphrase or <code>enc_key</code>; it sees <code>channel_id</code> and <code>auth_key</code> (header) and stores only <code>sha256(auth_key)</code>, compared in constant time. Message plaintext of encrypted channels is never sent to the server.</li>
+<li>Decrypted payloads are validated and cleaned (lengths, device tag format, control/bidi characters) before display; message text is rendered via <code>linkify()</code> segments and Vue text interpolation, never as HTML.</li>
+<li>&quot;Remember on this device&quot; stores <code>{ name, channelId, authKey, encKey, version }</code> in <code>localStorage</code> (never the passphrase). Share links use the URL fragment (<code>/messages#join=&lt;name&gt;[&amp;pass=&lt;passphrase&gt;]</code>), which the page strips with <code>history.replaceState</code> after reading.</li>
+<li>Tests: <code>crypto.test.js</code> has RFC 7914 scrypt and draft-irtf-cfrg-xchacha known answers, a v1 derivation known answer cross-checked with Python <code>hashlib</code>, normalization, tamper, wrong-passphrase and AAD tests.</li>
+<li>Threat model: protects against passive Wi-Fi sniffing and server-disk disclosure; does not protect against an active attacker who modifies page code on plain HTTP (use HTTPS), and anyone with the passphrase can post under any nickname. A captured <code>channel_id</code> allows offline passphrase guessing at scrypt cost, so the UI asks for long passphrases.</li>
+</ul>
+<h3 id="messages-frontend">Messages frontend<a class="heading-anchor" href="#messages-frontend" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>pages/Messages.vue</code> (route <code>/messages</code>), <code>modules/messaging/</code>: <code>model.js</code> (row → view model, merge/expiry/alerts), <code>format.js</code> (linkify, day grouping, Maps deep links <code>/maps?lat=&amp;lng=&amp;zoom=15&amp;label=</code>), <code>storage.js</code> (guarded <code>localStorage</code>: nickname, device id/tag, remembered channels, read markers, own message ids, dismissed alerts), <code>stream.js</code> (fetch-based SSE so the key header can be sent; <code>ready</code>-triggered catch-up; exponential backoff with jitter; 400/401/403/404 terminal), <code>boardFeed.js</code> (one shared Board stream for the nav badge, Board view and <code>AlertBanner.vue</code> on Home).</li>
+<li>The UI hides the composer when <code>can_post</code> is false and moderation controls when <code>can_moderate</code> is false; the server enforces both.</li>
 </ul>
 <h3 id="admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly">Admin-only endpoints (require auth when <code>FYR_ADMIN_PASSWORD</code> is set; always blocked when <code>FYR_READONLY</code>)<a class="heading-anchor" href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -634,7 +730,7 @@ New public endpoints that expose paths or disk details must apply the same check
 <p>Static content aliases:</p>
 <ul>
 <li><code>GET /static/*path</code> — SPA build output. Content-hashed bundles under <code>/static/js/</code> and <code>/static/css/</code> are served with <code>Cache-Control: public, max-age=31536000, immutable</code> (<code>static_cache_headers</code> in <code>main.rs</code>); <code>index.html</code>, <code>/static/assets/</code> (unhashed files copied from <code>crates/ui/frontend/public/</code>) and all other responses keep the global <code>no-store</code> policy.</li>
-<li><code>GET /data/maps/*path</code>, <code>GET /data/books/*path</code>, <code>GET /data/poi/*path</code> and <code>GET /data/curated-content.json</code> — the only published parts of <code>DATA_DIR</code>. <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are intentionally not served; unmatched <code>/data/*</code> and <code>/api/*</code> paths return <code>404</code> instead of the SPA <code>index.html</code>.</li>
+<li><code>GET /data/maps/*path</code>, <code>GET /data/books/*path</code>, <code>GET /data/poi/*path</code> and <code>GET /data/curated-content.json</code> — the only published parts of <code>DATA_DIR</code>. <code>settings.json</code>, <code>download_tasks.json</code>, <code>messages.sqlite</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are intentionally not served; unmatched <code>/data/*</code> and <code>/api/*</code> paths return <code>404</code> instead of the SPA <code>index.html</code>.</li>
 <li><code>GET /docs/books/*path</code> (book-only alias used by reader integrations)</li>
 <li>Content Manager&#39;s per-file <strong>Download</strong> action calls <code>/api/content/:type/:filename/download</code>.</li>
 </ul>
@@ -931,8 +1027,13 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                             <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
                             <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
                             <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#messaging-write-exception-require_messaging_write" class="text-gray-600 hover:text-brand-600">Messaging write exception (require_messaging_write)</a></li>
                             <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
                             <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#messages-endpoints" class="text-gray-600 hover:text-brand-600">Messages endpoints</a></li>
+                            <li class="pl-4"><a href="#messages-storage-and-retention-cratesserversrcmessaging" class="text-gray-600 hover:text-brand-600">Messages storage and retention (crates/server/src/messaging/)</a></li>
+                            <li class="pl-4"><a href="#channel-crypto-specification-v1" class="text-gray-600 hover:text-brand-600">Channel crypto specification (v1)</a></li>
+                            <li class="pl-4"><a href="#messages-frontend" class="text-gray-600 hover:text-brand-600">Messages frontend</a></li>
                             <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
                             <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
                             <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
