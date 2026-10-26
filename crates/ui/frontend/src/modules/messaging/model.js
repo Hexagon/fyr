@@ -10,7 +10,7 @@ export const MAX_KEPT_MESSAGES = 1000
 
 /**
  * @param {object} row server message row
- * @param {{ encKey?: Uint8Array, deviceTag?: string }} ctx
+ * @param {{ encKey?: Uint8Array, ownIds?: Set<number> }} ctx
  */
 export const toViewMessage = (row, ctx = {}) => {
   const base = {
@@ -49,7 +49,9 @@ export const toViewMessage = (row, ctx = {}) => {
     }
   }
   const message = { ...base, ...fields }
-  message.own = Boolean(ctx.deviceTag) && message.device_tag === ctx.deviceTag && !message.undecryptable
+  // "Own" is based on ids this device actually posted, not the device tag,
+  // which anyone could copy.
+  message.own = Boolean(ctx.ownIds?.has(row.id)) && !message.undecryptable
   return message
 }
 

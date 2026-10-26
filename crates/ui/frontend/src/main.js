@@ -11,6 +11,7 @@ import Assistant from './pages/Assistant.vue'
 import Settings from './pages/Settings.vue'
 import Tools from './pages/Tools.vue'
 import Search from './pages/Search.vue'
+import Messages from './pages/Messages.vue'
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
@@ -63,6 +64,16 @@ const routes = [
       title: 'Assistant',
       subtitle: 'Offline AI assistant powered by local GGUF models',
       headerLabel: 'Local GGUF chat'
+    }
+  },
+  {
+    path: '/messages',
+    name: 'Messages',
+    component: Messages,
+    meta: {
+      title: 'Messages',
+      subtitle: 'Public board and end-to-end encrypted channels',
+      headerLabel: 'Local messaging'
     }
   },
   {

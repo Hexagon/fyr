@@ -165,6 +165,13 @@ export const encryptMessage = (encKey, channelId, payload, nonce = randomBytes(N
   return { nonce: toBase64(nonce), ciphertext: toBase64(sealed) }
 }
 
+// Control characters (except newline/tab) and bidi overrides, which could
+// disguise text. The server rejects these for public messages; encrypted
+// payloads are cleaned here because the server cannot see them.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g
+const cleanText = (value, max) => [...value.replace(/\r\n/g, '\n').replace(UNSAFE_CHARS, '')].slice(0, max).join('')
+
 const validatePayload = (payload) => {
   if (!payload || typeof payload !== 'object' || payload.v !== PAYLOAD_VERSION) throw new Error('Unsupported payload')
   for (const field of ['nick', 'device_tag', 'text']) {
@@ -173,9 +180,9 @@ const validatePayload = (payload) => {
   if (!Number.isFinite(payload.sent_at)) throw new Error('Invalid payload field sent_at')
   const clean = {
     v: payload.v,
-    nick: payload.nick.slice(0, 40),
+    nick: cleanText(payload.nick.replace(/\n|\t/g, ' '), 40),
     device_tag: /^[0-9a-f]{4,16}$/.test(payload.device_tag) ? payload.device_tag : '0000',
-    text: payload.text.slice(0, 4000),
+    text: cleanText(payload.text, 2000),
     sent_at: payload.sent_at
   }
   if (CATEGORIES.has(payload.category)) clean.category = payload.category

@@ -6,6 +6,7 @@
 const PREFIX = 'fyr.messages.'
 const MAX_DISMISSED = 200
 const MAX_CHANNELS = 50
+const MAX_OWN = 500
 
 const memoryStorage = () => {
   const map = new Map()
@@ -104,9 +105,11 @@ export const createMessagingStorage = (backing = defaultStorage()) => {
     },
     forgetChannel(channelId) {
       write('channels', JSON.stringify(api.channels().filter((c) => c.channelId !== channelId)))
-      const seen = readJson('lastSeen', {})
-      delete seen[channelId]
-      write('lastSeen', JSON.stringify(seen))
+      for (const key of ['lastSeen', 'own']) {
+        const map = readJson(key, {})
+        delete map[channelId]
+        write(key, JSON.stringify(map))
+      }
     },
 
     lastSeen(channelId) {
@@ -120,6 +123,20 @@ export const createMessagingStorage = (backing = defaultStorage()) => {
       write('lastSeen', JSON.stringify(seen))
     },
 
+    /** Ids of messages this device posted, per channel (for "own" styling). */
+    ownIds(channelId) {
+      const ids = readJson('own', {})[channelId]
+      return new Set(Array.isArray(ids) ? ids.filter(Number.isSafeInteger) : [])
+    },
+    addOwnId(channelId, id) {
+      if (!Number.isSafeInteger(id)) return
+      const all = readJson('own', {})
+      const ids = Array.isArray(all[channelId]) ? all[channelId] : []
+      if (!ids.includes(id)) ids.push(id)
+      all[channelId] = ids.slice(-MAX_OWN)
+      write('own', JSON.stringify(all))
+    },
+
     dismissedAlerts() {
       const list = readJson('dismissedAlerts', [])
       return new Set(Array.isArray(list) ? list.filter(Number.isSafeInteger) : [])
@@ -131,7 +148,7 @@ export const createMessagingStorage = (backing = defaultStorage()) => {
 
     /** Test/maintenance helper. */
     clearAll() {
-      for (const key of ['device', 'nick', 'channels', 'lastSeen', 'dismissedAlerts']) remove(key)
+      for (const key of ['device', 'nick', 'channels', 'lastSeen', 'own', 'dismissedAlerts']) remove(key)
     }
   }
   return api

@@ -48,6 +48,17 @@ describe('messaging storage', () => {
     expect(() => s.rememberChannel({ ...channel, authKey: 'nope' })).toThrow()
   })
 
+  it('tracks own message ids per channel and clears them on forget', () => {
+    const s = createMessagingStorage(fakeStorage())
+    s.addOwnId('public', 4)
+    s.addOwnId('public', 4)
+    s.addOwnId(channel.channelId, 9)
+    expect([...s.ownIds('public')]).toEqual([4])
+    s.forgetChannel(channel.channelId)
+    expect(s.ownIds(channel.channelId).size).toBe(0)
+    expect(s.ownIds('public').has(4)).toBe(true)
+  })
+
   it('ignores corrupted data', () => {
     const backing = fakeStorage()
     backing.setItem('fyr.messages.channels', '{not json')

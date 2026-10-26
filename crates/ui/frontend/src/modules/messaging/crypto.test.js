@@ -155,6 +155,9 @@ describe('message encryption', () => {
     expect(clean.category).toBeUndefined()
     expect(clean.lat).toBeUndefined()
 
+    const sneaky = encryptMessage(keys.encKey, keys.channelId, { v: 1, nick: 'a\u202Eb\nc', device_tag: 'abcd', text: 'x\u0007y\u2066z\r\nok', sent_at: 1 })
+    expect(decryptMessage(keys.encKey, keys.channelId, sneaky)).toMatchObject({ nick: 'ab c', text: 'xyz\nok' })
+
     const bad = encryptMessage(keys.encKey, keys.channelId, { v: 2, text: 'x' })
     expect(() => decryptMessage(keys.encKey, keys.channelId, bad)).toThrow()
   })
