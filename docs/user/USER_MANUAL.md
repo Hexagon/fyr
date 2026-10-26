@@ -18,8 +18,8 @@ Official hosted scripts are available for a guided Docker setup:
 
 | Platform | One-liner |
 |----------|-----------|
-| Linux / macOS | `curl -fsSL https://fyr.guide/install.sh | sh` |
-| Windows PowerShell | `irm https://fyr.guide/install.ps1 | iex` |
+| Linux / macOS | `curl -fsSL https://fyr.guide/install.sh \| sh` |
+| Windows PowerShell | `irm https://fyr.guide/install.ps1 \| iex` |
 
 The scripts persist settings (port, data volume, admin password) in `~/.config/fyr/install.conf` (Linux/macOS) or `%APPDATA%\fyr\install.conf` (Windows). To upgrade to a newer image, add `update`:
 
