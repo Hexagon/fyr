@@ -9,8 +9,10 @@ pub mod types;
 pub mod config;
 pub mod settings;
 pub mod proxy;
+pub mod tls;
 
 pub use types::*;
 pub use config::Config;
 pub use settings::{AppSettings, GeoPosition};
 pub use proxy::TrustedProxies;
+pub use tls::{TlsConfig, TlsMode};

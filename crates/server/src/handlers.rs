@@ -45,6 +45,19 @@ pub struct StatusResponse {
     pub status: String,
     pub data_dir: String,
     pub content_count: ContentCountResponse,
+    pub tls: TlsStatusResponse,
+}
+
+/// Built-in HTTPS state, part of `GET /api/status`.
+#[derive(Serialize)]
+pub struct TlsStatusResponse {
+    pub enabled: bool,
+    /// `off`, `self-signed` or `provided`.
+    pub mode: &'static str,
+    /// SHA-256 certificate fingerprint (`AB:CD:...`). Only for callers who
+    /// may view system details (`auth::can_view_system_details`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fingerprint_sha256: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -229,6 +242,15 @@ pub async fn status(
         status: "running".to_string(),
         data_dir: visible_path(show_paths, &state.config.data_dir),
         content_count,
+        tls: TlsStatusResponse {
+            enabled: state.config.server.tls.is_enabled(),
+            mode: state.config.server.tls.mode_label(),
+            fingerprint_sha256: if show_paths {
+                state.config.server.tls.fingerprint_sha256.clone()
+            } else {
+                None
+            },
+        },
     }))
 }
 
