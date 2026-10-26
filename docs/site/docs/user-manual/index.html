@@ -143,6 +143,7 @@
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
                             <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#navigating-with-maps-off-grid" class="text-gray-600 hover:text-brand-600">Navigating with maps off-grid</a></li>
                             <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
                             <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
                             <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
@@ -219,7 +220,7 @@ It runs as a local server and is accessed from a browser.</p>
 <li><strong>Home:</strong> system status, location, sunrise/sunset, and storage overview.</li>
 <li><strong>Content Manager:</strong> add URL downloads, import local files, and inspect content inventory. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set.</li>
 <li><strong>Settings:</strong> configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
-<li><strong>Maps:</strong> map selection and viewer controls.</li>
+<li><strong>Maps:</strong> map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see <em>Navigating with maps off-grid</em>).</li>
 <li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
 <li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
 <li><strong>Search:</strong> one search box for the whole offline library (see <a href="#3c-searching-everything">3c. Searching Everything</a>).</li>
@@ -462,10 +463,24 @@ Install the <code>pmtiles</code> CLI (<a href="https://docs.protomaps.com/pmtile
 <pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
 pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
 </code></pre>
+<h3 id="navigating-with-maps-off-grid">Navigating with maps off-grid<a class="heading-anchor" href="#navigating-with-maps-off-grid" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Maps</strong> page is built to be usable for navigation without network access.</p>
+<ul>
+<li><strong>Opening a map:</strong> pick a map in <em>Available Maps</em>. When nothing else positions the view, the map opens on its own coverage area (or on your saved location if that lies inside it). The selected map is written to the address bar (<code>/maps?map=&lt;file&gt;</code>), so the view can be bookmarked or shared.</li>
+<li><strong>Coordinates:</strong> the bottom status bar shows the coordinate under the mouse pointer (🖱) or, on touch screens, the map centre (⊕). Click it to copy it. The <strong>DEC/DMS</strong> button switches between decimal degrees (<code>59.32930, 18.06860</code>) and degrees-minutes-seconds (<code>59°19&#39;45.5&quot;N 18°04&#39;07.0&quot;E</code>); the choice is remembered in the browser. A scale bar is shown in the lower-right corner.</li>
+<li><strong>Click any point</strong> on the map (with no tool active) to see its coordinate in both formats with <strong>Copy</strong> and <strong>Copy link</strong> buttons. Clicking a POI or track shows its name (and length for tracks).</li>
+<li><strong>Go to coordinate:</strong> in <em>Tools</em>, type a coordinate and press <strong>Go</strong>. Accepted forms include <code>59.33, 18.07</code>, <code>59.33 18.07</code>, <code>-33.86, 151.21</code>, <code>59,33 18,07</code>, <code>59.33N 18.07E</code>, <code>59°19&#39;48&quot;N 18°4&#39;12&quot;E</code>, <code>N 59° 19.8&#39; E 18° 4.2&#39;</code> and <code>59 19 48, 18 4 12</code>. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.</li>
+<li><strong>Links to a place:</strong> other pages (and people) can link to <code>/maps?lat=59.33&amp;lng=18.07&amp;zoom=14&amp;label=Camp</code>. All parameters are optional; <code>map=&lt;file&gt;</code> selects a specific map. Without <code>map</code>, Fyr picks the most detailed installed map whose coverage contains the point.</li>
+<li><strong>My Location / Record Track</strong> need the browser&#39;s location permission <strong>and a secure connection</strong>: open Fyr through <code>https://…</code> or <code>http://localhost</code>. Browsers block GPS on plain <code>http://</code> LAN addresses (for example <code>http://192.168.1.10:8080</code>); Fyr then shows an explanation instead of failing silently.</li>
+<li><strong>Record Track:</strong> press <strong>⏺ Record Track</strong> to log your GPS position (inaccurate fixes and jitter under a few metres are ignored). Distance, duration and point count update live and the track is drawn in red. Recording keeps running while you visit other Fyr pages, but keep the browser tab open and the screen on (Fyr requests a screen wake lock where supported). <strong>⏹ Stop Recording</strong> keeps the track: name it and <strong>Save</strong> it into a POI file (admins; default <code>tracks.geojson</code>, timestamps are kept), download it as <strong>GPX</strong>, or <strong>Discard</strong> it. An unsaved track survives a page reload and is offered again.</li>
+<li><strong>GPX import/export:</strong> open <strong>Edit POIs</strong> (<strong>View POIs</strong> for guests). <strong>⬆ Import GPX</strong> reads a <code>.gpx</code> file in the browser: waypoints become points, tracks and routes become lines (each track segment is its own line; elevation and timestamps are kept). With a POI file selected the data is appended to it; otherwise a new, not yet saved file named after the GPX is created. <strong>⬇ GPX</strong> and <strong>⬇ GeoJSON</strong> download the selected file. Polygons cannot be expressed in GPX and are skipped (the panel says how many).</li>
+<li><strong>Read-only/guest users</strong> can view POI files, tracks and imported GPX data, measure distances, record and download tracks, and export GPX/GeoJSON. Creating files, placing or removing POIs and saving require admin access (the server rejects saves in read-only mode regardless).</li>
+</ul>
 <h3 id="poi">POI<a class="heading-anchor" href="#poi" aria-label="Link to this section">#</a></h3>
 <ul>
 <li>Put <code>.geojson</code>, <code>.fgb</code>, or <code>.json</code> POI datasets in <code>public/data/poi/</code>.</li>
 <li>If using <code>.json</code>, make sure it follows a valid geo dataset structure used by your workflow.</li>
+<li>GeoJSON files may contain points, lines (tracks/routes) and polygons; all three are drawn on the map when the file is selected in the POI panel. Saved tracks carry <code>coordTimes</code> (one ISO timestamp per point), <code>time</code>, <code>endTime</code> and <code>distanceKm</code> properties.</li>
 </ul>
 <h3 id="models">Models<a class="heading-anchor" href="#models" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -761,6 +776,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
                             <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#navigating-with-maps-off-grid" class="text-gray-600 hover:text-brand-600">Navigating with maps off-grid</a></li>
                             <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
                             <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
                             <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
