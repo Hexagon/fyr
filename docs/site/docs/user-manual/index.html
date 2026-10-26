@@ -161,6 +161,8 @@
                             <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
@@ -419,6 +421,7 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <ul>
 <li>Use a strong passphrase — four or more random words. Anyone who captures the channel id on the network can try to guess a weak passphrase offline.</li>
 <li><strong>Remember on this device</strong> stores the channel keys (never the passphrase) in the browser so the channel stays in your list; <strong>Forget</strong> removes them. Without it the channel lasts until you close the tab.</li>
+<li><strong>Move channel keys to another device</strong> (below the join form) exports all remembered channel keys as a file encrypted with a passphrase you choose (at least 8 characters), and imports such a file on another device. Without that file passphrase the file is useless; a wrong passphrase or a modified file is rejected. The keys only work on the same Fyr server (or one restored from its backup, §6a), because channel ids depend on the server.</li>
 <li><strong>Share</strong> gives a link (<code>/messages#join=&lt;name&gt;</code>) and a QR code. The part after <code>#</code> never reaches the server. You can choose to include the passphrase in the link — anyone who sees that link or QR code can then read and post, so share it only in person. Opening such a link only fills in the form; the passphrase is removed from the address bar immediately.</li>
 <li>Messages are end-to-end encrypted on your device; the server only stores scrambled data. Channels keep the newest 1000 messages and messages younger than 90 days. Channels with no messages are removed after a week of inactivity — anyone with the name and passphrase can simply create them again (<strong>Create it again</strong>).</li>
 <li>Admins can delete a channel and its messages, but cannot read them.</li>
@@ -634,6 +637,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </li>
 <li>Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.</li>
 <li><strong>Privacy and storage:</strong> progress, bookmarks and display settings are stored only in this browser&#39;s local storage. They are not stored on the server, so they also work for read-only guests. They do not sync between browsers or devices, and clearing site data removes them. Fyr keeps the 200 most recently used books.</li>
+<li><strong>Move to another device:</strong> in the Library panel open <strong>Move reading progress</strong>. <strong>Export</strong> saves a JSON file with your positions and bookmarks; <strong>Import</strong> on the other device merges it: books you do not have yet are added, the newer position of each book wins, and bookmarks are combined without duplicates. Nothing is deleted by an import.</li>
 </ul>
 <h2 id="6-data-storage-layout">6. Data Storage Layout<a class="heading-anchor" href="#6-data-storage-layout" aria-label="Link to this section">#</a></h2>
 <p><code>public/data/</code> is created automatically and contains the following directories:</p>
@@ -646,6 +650,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>public/data/misc/</code></li>
 </ul>
 <p>Messages are stored in <code>messages.sqlite</code> directly in the data directory (owner-readable only, never published).</p>
+<p>Two more folders may appear briefly: <code>.backup-tmp/</code> (temporary files while a backup or restore runs; removed automatically) and <code>restore-pending/</code> (files from a restore that are applied at the next start, see §6a).</p>
 <p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
 <h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
 <p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
@@ -669,6 +674,38 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
+<h2 id="6a-backup-and-restore">6a. Backup and Restore<a class="heading-anchor" href="#6a-backup-and-restore" aria-label="Link to this section">#</a></h2>
+<p>Admins can back up and restore the server&#39;s own data from <strong>Settings → Backup &amp; restore</strong> (the section is only shown to admins; in read-only mode it is not available at all).</p>
+<p><strong>What is in a backup:</strong> settings, POI files (<code>.geojson</code>/<code>.json</code>, and <code>.fgb</code> files up to 16 MB), the curated catalog, the download history and all Messages (the Board in plain text, encrypted channels still encrypted, plus the server salt that channel ids depend on). Maps, books, models, misc files and the inbox are <strong>not</strong> included: copy the data folder (or Docker volume) for those. The backup is a <code>.zip</code> with a <code>manifest.json</code> listing every file with its SHA-256 checksum.</p>
+<p>Keep backup files private: they contain every Board post with nicknames and locations, and anyone holding one can try to guess weak channel passphrases offline.</p>
+<p><strong>Download backup</strong> creates the file. Taking a backup is safe while people are posting; Fyr copies the messages database consistently.</p>
+<p><strong>Restore:</strong> choose a backup <code>.zip</code>, press <strong>Restore backup</strong> and confirm. Fyr checks the whole file first (checksums, file names, sizes, content) and refuses damaged, modified or foreign files without changing anything. Then:</p>
+<ul>
+<li>settings, the curated catalog and POI files from the backup are replaced <strong>immediately</strong> (other POI files that are not in the backup are kept);</li>
+<li>Messages and the download history are replaced at the <strong>next restart</strong> of Fyr. Until you restart, the old messages stay in use. Restart with <code>docker restart fyr</code>, <code>systemctl restart fyr</code> or by stopping and starting the program.</li>
+</ul>
+<p>Uploads are limited to 512 MB. Restoring a backup from a newer Fyr version into an older one is refused if the messages database format is newer.</p>
+<p>Via the API (for scripts): <code>GET /api/backup</code> and <code>POST /api/restore</code> (multipart field <code>file</code>) with an admin session cookie. Without <code>FYR_ADMIN_PASSWORD</code>, anyone who can reach the server can use them, like every other admin function.</p>
+<h2 id="6b-upgrading-from-05x-to-10">6b. Upgrading from 0.5.x to 1.0<a class="heading-anchor" href="#6b-upgrading-from-05x-to-10" aria-label="Link to this section">#</a></h2>
+<ol>
+<li><strong>Take a backup first.</strong> On 0.5.x there is no backup button: stop Fyr and copy the data folder (<code>public/data/</code> or your <code>DATA_DIR</code>), or for Docker copy the volume, for example:<pre><code class="language-sh">docker stop fyr
+docker run --rm -v fyr-data:/data -v &quot;$PWD&quot;:/backup alpine tar czf /backup/fyr-data-0.5.tar.gz -C /data .
+</code></pre>
+After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for future backups.</li>
+<li><strong>Replace the program or image.</strong> Docker: <code>docker pull hexagon/fyr:latest</code>, then remove and re-create the container with the <strong>same</strong> volume (<code>-v fyr-data:/data -e DATA_DIR=/data</code>). The image is multi-arch: the same tag works on Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same <code>DATA_DIR</code>.</li>
+<li><strong>Start it.</strong> Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.</li>
+</ol>
+<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only). Other 1.0 features may add their own folders (for example a search <code>index/</code> or <code>tls/</code> certificates); all of them live inside the data folder, so keep mounting the whole folder.</p>
+<p><strong>New environment variables</strong> (all optional; defaults keep 0.5.x behaviour except that Messages is on):</p>
+<ul>
+<li><code>FYR_MESSAGING</code> — <code>false</code> turns Messages off.</li>
+<li><code>FYR_GUEST_MESSAGING</code> — with <code>FYR_ADMIN_PASSWORD</code>, let guests post and create encrypted channels.</li>
+<li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000).</li>
+<li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages (default 90).</li>
+<li><code>FYR_TRUSTED_PROXIES</code> — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.</li>
+</ul>
+<p>If you expose Fyr to people you do not fully trust, review <code>FYR_ADMIN_PASSWORD</code>/<code>FYR_READONLY</code> (§3a) and the Messages posting rules (§3d) after upgrading.</p>
+<p><strong>Going back to 0.5.x:</strong> stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores <code>messages.sqlite</code>.</p>
 <h2 id="7-platform-notes">7. Platform Notes<a class="heading-anchor" href="#7-platform-notes" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>) are both supported.</li>
@@ -873,6 +910,8 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>

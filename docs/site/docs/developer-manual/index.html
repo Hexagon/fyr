@@ -142,6 +142,7 @@
                             <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
                             <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
                             <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#backup-and-restore-cratesserversrcbackuprs" class="text-gray-600 hover:text-brand-600">Backup and restore (crates/server/src/backup.rs)</a></li>
                             <li class="pl-4"><a href="#messaging-write-exception-require_messaging_write" class="text-gray-600 hover:text-brand-600">Messaging write exception (require_messaging_write)</a></li>
                             <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
                             <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
@@ -556,6 +557,32 @@ New public endpoints that expose paths or disk details must apply the same check
 </ul>
 <h3 id="adding-new-protected-endpoints">Adding new protected endpoints<a class="heading-anchor" href="#adding-new-protected-endpoints" aria-label="Link to this section">#</a></h3>
 <p>Add the route to the <code>protected</code> <code>Router</code> in <code>create_router</code> in <code>crates/server/src/main.rs</code>. The <code>route_layer(admin_mw)</code> call automatically covers all routes in that sub-router.</p>
+<h3 id="backup-and-restore-cratesserversrcbackuprs">Backup and restore (<code>crates/server/src/backup.rs</code>)<a class="heading-anchor" href="#backup-and-restore-cratesserversrcbackuprs" aria-label="Link to this section">#</a></h3>
+<p><code>GET /api/backup</code> and <code>POST /api/restore</code> are both mounted in the <code>protected</code> router. <strong>The backup GET is protected even though it does not change state</strong>: the archive contains all user data that the public API deliberately never returns in bulk — <code>settings.json</code>, the download history, and a full copy of <code>messages.sqlite</code> (every Board post with nick/device tag/location, all encrypted ciphertexts, the server salt and the per-channel verifiers <code>sha256(auth_key)</code>, which allow offline passphrase guessing at scrypt cost). Treat it like any other admin function: open mode → anyone, password mode → admin session (401 otherwise), <code>FYR_READONLY</code> → 403 for both routes.</p>
+<p>Backup (blocking work in <code>spawn_blocking</code>, temp files in <code>DATA_DIR/.backup-tmp/</code>, mode 0700, wiped at startup):</p>
+<ul>
+<li><code>settings.json</code> and <code>download_tasks.json</code> are serialized from memory (<code>SettingsManager::current</code>, <code>DownloadManager::list_tasks</code>), never read from half-written files.</li>
+<li><code>messages.sqlite</code> is snapshotted with <code>VACUUM INTO</code> through a separate connection. That runs in one read transaction, so the copy is transactionally consistent while the live WAL database keeps accepting writes; the live file is never copied directly.</li>
+<li><code>curated-content.json</code>, <code>poi/*.geojson|json</code> (≤ 64 MiB) and <code>poi/*.fgb</code> ≤ 16 MiB; symlinks are skipped. Maps, books, models, misc, inbox and indexes are excluded.</li>
+<li><code>manifest.json</code>: <code>{ format: &quot;fyr-backup&quot;, format_version: 1, fyr_version, created_at, files: [{ path, size, sha256 }] }</code>. The zip is streamed from a temp file that is deleted after streaming (also on client disconnect). No response contains host paths.</li>
+</ul>
+<p>Restore (<code>prepare_restore</code> validates everything before <code>apply_files</code> touches the data directory):</p>
+<ul>
+<li>Upload: multipart field <code>file</code>, streamed to disk, capped at 512 MiB (<code>MAX_UPLOAD_BYTES</code>; <code>DefaultBodyLimit</code> slightly above) → 413.</li>
+<li>Entry names: fixed allow-list (<code>manifest.json</code>, <code>settings.json</code>, <code>curated-content.json</code>, <code>download_tasks.json</code>, <code>messages.sqlite</code>, <code>poi/&lt;name&gt;</code> with a POI extension). Absolute paths, <code>..</code>/<code>.</code>/empty segments, backslashes, <code>:</code>, hidden files, directories, symlinks/special files (Unix mode bits), and duplicate names (case-insensitive) are rejected. Files are written to fixed names inside a private staging dir, never to archive-supplied paths.</li>
+<li>Zip bombs: ≤ 1000 entries, per-entry caps (64 MiB JSON, 64 MiB fgb, 1 MiB manifest, 1 GiB messages DB) and 1 GiB total. Caps are enforced on the bytes actually decompressed (<code>copy_capped</code> reads at most cap + 1), so lying headers do not help; each entry is also capped at its manifest size.</li>
+<li>Manifest: format/version check; the manifest and archive must list exactly the same files; size and SHA-256 must match.</li>
+<li>Content: settings must deserialize as <code>AppSettings</code>, catalog/POI JSON must parse, <code>.fgb</code> must start with <code>fgb</code>. <code>download_tasks.json</code> is sanitized: only URL tasks (http/https) whose id is <code>[A-Za-z0-9_-]{1,64}</code> and equals its key are kept (ids name partial files), everything becomes terminal and non-resumable, local-import tasks are dropped.</li>
+<li><code>messages.sqlite</code>: SQLite header check, opened with <code>SQLITE_DBCONFIG_DEFENSIVE</code>, <code>TRUSTED_SCHEMA=off</code>, triggers and views disabled; <code>integrity_check</code> must be <code>ok</code>; <code>schema_version</code> ≤ <code>store::SCHEMA_VERSION</code> (newer → refused); at the current version the <code>sqlite_schema</code> must equal that of a freshly created store exactly (no extra tables, triggers or views). It is stored in rollback-journal mode as one self-contained file.</li>
+</ul>
+<p>Applying:</p>
+<ul>
+<li><code>settings.json</code> → <code>SettingsManager::replace</code> (persisted and reloaded in memory; the download timeout is re-applied).</li>
+<li><code>curated-content.json</code> and POI files → atomic rename into place (copy + rename across filesystems). POI files not in the backup are kept.</li>
+<li><code>messages.sqlite</code> and <code>download_tasks.json</code> belong to services that hold them open / in memory (<code>Messaging</code> keeps one connection and the server salt; <code>DownloadManager</code> rewrites its JSON from memory). Swapping them live would race those services, so they are staged in <code>DATA_DIR/restore-pending/</code> and <strong>applied at the next start</strong> by <code>backup::prepare_on_startup</code>, which runs in <code>main</code> before <code>DownloadManager::new</code> and <code>Messaging::open</code>. It deletes <code>messages.sqlite-wal</code>/<code>-shm</code>/<code>-journal</code> <em>before</em> renaming the new file in (a stale WAL must never be replayed into a different database) and is idempotent if interrupted. The response has <code>restart_required: true</code> and lists <code>pending_restart</code>; the UI tells the admin to restart. A newer restore replaces an older pending one.</li>
+<li>One restore at a time per data directory (409 otherwise). Error messages name archive entries only, never host paths.</li>
+</ul>
+<p>Response: <code>{ message, backup_created_at, backup_fyr_version, restored: [...], pending_restart: [...], restart_required }</code>.</p>
 <h3 id="messaging-write-exception-require_messaging_write">Messaging write exception (<code>require_messaging_write</code>)<a class="heading-anchor" href="#messaging-write-exception-require_messaging_write" aria-label="Link to this section">#</a></h3>
 <p>Messaging is the single, deliberate exception to &quot;mutating endpoints are admin-only&quot;. Only <code>POST /api/channels</code> and <code>POST /api/channels/:id/messages</code> are mounted in the <code>messaging_write</code> sub-router, layered with <code>auth::require_messaging_write</code> (<code>route_layer</code>) and a 32 KiB body limit:</p>
 <div class="overflow-x-auto"><table>
@@ -668,6 +695,7 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 <ul>
 <li><code>pages/Messages.vue</code> (route <code>/messages</code>), <code>modules/messaging/</code>: <code>model.js</code> (row → view model, merge/expiry/alerts), <code>format.js</code> (linkify, day grouping, Maps deep links <code>/maps?lat=&amp;lng=&amp;zoom=15&amp;label=</code>), <code>storage.js</code> (guarded <code>localStorage</code>: nickname, device id/tag, remembered channels, read markers, own message ids, dismissed alerts), <code>stream.js</code> (fetch-based SSE so the key header can be sent; <code>ready</code>-triggered catch-up; exponential backoff with jitter; 400/401/403/404 terminal), <code>boardFeed.js</code> (one shared Board stream for the nav badge, Board view and <code>AlertBanner.vue</code> on Home).</li>
 <li>The UI hides the composer when <code>can_post</code> is false and moderation controls when <code>can_moderate</code> is false; the server enforces both.</li>
+<li>Channel key export/import (&quot;Move channel keys to another device&quot;) is client-side only, implemented in <code>crypto.js</code> (<code>exportChannelKeys</code>, <code>importChannelKeys</code>), tests in <code>keyExport.test.js</code>. File format v1: <code>{ format: &quot;fyr-channel-keys&quot;, v: 1, kdf: { name: &quot;scrypt&quot;, N, r: 8, p: 1 }, salt: b64(16), nonce: b64(24), ciphertext: b64 }</code>; <code>key = scrypt(NFKC(passphrase), salt, N=2^15)</code>, <code>XChaCha20-Poly1305(key, nonce, aad = &quot;fyr-channel-keys/v1|N|r|p|&lt;salt b64&gt;&quot;)</code> over <code>JSON { exported_at, channels: [{ name, channelId, authKey, encKey, version }] }</code>. The header is bound as AAD, so a modified KDF/salt fails like a wrong passphrase. The importer only accepts <code>N</code> in 2^10..2^18 (power of two), <code>r=8</code>, <code>p=1</code> and files ≤ 256 KiB. Export requires a passphrase of ≥ 8 characters; keys are never exported in plaintext. Keys are tied to the server salt, so they work on the same server or one restored from its backup.</li>
 </ul>
 <h3 id="admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly">Admin-only endpoints (require auth when <code>FYR_ADMIN_PASSWORD</code> is set; always blocked when <code>FYR_READONLY</code>)<a class="heading-anchor" href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -683,6 +711,8 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 <li><code>POST /api/models/import</code></li>
 <li><code>POST /api/models/:filename/load</code></li>
 <li><code>DELETE /api/models/:filename/load</code></li>
+<li><code>GET /api/backup</code> — stream a backup zip (protected although it is a GET; see &quot;Backup and restore&quot; above)</li>
+<li><code>POST /api/restore</code> — multipart restore of a backup zip</li>
 </ul>
 <p>Download routing: URL downloads stream into <code>inbox/&lt;task_id&gt;-&lt;filename&gt;.part</code> (unique per task, so concurrent downloads of the same filename cannot corrupt each other) and are then moved to their content folder with <code>DownloadManager::move_file</code>, which falls back to copy + delete when <code>rename</code> fails across filesystems (for example when <code>maps/</code> or <code>books/</code> is a separate Docker volume).</p>
 <p><code>ModelManager::import_model</code> and <code>load_model</code> accept only bare <code>.gguf</code> filenames (<code>validate_model_filename</code>; anything with directory components or <code>..</code> returns <code>ModelError::InvalidFilename</code> → <code>400</code>). GGUF parsing/weight loading and the inbox→models move run on Tokio&#39;s blocking pool (<code>spawn_blocking</code>) so a multi-second model load never stalls other requests.</p>
@@ -953,6 +983,7 @@ git push origin vX.Y.Z
 <li><strong>Messages:</strong> public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).</li>
 <li><strong>Content:</strong> resumable, checksum-verified downloads; graceful shutdown that keeps partial downloads.</li>
 <li><strong>Platform:</strong> installable web app manifest, lazy-loaded pages, <code>FYR_TRUSTED_PROXIES</code>, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.</li>
+<li><strong>Backup and portability:</strong> admin backup/restore of settings, POIs, catalog, download history and the messages database (§3.5); encrypted export/import of channel keys; export/import of reading progress and bookmarks (§12); upgrade guide from 0.5.x in the User Manual (§6b).</li>
 </ul>
 <h3 id="remaining-before-10-priority-order">Remaining before 1.0 (priority order)<a class="heading-anchor" href="#remaining-before-10-priority-order" aria-label="Link to this section">#</a></h3>
 <ol>
@@ -962,15 +993,16 @@ git push origin vX.Y.Z
 <li><strong>Place search on maps</strong> from vector-tile place labels or bundled gazetteers, not only POI files.</li>
 <li><strong>Internationalization</strong> (at least Swedish): the UI is English-only today.</li>
 <li><strong>PDF via pdf.js</strong> for page memory, bookmarks and in-book search parity with EPUB.</li>
-<li><strong>Backup and portability:</strong> export/import of POI files, settings and (encrypted) channel keys; optional server-side reading progress for guests on shared devices.</li>
+<li><strong>Backup and portability (remaining):</strong> optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.</li>
 <li><strong>Curated catalog checksums:</strong> fill <code>sha256</code> for curated downloads so one-click downloads are verified.</li>
-<li><strong>Release engineering:</strong> verified multi-arch Docker builds of <code>next</code>, an upgrade guide from 0.5.x (new <code>messages.sqlite</code>, new env vars), version bump to 1.0.0.</li>
+<li><strong>Release engineering:</strong> verified multi-arch Docker builds of <code>next</code>, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).</li>
 </ol>
 <h3 id="known-gaps">Known gaps<a class="heading-anchor" href="#known-gaps" aria-label="Link to this section">#</a></h3>
 <ul>
 <li>Interrupted URL downloads are not resumed automatically after a restart; the user clicks <strong>Resume</strong> (<code>POST /api/download/:task_id/retry</code>). Interrupted local imports are not resumable and must be re-imported.</li>
 <li>In open mode anyone on the network can post Board alerts (shown on Home); rate limits and admin deletion are the only mitigation. Use <code>FYR_ADMIN_PASSWORD</code> without <code>FYR_GUEST_MESSAGING</code> where that matters.</li>
-<li>Reading positions and bookmarks are per browser; there is no cross-device sync.</li>
+<li>Reading positions and bookmarks are per browser; there is no automatic cross-device sync (manual export/import only).</li>
+<li>A restored messages database and download history only take effect after a restart.</li>
 <li>CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.</li>
 </ul>
 <h2 id="9-recommended-validation-sequence">9. Recommended Validation Sequence<a class="heading-anchor" href="#9-recommended-validation-sequence" aria-label="Link to this section">#</a></h2>
@@ -1036,6 +1068,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
 </ul>
 </li>
 <li>Position shapes: <code>{type:&#39;epub&#39;, cfi, href, label}</code>, <code>{type:&#39;zim&#39;, path, label}</code>, <code>{type:&#39;md&#39;, line, label}</code>. A <code>{type:&#39;pdf&#39;, page}</code> shape is reserved; it is unused because the PDF iframe has no page API.</li>
+<li>Export/import: <code>progressStore.exportData()</code> returns <code>{ format: &quot;fyr-reading-progress&quot;, v: 1, exported_at, books }</code>; <code>importData(raw)</code> normalizes the input with the same validators as stored data and merges without deleting: new books are added, the newer <code>updatedAt</code> position wins, <code>lastOpened</code> takes the max, missing title/format are filled, bookmarks are united by <code>positionKey</code> (local titles win, colliding ids get a suffix). <code>Books.vue</code> exposes this as <strong>Move reading progress</strong> (files ≤ 5 MiB via <code>services/fileTransfer.js</code>).</li>
 <li><code>library/readerPrefs.js</code>: theme (<code>light</code>/<code>sepia</code>/<code>dark</code>) and font scale (70–200%), stored under <code>fyr.reader.prefs.v1</code>.</li>
 <li><code>library/continueReading.js</code>: intersects <code>progressStore.listRecent()</code> with <code>GET /api/content/books</code> for the Home page.</li>
 <li><code>reader/articleHistory.js</code>, <code>reader/shortcuts.js</code>, <code>reader/markdownPosition.js</code>: pure helpers. <code>shortcutForEvent</code> ignores inputs, textareas, selects, contenteditable elements and events with modifier keys.</li>
@@ -1076,6 +1109,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                             <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
                             <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
                             <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#backup-and-restore-cratesserversrcbackuprs" class="text-gray-600 hover:text-brand-600">Backup and restore (crates/server/src/backup.rs)</a></li>
                             <li class="pl-4"><a href="#messaging-write-exception-require_messaging_write" class="text-gray-600 hover:text-brand-600">Messaging write exception (require_messaging_write)</a></li>
                             <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
                             <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
