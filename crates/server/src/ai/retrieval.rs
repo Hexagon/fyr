@@ -89,6 +89,10 @@ pub struct RetrievalLimits {
     /// Archives with at most this many entries may be scanned linearly for
     /// title matches; larger archives only use indexed lookups.
     pub max_zim_linear_scan_entries: u32,
+    /// Use the global search's cached ZIM title index for keyword-in-title
+    /// candidates (and schedule its background build). Off only in tests
+    /// that pin down the lookup stages without the shared process-wide cache.
+    pub use_title_index: bool,
     /// Markdown/EPUB files opened per run.
     pub max_text_files: usize,
     /// Largest single file, ZIM article or EPUB chapter read, in bytes.
@@ -108,6 +112,7 @@ impl Default for RetrievalLimits {
             max_zim_archives: 8,
             max_zim_articles_per_archive: 6,
             max_zim_linear_scan_entries: 50_000,
+            use_title_index: true,
             max_text_files: 64,
             max_item_bytes: 4 * 1024 * 1024,
             max_total_bytes: 32 * 1024 * 1024,
@@ -973,7 +978,7 @@ fn collect_zim(
     //    index when one exists for this archive (built in the background
     //    for archives up to its size limit); otherwise fall back to a linear
     //    scan, for small archives only.
-    let indexed = if found.len() < max_articles && !budget.expired() {
+    let indexed = if limits.use_title_index && found.len() < max_articles && !budget.expired() {
         crate::search::cached_title_keyword_matches(
             path,
             zim.header.article_count as usize,
@@ -1571,11 +1576,19 @@ mod tests {
         std::fs::write(path, file).expect("write zim");
     }
 
+    /// Limits for tests that pin down the exact/prefix/linear-scan stages.
+    /// The shared title index is process-wide and built in the background,
+    /// so leaving it on would let a finished build from another call or test
+    /// add hits nondeterministically.
+    fn zim_stage_limits() -> RetrievalLimits {
+        RetrievalLimits { use_title_index: false, ..Default::default() }
+    }
+
     #[test]
     fn retrieves_zim_articles_by_exact_title_and_redirect() {
         let dir = temp_dir("zim");
         write_test_zim(&dir.join("wiki.zim"));
-        let no_scan = RetrievalLimits { max_zim_linear_scan_entries: 0, ..Default::default() };
+        let no_scan = RetrievalLimits { max_zim_linear_scan_entries: 0, ..zim_stage_limits() };
 
         let passages = retrieve(&dir, "Who was Gustav Vasa?", 4, &no_scan);
         assert_eq!(passages[0].title, "Gustav Vasa");
@@ -1597,19 +1610,19 @@ mod tests {
         write_test_zim(&dir.join("wiki.zim"));
 
         // "Kings" is only a title prefix of "Kings of Sweden".
-        let no_scan = RetrievalLimits { max_zim_linear_scan_entries: 0, ..Default::default() };
+        let no_scan = RetrievalLimits { max_zim_linear_scan_entries: 0, ..zim_stage_limits() };
         let prefix = retrieve(&dir, "list the kings please", 4, &no_scan);
         assert_eq!(prefix.len(), 1, "{prefix:#?}");
         assert_eq!(prefix[0].zim_path.as_deref(), Some("Kings_of_Sweden"));
 
         // "sweden" matches no path or prefix, only the small-archive title scan.
         assert!(retrieve(&dir, "sweden", 4, &no_scan).is_empty());
-        let scanned = retrieve(&dir, "sweden", 4, &RetrievalLimits::default());
+        let scanned = retrieve(&dir, "sweden", 4, &zim_stage_limits());
         assert_eq!(scanned.len(), 1, "{scanned:#?}");
         assert_eq!(scanned[0].title, "Kings of Sweden");
 
         // A zero article budget fetches nothing at all.
-        let none = RetrievalLimits { max_zim_articles_per_archive: 0, ..Default::default() };
+        let none = RetrievalLimits { max_zim_articles_per_archive: 0, ..zim_stage_limits() };
         assert!(retrieve(&dir, "Gustav Vasa", 4, &none).is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
