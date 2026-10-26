@@ -11,6 +11,44 @@ const safeDestroy = (obj) => {
   }
 }
 
+/** Longest we wait for epub.js work to settle before destroying anyway. */
+const TEARDOWN_SETTLE_MS = 5000
+
+/**
+ * Destroy a rendition/book only after epub.js has finished the async work it
+ * already started. Destroying synchronously while `display()` or the book's
+ * background loaders (`book.loaded.*`) are still running makes epub.js read
+ * `book.package` / `contents.themes` on destroyed objects and throw
+ * ("reading 'package'", "reading 'replaceCss'") when the user leaves a book
+ * right after opening it.
+ */
+export const destroyWhenSettled = (renditionObj, bookObj, pending = [], settleMs = TEARDOWN_SETTLE_MS) => {
+  const work = [...pending]
+  if (bookObj?.loaded && typeof bookObj.loaded === 'object') {
+    work.push(...Object.values(bookObj.loaded))
+  }
+  // `opened` resolves only after epub.js finishes resource replacement
+  // (`replaceCss`), which can run after `ready`.
+  if (bookObj?.opened) work.push(bookObj.opened)
+  const waits = work.filter((p) => p && typeof p.then === 'function').map((p) => Promise.resolve(p).catch(() => {}))
+  const teardown = () => {
+    safeDestroy(renditionObj)
+    safeDestroy(bookObj)
+  }
+  if (!waits.length) {
+    teardown()
+    return Promise.resolve()
+  }
+  let timer = null
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(resolve, settleMs)
+  })
+  return Promise.race([Promise.all(waits), timeout]).then(() => {
+    clearTimeout(timer)
+    teardown()
+  })
+}
+
 const themeRules = (name) => {
   const colors = READER_THEME_COLORS[name] || READER_THEME_COLORS.light
   return {
@@ -46,13 +84,18 @@ export const useEpubReader = () => {
   /** Last position reported by epub.js `relocated` ({ type, cfi, href, label }). */
   const position = ref(null)
   let currentPrefs = { ...DEFAULT_READER_PREFS }
+  /** In-flight `rendition.display()` of the current book, if any. */
+  let pendingDisplay = null
 
   const dispose = () => {
-    safeDestroy(rendition.value)
+    const renditionObj = rendition.value
+    const bookObj = book.value
+    const pending = pendingDisplay ? [pendingDisplay] : []
     rendition.value = null
-    safeDestroy(book.value)
     book.value = null
     position.value = null
+    pendingDisplay = null
+    destroyWhenSettled(renditionObj, bookObj, pending)
   }
 
   const applyPrefs = (prefs) => {
@@ -86,7 +129,7 @@ export const useEpubReader = () => {
       throw error
     }
     if (isStale()) {
-      safeDestroy(bookObj)
+      destroyWhenSettled(null, bookObj)
       return
     }
 
@@ -95,7 +138,12 @@ export const useEpubReader = () => {
     await nextTick()
     if (isStale()) return // dispose() of the newer selection already destroyed it
 
-    const renditionObj = bookObj.renderTo('book-viewer', {
+    // Pass the element itself: epub.js looks a string id up only later, from
+    // a queue that waits for `book.opened`, by which time a quick "back"
+    // may have unmounted it ("Not an Element").
+    const viewerElement = document.getElementById('book-viewer')
+    if (!viewerElement) return
+    const renditionObj = bookObj.renderTo(viewerElement, {
       width: '100%',
       height: '100%',
       manager: 'continuous',
@@ -127,13 +175,20 @@ export const useEpubReader = () => {
     })
 
     const startCfi = typeof options.startCfi === 'string' && options.startCfi ? options.startCfi : undefined
+    const display = (target) => {
+      const promise = renditionObj.display(target)
+      pendingDisplay = promise
+      return promise
+    }
     try {
-      await renditionObj.display(startCfi)
+      await display(startCfi)
     } catch (error) {
       if (isStale()) return
       if (!startCfi) throw error
       // Stored CFI no longer valid (book replaced/re-encoded): start from the beginning.
-      await renditionObj.display()
+      await display()
+    } finally {
+      if (rendition.value === renditionObj) pendingDisplay = null
     }
   }
 
