@@ -52,8 +52,9 @@
     <div v-else-if="!activeQuery" class="search-message search-idle">
       <h3>Find anything in your offline library</h3>
       <p>
-        One search covers book titles, article titles in every ZIM archive, the text of
-        Markdown and EPUB books, map files and named places in your POI files.
+        One search covers book titles, article titles in every ZIM archive (and article text
+        once an archive has a full-text index), the text of Markdown and EPUB books, map files
+        and named places in your POI files.
       </p>
       <p class="hint">
         Tip: press <kbd>/</kbd> anywhere to jump to search, <kbd>↑</kbd> <kbd>↓</kbd> to pick a
@@ -109,6 +110,12 @@
               </span>
               <span v-if="item.subtitle" class="result-subtitle">
                 <template v-for="(segment, i) in highlightSegments(item.subtitle, activeQuery)" :key="i">
+                  <mark v-if="segment.match">{{ segment.text }}</mark>
+                  <template v-else>{{ segment.text }}</template>
+                </template>
+              </span>
+              <span v-if="item.snippet" class="result-snippet">
+                <template v-for="(segment, i) in item.snippet" :key="i">
                   <mark v-if="segment.match">{{ segment.text }}</mark>
                   <template v-else>{{ segment.text }}</template>
                 </template>
@@ -523,7 +530,8 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto;
   grid-template-areas:
     'title source'
-    'subtitle subtitle';
+    'subtitle subtitle'
+    'snippet snippet';
   gap: 0.15rem 1rem;
   padding: 0.6rem 1rem;
   color: var(--text);
@@ -552,6 +560,15 @@ li + li .result-item {
   grid-area: subtitle;
   font-size: 0.85rem;
   color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.result-snippet {
+  grid-area: snippet;
+  font-size: 0.85rem;
+  color: var(--text);
+  opacity: 0.85;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
@@ -584,6 +601,7 @@ mark {
     grid-template-areas:
       'title'
       'subtitle'
+      'snippet'
       'source';
   }
 

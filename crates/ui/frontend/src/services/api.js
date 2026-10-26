@@ -458,6 +458,11 @@ export const apiService = {
   listDownloads: () => api.get('/downloads'),
   deleteContentFile: (contentType, filename) => api.delete(`/content/${encodeURIComponent(contentType)}/${encodeURIComponent(filename)}`),
 
+  // Full-text index for ZIM archives (status is public; build/delete are admin-only)
+  getIndexStatus: async () => (await api.get('/index/status')).data,
+  buildIndex: (filename) => api.post(`/index/${encodeURIComponent(filename)}/build`),
+  deleteIndex: (filename) => api.delete(`/index/${encodeURIComponent(filename)}`),
+
   // Unified Library API
   getLibraryBookMetadata: async (filename) => {
     const response = await api.get(`/library/books/${encodeURIComponent(filename)}`)

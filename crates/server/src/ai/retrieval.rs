@@ -141,6 +141,11 @@ impl Budget {
         Instant::now() >= self.deadline
     }
 
+    /// When the time budget runs out.
+    pub fn deadline(&self) -> Instant {
+        self.deadline
+    }
+
     /// Reserve `bytes` from the allowance. Returns false (and reserves
     /// nothing) when the read would exceed the budget.
     pub fn take_bytes(&mut self, bytes: u64) -> bool {
@@ -427,10 +432,29 @@ fn tag_name(tag_inner: &str) -> String {
         .to_ascii_lowercase()
 }
 
+/// Byte offset of the first ASCII-case-insensitive occurrence of `needle`
+/// (ASCII) in `haystack`, without allocating a lowercased copy.
+fn find_ascii_ci(haystack: &str, needle: &str) -> Option<usize> {
+    let hay = haystack.as_bytes();
+    let needle = needle.as_bytes();
+    if needle.is_empty() || needle.len() > hay.len() {
+        return None;
+    }
+    (0..=hay.len() - needle.len()).find(|&i| hay[i..i + needle.len()].eq_ignore_ascii_case(needle))
+}
+
 /// Split HTML into plain-text blocks at block-level elements, dropping
 /// scripts, styles and other non-content elements. Each block goes through
 /// [`library::strip_html_tags`], entity decoding and reference-marker removal.
+/// Blocks shorter than 25 characters are dropped (see
+/// [`html_to_text_blocks`] to keep them).
 pub fn html_to_blocks(html: &str) -> Vec<String> {
+    html_to_text_blocks(html, MIN_BLOCK_CHARS)
+}
+
+/// [`html_to_blocks`] keeping blocks of at least `min_chars` characters
+/// (the full-text indexer keeps short blocks such as list items).
+pub fn html_to_text_blocks(html: &str, min_chars: usize) -> Vec<String> {
     let mut segments: Vec<&str> = Vec::new();
     let mut seg_start = 0usize;
     let mut pos = 0usize;
@@ -449,8 +473,7 @@ pub fn html_to_blocks(html: &str) -> Vec<String> {
         if !is_closing && SKIPPED_HTML_ELEMENTS.contains(&name.as_str()) && !inner.trim_end().ends_with('/') {
             segments.push(&html[seg_start..tag_start]);
             let close = format!("</{name}");
-            let lower_rest = html[tag_end..].to_ascii_lowercase();
-            let resume = match lower_rest.find(&close) {
+            let resume = match find_ascii_ci(&html[tag_end..], &close) {
                 Some(close_rel) => {
                     let close_start = tag_end + close_rel;
                     html[close_start..].find('>').map(|i| close_start + i + 1).unwrap_or(html.len())
@@ -481,7 +504,7 @@ pub fn html_to_blocks(html: &str) -> Vec<String> {
             let text = decode_entities(&library::strip_html_tags(segment));
             collapse_whitespace(&strip_reference_markers(&text))
         })
-        .filter(|block| block.chars().count() >= MIN_BLOCK_CHARS)
+        .filter(|block| !block.is_empty() && block.chars().count() >= min_chars)
         .collect()
 }
 
@@ -908,19 +931,86 @@ fn entry_title(entry: &zim::DirectoryEntry) -> String {
     }
 }
 
+/// Stage 0 for archives with a full-text index: the best BM25 matches for
+/// the keywords (any keyword, ranked by how many and how rare), read from
+/// the index's stored article text instead of the archive. Returns the
+/// article paths taken and whether the index is complete.
+#[allow(clippy::too_many_arguments)]
+fn collect_zim_fulltext(
+    index_dir: &Path,
+    path: &Path,
+    file: &str,
+    keywords: &[String],
+    limits: &RetrievalLimits,
+    budget: &mut Budget,
+    out: &mut Vec<Candidate>,
+) -> (Vec<String>, bool) {
+    let Some(reader) = crate::fulltext::open_reader(index_dir, file, path) else {
+        return (Vec::new(), false);
+    };
+    let complete = reader.meta.state == crate::fulltext::IndexState::Ready;
+    let Some(expr) = crate::fulltext::any_terms_expr(keywords) else {
+        return (Vec::new(), complete);
+    };
+    let interrupt = crate::fulltext::Interrupt::at(budget.deadline());
+    let docs = match reader.documents(&expr, limits.max_zim_articles_per_archive, &interrupt) {
+        Ok(docs) => docs,
+        Err(error) => {
+            debug!("Full-text retrieval skipped {}: {}", file, error);
+            return (Vec::new(), complete);
+        }
+    };
+    let mut taken = Vec::new();
+    for doc in docs {
+        if budget.expired() {
+            break;
+        }
+        let size = doc.body.len() as u64;
+        if size > limits.max_item_bytes || !budget.take_bytes(size) {
+            continue;
+        }
+        let blocks = doc
+            .body
+            .split('\n')
+            .filter(|block| block.chars().count() >= MIN_BLOCK_CHARS)
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let doc_key = format!("{file}#{}", doc.path);
+        let before = out.len();
+        push_chunks(out, &doc_key, &doc.title, file, Some(&doc.path), blocks, keywords, limits.max_passage_chars);
+        // Passage scoring is accent-sensitive; a document whose match was
+        // only accent-folded yields no chunk and must not use up a slot.
+        if out.len() > before {
+            taken.push(doc.path);
+        }
+    }
+    (taken, complete)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn collect_zim(
     path: &Path,
     file: &str,
     prompt: &str,
     keywords: &[String],
+    index_dir: Option<&Path>,
     limits: &RetrievalLimits,
     budget: &mut Budget,
     out: &mut Vec<Candidate>,
 ) -> Result<(), String> {
+    // 0. Full-text index (when one exists for this archive version).
+    let (fulltext_paths, index_complete) = match index_dir {
+        Some(dir) => collect_zim_fulltext(dir, path, file, keywords, limits, budget, out),
+        None => (Vec::new(), false),
+    };
+    let max_articles = limits.max_zim_articles_per_archive.saturating_sub(fulltext_paths.len());
+    if max_articles == 0 || budget.expired() {
+        return Ok(());
+    }
+
     let zim = zim::Zim::new(path).map_err(|e| format!("cannot open ZIM: {e}"))?;
-    let max_articles = limits.max_zim_articles_per_archive;
     let mut found: Vec<zim::DirectoryEntry> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut seen: HashSet<String> = fulltext_paths.into_iter().collect();
 
     let mut accept = |entry: zim::DirectoryEntry, found: &mut Vec<zim::DirectoryEntry>| {
         let Ok(resolved) = zim.resolve(entry) else { return };
@@ -978,7 +1068,8 @@ fn collect_zim(
     //    index when one exists for this archive (built in the background
     //    for archives up to its size limit); otherwise fall back to a linear
     //    scan, for small archives only.
-    let indexed = if limits.use_title_index && found.len() < max_articles && !budget.expired() {
+    // A complete full-text index already covered every title.
+    let indexed = if !index_complete && limits.use_title_index && found.len() < max_articles && !budget.expired() {
         crate::search::cached_title_keyword_matches(
             path,
             zim.header.article_count as usize,
@@ -997,7 +1088,8 @@ fn collect_zim(
                 accept(entry, &mut found);
             }
         }
-    } else if found.len() < max_articles
+    } else if !index_complete
+        && found.len() < max_articles
         && !budget.expired()
         && zim.header.article_count <= limits.max_zim_linear_scan_entries
     {
@@ -1064,7 +1156,20 @@ fn file_stem(file: &str) -> String {
 
 /// Retrieve up to `limit` ranked passages for `prompt` from the books
 /// directory. Blocking; run via `spawn_blocking`.
+#[cfg(test)]
 pub fn retrieve(books_dir: &Path, prompt: &str, limit: usize, limits: &RetrievalLimits) -> Vec<Passage> {
+    retrieve_with_index(books_dir, None, prompt, limit, limits)
+}
+
+/// [`retrieve`] that also uses the full-text indexes in `index_dir` (see
+/// [`crate::fulltext`]) for ZIM archives that have one.
+pub fn retrieve_with_index(
+    books_dir: &Path,
+    index_dir: Option<&Path>,
+    prompt: &str,
+    limit: usize,
+    limits: &RetrievalLimits,
+) -> Vec<Passage> {
     let keywords = extract_keywords(prompt);
     if keywords.is_empty() || limit == 0 {
         return Vec::new();
@@ -1094,7 +1199,7 @@ pub fn retrieve(books_dir: &Path, prompt: &str, limit: usize, limits: &Retrieval
         }
         let path = books_dir.join(file);
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            collect_zim(&path, file, prompt, &keywords, limits, &mut budget, &mut candidates)
+            collect_zim(&path, file, prompt, &keywords, index_dir, limits, &mut budget, &mut candidates)
         }));
         match result {
             Ok(Ok(())) => {}
@@ -1482,98 +1587,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
-    /// Build a minimal, uncompressed ZIM (format 6.1, new namespace scheme)
-    /// with two articles, a redirect, a Title metadata entry and an
-    /// `X/listing/titleOrdered/v1` article listing.
+    /// The shared sample archive (two articles plus a "Vasa" redirect).
     fn write_test_zim(path: &Path) {
-        enum Target {
-            Blob(u32),
-            Redirect(u32),
-        }
-        // (namespace, url, title, mime id, target) sorted by (namespace, url).
-        let gustav = "<html><head><title>Gustav Vasa</title></head><body><h1>Gustav Vasa</h1>\
-            <p>Gustav Vasa was King of Sweden from 1523 until his death in 1560.[1]</p>\
-            <p>He is remembered as the founder of the modern Swedish state.</p></body></html>";
-        let kings = "<html><body><p>The list of kings of Sweden starts in the early Middle Ages.</p></body></html>";
-        let listing: Vec<u8> = [0u32, 1, 2].iter().flat_map(|i| i.to_le_bytes()).collect();
-        let blobs: Vec<Vec<u8>> = vec![gustav.as_bytes().to_vec(), kings.as_bytes().to_vec(), b"Test Wiki".to_vec(), listing];
-        let entries: Vec<(u8, &str, &str, u16, Target)> = vec![
-            (b'C', "Gustav_Vasa", "Gustav Vasa", 0, Target::Blob(0)),
-            (b'C', "Kings_of_Sweden", "Kings of Sweden", 0, Target::Blob(1)),
-            (b'C', "Vasa", "Vasa", 0xffff, Target::Redirect(0)),
-            (b'M', "Title", "", 1, Target::Blob(2)),
-            (b'X', "listing/titleOrdered/v1", "", 2, Target::Blob(3)),
-        ];
-
-        let mut body: Vec<u8> = Vec::new();
-        let header_size = 80u64;
-        for mime in ["text/html", "text/plain", "application/octet-stream"] {
-            body.extend_from_slice(mime.as_bytes());
-            body.push(0);
-        }
-        body.push(0);
-
-        let mut dirent_offsets = Vec::new();
-        for (ns, url, title, mime, target) in &entries {
-            dirent_offsets.push(header_size + body.len() as u64);
-            body.extend_from_slice(&mime.to_le_bytes());
-            body.push(0); // parameter len
-            body.push(*ns);
-            body.extend_from_slice(&0u32.to_le_bytes()); // revision
-            match target {
-                Target::Blob(blob) => {
-                    body.extend_from_slice(&0u32.to_le_bytes());
-                    body.extend_from_slice(&blob.to_le_bytes());
-                }
-                Target::Redirect(idx) => body.extend_from_slice(&idx.to_le_bytes()),
-            }
-            body.extend_from_slice(url.as_bytes());
-            body.push(0);
-            body.extend_from_slice(title.as_bytes());
-            body.push(0);
-        }
-
-        let url_ptr_pos = header_size + body.len() as u64;
-        for offset in &dirent_offsets {
-            body.extend_from_slice(&offset.to_le_bytes());
-        }
-        let cluster_ptr_pos = header_size + body.len() as u64;
-        let cluster_pos = cluster_ptr_pos + 8;
-        body.extend_from_slice(&cluster_pos.to_le_bytes());
-
-        body.push(1); // uncompressed, not extended
-        let table_len = 4 * (blobs.len() as u32 + 1);
-        let mut offset = table_len;
-        body.extend_from_slice(&offset.to_le_bytes());
-        for blob in &blobs {
-            offset += blob.len() as u32;
-            body.extend_from_slice(&offset.to_le_bytes());
-        }
-        for blob in &blobs {
-            body.extend_from_slice(blob);
-        }
-        let checksum_pos = header_size + body.len() as u64;
-
-        let mut header = Vec::new();
-        header.extend_from_slice(&72173914u32.to_le_bytes());
-        header.extend_from_slice(&6u16.to_le_bytes());
-        header.extend_from_slice(&1u16.to_le_bytes());
-        header.extend_from_slice(&[7u8; 16]);
-        header.extend_from_slice(&(entries.len() as u32).to_le_bytes());
-        header.extend_from_slice(&1u32.to_le_bytes());
-        header.extend_from_slice(&url_ptr_pos.to_le_bytes());
-        header.extend_from_slice(&u64::MAX.to_le_bytes()); // no legacy title pointer list
-        header.extend_from_slice(&cluster_ptr_pos.to_le_bytes());
-        header.extend_from_slice(&header_size.to_le_bytes());
-        header.extend_from_slice(&u32::MAX.to_le_bytes());
-        header.extend_from_slice(&u32::MAX.to_le_bytes());
-        header.extend_from_slice(&checksum_pos.to_le_bytes());
-        assert_eq!(header.len() as u64, header_size);
-
-        let mut file = header;
-        file.extend_from_slice(&body);
-        file.extend_from_slice(&[0u8; 16]);
-        std::fs::write(path, file).expect("write zim");
+        crate::test_zim::write_sample_zim(path);
     }
 
     /// Limits for tests that pin down the exact/prefix/linear-scan stages.

@@ -22,4 +22,6 @@ pub struct AppState {
     pub mbtiles_pool: Arc<MbtilesPool>,
     /// Public board channel + encrypted channels (SQLite-backed).
     pub messaging: Arc<Messaging>,
+    /// Background full-text indexer for ZIM archives (`DATA_DIR/index`).
+    pub fulltext: Arc<crate::fulltext::FulltextIndexer>,
 }

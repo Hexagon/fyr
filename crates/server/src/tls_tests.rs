@@ -47,6 +47,7 @@ async fn start(mode: TlsMode, password: Option<&str>, redirect: bool, data_dir: 
         auth_manager: Arc::new(auth::AuthManager::new()),
         mbtiles_pool: Arc::new(MbtilesPool::new()),
         messaging: Arc::new(messaging::Messaging::open(&config).expect("open messages db")),
+        fulltext: Arc::new(crate::fulltext::FulltextIndexer::from_config(&config)),
     };
     let (shutdown, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let task = tokio::spawn(serve(

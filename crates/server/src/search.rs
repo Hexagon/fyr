@@ -8,6 +8,7 @@
 //! | `book`    | book titles (extracted metadata) and filenames     |
 //! | `article` | ZIM article titles across every archive in books/  |
 //! | `content` | full-text hits inside Markdown / EPUB books        |
+//! | `article_text` | ZIM article bodies, via the on-disk FTS5 index |
 //! | `map`     | map filenames in maps/                             |
 //! | `poi`     | GeoJSON feature names/descriptions in poi/         |
 //!
@@ -63,6 +64,10 @@ pub const PER_POI_FILE_LIMIT: usize = 25;
 pub const SEARCH_BUDGET: Duration = Duration::from_millis(1500);
 /// Smallest slice of the budget handed to one ZIM archive.
 const MIN_ARCHIVE_BUDGET: Duration = Duration::from_millis(150);
+/// Maximum article-body (full-text index) results per ZIM archive.
+pub const PER_ARCHIVE_TEXT_LIMIT: usize = 10;
+/// Smallest slice of the budget handed to one archive's full-text query.
+const MIN_TEXT_BUDGET: Duration = Duration::from_millis(100);
 
 /// ZIM archives with at most this many title entries get an in-memory title
 /// index built synchronously on first search.
@@ -107,6 +112,11 @@ const SCORE_WORD_PREFIX: f64 = 600.0;
 const SCORE_ALL_TOKENS: f64 = 450.0;
 const SCORE_SUBSTRING: f64 = 300.0;
 const SCORE_CONTENT: f64 = 250.0;
+/// Best article-body hit of an archive; later ones step down by
+/// `SCORE_TEXT_STEP`, so bodies rank between substring title matches and
+/// plain book-text hits.
+const SCORE_ARTICLE_TEXT: f64 = 290.0;
+const SCORE_TEXT_STEP: f64 = 3.0;
 const MAX_LENGTH_PENALTY: f64 = 100.0;
 
 // ---------------------------------------------------------------------------
@@ -121,15 +131,19 @@ pub enum SearchKind {
     Poi,
     Article,
     Content,
+    /// Words in ZIM article bodies (full-text index, see `crate::fulltext`).
+    #[serde(rename = "article_text")]
+    ArticleText,
 }
 
 impl SearchKind {
-    pub const ALL: [SearchKind; 5] = [
+    pub const ALL: [SearchKind; 6] = [
         SearchKind::Book,
         SearchKind::Map,
         SearchKind::Poi,
         SearchKind::Article,
         SearchKind::Content,
+        SearchKind::ArticleText,
     ];
 
     pub fn parse(value: &str) -> Option<Self> {
@@ -139,6 +153,7 @@ impl SearchKind {
             "poi" | "pois" => Some(SearchKind::Poi),
             "article" | "articles" | "zim" => Some(SearchKind::Article),
             "content" | "text" | "fulltext" => Some(SearchKind::Content),
+            "article_text" | "articletext" | "article_texts" => Some(SearchKind::ArticleText),
             _ => None,
         }
     }
@@ -151,6 +166,7 @@ impl SearchKind {
             SearchKind::Poi => 20.0,
             SearchKind::Article => 0.0,
             SearchKind::Content => 0.0,
+            SearchKind::ArticleText => 0.0,
         }
     }
 }
@@ -166,6 +182,10 @@ pub struct SearchHit {
     pub score: f64,
     /// Frontend route, e.g. `/books?file=x.zim&path=A%2FFoo`.
     pub link: String,
+    /// Highlighted body excerpt (`article_text` hits): plain-text segments,
+    /// `match` marks the query terms. Render as text, never as HTML.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<Vec<crate::fulltext::SnippetSegment>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lat: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -288,6 +308,8 @@ pub struct SearchRoots {
     pub books: PathBuf,
     pub maps: PathBuf,
     pub poi: PathBuf,
+    /// Full-text index directory; `None` when full-text search is disabled.
+    pub index: Option<PathBuf>,
 }
 
 impl SearchRoots {
@@ -296,6 +318,7 @@ impl SearchRoots {
             books: config.books_dir(),
             maps: config.maps_dir(),
             poi: config.poi_dir(),
+            index: config.fulltext.enabled.then(|| config.index_dir()),
         }
     }
 }
@@ -333,6 +356,14 @@ impl Deadline {
         self.end.saturating_duration_since(Instant::now())
     }
 
+    /// Interrupt for SQLite queries: this deadline plus the cancel flag.
+    pub fn interrupt(&self) -> crate::fulltext::Interrupt {
+        crate::fulltext::Interrupt {
+            deadline: self.end,
+            cancel: Some(Arc::clone(&self.cancelled)),
+        }
+    }
+
     /// A sub-deadline that ends no later than this one.
     fn child(&self, budget: Duration) -> Deadline {
         let end = (Instant::now() + budget).min(self.end);
@@ -360,7 +391,8 @@ pub fn run_search(
     // article/content hits.
     let needs_books = kinds.contains(&SearchKind::Book)
         || kinds.contains(&SearchKind::Article)
-        || kinds.contains(&SearchKind::Content);
+        || kinds.contains(&SearchKind::Content)
+        || kinds.contains(&SearchKind::ArticleText);
     let books = if needs_books {
         list_books(&roots.books, deadline)
     } else {
@@ -390,6 +422,37 @@ pub fn run_search(
             let result = search_zim_archive(archive, query, PER_ARCHIVE_LIMIT, &archive_deadline);
             outcome.hits.extend(result.hits);
             outcome.partial |= result.partial;
+        }
+    }
+
+    if kinds.contains(&SearchKind::ArticleText) && query.char_len >= MIN_CONTENT_QUERY_CHARS {
+        if let Some(index_dir) = &roots.index {
+            // Article bodies that duplicate a title hit add nothing.
+            let title_links: HashSet<String> = outcome
+                .hits
+                .iter()
+                .filter(|h| h.kind == SearchKind::Article)
+                .map(|h| h.link.clone())
+                .collect();
+            let archives: Vec<&BookFile> = books.iter().filter(|b| b.format == "zim").collect();
+            for (i, archive) in archives.iter().enumerate() {
+                if deadline.expired() {
+                    outcome.partial = true;
+                    break;
+                }
+                let left = (archives.len() - i) as u32;
+                let share = (deadline.remaining() / left).max(MIN_TEXT_BUDGET);
+                let result = search_archive_text(
+                    index_dir,
+                    archive,
+                    query,
+                    PER_ARCHIVE_TEXT_LIMIT,
+                    &deadline.child(share),
+                    &title_links,
+                );
+                outcome.hits.extend(result.hits);
+                outcome.partial |= result.partial;
+            }
         }
     }
 
@@ -898,6 +961,7 @@ pub fn search_maps(maps_dir: &Path, query: &SearchQuery) -> Vec<SearchHit> {
                 .chain(match_score(&name, query))
                 .fold(None, |acc: Option<f64>, s| Some(acc.map_or(s, |a| a.max(s))))?;
             Some(SearchHit {
+                snippet: None,
                 kind: SearchKind::Map,
                 title: label,
                 subtitle: Some(format!("{} map", extension_lower(&name).to_uppercase())),
@@ -996,6 +1060,7 @@ pub fn search_book_titles(books: &[BookFile], query: &SearchQuery) -> Vec<Search
                 format
             };
             Some(SearchHit {
+                snippet: None,
                 kind: SearchKind::Book,
                 title: label,
                 subtitle: Some(subtitle),
@@ -1060,6 +1125,7 @@ pub fn search_book_contents(
         let matches = response.results.len().min(CONTENT_HITS_PER_BOOK) as f64;
 
         hits.push(SearchHit {
+            snippet: None,
             kind: SearchKind::Content,
             title: book.label(),
             subtitle: Some(snippet),
@@ -1279,6 +1345,7 @@ pub fn search_poi_records(
                 None => filename.to_string(),
             };
             SearchHit {
+                snippet: None,
                 kind: SearchKind::Poi,
                 title: record.name.clone(),
                 subtitle: Some(subtitle),
@@ -1449,6 +1516,7 @@ fn search_zim_archive_inner(
             archive_label.clone()
         };
         hits.push(SearchHit {
+            snippet: None,
             kind: SearchKind::Article,
             title: matched_title,
             subtitle: Some(subtitle),
@@ -1461,6 +1529,69 @@ fn search_zim_archive_inner(
     }
 
     Some(ArchiveOutcome { hits, partial })
+}
+
+/// Article-body hits from an archive's full-text index (none when the
+/// archive has no usable index). Links carry the query so the reader can
+/// highlight it: `/books?file=<f>&path=<zim path>&q=<query>`.
+fn search_archive_text(
+    index_dir: &Path,
+    archive: &BookFile,
+    query: &SearchQuery,
+    limit: usize,
+    deadline: &Deadline,
+    title_links: &HashSet<String>,
+) -> ArchiveOutcome {
+    let run = || -> ArchiveOutcome {
+        let Some(reader) = crate::fulltext::open_reader(index_dir, &archive.filename, &archive.path) else {
+            return ArchiveOutcome::default();
+        };
+        let Some(expr) = crate::fulltext::all_terms_expr(&query.display) else {
+            return ArchiveOutcome::default();
+        };
+        let found = match reader.search(&expr, limit, &deadline.interrupt()) {
+            Ok(found) => found,
+            Err(crate::fulltext::store::QueryError::Interrupted) => {
+                return ArchiveOutcome { hits: Vec::new(), partial: true };
+            }
+            Err(error) => {
+                debug!("Global search: full-text query failed for {}: {}", archive.filename, error);
+                return ArchiveOutcome::default();
+            }
+        };
+        let label = archive.label();
+        let hits = found
+            .into_iter()
+            .enumerate()
+            .filter(|(_, hit)| !title_links.contains(&article_link(&archive.filename, &hit.path)))
+            .map(|(rank, hit)| {
+                let segments = crate::fulltext::snippet_segments(&hit.snippet);
+                SearchHit {
+                    kind: SearchKind::ArticleText,
+                    title: hit.title.replace('_', " "),
+                    subtitle: Some(label.clone()),
+                    snippet: (!segments.is_empty()).then_some(segments),
+                    source: archive.filename.clone(),
+                    score: SCORE_ARTICLE_TEXT - rank as f64 * SCORE_TEXT_STEP + SearchKind::ArticleText.bonus(),
+                    link: format!(
+                        "{}&q={}",
+                        article_link(&archive.filename, &hit.path),
+                        encode_component(&query.display)
+                    ),
+                    lat: None,
+                    lng: None,
+                }
+            })
+            .collect();
+        ArchiveOutcome { hits, partial: false }
+    };
+    match std::panic::catch_unwind(AssertUnwindSafe(run)) {
+        Ok(outcome) => outcome,
+        Err(_) => {
+            warn!("Global search: full-text query panicked for {}", archive.filename);
+            ArchiveOutcome::default()
+        }
+    }
 }
 
 /// Build the folded title index for an archive. Returns `None` when the
@@ -1697,6 +1828,7 @@ mod tests {
 
     fn hit(kind: SearchKind, title: &str, score: f64, link: &str) -> SearchHit {
         SearchHit {
+            snippet: None,
             kind,
             title: title.to_string(),
             subtitle: None,
@@ -1891,8 +2023,8 @@ mod tests {
 
     #[test]
     fn parse_kinds_filter() {
-        assert_eq!(parse_kinds(None).len(), 5);
-        assert_eq!(parse_kinds(Some("  ")).len(), 5);
+        assert_eq!(parse_kinds(None).len(), 6);
+        assert_eq!(parse_kinds(Some("  ")).len(), 6);
         let only = parse_kinds(Some("book, Maps,bogus"));
         assert_eq!(only, [SearchKind::Book, SearchKind::Map].into_iter().collect());
         assert!(parse_kinds(Some("bogus")).is_empty());
@@ -2033,6 +2165,7 @@ mod tests {
             books: root.join("books"),
             maps: root.join("maps"),
             poi: root.join("poi"),
+            index: None,
         };
         for dir in [&roots.books, &roots.maps, &roots.poi] {
             std::fs::create_dir_all(dir).unwrap();
@@ -2101,6 +2234,7 @@ mod tests {
             books: root.join("nope-books"),
             maps: root.join("nope-maps"),
             poi: root.join("nope-poi"),
+            index: None,
         };
         let outcome = run_search(&roots, &q("anything"), &parse_kinds(None), &Deadline::after(SEARCH_BUDGET));
         assert!(outcome.hits.is_empty());

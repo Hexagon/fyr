@@ -141,6 +141,7 @@
                             <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
                             <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
                             <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
                             <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
@@ -401,7 +402,7 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <h3 id="ask-your-library-answers-with-sources">Ask your library (answers with sources)<a class="heading-anchor" href="#ask-your-library-answers-with-sources" aria-label="Link to this section">#</a></h3>
 <p>Turn on <strong>Use library</strong> next to the mode buttons to have the assistant answer from your own offline books instead of only from what the model remembers.</p>
 <ul>
-<li>Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: <strong>ZIM</strong> archives by article title (for example <em>Gustav Vasa</em> or <em>Water purification</em>), <strong>Markdown</strong> files by section, and <strong>EPUB</strong> books by chapter. PDFs are not searched yet.</li>
+<li>Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: <strong>ZIM</strong> archives by article text when the archive has a full-text index (see <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>), otherwise by article title (for example <em>Gustav Vasa</em> or <em>Water purification</em>), <strong>Markdown</strong> files by section, and <strong>EPUB</strong> books by chapter. PDFs are not searched yet.</li>
 <li>The best-matching passages (up to four) are given to the model as numbered sources. The model is asked to cite them as <code>[1]</code>, <code>[2]</code>, … and to say when your library does not cover the question.</li>
 <li>Sources appear as chips under the answer; clicking a chip or a <code>[n]</code> citation in the text opens that article or book in <strong>Books</strong> (ZIM articles open directly; other books open with the matching words searched).</li>
 <li>If nothing matches, the answer shows <em>No matching passages found in your library.</em></li>
@@ -433,6 +434,11 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <td>Opens that article in the ZIM reader</td>
 </tr>
 <tr>
+<td><strong>In article text</strong></td>
+<td>Words in ZIM article bodies, for archives with a full-text index (queries of 3+ characters); shows a highlighted excerpt</td>
+<td>Opens that article in the ZIM reader with the search term</td>
+</tr>
+<tr>
 <td><strong>In book text</strong></td>
 <td>Text inside Markdown and EPUB books (queries of 3+ characters)</td>
 <td>Opens the book with the search term</td>
@@ -451,11 +457,20 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 </div>
 <ul>
 <li>Results are grouped by kind with the most relevant group first; exact and &quot;starts with&quot; matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (<code>zurich</code> finds <code>Zürich</code>, <code>malmo</code> finds <code>Malmö</code>).</li>
-<li>Use the filter chips (All, Books, Articles, Book text, Maps, Places) to narrow the search.</li>
+<li>Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Places) to narrow the search.</li>
 <li>Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.</li>
 <li>Search is read-only and available in every access mode, including <code>FYR_READONLY</code>.</li>
-<li>Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
+<li>Each search has a time limit so very large archives cannot freeze Fyr. Without a full-text index, very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
 <li><code>.fgb</code> (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.</li>
+</ul>
+<h3 id="full-text-index-for-zim-archives">Full-text index for ZIM archives<a class="heading-anchor" href="#full-text-index-for-zim-archives" aria-label="Link to this section">#</a></h3>
+<p>Without an index, Fyr can only match ZIM article <strong>titles</strong>. To find words inside articles (and give the assistant better sources), Fyr builds a full-text index per archive in the background:</p>
+<ul>
+<li>Archives with up to 200 000 articles (<code>FYR_FULLTEXT_MAX_ARTICLES</code>) are indexed automatically, one at a time, at low priority. Larger archives (for example a full Wikipedia) are only indexed when an admin clicks <strong>Build index</strong>, because that takes hours on a Raspberry Pi and several GB of disk.</li>
+<li><strong>Content Manager → Books</strong> shows a <strong>Full-text</strong> column for each <code>.zim</code> file: <em>Waiting to index</em>, <em>Indexing 42%</em>, <em>Paused</em>, <em>Full-text ready</em>, <em>Index failed</em> or <em>Not indexed</em>. Admins (any visitor in open mode) see <strong>Build index</strong> and <strong>Delete index</strong> buttons; they are hidden for visitors in password-protected and read-only modes, where the server also refuses them.</li>
+<li>Search and the assistant already use a partly built index. Indexing resumes where it stopped after a restart, and starts over automatically when an archive file is replaced. Deleting an index stops automatic indexing of that archive until <strong>Build index</strong> is clicked again; deleting the archive deletes its index.</li>
+<li>Indexing pauses while free disk space is below 1 GB (<code>FYR_FULLTEXT_MIN_FREE_MB</code>) and resumes when space is available. The index stores the articles&#39; plain text plus a word index, so it can be larger than the compressed <code>.zim</code> file itself (plan for 1–3× the archive size for text-only archives; much less for archives with many pictures).</li>
+<li>Set <code>FYR_FULLTEXT=off</code> to disable indexing and full-text search entirely.</li>
 </ul>
 <h2 id="3d-messages">3d. Messages<a class="heading-anchor" href="#3d-messages" aria-label="Link to this section">#</a></h2>
 <p>Messages has no user accounts. Everyone picks a nickname once per device (stored in the browser, editable at any time). Each device also gets a random <strong>device tag</strong> — a short code shown as a coloured dot next to its messages so you can tell people with the same nickname apart. Nicknames and tags are <strong>not verified</strong>: anyone can type any nickname.</p>
@@ -708,6 +723,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </ul>
 <p>Messages are stored in <code>messages.sqlite</code> directly in the data directory (owner-readable only, never published).</p>
 <p>Two more folders may appear briefly: <code>.backup-tmp/</code> (temporary files while a backup or restore runs; removed automatically) and <code>restore-pending/</code> (files from a restore that are applied at the next start, see §6a).</p>
+<p>Full-text indexes of ZIM archives are stored in <code>index/</code> in the data directory (one <code>.fts.sqlite</code> file per archive, never published). They can be deleted at any time; Fyr rebuilds them as described in <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>.</p>
 <p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
 <h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
 <p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
@@ -732,6 +748,9 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_TLS_CERT</code>, <code>FYR_TLS_KEY</code> — paths to your own PEM certificate chain and private key; set both to serve HTTPS with them</li>
 <li><code>FYR_TLS_SANS</code> — extra comma-separated host names/IPs for the self-signed certificate</li>
 <li><code>FYR_HTTP_REDIRECT_PORT</code> — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from <code>FYR_PORT</code>)</li>
+<li><code>FYR_FULLTEXT</code> — set to <code>off</code> to disable the ZIM full-text index and full-text search (default on)</li>
+<li><code>FYR_FULLTEXT_MAX_ARTICLES</code> — archives with at most this many articles are indexed automatically (default 200000; <code>0</code> = only when an admin clicks <strong>Build index</strong>)</li>
+<li><code>FYR_FULLTEXT_MIN_FREE_MB</code> — indexing pauses while free disk space is below this many MB (default 1024)</li>
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
@@ -756,7 +775,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><strong>Replace the program or image.</strong> Docker: <code>docker pull hexagon/fyr:latest</code>, then remove and re-create the container with the <strong>same</strong> volume (<code>-v fyr-data:/data -e DATA_DIR=/data</code>). The image is multi-arch: the same tag works on Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same <code>DATA_DIR</code>.</li>
 <li><strong>Start it.</strong> Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.</li>
 </ol>
-<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). Other 1.0 features may add their own folders (for example a search <code>index/</code>); all of them live inside the data folder, so keep mounting the whole folder.</p>
+<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). <code>index/</code> holds the full-text indexes of ZIM archives (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.</p>
 <p><strong>New environment variables</strong> (all optional; defaults keep 0.5.x behaviour except that Messages is on):</p>
 <ul>
 <li><code>FYR_MESSAGING</code> — <code>false</code> turns Messages off.</li>
@@ -765,6 +784,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages (default 90).</li>
 <li><code>FYR_TRUSTED_PROXIES</code> — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.</li>
 <li><code>FYR_TLS</code>, <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code>, <code>FYR_TLS_SANS</code>, <code>FYR_HTTP_REDIRECT_PORT</code> — built-in HTTPS (§2a), off by default. Turning it on changes the address to <code>https://</code>.</li>
+<li><code>FYR_FULLTEXT</code>, <code>FYR_FULLTEXT_MAX_ARTICLES</code>, <code>FYR_FULLTEXT_MIN_FREE_MB</code> — ZIM full-text index (§3c). On by default: after the upgrade, ZIM archives with up to 200 000 articles are indexed once in the background, which uses some CPU and disk space for a while.</li>
 </ul>
 <p>If you expose Fyr to people you do not fully trust, review <code>FYR_ADMIN_PASSWORD</code>/<code>FYR_READONLY</code> (§3a) and the Messages posting rules (§3d) after upgrading.</p>
 <p><strong>Going back to 0.5.x:</strong> stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores <code>messages.sqlite</code>.</p>
@@ -826,7 +846,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <h3 id="use-library-finds-no-sources">&quot;Use library&quot; finds no sources<a class="heading-anchor" href="#use-library-finds-no-sources" aria-label="Link to this section">#</a></h3>
 <ul>
 <li>Make sure the books are in the <code>books/</code> data folder (ZIM, EPUB or Markdown; global search matches PDFs by title only, so open the PDF and use its in-book search).</li>
-<li>For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.</li>
+<li>For ZIM archives without a full-text index, ask about the topic by its article title; check the <strong>Full-text</strong> column in Content Manager → Books and build the index for large archives to search article text.</li>
 <li>Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.</li>
 </ul>
 <h3 id="assistant-load-fails-or-runs-slowly">Assistant load fails or runs slowly<a class="heading-anchor" href="#assistant-load-fails-or-runs-slowly" aria-label="Link to this section">#</a></h3>
@@ -958,6 +978,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
                             <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
                             <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
                             <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>

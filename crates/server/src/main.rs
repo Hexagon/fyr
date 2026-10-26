@@ -26,6 +26,7 @@ use settings::SettingsManager;
 mod ai;
 mod auth;
 mod backup;
+mod fulltext;
 mod handlers;
 mod library;
 mod mbtiles;
@@ -36,6 +37,8 @@ mod settings;
 mod tls;
 #[cfg(test)]
 mod tls_tests;
+#[cfg(test)]
+mod test_zim;
 
 pub use state::AppState;
 
@@ -115,7 +118,14 @@ async fn main() -> anyhow::Result<()> {
         auth_manager: Arc::new(auth::AuthManager::new()),
         mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
         messaging: Arc::new(messaging::Messaging::open(&config)?),
+        fulltext: Arc::new(fulltext::FulltextIndexer::from_config(&config)),
     };
+    if config.fulltext.enabled {
+        app_state.fulltext.start();
+    } else {
+        info!("Full-text indexing is disabled (FYR_FULLTEXT=off)");
+    }
+    let shutdown_fulltext = Arc::clone(&app_state.fulltext);
     if app_state.messaging.enabled() {
         app_state.messaging.spawn_pruner();
     } else {
@@ -148,7 +158,11 @@ async fn main() -> anyhow::Result<()> {
         listener,
         tls_setup.map(|setup| setup.server_config),
         redirect,
-        shutdown_signal(),
+        async move {
+            shutdown_signal().await;
+            // Roll back the indexer's open batch so it resumes cleanly.
+            let _ = tokio::task::spawn_blocking(move || shutdown_fulltext.shutdown(FULLTEXT_SHUTDOWN_GRACE)).await;
+        },
         shutdown_downloads,
     )
     .await?;
@@ -241,6 +255,8 @@ async fn serve(
 
 /// How long download workers get to stop and record their partial files.
 const DOWNLOAD_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+/// How long the full-text indexer gets to roll back its current batch.
+const FULLTEXT_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 /// How long open HTTP connections may drain after shutdown starts.
 const CONNECTION_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -335,7 +351,9 @@ fn create_router(state: AppState) -> Router {
             "/api/restore",
             post(backup::restore_backup)
                 .layer(DefaultBodyLimit::max(backup::MAX_UPLOAD_BYTES as usize + 64 * 1024)),
-        );
+        )
+        .route("/api/index/:filename/build", post(fulltext::routes::build_index))
+        .route("/api/index/:filename", delete(fulltext::routes::delete_index));
     // Messaging moderation (delete/pin message, delete channel) is admin-only.
     let protected = if state_arc.messaging.enabled() {
         protected.merge(messaging::routes::moderation_routes())
@@ -402,6 +420,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/library/books/:filename/search", get(handlers::library_book_search))
         // Global offline search across books, ZIM articles, maps and POIs (read-only)
         .route("/api/search", get(search::global_search))
+        // Full-text index progress (filenames and counters only, no paths)
+        .route("/api/index/status", get(fulltext::routes::index_status))
         // Tools endpoints (read-only computation, no state mutation)
         .route("/api/tools/aes", post(handlers::tools_aes))
         .route("/api/tools/hash", post(handlers::tools_hash))
@@ -685,6 +705,7 @@ mod tests {
             auth_manager: Arc::new(auth::AuthManager::new()),
             mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
             messaging: Arc::new(messaging::Messaging::open(&config).expect("open messages db")),
+            fulltext: Arc::new(fulltext::FulltextIndexer::from_config(&config)),
         }
     }
 
@@ -1073,6 +1094,89 @@ mod tests {
 
         let _ = fs::remove_dir_all(data_dir);
     }
+    // --- Full-text index endpoints ------------------------------------------
+
+    async fn send(app: &Router, method: Method, uri: &str, cookie: Option<&str>) -> axum::response::Response {
+        let mut request = Request::builder().method(method).uri(uri);
+        if let Some(token) = cookie {
+            request = request.header(header::COOKIE, format!("fyr_session={token}"));
+        }
+        app.clone()
+            .oneshot(request.body(Body::empty()).expect("request"))
+            .await
+            .expect("response")
+    }
+
+    #[tokio::test]
+    async fn fulltext_index_endpoints_follow_the_access_matrix() {
+        for (mode, readonly, password) in [("open", false, false), ("password", false, true), ("readonly", true, false)] {
+            let mut state = test_state();
+            let data_dir = state.config.data_dir.clone();
+            test_zim::write_sample_zim(&state.config.books_dir().join("wiki.zim"));
+            let mut config = (*state.config).clone();
+            config.auth.readonly = readonly;
+            config.auth.admin_password = password.then(|| "secret".to_string());
+            state.config = Arc::new(config);
+            let token = state.auth_manager.create_session();
+            let app = create_router(state);
+            let data_dir_str = data_dir.display().to_string();
+
+            // Status is public in every mode and never shows host paths.
+            let status = get(&app, "/api/index/status", None).await;
+            assert_eq!(status.status(), StatusCode::OK, "{mode}");
+            let text = String::from_utf8(body_bytes(status).await).unwrap();
+            assert!(!text.contains(&data_dir_str), "{mode}: status leaked a path: {text}");
+            let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(body["archives"][0]["filename"], "wiki.zim");
+            assert_eq!(body["archives"][0]["state"], "not_indexed");
+
+            let anonymous = [
+                send(&app, Method::POST, "/api/index/wiki.zim/build", None).await.status(),
+                send(&app, Method::DELETE, "/api/index/wiki.zim", None).await.status(),
+            ];
+            let admin = [
+                send(&app, Method::POST, "/api/index/wiki.zim/build", Some(&token)).await.status(),
+                send(&app, Method::DELETE, "/api/index/wiki.zim", Some(&token)).await.status(),
+            ];
+            match mode {
+                "open" => {
+                    assert_eq!(anonymous, [StatusCode::ACCEPTED, StatusCode::NO_CONTENT]);
+                    let missing = send(&app, Method::POST, "/api/index/missing.zim/build", None).await;
+                    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+                    let bad = send(&app, Method::POST, "/api/index/notes.md/build", None).await;
+                    assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
+                }
+                "password" => {
+                    assert_eq!(anonymous, [StatusCode::UNAUTHORIZED, StatusCode::UNAUTHORIZED]);
+                    assert_eq!(admin, [StatusCode::ACCEPTED, StatusCode::NO_CONTENT]);
+                }
+                _ => {
+                    assert_eq!(anonymous, [StatusCode::FORBIDDEN, StatusCode::FORBIDDEN]);
+                    assert_eq!(admin, [StatusCode::FORBIDDEN, StatusCode::FORBIDDEN]);
+                }
+            }
+            let _ = fs::remove_dir_all(data_dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn fulltext_build_is_a_conflict_when_disabled() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        test_zim::write_sample_zim(&state.config.books_dir().join("wiki.zim"));
+        let mut config = (*state.config).clone();
+        config.fulltext.enabled = false;
+        state.fulltext = Arc::new(fulltext::FulltextIndexer::from_config(&config));
+        state.config = Arc::new(config);
+        let app = create_router(state);
+        let response = send(&app, Method::POST, "/api/index/wiki.zim/build", None).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let status: serde_json::Value = serde_json::from_slice(&body_bytes(get(&app, "/api/index/status", None).await).await).unwrap();
+        assert_eq!(status["enabled"], false);
+        assert_eq!(status["archives"][0]["state"], "disabled");
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
     // --- Global search (/api/search) ---------------------------------------
     #[tokio::test]
     async fn global_search_aggregates_sources_without_leaking_paths() {

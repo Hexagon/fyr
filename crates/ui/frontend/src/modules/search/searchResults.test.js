@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createApp, h } from 'vue'
 import {
   MAX_QUERY_LENGTH,
   buildSearchParams,
@@ -11,7 +12,8 @@ import {
   itemAtIndex,
   moveSelection,
   normalizeQuery,
-  normalizeResults
+  normalizeResults,
+  normalizeSnippet
 } from './searchResults.js'
 
 const sample = [
@@ -189,5 +191,50 @@ describe('describeSearchError', () => {
     expect(describeSearchError({ response: { status: 400 } })).toMatch(/rejected/)
     expect(describeSearchError({ code: 'ECONNABORTED' })).toMatch(/timed out/)
     expect(describeSearchError(new Error('x'))).toMatch(/reach/)
+  })
+})
+
+describe('article_text snippets', () => {
+  const raw = {
+    kind: 'article_text',
+    title: 'Coronation',
+    subtitle: 'Wikipedia',
+    source: 'wiki.zim',
+    score: 290,
+    link: '/books?file=wiki.zim&path=Coronation&q=uppsala',
+    snippet: [
+      { text: 'kings were crowned in ', match: false },
+      { text: 'Uppsala', match: true },
+      { text: ' <img src=x onerror=alert(1)>', match: false }
+    ]
+  }
+
+  it('keeps the kind and validates segments', () => {
+    const [item] = normalizeResults([raw])
+    expect(item.kind).toBe('article_text')
+    expect(item.snippet).toHaveLength(3)
+    expect(item.snippet[1]).toEqual({ text: 'Uppsala', match: true })
+    expect(groupResults([item])[0].label).toBe('In article text')
+  })
+
+  it('drops malformed segments, merges neighbours and caps length', () => {
+    expect(normalizeSnippet(null)).toBeNull()
+    expect(normalizeSnippet('<b>x</b>')).toBeNull()
+    expect(normalizeSnippet([{ text: '' }, { nope: 1 }, null])).toBeNull()
+    expect(normalizeSnippet([{ text: 'a', match: 'yes' }, { text: 'b\u0000c' }])).toEqual([{ text: 'ab c', match: false }])
+    const long = normalizeSnippet([{ text: 'x'.repeat(5000), match: false }])
+    expect(long[0].text.length).toBe(600)
+  })
+
+  it('renders markup inside snippets as inert text', () => {
+    const [item] = normalizeResults([raw])
+    const el = document.createElement('div')
+    // Mirrors Search.vue: <mark v-if="segment.match">{{ text }}</mark> / text.
+    createApp({
+      render: () => h('span', item.snippet.map((s) => (s.match ? h('mark', s.text) : s.text)))
+    }).mount(el)
+    expect(el.querySelector('img')).toBeNull()
+    expect(el.querySelector('mark').textContent).toBe('Uppsala')
+    expect(el.textContent).toContain('<img src=x onerror=alert(1)>')
   })
 })

@@ -136,6 +136,7 @@ Prompt-injection hardening: library passages and the catalog summary come from u
 Retrieval (`crates/server/src/ai/retrieval.rs`, pure helpers unit-tested):
 
 - **Keywords:** lowercase, split on non-alphanumeric characters, drop tokens under 3 characters (2-digit numbers kept) and English/Swedish stop words, max 10.
+- **ZIM full-text stage** (when the archive has a usable full-text index, § 13): the keywords become an FTS5 `OR` query ranked by `bm25()` (title weight 4, body 1); the top `max_zim_articles_per_archive` articles are read from the index's stored text (no archive access), counted against the byte budget, and the query is interrupted at the retrieval deadline. Remaining slots are filled by the title stages below; with a *complete* index the keyword-in-title stage (shared title index / linear scan) is skipped because titles are indexed too. `retrieve_with_index(books_dir, index_dir, …)` is the entry point; `handlers.rs` passes `FulltextIndexer::reader_dir()` (`None` when `FYR_FULLTEXT=off`).
 - **ZIM candidates** (per archive, max 6 articles): exact `get_by_path` binary-search lookups for phrase variants (`Gustav_Vasa`, `Gustav_vasa`, as typed) in the `C` and `A` namespaces; a prefix scan over the `X/listing/titleOrdered/v1` article listing via `lower_bound`; then keyword-in-title matches from the global search's cached title index (`search::cached_title_keyword_matches`, shared so questions never rescan an indexed archive; requesting it schedules the background index build for archives up to 250k entries), falling back to a linear title scan only for archives with at most 50 000 entries while no index is cached. Redirects are resolved; only HTML articles are read. Large archives are never walked end to end.
 - **Markdown:** heading sections → paragraphs. **EPUB:** OPF spine documents → block-level paragraphs. PDFs are skipped.
 - **Text:** `html_to_blocks()` drops `script`/`style`/`head`/…, splits at block elements, reuses `library::strip_html_tags`, decodes entities and removes `[12]`-style reference markers so they cannot be confused with the model's `[n]` citations.
@@ -207,6 +208,7 @@ CI-pinned versions for parity:
 - `FYR_TRUSTED_PROXIES` (optional; reverse proxy IPs/CIDRs whose `X-Forwarded-For` is honoured for client IPs)
 - `FYR_TLS` (`self-signed` or `off`), `FYR_TLS_CERT` + `FYR_TLS_KEY` (PEM paths), `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` (optional; built-in HTTPS, see § 3.6)
 - `FYR_MESSAGING` (default `true`; `false` disables Messages), `FYR_MESSAGES_MAX_PER_CHANNEL` (default `1000`, clamped 10–100000), `FYR_MESSAGES_MAX_AGE_DAYS` (default `90`, clamped 1–3650)
+- `FYR_FULLTEXT` (default `true`; `off` disables the ZIM full-text index, see § 13), `FYR_FULLTEXT_MAX_ARTICLES` (default `200000`; automatic indexing cap, `0` = admin-only), `FYR_FULLTEXT_MIN_FREE_MB` (default `1024`; disk-space guard)
 - `FYR_DEV_PROXY_TARGET` (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)
 
 ## 3. Docker
@@ -350,6 +352,7 @@ Messaging is the single, deliberate exception to "mutating endpoints are admin-o
 - `GET /api/content/:type/:filename/download` — browser file download endpoint used by Content Manager. Streams via `tower_http::services::ServeFile` (no in-memory buffering), supports `Range`/`If-Range`/`HEAD`, and sets `Content-Disposition: attachment` with an ASCII `filename` plus RFC 5987 `filename*`.
 - `GET /api/download/:task_id/status`
 - `GET /api/downloads`
+- `GET /api/index/status` — full-text index state per ZIM archive (§ 13): filenames, states, counters and index sizes only, no paths.
 - `GET /api/search?q=&limit=&kinds=` — global offline search (see § 11). Returns filenames and frontend routes only, never host paths, so no `can_view_system_details` gating is needed.
 
 ### Messages endpoints
@@ -429,6 +432,8 @@ message     = XChaCha20-Poly1305(key = enc_key, nonce = 24 random bytes,
 - `DELETE /api/models/:filename/load`
 - `GET /api/backup` — stream a backup zip (protected although it is a GET; see "Backup and restore" above)
 - `POST /api/restore` — multipart restore of a backup zip
+- `POST /api/index/:filename/build` — queue a full-text index build for a ZIM archive, ignoring the automatic size cap (202 queued/running, 200 already ready, 400 not a `.zim` name, 404 missing, 409 `FYR_FULLTEXT=off`)
+- `DELETE /api/index/:filename` — stop indexing, delete the index and exclude the archive from automatic indexing (204; 409 when the file is still in use)
 
 Download routing: URL downloads stream into `inbox/<task_id>-<filename>.part` (unique per task, so concurrent downloads of the same filename cannot corrupt each other) and are then moved to their content folder with `DownloadManager::move_file`, which falls back to copy + delete when `rename` fails across filesystems (for example when `maps/` or `books/` is a separate Docker volume).
 
@@ -694,7 +699,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 ### Remaining before 1.0 (priority order)
 1. **HTTPS without a separate proxy — delivered on `next`** (§ 3.6): `FYR_TLS=self-signed` or `FYR_TLS_CERT`/`FYR_TLS_KEY` (rustls), optional `FYR_HTTP_REDIRECT_PORT`, installer `--https`. Remaining: validate the "accept the warning" flow and geolocation on real Android/iOS devices.
 2. **Real-hardware validation.** Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.
-3. **Full-text recall for ZIM.** Search and retrieval only match article titles in large archives. Use the Xapian full-text index embedded in many ZIM files (or build a compact one), shared by `search.rs` and `ai/retrieval.rs`.
+3. ~~**Full-text recall for ZIM.**~~ Delivered on `next`: background SQLite FTS5 index per archive, used by global search (`article_text`) and assistant retrieval (§ 13). Open: measure index size and build time for a full Wikipedia on a Pi.
 4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
 5. **Internationalization** (at least Swedish): the UI is English-only today.
 6. **PDF via pdf.js — delivered on `next`** (§ 12): pdf.js reader with page memory, bookmarks, `&page=` deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).
@@ -731,15 +736,15 @@ Run from repository root unless noted:
 ## 11. Global Search (`/api/search`)
 Implemented in `crates/server/src/search.rs`, routed publicly in `main.rs`; frontend in `pages/Search.vue`, `components/HeaderSearch.vue` and `modules/search/searchResults.js`.
 
-**Request:** `GET /api/search?q=<text>&limit=<1..200, default 40>&kinds=<comma list>`. `kinds` accepts `book`, `article`, `content`, `map`, `poi` (unknown names are ignored; omitted = all). Blank `q` returns an empty result set; `q` is truncated to 200 characters.
+**Request:** `GET /api/search?q=<text>&limit=<1..200, default 40>&kinds=<comma list>`. `kinds` accepts `book`, `article`, `article_text`, `content`, `map`, `poi` (unknown names are ignored; omitted = all). Blank `q` returns an empty result set; `q` is truncated to 200 characters.
 
-**Response:** `{ query, results: [{ kind, title, subtitle?, source, score, link, lat?, lng? }], total, truncated, partial, elapsed_ms }`. `source` is a filename. `partial` means the time budget ran out before every source was searched.
+**Response:** `{ query, results: [{ kind, title, subtitle?, snippet?, source, score, link, lat?, lng? }], total, truncated, partial, elapsed_ms }`. `source` is a filename. `partial` means the time budget ran out before every source was searched.
 
 **Link contracts** (consumed by Books/Maps; values are percent-encoded):
-- book: `/books?file=<filename>`; ZIM article: `/books?file=<filename>&path=<zim path>` (same path form as `/native/search`); text hit: `/books?file=<filename>&q=<query>`
+- book: `/books?file=<filename>`; ZIM article: `/books?file=<filename>&path=<zim path>` (same path form as `/native/search`); ZIM article text: `/books?file=<filename>&path=<zim path>&q=<query>`; text hit: `/books?file=<filename>&q=<query>`
 - map: `/maps?map=<filename>`; POI: `/maps?lat=<lat>&lng=<lng>&zoom=14&label=<name>` (no map param; Maps picks a covering map)
 
-**Sources** (cheapest first): map filenames → book titles (`library::extract_title`, cached per path+size+mtime; PDFs > 16 MB use the filename) → GeoJSON POIs (FeatureCollection/Feature/array; Point or mean of line/polygon positions; parsed records cached; files > 32 MB skipped, ≤ 150k records per file) → ZIM titles → Markdown/EPUB full text via `library::search_book` (queries ≥ 3 chars, ≤ 40 books, size caps 8 MB / 32 MB).
+**Sources** (cheapest first): map filenames → book titles (`library::extract_title`, cached per path+size+mtime; PDFs > 16 MB use the filename) → GeoJSON POIs (FeatureCollection/Feature/array; Point or mean of line/polygon positions; parsed records cached; files > 32 MB skipped, ≤ 150k records per file) → ZIM titles → ZIM article bodies from the full-text index (§ 13; queries ≥ 3 chars; all terms must match, the last also as a prefix; ≤ 10 hits per archive; each archive gets an equal share of the remaining budget, min 100 ms, enforced inside SQLite by a progress handler; hits whose article already appears as a title hit are dropped; `snippet` is `[{text, match}]` segments from FTS5 `snippet()`, rendered as text in `Search.vue`) → Markdown/EPUB full text via `library::search_book` (queries ≥ 3 chars, ≤ 40 books, size caps 8 MB / 32 MB).
 
 **ZIM titles:** per archive, `article_list_by_title` (v1) or `entry_list_by_title` (v0) is used.
 - ≤ 60k entries: a folded-title index is built synchronously and cached.
@@ -748,11 +753,11 @@ Implemented in `crates/server/src/search.rs`, routed publicly in `main.rs`; fron
 - No title listing: URL-order scan bounded by the deadline.
 Redirects resolve to their target; duplicates by resolved path are dropped; at most 15 hits per archive. Index cache is LRU-bounded to 500k entries total (~20 MB).
 
-**Ranking (pure, unit-tested):** case- and accent-folded (NFKD with combining marks removed, Unicode lowercase, `_` → space) tiers: exact 1000 > prefix 800 > word-start 600 > all tokens at word starts 450 > substring 300 (2+ chars) > text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. `merge_results` de-duplicates by `link` (best score wins), reserves 5 slots per kind, then fills by score.
+**Ranking (pure, unit-tested):** case- and accent-folded (NFKD with combining marks removed, Unicode lowercase, `_` → space) tiers: exact 1000 > prefix 800 > word-start 600 > all tokens at word starts 450 > substring 300 (2+ chars) > article-body hit 290 − 3 × rank within the archive > text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. `merge_results` de-duplicates by `link` (best score wins), reserves 5 slots per kind, then fills by score.
 
 **Bounds:** whole search runs in one `run_blocking` task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.
 
-**Testing:** pure ranking/merge/limit/link/cache tests and temp-file source tests live in `search.rs`; a router test in `main.rs` covers kinds, links, limits and path leakage in read-only mode. There is no ZIM writer, so ZIM paths are tested by `zim_title_search_against_fixture_archives`, which runs only when `FYR_TEST_ZIM_DIR` points at a folder of `.zim` files (for example the openZIM testing-suite `data/` archives). Frontend logic is tested in `modules/search/searchResults.test.js`.
+**Testing:** pure ranking/merge/limit/link/cache tests and temp-file source tests live in `search.rs`; a router test in `main.rs` covers kinds, links, limits and path leakage in read-only mode. Real archives for tests are written by the hand-built ZIM writer in `crates/server/src/test_zim.rs` (`write_zim(path, articles, redirects)`; uncompressed, format 6.1, `C` namespace, title listing); `zim_title_search_against_fixture_archives` additionally runs against real archives when `FYR_TEST_ZIM_DIR` points at a folder of `.zim` files (for example the openZIM testing-suite `data/` archives). Full-text search merging is tested in `fulltext/tests.rs`. Frontend logic is tested in `modules/search/searchResults.test.js`.
 
 ## 12. Library Reading State (progress, bookmarks, deep links)
 All of this lives in the browser. There are no server endpoints or server writes, so guests in password mode and in `FYR_READONLY` mode get the same features.
@@ -791,3 +796,25 @@ Reader behaviour:
 - Pending saves are written immediately on book switch, on `pagehide`, when the page becomes hidden, and on unmount.
 
 Tests: `cd crates/ui/frontend && npm test` runs Vitest with the shared happy-dom environment. Tests live next to the modules in `*.test.js` files. `readerHelpers.test.js` replaces DOMPurify with an identity function, because happy-dom's parser makes DOMPurify unwrap the first top-level element of each fragment; real browsers are not affected. That file tests line anchoring, not sanitization. `pdfReader.test.js` mocks `pdfjsLoader` (no real pdf.js in happy-dom) to test PDF load cancellation, cleanup and error messages; `pdfLayout.test.js` and `pdfSearch.test.js` cover the pure position and search helpers. Canvas rendering is checked in a real browser (Playwright against the server), not in Vitest.
+
+## 13. Full-text Index for ZIM Archives (`crates/server/src/fulltext/`)
+
+Global search and retrieval can only afford title lookups in big archives at request time, so a background worker builds one SQLite FTS5 database per archive. `FYR_FULLTEXT=off` disables building and querying entirely.
+
+**Storage.** `DATA_DIR/index/<sanitised stem>-<12 hex of SHA-256(filename)>.fts.sqlite` (+ `-wal`/`-shm`). `index/` is never served (only `maps/`, `books/`, `poi/` are under `/data`). Schema v1: `meta(key, value)`, the build queue `todo(cluster, blob, entry)` (dropped when ready) and `articles USING fts5(path UNINDEXED, title, body, tokenize = 'unicode61 remove_diacritics 2')` with persistent rank `bm25(0, 4, 1)`; matching is case- and accent-insensitive like § 11. No prefix index: prefix queries scan the term range, which is cheap for the ≥ 3-character prefixes issued and keeps the file smaller. `meta` records schema, archive filename, size and mtime (ns), state (`building`/`ready`/`failed`), resume cursor (next URL-pointer index), total entries, stored and queued article counts and a path-free note. An index whose stamp differs from the archive is ignored by readers and deleted/rebuilt by the worker. WAL mode, `synchronous=NORMAL`, 8 MiB page cache; readers open read-write without create plus `PRAGMA query_only` (so they work after the WAL files were checkpointed away) with a 200 ms busy timeout. rusqlite needs the `hooks` feature (progress handler); FTS5 is part of the bundled SQLite build.
+
+**Content.** Every `A`/`C` entry with an HTML mime type and real content (redirects, metadata and `_assets_/` are skipped). Body = `ai::retrieval::html_to_text_blocks(html, 1)` (scripts/styles dropped, block-level paragraphs, entities decoded, reference markers removed) joined by newlines, control and highlight-marker characters (U+E000/U+E001) stripped, capped at 256 KiB; articles over 8 MiB of HTML are indexed by title only. Paths use `library::normalize_zim_url`, so they match the deep-link contract.
+
+**Worker** (`worker.rs`, thread `fyr-fulltext`, started in `main.rs`; stopped on graceful shutdown with a 3 s grace):
+- Picks admin requests first (FIFO), else scans `books/`: resumes `building` indexes, deletes stale, unreadable and orphaned ones, and starts archives with ≤ `FYR_FULLTEXT_MAX_ARTICLES` articles (title-listing length, or header entry count) that are not excluded. Idle: sleeps until woken or 60 s.
+- Two resumable phases. **Scan:** directory entries are read in URL order (20 000 per transaction, no content reads) and each HTML article is queued as `(cluster, blob, entry)` in a `todo` table (`WITHOUT ROWID`, keyed in that order); `cursor` records the next URL index. **Index:** the queue is consumed in cluster order, 200 articles per transaction, so each cluster is decompressed about once whatever order the archive's directory has; every transaction inserts the articles, deletes their queue rows and updates the counters together (resume without duplicates or gaps). After each transaction the worker sleeps 0.5 × its work time (≤ 5 s), so it uses at most about two thirds of one core. At the end it runs FTS5 `optimize` (interruptible), drops `todo` and marks the index `ready`. Progress = 10 % × scan + 90 % × stored / (stored + queued).
+- Stops cleanly on shutdown (index stays resumable), admin delete, preemption by an admin build (automatic jobs only), archive changed or removed (index deleted), and when free space on the index volume drops below `FYR_FULLTEXT_MIN_FREE_MB` (paused, retried after 60 s; `SQLITE_FULL` is treated the same). Cancellation is checked every 16 articles; an interrupted chunk rolls back. A corrupt archive or a panic marks the index `failed` (not retried until the archive changes or an admin rebuilds). `DELETE /api/content/books/<file>.zim` calls `forget_archive` first so the worker releases the file (needed on Windows).
+- Admin-deleted archives are listed in `index/excluded.json` so they stay excluded across restarts until `POST /api/index/:filename/build`.
+
+**API** (`routes.rs`): `GET /api/index/status` (public; `{enabled, auto_max_articles, min_free_mb, low_disk, archives: [{filename, state, articles, indexed_articles, processed_entries, total_entries, percent, auto, index_bytes, note?}]}`; states `not_indexed`, `queued`, `indexing`, `paused`, `ready`, `failed`, `excluded`, `disabled`), `POST /api/index/:filename/build` and `DELETE /api/index/:filename` (protected router: 401 without a session in password mode, 403 always in `FYR_READONLY`). All handlers run on the blocking pool.
+
+**Queries** (`mod.rs`): user text is folded with `search::fold`, split on non-alphanumerics (as `unicode61` does), and every term is emitted as a double-quoted FTS5 string (`"a" "b" *` for search, `"a" OR "b"` for retrieval), so operators, column filters, `NEAR` and quotes in input are inert; at most 12 terms of ≤ 64 characters. Readers also use partially built indexes (`open_reader` requires a matching stamp and ≥ 1 stored article). Every query installs a progress handler that interrupts it at the caller's deadline or cancel flag.
+
+**Frontend.** Content Manager → Books shows a Full-text column for `.zim` files (`modules/library/fulltextIndex.js`: status normalisation, labels, applicable actions, polling every 3 s while work is pending); Build/Delete buttons are hidden when `isAdminLocked()`. Search renders `article_text` hits with their snippet segments via text interpolation (`normalizeSnippet` in `modules/search/searchResults.js`).
+
+**Tests.** `fulltext/tests.rs`: end-to-end indexing of hand-built archives, accent-insensitive and prefix matching, hostile FTS syntax, interrupts, re-index after archive replacement, resume from the cursor and rollback, WAL readers during an open batch, disk guard, corrupt archives, the worker thread (auto cap, exclusion, admin build, shutdown), global-search merge and retrieval preferring FTS hits. Jobs run synchronously via `run_job` except in the worker tests, which wait explicitly for each state. `main.rs` router tests cover the access matrix and `FYR_FULLTEXT=off`; Vitest covers `fulltextIndex.test.js` and snippets in `searchResults.test.js`. The ignored `fulltext_throughput` test measures indexing speed: `cargo test -p server --release -- --ignored fulltext_throughput --nocapture`.
