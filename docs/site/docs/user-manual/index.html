@@ -139,6 +139,11 @@
                             <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
+                            <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
+                            <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
+                            <li class="pl-4"><a href="#what-the-encryption-protects-threat-model" class="text-gray-600 hover:text-brand-600">What the encryption protects (threat model)</a></li>
+                            <li class="pl-4"><a href="#who-can-post" class="text-gray-600 hover:text-brand-600">Who can post</a></li>
                             <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
@@ -223,6 +228,7 @@ It runs as a local server and is accessed from a browser.</p>
 <li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
 <li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
 <li><strong>Search:</strong> one search box for the whole offline library (see <a href="#3c-searching-everything">3c. Searching Everything</a>).</li>
+<li><strong>Messages:</strong> a public Board for everyone on the network plus end-to-end encrypted channels protected by a passphrase (see <a href="#3d-messages">3d. Messages</a>).</li>
 <li><strong>Tools:</strong> unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.</li>
 </ul>
 <h2 id="3a-access-control-and-admin-login">3a. Access Control and Admin Login<a class="heading-anchor" href="#3a-access-control-and-admin-login" aria-label="Link to this section">#</a></h2>
@@ -239,6 +245,8 @@ It runs as a local server and is accessed from a browser.</p>
 </ul>
 <p><strong>What requires admin login:</strong></p>
 <ul>
+<li>Posting in Messages and creating encrypted channels — unless the operator also sets <code>FYR_GUEST_MESSAGING=true</code> (see §3d)</li>
+<li>Message moderation (pin/unpin, delete messages and channels)</li>
 <li>Content Manager (downloads, imports, file deletion)</li>
 <li>Settings (location and preferences)</li>
 <li>Model uploads and model management</li>
@@ -260,7 +268,7 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <li>If you forget the password, restart the server with the correct <code>FYR_ADMIN_PASSWORD</code> value.</li>
 </ul>
 <h3 id="strict-read-only-mode-fyr_readonly">Strict read-only mode (<code>FYR_READONLY</code>)<a class="heading-anchor" href="#strict-read-only-mode-fyr_readonly" aria-label="Link to this section">#</a></h3>
-<p>Setting <code>FYR_READONLY=true</code> disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a <strong>Read-only</strong> badge in the navbar.</p>
+<p>Setting <code>FYR_READONLY=true</code> disables all mutating operations permanently, including posting in Messages (reading still works). No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a <strong>Read-only</strong> badge in the navbar.</p>
 <p>Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.</p>
 <h3 id="install-as-an-app-phones-tablets-desktops">Install as an app (phones, tablets, desktops)<a class="heading-anchor" href="#install-as-an-app-phones-tablets-desktops" aria-label="Link to this section">#</a></h3>
 <p>Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use <strong>Add to Home Screen</strong> (iOS Safari, Android Chrome) or <strong>Install app</strong> (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.</p>
@@ -394,6 +402,71 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <li>Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
 <li><code>.fgb</code> (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.</li>
 </ul>
+<h2 id="3d-messages">3d. Messages<a class="heading-anchor" href="#3d-messages" aria-label="Link to this section">#</a></h2>
+<p>Messages has no user accounts. Everyone picks a nickname once per device (stored in the browser, editable at any time). Each device also gets a random <strong>device tag</strong> — a short code shown as a coloured dot next to its messages so you can tell people with the same nickname apart. Nicknames and tags are <strong>not verified</strong>: anyone can type any nickname.</p>
+<h3 id="the-board-public">The Board (public)<a class="heading-anchor" href="#the-board-public" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Board</strong> is always listed first. It is a public chat that everyone who can reach the server can read; the server stores it in plain text.</p>
+<ul>
+<li>Posts can carry a <strong>category</strong> chip — <em>Info</em>, <em>Need</em>, <em>Offer</em> or <em>Alert</em> — and an optional <strong>location</strong> (📍). A location links to the Maps page centred on that spot. <strong>Add location</strong> uses the browser&#39;s location when the page is served over HTTPS (or localhost); on a plain-HTTP hotspot it falls back to the location saved in Settings.</li>
+<li>Board posts expire after 30 days by default; pick 1 day to 1 year in the composer.</li>
+<li>Admins can <strong>pin</strong> important posts (pinned posts stay at the top and never expire) and <strong>delete</strong> posts.</li>
+<li>Active <strong>Alert</strong> posts also appear as a banner on the Overview page. Each visitor can dismiss them.</li>
+<li>The <strong>Messages</strong> nav link shows how many new Board posts arrived since you last looked.</li>
+</ul>
+<h3 id="encrypted-channels">Encrypted channels<a class="heading-anchor" href="#encrypted-channels" aria-label="Link to this section">#</a></h3>
+<p>Open <strong>Join or create an encrypted channel</strong>, enter a channel name and a passphrase, and press <strong>Join</strong>. Your device derives the keys (this takes about a second). If nobody has created that channel yet you are offered <strong>Create this channel</strong>. Everyone who enters the same name and passphrase ends up in the same channel; a different passphrase gives a different, unrelated channel. There is no list of channels on the server.</p>
+<ul>
+<li>Use a strong passphrase — four or more random words. Anyone who captures the channel id on the network can try to guess a weak passphrase offline.</li>
+<li><strong>Remember on this device</strong> stores the channel keys (never the passphrase) in the browser so the channel stays in your list; <strong>Forget</strong> removes them. Without it the channel lasts until you close the tab.</li>
+<li><strong>Share</strong> gives a link (<code>/messages#join=&lt;name&gt;</code>) and a QR code. The part after <code>#</code> never reaches the server. You can choose to include the passphrase in the link — anyone who sees that link or QR code can then read and post, so share it only in person. Opening such a link only fills in the form; the passphrase is removed from the address bar immediately.</li>
+<li>Messages are end-to-end encrypted on your device; the server only stores scrambled data. Channels keep the newest 1000 messages and messages younger than 90 days. Channels with no messages are removed after a week of inactivity — anyone with the name and passphrase can simply create them again (<strong>Create it again</strong>).</li>
+<li>Admins can delete a channel and its messages, but cannot read them.</li>
+</ul>
+<h3 id="what-the-encryption-protects-threat-model">What the encryption protects (threat model)<a class="heading-anchor" href="#what-the-encryption-protects-threat-model" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong>Protects against:</strong> people passively sniffing the Wi-Fi, and anyone who copies or reads the server&#39;s disk.</li>
+<li><strong>Does not protect against:</strong> an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over <strong>HTTPS</strong> through a reverse proxy if that matters to you.</li>
+<li>Anyone who knows the passphrase can read everything in the channel and post under any nickname.</li>
+<li>The Board is never encrypted.</li>
+</ul>
+<h3 id="who-can-post">Who can post<a class="heading-anchor" href="#who-can-post" aria-label="Link to this section">#</a></h3>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Read Board / channels</th>
+<th>Post and create channels</th>
+<th>Pin / delete</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Open (default)</td>
+<td>Everyone</td>
+<td>Everyone</td>
+<td>Everyone (there is no admin login)</td>
+</tr>
+<tr>
+<td><code>FYR_ADMIN_PASSWORD</code></td>
+<td>Everyone</td>
+<td>Admin only</td>
+<td>Admin only</td>
+</tr>
+<tr>
+<td><code>FYR_ADMIN_PASSWORD</code> + <code>FYR_GUEST_MESSAGING=true</code></td>
+<td>Everyone</td>
+<td>Everyone</td>
+<td>Admin only</td>
+</tr>
+<tr>
+<td><code>FYR_READONLY</code></td>
+<td>Everyone</td>
+<td>Nobody</td>
+<td>Nobody</td>
+</tr>
+</tbody></table>
+</div>
+<p>Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy&#39;s address, so these limits are shared too.</p>
+<p>Set <code>FYR_MESSAGING=false</code> to switch Messages off entirely.</p>
 <h2 id="4-add-content">4. Add Content<a class="heading-anchor" href="#4-add-content" aria-label="Link to this section">#</a></h2>
 <h3 id="data-directories-and-supported-file-types">Data directories and supported file types<a class="heading-anchor" href="#data-directories-and-supported-file-types" aria-label="Link to this section">#</a></h3>
 <p>All data is stored under <code>public/data/</code> (or <code>DATA_DIR</code> if you override it).</p>
@@ -557,6 +630,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>public/data/models/</code></li>
 <li><code>public/data/misc/</code></li>
 </ul>
+<p>Messages are stored in <code>messages.sqlite</code> directly in the data directory (owner-readable only, never published).</p>
 <p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
 <h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
 <p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
@@ -572,6 +646,10 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_PORT</code></li>
 <li><code>FYR_ADMIN_PASSWORD</code> — enables password-protected admin mode (see §3a)</li>
 <li><code>FYR_READONLY</code> — enables strict read-only mode; all mutating endpoints return 403 (see §3a)</li>
+<li><code>FYR_GUEST_MESSAGING</code> — with <code>FYR_ADMIN_PASSWORD</code> set, let guests post in Messages and create encrypted channels (see §3d)</li>
+<li><code>FYR_MESSAGING</code> — set to <code>false</code> to disable Messages (default on)</li>
+<li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000)</li>
+<li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages in days (default 90)</li>
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
@@ -757,6 +835,11 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
+                            <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
+                            <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
+                            <li class="pl-4"><a href="#what-the-encryption-protects-threat-model" class="text-gray-600 hover:text-brand-600">What the encryption protects (threat model)</a></li>
+                            <li class="pl-4"><a href="#who-can-post" class="text-gray-600 hover:text-brand-600">Who can post</a></li>
                             <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
                             <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
                             <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
