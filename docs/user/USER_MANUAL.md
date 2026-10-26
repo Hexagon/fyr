@@ -198,7 +198,7 @@ Three response modes are available:
 
 Turn on **Use library** next to the mode buttons to have the assistant answer from your own offline books instead of only from what the model remembers.
 
-- Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: **ZIM** archives by article title (for example *Gustav Vasa* or *Water purification*), **Markdown** files by section, and **EPUB** books by chapter. PDFs are not searched yet.
+- Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: **ZIM** archives by article text when the archive has a full-text index (see [Full-text index for ZIM archives](#full-text-index-for-zim-archives)), otherwise by article title (for example *Gustav Vasa* or *Water purification*), **Markdown** files by section, and **EPUB** books by chapter. PDFs are not searched yet.
 - The best-matching passages (up to four) are given to the model as numbered sources. The model is asked to cite them as `[1]`, `[2]`, … and to say when your library does not cover the question.
 - Sources appear as chips under the answer; clicking a chip or a `[n]` citation in the text opens that article or book in **Books** (ZIM articles open directly; other books open with the matching words searched).
 - If nothing matches, the answer shows *No matching passages found in your library.*
@@ -220,16 +220,27 @@ Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside 
 |-------|-----------------|------------------|
 | **Books** | Book titles (EPUB/PDF/Markdown/ZIM metadata) and filenames | Opens the book |
 | **Articles** | Article titles in every `.zim` archive in `books/` | Opens that article in the ZIM reader |
+| **In article text** | Words in ZIM article bodies, for archives with a full-text index (queries of 3+ characters); shows a highlighted excerpt | Opens that article in the ZIM reader with the search term |
 | **In book text** | Text inside Markdown and EPUB books (queries of 3+ characters) | Opens the book with the search term |
 | **Maps** | Map filenames in `maps/` | Opens that map |
 | **Places** | `name` / `title` / `description` of features in GeoJSON files in `poi/` | Opens Maps centred on the place |
 
 - Results are grouped by kind with the most relevant group first; exact and "starts with" matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (`zurich` finds `Zürich`, `malmo` finds `Malmö`).
-- Use the filter chips (All, Books, Articles, Book text, Maps, Places) to narrow the search.
+- Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Places) to narrow the search.
 - Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.
 - Search is read-only and available in every access mode, including `FYR_READONLY`.
-- Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by **title prefix** ("albert ein" finds "Albert Einstein"); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.
+- Each search has a time limit so very large archives cannot freeze Fyr. Without a full-text index, very large ZIM archives (for example a full Wikipedia) are searched by **title prefix** ("albert ein" finds "Albert Einstein"); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.
 - `.fgb` (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.
+
+### Full-text index for ZIM archives
+
+Without an index, Fyr can only match ZIM article **titles**. To find words inside articles (and give the assistant better sources), Fyr builds a full-text index per archive in the background:
+
+- Archives with up to 200 000 articles (`FYR_FULLTEXT_MAX_ARTICLES`) are indexed automatically, one at a time, at low priority. Larger archives (for example a full Wikipedia) are only indexed when an admin clicks **Build index**, because that takes hours on a Raspberry Pi and several GB of disk.
+- **Content Manager → Books** shows a **Full-text** column for each `.zim` file: *Waiting to index*, *Indexing 42%*, *Paused*, *Full-text ready*, *Index failed* or *Not indexed*. Admins (any visitor in open mode) see **Build index** and **Delete index** buttons; they are hidden for visitors in password-protected and read-only modes, where the server also refuses them.
+- Search and the assistant already use a partly built index. Indexing resumes where it stopped after a restart, and starts over automatically when an archive file is replaced. Deleting an index stops automatic indexing of that archive until **Build index** is clicked again; deleting the archive deletes its index.
+- Indexing pauses while free disk space is below 1 GB (`FYR_FULLTEXT_MIN_FREE_MB`) and resumes when space is available. The index stores the articles' plain text plus a word index, so it can be larger than the compressed `.zim` file itself (plan for 1–3× the archive size for text-only archives; much less for archives with many pictures).
+- Set `FYR_FULLTEXT=off` to disable indexing and full-text search entirely.
 
 ## 3d. Messages
 
@@ -412,6 +423,8 @@ Messages are stored in `messages.sqlite` directly in the data directory (owner-r
 
 Two more folders may appear briefly: `.backup-tmp/` (temporary files while a backup or restore runs; removed automatically) and `restore-pending/` (files from a restore that are applied at the next start, see §6a).
 
+Full-text indexes of ZIM archives are stored in `index/` in the data directory (one `.fts.sqlite` file per archive, never published). They can be deleted at any time; Fyr rebuilds them as described in [Full-text index for ZIM archives](#full-text-index-for-zim-archives).
+
 Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
 
@@ -440,6 +453,9 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_TLS_CERT`, `FYR_TLS_KEY` — paths to your own PEM certificate chain and private key; set both to serve HTTPS with them
 - `FYR_TLS_SANS` — extra comma-separated host names/IPs for the self-signed certificate
 - `FYR_HTTP_REDIRECT_PORT` — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from `FYR_PORT`)
+- `FYR_FULLTEXT` — set to `off` to disable the ZIM full-text index and full-text search (default on)
+- `FYR_FULLTEXT_MAX_ARTICLES` — archives with at most this many articles are indexed automatically (default 200000; `0` = only when an admin clicks **Build index**)
+- `FYR_FULLTEXT_MIN_FREE_MB` — indexing pauses while free disk space is below this many MB (default 1024)
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
@@ -538,7 +554,7 @@ If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/
 
 ### "Use library" finds no sources
 - Make sure the books are in the `books/` data folder (ZIM, EPUB or Markdown; PDFs are not searched).
-- For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.
+- For ZIM archives without a full-text index, ask about the topic by its article title; check the **Full-text** column in Content Manager → Books and build the index for large archives to search article text.
 - Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.
 
 ### Assistant load fails or runs slowly
