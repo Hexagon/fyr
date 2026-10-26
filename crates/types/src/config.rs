@@ -14,6 +14,7 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub auth: AuthConfig,
     pub ai: AiConfig,
+    pub messaging: MessagingConfig,
 }
 
 /// Authentication and access-control configuration
@@ -25,6 +26,12 @@ pub struct AuthConfig {
     /// When true, all mutating endpoints are permanently disabled regardless
     /// of any session state. Takes precedence over `admin_password`.
     pub readonly: bool,
+    /// When true (`FYR_GUEST_MESSAGING`), visitors without an admin session
+    /// may post messages and create channels even when `admin_password` is
+    /// set. Has no effect in read-only mode or in open mode (where everyone
+    /// may already post).
+    #[serde(default)]
+    pub guest_messaging: bool,
 }
 
 impl AuthConfig {
@@ -32,6 +39,28 @@ impl AuthConfig {
     /// password-protected).
     pub fn is_restricted(&self) -> bool {
         self.readonly || self.admin_password.is_some()
+    }
+}
+
+/// Messages (public board channel + encrypted channels) configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessagingConfig {
+    /// Master switch (`FYR_MESSAGING`, default on).
+    pub enabled: bool,
+    /// Newest messages kept per channel (`FYR_MESSAGES_MAX_PER_CHANNEL`).
+    pub max_messages_per_channel: u32,
+    /// Maximum age of encrypted-channel messages in days
+    /// (`FYR_MESSAGES_MAX_AGE_DAYS`).
+    pub max_age_days: u32,
+}
+
+impl Default for MessagingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_messages_per_channel: 1000,
+            max_age_days: 90,
+        }
     }
 }
 
@@ -59,12 +88,14 @@ impl Config {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
             },
-                        data_dir,
+            data_dir,
             auth: AuthConfig {
                 admin_password: None,
                 readonly: false,
+                guest_messaging: false,
             },
             ai: AiConfig { threads: None },
+            messaging: MessagingConfig::default(),
         }
     }
 
@@ -96,6 +127,13 @@ impl Config {
     /// Get path to generic misc directory
     pub fn misc_dir(&self) -> PathBuf {
         self.data_dir.join("misc")
+    }
+
+    /// Get path to the messages database. Lives directly in the data
+    /// directory, which is never served as a whole (only the public content
+    /// folders under `/data/*` are).
+    pub fn messages_db_path(&self) -> PathBuf {
+        self.data_dir.join("messages.sqlite")
     }
 
     /// Get path to the curated content catalog
@@ -176,9 +214,23 @@ impl Default for Config {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-                config.auth = AuthConfig {
+        let guest_messaging = env_flag("FYR_GUEST_MESSAGING").unwrap_or(false);
+
+        config.auth = AuthConfig {
             admin_password,
             readonly,
+            guest_messaging,
+        };
+
+        let defaults = MessagingConfig::default();
+        config.messaging = MessagingConfig {
+            enabled: env_flag("FYR_MESSAGING").unwrap_or(defaults.enabled),
+            max_messages_per_channel: env_u32("FYR_MESSAGES_MAX_PER_CHANNEL")
+                .map(|v| v.clamp(10, 100_000))
+                .unwrap_or(defaults.max_messages_per_channel),
+            max_age_days: env_u32("FYR_MESSAGES_MAX_AGE_DAYS")
+                .map(|v| v.clamp(1, 3650))
+                .unwrap_or(defaults.max_age_days),
         };
 
         let ai_threads = std::env::var("FYR_AI_THREADS")
@@ -191,9 +243,47 @@ impl Default for Config {
     }
 }
 
+/// Parse a boolean environment flag (`1|true|yes|on` / `0|false|no|off`).
+fn env_flag(name: &str) -> Option<bool> {
+    parse_flag(&std::env::var(name).ok()?)
+}
+
+fn parse_flag(raw: &str) -> Option<bool> {
+    match raw.trim().to_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+fn env_u32(name: &str) -> Option<u32> {
+    std::env::var(name).ok()?.trim().parse::<u32>().ok()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{parse_flag, Config};
+
+    #[test]
+    fn parse_flag_accepts_common_spellings() {
+        for raw in ["1", "true", "YES", " on "] {
+            assert_eq!(parse_flag(raw), Some(true), "{raw}");
+        }
+        for raw in ["0", "false", "No", "off"] {
+            assert_eq!(parse_flag(raw), Some(false), "{raw}");
+        }
+        assert_eq!(parse_flag("maybe"), None);
+    }
+
+    #[test]
+    fn messaging_defaults_are_safe() {
+        let config = Config::default_with_data_dir("/tmp/x");
+        assert!(config.messaging.enabled);
+        assert!(!config.auth.guest_messaging);
+        assert_eq!(config.messaging.max_messages_per_channel, 1000);
+        assert_eq!(config.messaging.max_age_days, 90);
+        assert!(config.messages_db_path().ends_with("messages.sqlite"));
+    }
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
