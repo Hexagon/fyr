@@ -72,10 +72,12 @@ export const normalizePosition = (position) => {
     return out
   }
 
-  // pdf
+  // pdf: 1-based page plus how far down that page the viewport top is (0..1)
   const page = finiteNumber(position.page)
   if (page === null || page < 1) return null
   out.page = Math.floor(page)
+  const offset = finiteNumber(position.offset)
+  if (offset !== null) out.offset = Math.round(Math.min(1, Math.max(0, offset)) * 10000) / 10000
   return out
 }
 
@@ -86,6 +88,7 @@ export const positionKey = (position) => {
   if (pos.type === 'epub') return `epub:${pos.cfi}`
   if (pos.type === 'zim') return `zim:${pos.path}`
   if (pos.type === 'md') return pos.line ? `md:line:${pos.line}` : `md:frac:${pos.fraction.toFixed(3)}`
+  // One bookmark per PDF page: re-bookmarking further down a page renames it.
   return `pdf:${pos.page}`
 }
 

@@ -242,6 +242,29 @@ describe('normalizePosition / positionKey', () => {
     expect(normalizePosition({ type: 'md', fraction: 2 })).toEqual({ type: 'md', fraction: 1 })
   })
 
+  it('keeps a PDF page and the offset within it', () => {
+    expect(normalizePosition({ type: 'pdf', page: 12.9, offset: 0.333333, label: 'Page 12' })).toEqual({
+      type: 'pdf',
+      page: 12,
+      offset: 0.3333,
+      label: 'Page 12'
+    })
+    expect(normalizePosition({ type: 'pdf', page: 3, offset: 7 })).toEqual({ type: 'pdf', page: 3, offset: 1 })
+    expect(normalizePosition({ type: 'pdf', page: 3, offset: 'x' })).toEqual({ type: 'pdf', page: 3 })
+    expect(normalizePosition({ type: 'pdf', page: 0 })).toBeNull()
+  })
+
+  it('round-trips a PDF position and bookmarks through the store', () => {
+    const store = createProgressStore({ storage: null })
+    store.savePosition('guide.pdf', { type: 'pdf', page: 40, offset: 0.5 })
+    expect(store.getPosition('guide.pdf')).toEqual({ type: 'pdf', page: 40, offset: 0.5 })
+    store.addBookmark('guide.pdf', { title: 'Page 40', position: { type: 'pdf', page: 40, offset: 0.2 } })
+    store.addBookmark('guide.pdf', { title: 'Knots', position: { type: 'pdf', page: 40, offset: 0.7 } })
+    const bookmarks = store.getBookmarks('guide.pdf')
+    expect(bookmarks).toHaveLength(1)
+    expect(bookmarks[0].title).toBe('Knots')
+  })
+
   it('produces stable keys per position type', () => {
     expect(positionKey(epub('c'))).toBe('epub:c')
     expect(positionKey({ type: 'zim', path: 'A/B' })).toBe('zim:A/B')
