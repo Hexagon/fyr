@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fyr vs Kiwix-serve, Internet-in-a-Box, Organic Maps, OsmAnd and Ollama</title>
+    <meta name="description" content="An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/compare/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=ceee88d895">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/compare/">
+    <meta property="og:title" content="Fyr vs Kiwix-serve, Internet-in-a-Box, Organic Maps, OsmAnd and Ollama">
+    <meta property="og:description" content="An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fyr vs Kiwix-serve, Internet-in-a-Box, Organic Maps, OsmAnd and Ollama">
+    <meta name="twitter:description" content="An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "Fyr compared with the alternatives",
+      "description": "An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.",
+      "url": "https://fyr.guide/compare/",
+      "mainEntityOfPage": "https://fyr.guide/compare/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-10-26",
+      "dateModified": "2026-10-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Compare",
+          "item": "https://fyr.guide/compare/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Compare</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Fyr compared with the alternatives</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">Fyr overlaps with several excellent open-source projects. Here is how they differ, and when you should pick something else.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · 4 min read · Applies to Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#at-a-glance" class="text-gray-600 hover:text-brand-600">At a glance</a></li>
+                            <li class=""><a href="#fyr-vs-kiwix-serve" class="text-gray-600 hover:text-brand-600">Fyr vs Kiwix-serve</a></li>
+                            <li class=""><a href="#fyr-vs-internet-in-a-box" class="text-gray-600 hover:text-brand-600">Fyr vs Internet-in-a-Box</a></li>
+                            <li class=""><a href="#fyr-vs-organic-maps-and-osmand" class="text-gray-600 hover:text-brand-600">Fyr vs Organic Maps and OsmAnd</a></li>
+                            <li class=""><a href="#fyr-vs-ollama-and-open-webui" class="text-gray-600 hover:text-brand-600">Fyr vs Ollama and Open WebUI</a></li>
+                            <li class=""><a href="#summary" class="text-gray-600 hover:text-brand-600">Summary</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p>Fyr's angle is <strong>one server for the whole offline kit</strong>: ZIM archives (such as Wikipedia), EPUB, PDF and Markdown books, PMTiles/MBTiles maps, and a CPU-only AI assistant, in a single binary with one web interface that any browser on the network can use. The projects below are each excellent at their own focus — often better than Fyr in that area — and several of them combine well with Fyr.</p>
+<p class="text-sm">This comparison is based on each project's public documentation as of October 2026. Projects move quickly; if something here is out of date, please <a href="https://github.com/Hexagon/fyr/issues" rel="noopener">open an issue</a>.</p>
+
+<h2 id="at-a-glance">At a glance<a class="heading-anchor" href="#at-a-glance" aria-label="Link to this section">#</a></h2>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th></th><th>Fyr</th><th>Kiwix-serve</th><th>Internet-in-a-Box</th><th>Organic Maps / OsmAnd</th><th>Ollama + Open WebUI</th></tr></thead>
+<tbody>
+<tr><th scope="row">Main purpose</th><td>All-in-one offline knowledge server</td><td>Serve ZIM archives</td><td>Bundle of offline education apps</td><td>Offline maps and navigation on a device</td><td>Run local language models</td></tr>
+<tr><th scope="row">Runs as</th><td>One binary or one Docker container</td><td>One binary (part of kiwix-tools)</td><td>Installer that sets up many services</td><td>Mobile / desktop app</td><td>Model server plus web UI</td></tr>
+<tr><th scope="row">Offline Wikipedia (ZIM)</th><td>Yes, native reader with title/path search</td><td>Yes, the reference implementation, with full-text search</td><td>Yes (via Kiwix)</td><td>No</td><td>No</td></tr>
+<tr><th scope="row">Ebooks / PDFs</th><td>EPUB, PDF, Markdown</td><td>No (ZIM only)</td><td>Yes, via bundled apps</td><td>No</td><td>Documents for chat context (Open WebUI)</td></tr>
+<tr><th scope="row">Offline maps</th><td>PMTiles and MBTiles in the browser, shared on the LAN</td><td>No</td><td>Yes (OpenStreetMap module)</td><td>Yes, with search and turn-by-turn navigation</td><td>No</td></tr>
+<tr><th scope="row">Local AI chat</th><td>Yes, CPU only, GGUF (Qwen2, Llama, Phi-3)</td><td>No</td><td>Depends on installed apps</td><td>No</td><td>Yes, many model families, GPU acceleration</td></tr>
+<tr><th scope="row">Clients</th><td>Any browser; installable as a home-screen web app</td><td>Any browser; native Kiwix apps for phones and desktops</td><td>Any browser</td><td>Native apps</td><td>Any browser; API for other tools</td></tr>
+<tr><th scope="row">Maturity</th><td>Preview</td><td>Mature</td><td>Mature, large deployments</td><td>Mature</td><td>Mature</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="fyr-vs-kiwix-serve">Fyr vs Kiwix-serve<a class="heading-anchor" href="#fyr-vs-kiwix-serve" aria-label="Link to this section">#</a></h2>
+<p><a href="https://kiwix.org/" rel="noopener">Kiwix</a> created the ZIM ecosystem that makes offline Wikipedia possible, and <code>kiwix-serve</code> is the reference way to serve ZIM files over HTTP. Fyr reads the very same ZIM archives with its own native reader.</p>
+<p><strong>Choose Kiwix-serve</strong> if ZIM archives are all you need: it is mature, very lightweight, supports full-text search inside archives that include a search index, and pairs with native Kiwix apps for Android, iOS, and desktops that work without any server at all.</p>
+<p><strong>Choose Fyr</strong> if you also want maps, ebooks and PDFs, a local AI assistant, and a content manager that downloads and organizes everything from the browser — all behind one address and one access-control model (admin password or strict read-only mode).</p>
+
+<h2 id="fyr-vs-internet-in-a-box">Fyr vs Internet-in-a-Box<a class="heading-anchor" href="#fyr-vs-internet-in-a-box" aria-label="Link to this section">#</a></h2>
+<p><a href="https://internet-in-a-box.org/" rel="noopener">Internet-in-a-Box</a> (IIAB) is a community project that turns a Raspberry Pi or Linux machine into an offline learning hub by installing a curated set of established apps — Kiwix for Wikipedia, OpenStreetMap maps, learning platforms, media libraries and more.</p>
+<p><strong>Choose Internet-in-a-Box</strong> for schools, clinics and community deployments that need full education platforms (courses, video lessons, learning management), or when you want the breadth of many specialized apps and a large community with years of field experience.</p>
+<p><strong>Choose Fyr</strong> when you prefer a single self-contained service — no database server, cache, or collection of separately updated apps — that installs with one command and upgrades in place, and when a built-in CPU-only AI assistant matters to you.</p>
+
+<h2 id="fyr-vs-organic-maps-and-osmand">Fyr vs Organic Maps and OsmAnd<a class="heading-anchor" href="#fyr-vs-organic-maps-and-osmand" aria-label="Link to this section">#</a></h2>
+<p><a href="https://organicmaps.app/" rel="noopener">Organic Maps</a> and <a href="https://osmand.net/" rel="noopener">OsmAnd</a> are offline map apps built on OpenStreetMap data that run directly on your phone.</p>
+<p><strong>Choose them</strong> for navigation: on-device search, routing, and turn-by-turn directions for driving, cycling and walking, with GPS tracking — none of which Fyr provides. They also work with no server nearby.</p>
+<p><strong>Choose Fyr</strong> to host maps once for many people: a single PMTiles or MBTiles archive on a server is instantly available to every device on the network through a browser, alongside reference material and points-of-interest layers. Many setups use both — Fyr for the shared library and map wall, a navigation app on each phone.</p>
+
+<h2 id="fyr-vs-ollama-and-open-webui">Fyr vs Ollama and Open WebUI<a class="heading-anchor" href="#fyr-vs-ollama-and-open-webui" aria-label="Link to this section">#</a></h2>
+<p><a href="https://ollama.com/" rel="noopener">Ollama</a> runs local language models with a simple CLI and API, and <a href="https://openwebui.com/" rel="noopener">Open WebUI</a> adds a feature-rich chat interface on top.</p>
+<p><strong>Choose Ollama and Open WebUI</strong> if AI is the main goal: they support far more model families, use GPUs when available, expose an API for other tools, and offer advanced chat features such as document retrieval, multiple users, and plugins.</p>
+<p><strong>Choose Fyr</strong> if you want a modest assistant as one part of an offline kit: it runs quantized Qwen2, Llama and Phi-3 GGUF models on CPU (NEON on ARM, AVX2 on x86_64) inside the same binary that serves your maps and library, with tested model tiers for Raspberry Pi 5. See the <a href="/guides/local-ai-assistant-offline/">local AI guide</a>.</p>
+
+<h2 id="summary">Summary<a class="heading-anchor" href="#summary" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Only need offline Wikipedia?</strong> Kiwix (apps or kiwix-serve) is the most mature choice.</li>
+<li><strong>Running an offline school or community learning center?</strong> Internet-in-a-Box offers the broadest set of education apps.</li>
+<li><strong>Need to navigate?</strong> Use Organic Maps or OsmAnd on each phone.</li>
+<li><strong>AI-first, with a GPU?</strong> Ollama with Open WebUI.</li>
+<li><strong>Want maps, a library, and a local AI assistant from one small server — for example a Raspberry Pi hotspot?</strong> That is what Fyr is built for. Start with the <a href="/#installation">installation guide</a> or the <a href="/guides/off-grid-emergency-knowledge-server/">off-grid knowledge server guide</a>.</li>
+</ul>
+
+<h2 id="related">Related guides<a class="heading-anchor" href="#related" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="/guides/offline-wikipedia-raspberry-pi/">Offline Wikipedia on a Raspberry Pi</a> — How to run a full offline copy of Wikipedia on a Raspberry Pi: pick the right Kiwix ZIM file, install Fyr, load the archive, and read and search it from any browser on your network.</li>
+<li><a href="/guides/offline-maps-server/">Build a self-hosted offline maps server</a> — Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.</li>
+<li><a href="/guides/local-ai-assistant-offline/">Run a local AI assistant offline — no GPU required</a> — Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.</li>
+<li><a href="/guides/off-grid-emergency-knowledge-server/">Build an off-grid emergency knowledge server</a> — Build an off-grid emergency knowledge server: a Raspberry Pi running Fyr as its own Wi-Fi hotspot, preloaded with offline maps, Wikipedia, medical and repair references, ebooks and a local AI assistant.</li>
+</ul>
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#at-a-glance" class="text-gray-600 hover:text-brand-600">At a glance</a></li>
+                            <li class=""><a href="#fyr-vs-kiwix-serve" class="text-gray-600 hover:text-brand-600">Fyr vs Kiwix-serve</a></li>
+                            <li class=""><a href="#fyr-vs-internet-in-a-box" class="text-gray-600 hover:text-brand-600">Fyr vs Internet-in-a-Box</a></li>
+                            <li class=""><a href="#fyr-vs-organic-maps-and-osmand" class="text-gray-600 hover:text-brand-600">Fyr vs Organic Maps and OsmAnd</a></li>
+                            <li class=""><a href="#fyr-vs-ollama-and-open-webui" class="text-gray-600 hover:text-brand-600">Fyr vs Ollama and Open WebUI</a></li>
+                            <li class=""><a href="#summary" class="text-gray-600 hover:text-brand-600">Summary</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>

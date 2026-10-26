@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting</title>
+    <meta name="description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/docs/user-manual/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=ceee88d895">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/docs/user-manual/">
+    <meta property="og:title" content="Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting">
+    <meta property="og:description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting">
+    <meta name="twitter:description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "Fyr User Manual",
+      "description": "The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.",
+      "url": "https://fyr.guide/docs/user-manual/",
+      "mainEntityOfPage": "https://fyr.guide/docs/user-manual/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-01-01",
+      "dateModified": "2026-10-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Documentation",
+          "item": "https://fyr.guide/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "User Manual",
+          "item": "https://fyr.guide/docs/user-manual/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#1-what-fyr-is" class="text-gray-600 hover:text-brand-600">1. What Fyr Is</a></li>
+                            <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
+                            <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
+                            <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
+                            <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
+                            <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
+                            <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
+                            <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
+                            <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
+                            <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
+                            <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
+                            <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
+                            <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
+                            <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
+                            <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
+                            <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
+                            <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
+                            <li class="pl-4"><a href="#downloads" class="text-gray-600 hover:text-brand-600">Downloads</a></li>
+                            <li class=""><a href="#5-zim-reading" class="text-gray-600 hover:text-brand-600">5. ZIM Reading</a></li>
+                            <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
+                            <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
+                            <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
+                            <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
+                            <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
+                            <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
+                            <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
+                            <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
+                            <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
+                            <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
+                            <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
+                            <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
+                            <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>
+                            <li class="pl-4"><a href="#encryption--ciphers" class="text-gray-600 hover:text-brand-600">Encryption &amp; Ciphers</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p class="not-prose text-sm text-gray-600 bg-gray-200/70 border border-gray-300 rounded-lg px-4 py-3 mb-8">This page is generated from <a class="text-brand-600 underline" href="https://github.com/Hexagon/fyr/blob/main/docs/user/USER_MANUAL.md">docs/user/USER_MANUAL.md</a> on GitHub, the canonical source. Installation steps live on the <a class="text-brand-600 underline" href="/#installation">installation section</a>.</p><h2 id="1-what-fyr-is">1. What Fyr Is<a class="heading-anchor" href="#1-what-fyr-is" aria-label="Link to this section">#</a></h2>
+<p>Fyr is an offline-first content platform for maps, books, and knowledge archives.
+It requires no external database, cache server, or other services to run.
+It runs as a local server and is accessed from a browser.</p>
+<blockquote>
+<p><strong>Project status:</strong> Fyr is currently in <strong>preview</strong>. UI details may evolve as features are refined.</p>
+</blockquote>
+<h3 id="related-documentation">Related documentation<a class="heading-anchor" href="#related-documentation" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Installation and deployment paths: <a href="/#installation">fyr.guide/#installation</a></li>
+<li>Project overview: <a href="https://github.com/Hexagon/fyr/blob/main/README.md" rel="noopener">README.md</a></li>
+<li>Developer architecture details: <a href="/docs/developer-manual/">Developer Manual</a></li>
+</ul>
+<h3 id="1a-installer-scripts">1a. Installer Scripts<a class="heading-anchor" href="#1a-installer-scripts" aria-label="Link to this section">#</a></h3>
+<p>Official hosted scripts are available for a guided Docker setup:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux / macOS</td>
+<td><code>curl -fsSL https://fyr.guide/install.sh | sh</code></td>
+</tr>
+<tr>
+<td>Windows PowerShell</td>
+<td><code>irm https://fyr.guide/install.ps1 | iex</code></td>
+</tr>
+</tbody></table>
+</div>
+<p>The scripts persist settings (port, data volume, admin password) in <code>~/.config/fyr/install.conf</code> (Linux/macOS) or <code>%APPDATA%\fyr\install.conf</code> (Windows). To upgrade to a newer image, add <code>update</code>:</p>
+<pre><code class="language-bash">curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+</code></pre>
+<pre><code class="language-powershell">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
+</code></pre>
+<p>All arguments are documented inline via <code>--help</code> (Linux/macOS) or <code>-Help</code> (Windows), and the full reference table is available at <a href="/#installation">fyr.guide/#installation</a>.</p>
+<h2 id="2-start-fyr">2. Start Fyr<a class="heading-anchor" href="#2-start-fyr" aria-label="Link to this section">#</a></h2>
+<p>For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use <a href="/#installation">fyr.guide/#installation</a>. (If viewing this file locally, open <code>docs/site/index.html</code> in a browser for the same installation guide.)</p>
+<p>Once Fyr is running, open <code>http://localhost:8080</code> on the same machine, or <code>http://&lt;host-or-device-ip&gt;:8080</code> if Fyr runs in Docker or on another device.</p>
+<hr>
+<h2 id="3-main-pages">3. Main Pages<a class="heading-anchor" href="#3-main-pages" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Home:</strong> system status, location, sunrise/sunset, and storage overview.</li>
+<li><strong>Content Manager:</strong> add URL downloads, import local files, and inspect content inventory. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set.</li>
+<li><strong>Settings:</strong> configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
+<li><strong>Maps:</strong> map selection and viewer controls.</li>
+<li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
+<li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
+<li><strong>Tools:</strong> unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.</li>
+</ul>
+<h2 id="3a-access-control-and-admin-login">3a. Access Control and Admin Login<a class="heading-anchor" href="#3a-access-control-and-admin-login" aria-label="Link to this section">#</a></h2>
+<p>Fyr can run in three access modes:</p>
+<h3 id="open-mode-default">Open mode (default)<a class="heading-anchor" href="#open-mode-default" aria-label="Link to this section">#</a></h3>
+<p>All features are available to everyone. No authentication is needed.</p>
+<h3 id="password-protected-mode-fyr_admin_password">Password-protected mode (<code>FYR_ADMIN_PASSWORD</code>)<a class="heading-anchor" href="#password-protected-mode-fyr_admin_password" aria-label="Link to this section">#</a></h3>
+<p>The server operator sets an admin password via the <code>FYR_ADMIN_PASSWORD</code> environment variable.</p>
+<p><strong>What guests can do:</strong></p>
+<ul>
+<li>Browse maps, books, and POIs</li>
+<li>Chat with pre-loaded AI models</li>
+<li>Read content</li>
+</ul>
+<p><strong>What requires admin login:</strong></p>
+<ul>
+<li>Content Manager (downloads, imports, file deletion)</li>
+<li>Settings (location and preferences)</li>
+<li>Model uploads and model management</li>
+<li>Storage details on the Overview page (the server also hides data-directory paths and disk capacity from guests; per-category usage stays visible)</li>
+</ul>
+<p><strong>How to log in:</strong></p>
+<ol>
+<li>Click <strong>Log in</strong> in the top-right navbar.</li>
+<li>Enter the admin password on the login page.</li>
+<li>On success, an <strong>Admin</strong> badge appears in the navbar alongside a <strong>Log out</strong> button.</li>
+<li>The Content Manager, Settings nav links and storage details become visible.</li>
+</ol>
+<p><strong>How to log out:</strong>
+Click <strong>Log out</strong> in the navbar. Your session is cleared immediately.</p>
+<p><strong>Security notes:</strong></p>
+<ul>
+<li>Session tokens are stored server-side in memory; the HttpOnly cookie contains only the token reference (not the session data itself). Cookies are not accessible to JavaScript.</li>
+<li>Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes, using the real TCP peer address).</li>
+<li>If you forget the password, restart the server with the correct <code>FYR_ADMIN_PASSWORD</code> value.</li>
+</ul>
+<h3 id="strict-read-only-mode-fyr_readonly">Strict read-only mode (<code>FYR_READONLY</code>)<a class="heading-anchor" href="#strict-read-only-mode-fyr_readonly" aria-label="Link to this section">#</a></h3>
+<p>Setting <code>FYR_READONLY=true</code> disables all mutating operations permanently. No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a <strong>Read-only</strong> badge in the navbar.</p>
+<p>Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.</p>
+<h3 id="install-as-an-app-phones-tablets-desktops">Install as an app (phones, tablets, desktops)<a class="heading-anchor" href="#install-as-an-app-phones-tablets-desktops" aria-label="Link to this section">#</a></h3>
+<p>Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use <strong>Add to Home Screen</strong> (iOS Safari, Android Chrome) or <strong>Install app</strong> (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.</p>
+<h3 id="header-behavior">Header behavior<a class="heading-anchor" href="#header-behavior" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>The top header shows the current page context together with the clock, weekday, and date.</li>
+<li>Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.</li>
+</ul>
+<h2 id="3b-using-the-ai-assistant">3b. Using the AI Assistant<a class="heading-anchor" href="#3b-using-the-ai-assistant" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Open the Assistant tab from the top navigation.</li>
+<li>Use <strong>Open Content Manager</strong> from the Assistant sidebar to jump to the Models section for <code>.gguf</code> uploads.</li>
+<li>For text generation, use GGUF files that include tokenizer metadata.</li>
+<li>Select a model; Fyr loads it automatically when possible.</li>
+<li>Enter a prompt and send it to start live token streaming.</li>
+</ul>
+<blockquote>
+<p><strong>Model choice notes:</strong></p>
+<ul>
+<li>Larger models and higher quantization levels use more memory.</li>
+<li>If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).</li>
+<li>Fyr&#39;s inference runtime currently supports GGUF models with <strong>Qwen2</strong>, <strong>Llama</strong>, and <strong>Phi-3/Phi-3.5</strong> architectures.</li>
+<li>Inference runs entirely on CPU with SIMD acceleration: <strong>NEON</strong> on ARM (aarch64, including Raspberry Pi 4/5) and <strong>AVX2/FMA</strong> on x86_64. No GPU is needed.</li>
+<li>The assistant shows a <strong>Thinking</strong> block immediately after you send a prompt, then streams the visible reply as it arrives.</li>
+<li>Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a <code>&lt;think&gt;…&lt;/think&gt;</code> block before their response. Fyr displays that reasoning in the same collapsible <strong>Thinking</strong> section and streams it live while the model reasons.</li>
+</ul>
+</blockquote>
+<h3 id="where-to-find-compatible-models">Where to find compatible models<a class="heading-anchor" href="#where-to-find-compatible-models" aria-label="Link to this section">#</a></h3>
+<p>Fyr ships a manually editable curated catalog at <code>public/data/curated-content.json</code> (served at <code>/data/curated-content.json</code>). It records tested model tiers together with recommended download sources for books and maps, and can also include optional direct <code>download_url</code> entries for one-click downloads in Content Manager.</p>
+<p>Recommended model tiers from that catalog:</p>
+<ul>
+<li><strong>Small</strong> — <code>Qwen2.5-1.5B-Instruct</code> in <code>Q8_0</code> (~1.7 GB) for Raspberry Pi 5 systems with 4 GB RAM or for faster/simple answers.</li>
+<li><strong>Standard / Recommended</strong> — <code>Qwen2.5-3B-Instruct</code> in <code>Q6_K</code> (~2.6 GB) for the best balance on Raspberry Pi 5.</li>
+<li><strong>Large</strong> — <code>Qwen2.5-7B-Instruct</code> in <code>Q4_K_M</code> (~4.5 GB) for Raspberry Pi 5 systems with 8 GB RAM.</li>
+<li><strong>Extra large / Desktop</strong> — <code>Qwen2.5-14B-Instruct</code> in <code>Q4_K_M</code> (<del>9.8 GB), or <code>Qwen2.5-7B-Instruct</code> in <code>Q8_0</code> (</del>8.5 GB), for 16 GB+ systems.</li>
+<li><strong>Llama alternative</strong> — <code>Llama-3.2-3B-Instruct</code> in <code>Q4_K_M</code> (~2.0 GB) when you want a broadly compatible multilingual instruct model.</li>
+<li><strong>Phi alternative</strong> — <code>Phi-3.5-mini-instruct</code> in <code>Q4_K_M</code> (~2.4 GB) when you want a compact reasoning-oriented model.</li>
+</ul>
+<p>GGUF files can be downloaded from <a href="https://huggingface.co/models?library=gguf&amp;sort=trending" rel="noopener">Hugging Face</a>. Recommended search:</p>
+<ul>
+<li>Search: <code>Qwen2.5 GGUF</code> — filter by library <code>GGUF</code></li>
+<li>Well-known publisher: <strong>Qwen</strong> org (<code>Qwen/Qwen2.5-1.5B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-3B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-7B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-14B-Instruct-GGUF</code>)</li>
+<li>Search: <code>Llama 3.2 3B Instruct GGUF</code> — a common mirror is <code>bartowski/Llama-3.2-3B-Instruct-GGUF</code></li>
+<li>Search: <code>Phi-3.5 mini instruct GGUF</code> — common sources are <code>bartowski/Phi-3.5-mini-instruct-GGUF</code> and Microsoft&#39;s official <code>Phi-3</code> GGUF repositories</li>
+<li>Fyr&#39;s <strong>Balanced</strong> mode uses <code>temperature=0.2</code> and <code>max_tokens=512</code>; the <strong>Precise</strong> mode uses <code>temperature=0.1</code>; the <strong>Creative</strong> mode uses <code>temperature=0.7</code> and <code>max_tokens=1024</code></li>
+<li>Fyr defaults to a <code>num_ctx</code> of <code>2048</code>; on systems with more than 16 GB of RAM it automatically expands to <code>8192</code></li>
+<li>Advanced users can force the larger context window by setting <code>settings.modules.assistant.high_ram_context</code> to <code>true</code></li>
+<li>Some Llama-family downloads are gated by Hugging Face license acceptance. In those cases, Content Manager may link you to the source page rather than providing a one-click direct download.</li>
+</ul>
+<p>Once downloaded, upload the <code>.gguf</code> file through Content Manager → Models.</p>
+<h3 id="conversation-context-and-modes">Conversation context and modes<a class="heading-anchor" href="#conversation-context-and-modes" aria-label="Link to this section">#</a></h3>
+<p>The Assistant keeps track of recent conversation turns and sends the last six messages as context when inferring, so the model can reference what was discussed earlier in the session.</p>
+<p>Three response modes are available:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Precise</strong></td>
+<td>temperature=0.1, max_tokens=512 — focused, factual answers</td>
+</tr>
+<tr>
+<td><strong>Balanced</strong></td>
+<td>temperature=0.2, max_tokens=512 — default, concise and reliable</td>
+</tr>
+<tr>
+<td><strong>Creative</strong></td>
+<td>temperature=0.7, max_tokens=1024 — more elaborate, varied responses</td>
+</tr>
+</tbody></table>
+</div>
+<h3 id="persisting-the-default-model">Persisting the default model<a class="heading-anchor" href="#persisting-the-default-model" aria-label="Link to this section">#</a></h3>
+<p>The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.</p>
+<h2 id="4-add-content">4. Add Content<a class="heading-anchor" href="#4-add-content" aria-label="Link to this section">#</a></h2>
+<h3 id="data-directories-and-supported-file-types">Data directories and supported file types<a class="heading-anchor" href="#data-directories-and-supported-file-types" aria-label="Link to this section">#</a></h3>
+<p>All data is stored under <code>public/data/</code> (or <code>DATA_DIR</code> if you override it).</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>Supported file types</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>curated-content.json</code></td>
+<td>structured JSON catalog</td>
+<td>Manually editable list of recommended model, book, and map downloads</td>
+</tr>
+<tr>
+<td><code>books/</code></td>
+<td><code>.epub</code>, <code>.pdf</code>, <code>.mobi</code>, <code>.md</code>, <code>.zim</code></td>
+<td>Offline books, manuals, and archives (<code>.mobi</code> files are accepted for storage but have no in-browser reader)</td>
+</tr>
+<tr>
+<td><code>maps/</code></td>
+<td><code>.pmtiles</code>, <code>.mbtiles</code></td>
+<td>Offline map tiles</td>
+</tr>
+<tr>
+<td><code>poi/</code></td>
+<td><code>.geojson</code>, <code>.fgb</code>, <code>.json</code></td>
+<td>POI layers and geo datasets</td>
+</tr>
+<tr>
+<td><code>models/</code></td>
+<td><code>.gguf</code></td>
+<td>Local AI models for Assistant</td>
+</tr>
+<tr>
+<td><code>misc/</code></td>
+<td><code>.txt</code>, <code>.csv</code>, <code>.zip</code>, <code>.7z</code>, <code>.log</code>, <code>.exe</code>, <code>.msi</code>, <code>.deb</code>, <code>.rpm</code>, <code>.dmg</code>, <code>.pkg</code></td>
+<td>General offline resources and installers</td>
+</tr>
+<tr>
+<td><code>inbox/</code></td>
+<td>temporary files during upload/import</td>
+<td>Staging area used by import workflows before auto-routing</td>
+</tr>
+</tbody></table>
+</div>
+<h3 id="books">Books<a class="heading-anchor" href="#books" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Put local book files in <code>public/data/books/</code>.</li>
+<li>URL downloads with supported book extensions are routed to <code>books/</code> automatically.</li>
+<li>For ZIM archives, use trusted OpenZIM-compatible sources.</li>
+</ul>
+<h3 id="maps">Maps<a class="heading-anchor" href="#maps" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Fyr serves vector and raster map tiles from <code>.pmtiles</code> and <code>.mbtiles</code> archives in <code>public/data/maps/</code>.</li>
+<li>PMTiles archives are read directly by the browser without a tile server.</li>
+<li>MBTiles archives (SQLite-based) are served tile-by-tile through the built-in tile endpoint (<code>/api/maps/tiles/{filename}/{z}/{x}/{y}</code>).</li>
+</ul>
+<p><strong>Obtaining PMTiles maps:</strong></p>
+<p><strong>Pre-compiled Shortbread maps (BBBike):</strong>
+Download ready-to-use <code>.pmtiles</code> files from <a href="https://data.bbbike.org/osm/region/" rel="noopener">data.bbbike.org</a>.</p>
+<p><strong>Extract from Protomaps (CLI):</strong>
+Install the <code>pmtiles</code> CLI (<a href="https://docs.protomaps.com/pmtiles/cli" rel="noopener">docs.protomaps.com/pmtiles/cli</a>) and extract a region from a global PMTiles archive. Find the latest dated build at <a href="https://maps.protomaps.com/builds/" rel="noopener">maps.protomaps.com/builds</a> and substitute it into the URL below:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
+pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
+</code></pre>
+<h3 id="poi">POI<a class="heading-anchor" href="#poi" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Put <code>.geojson</code>, <code>.fgb</code>, or <code>.json</code> POI datasets in <code>public/data/poi/</code>.</li>
+<li>If using <code>.json</code>, make sure it follows a valid geo dataset structure used by your workflow.</li>
+</ul>
+<h3 id="models">Models<a class="heading-anchor" href="#models" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Open <strong>Content Manager</strong> and upload a <code>.gguf</code> file in the Models section.</li>
+<li>Fyr validates the GGUF header, stores the upload in <code>public/data/inbox/</code>, then imports it into <code>public/data/models/</code>.</li>
+<li>Current inference runtime is implemented for GGUF models with <code>qwen2</code>, <code>llama</code>, and <code>phi3</code> architectures.</li>
+<li>Prefer models that include tokenizer metadata in GGUF.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code> models, keep a tokenizer sidecar in the same folder (preferred: <code>public/data/models/Phi-3.5-mini-instruct-Q4_K_M.tokenizer.json</code>; fallback names: <code>tokenizer.json</code> or <code>&lt;model&gt;.json</code>).</li>
+<li>The bundled curated catalog (<code>public/data/curated-content.json</code>) lists recommended Qwen2.5, Llama 3.2, and Phi-3.5 GGUF tiers together with their default RAG settings.</li>
+</ul>
+<h3 id="misc">Misc<a class="heading-anchor" href="#misc" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <code>public/data/misc/</code> for generic files that are not map/book/poi/model types.</li>
+<li>Good examples: offline installers, utility archives, drivers, checksum lists, and operational notes.</li>
+</ul>
+<h3 id="downloads">Downloads<a class="heading-anchor" href="#downloads" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <strong>Content Manager</strong> to queue URL downloads.</li>
+<li>Large URL download timeout is centrally configurable from <strong>Settings → Downloads</strong> as <strong>Request timeout (seconds)</strong>.</li>
+<li>Advanced path: the same value is persisted in <code>settings.modules.downloads.request_timeout_seconds</code>.</li>
+<li>When a content folder is empty, Content Manager shows curated recommendations from <code>curated-content.json</code> instead of a blank listing.</li>
+<li>When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.</li>
+<li>Use the <strong>Local Imports</strong> panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.</li>
+<li>Use the <strong>Download</strong> button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.</li>
+<li>Downloads are auto-routed by recognized extension to the correct folder.</li>
+<li>If a URL points to an unrecognized extension, the file remains in <code>inbox/</code> until you move it manually.</li>
+<li>The task list persists across restarts. Tasks that were still queued or in progress when the server stopped are marked <strong>failed</strong> with the reason &quot;interrupted by server restart&quot; (their partial files are removed); re-queue the URL or re-import the file to try again.</li>
+<li>Content listings and download tasks refresh automatically as task state changes.</li>
+<li>You can cancel queued or in-progress downloads from the download manager.</li>
+<li>Fyr does not overwrite your <code>curated-content.json</code> catalog when it already exists in <code>DATA_DIR</code>, so you can keep local recommendations there across updates.</li>
+</ul>
+<h2 id="5-zim-reading">5. ZIM Reading<a class="heading-anchor" href="#5-zim-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.zim</code> file in Books and Fyr opens it using the native reader module.</li>
+<li>Use the search input in the top reader toolbar to find entries by title or path, then open results directly in the same reader view.</li>
+<li>Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.</li>
+<li>ZIM pages use archive-provided styles and default browser styles only; Fyr does not inject fallback theme styles.</li>
+<li>Fyr fetches archive metadata and article content through local <code>/api/reader/zim/*</code> endpoints.</li>
+<li>Book archives remain available under <code>/docs/books/&lt;filename&gt;.zim</code> for local access.</li>
+</ul>
+<h2 id="5a-markdown-reading">5a. Markdown Reading<a class="heading-anchor" href="#5a-markdown-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.md</code> file in Books to open it in the built-in markdown reader.</li>
+<li>Markdown manuals are distributed as regular <code>.md</code> files in <code>public/data/books/</code>.</li>
+</ul>
+<h2 id="5b-pdf-reading">5b. PDF Reading<a class="heading-anchor" href="#5b-pdf-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.pdf</code> file in Books to open it inline in the built-in reader panel.</li>
+<li>If your browser blocks inline PDF rendering, use the &quot;open it in a new tab&quot; link shown under the reader panel.</li>
+</ul>
+<h2 id="5c-reader-shell">5c. Reader Shell<a class="heading-anchor" href="#5c-reader-shell" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Books uses a unified reader shell with a single top toolbar.</li>
+<li>The toolbar includes back-to-library, title + filename, format/status badges, and compact metadata chips.</li>
+<li>EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.</li>
+<li>Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.</li>
+<li>Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.</li>
+</ul>
+<h2 id="6-data-storage-layout">6. Data Storage Layout<a class="heading-anchor" href="#6-data-storage-layout" aria-label="Link to this section">#</a></h2>
+<p><code>public/data/</code> is created automatically and contains the following directories:</p>
+<ul>
+<li><code>public/data/maps/</code></li>
+<li><code>public/data/books/</code></li>
+<li><code>public/data/poi/</code></li>
+<li><code>public/data/inbox/</code></li>
+<li><code>public/data/models/</code></li>
+<li><code>public/data/misc/</code></li>
+</ul>
+<p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
+<h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
+<p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
+<ul>
+<li><code>user-manual.md</code></li>
+<li><code>developer-manual.md</code></li>
+</ul>
+<p>Other files under <code>DATA_DIR</code> are preserved as user-managed content.</p>
+<h3 id="environment-overrides">Environment overrides<a class="heading-anchor" href="#environment-overrides" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>DATA_DIR</code></li>
+<li><code>FYR_HOST</code></li>
+<li><code>FYR_PORT</code></li>
+<li><code>FYR_ADMIN_PASSWORD</code> — enables password-protected admin mode (see §3a)</li>
+<li><code>FYR_READONLY</code> — enables strict read-only mode; all mutating endpoints return 403 (see §3a)</li>
+<li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
+</ul>
+<p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
+<h2 id="7-platform-notes">7. Platform Notes<a class="heading-anchor" href="#7-platform-notes" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>) are both supported.</li>
+<li>Raspberry Pi works best with a 64-bit OS and ARM64 build/image.</li>
+<li>For access from other devices on the LAN, run with <code>FYR_HOST=0.0.0.0</code>.</li>
+</ul>
+<h2 id="8-common-troubleshooting">8. Common Troubleshooting<a class="heading-anchor" href="#8-common-troubleshooting" aria-label="Link to this section">#</a></h2>
+<h3 id="server-does-not-start">Server does not start<a class="heading-anchor" href="#server-does-not-start" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Check if port <code>8080</code> is already in use. Change <code>FYR_PORT</code> and host port mapping (for Docker) if the port is in use.</li>
+<li>Stop old <code>fyr</code> processes and retry.</li>
+<li>If startup reports bind failure details, verify <code>FYR_HOST</code> and <code>FYR_PORT</code> values.</li>
+<li>If startup reports write permission issues, ensure <code>DATA_DIR</code> points to a writable folder.</li>
+</ul>
+<h3 id="content-not-visible-in-ui">Content not visible in UI<a class="heading-anchor" href="#content-not-visible-in-ui" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Verify file extension is supported.</li>
+<li>Verify file is in the correct <code>data/</code> subfolder.</li>
+<li>Refresh browser after server restart.</li>
+<li>Missing content after a restart generally means you need to confirm the <code>/data</code> volume is mounted.</li>
+</ul>
+<h3 id="download-is-stuck-or-failed">Download is stuck or failed<a class="heading-anchor" href="#download-is-stuck-or-failed" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Open Content Manager and inspect the download status/error line.</li>
+<li>Cancel the task and retry the URL.</li>
+<li>A task that shows &quot;interrupted by server restart&quot; was running when Fyr stopped; dismiss it and queue it again.</li>
+<li>For repeated failures, verify the source URL is reachable and supports direct file transfer.</li>
+</ul>
+<h3 id="zim-view-not-loading">ZIM view not loading<a class="heading-anchor" href="#zim-view-not-loading" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the selected <code>.zim</code> file exists under <code>public/data/books/</code> (or your configured <code>DATA_DIR/books/</code>).</li>
+<li>Check the server status and retry opening the archive.</li>
+</ul>
+<h3 id="assistant-model-import-fails">Assistant model import fails<a class="heading-anchor" href="#assistant-model-import-fails" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the model file extension is <code>.gguf</code>.</li>
+<li>Model filenames must be plain file names (no folders or <code>..</code>); otherwise the server rejects the request with &quot;invalid model filename&quot;.</li>
+<li>Ensure the source file starts with GGUF magic bytes.</li>
+<li>Retry the upload if the browser was interrupted before the file finished transferring.</li>
+</ul>
+<h3 id="assistant-inference-fails-after-load">Assistant inference fails after load<a class="heading-anchor" href="#assistant-inference-fails-after-load" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the model architecture is currently supported by Fyr inference.</li>
+<li>Confirm the <code>.gguf</code> model includes tokenizer metadata.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code>, confirm a sidecar tokenizer JSON exists next to the <code>.gguf</code> model.</li>
+<li>If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.</li>
+</ul>
+<h3 id="assistant-load-fails-or-runs-slowly">Assistant load fails or runs slowly<a class="heading-anchor" href="#assistant-load-fails-or-runs-slowly" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Check model health in the assistant status line.</li>
+<li>If memory is limited, use a smaller quantized model.</li>
+<li>If tokenizer metadata is missing, re-export the model with tokenizer fields included.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code>, use the original <code>tokenizer.json</code> from the model repository and place it beside the model file.</li>
+<li>On constrained hardware (e.g. Raspberry Pi), check the server startup logs for CPU feature information. If the log shows <code>dotprod</code> is available at runtime but not compiled in, rebuild the Docker image with <code>--build-arg RUST_TARGET_FEATURES=+dotprod</code> for faster quantized inference. You can also adjust the inference thread pool by setting <code>FYR_AI_THREADS=&lt;n&gt;</code> (default: number of available CPU cores).</li>
+</ul>
+<h2 id="9-tools">9. Tools<a class="heading-anchor" href="#9-tools" aria-label="Link to this section">#</a></h2>
+<p>The <strong>Tools</strong> page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations stay local to your Fyr deployment (offline-safe): some run in-browser, and some are processed by Fyr&#39;s local API.</p>
+<h3 id="unit-converters">Unit Converters<a class="heading-anchor" href="#unit-converters" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Unit Converters</strong> tab supports twelve conversion categories, grouped into logical sections:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Category</th>
+<th>Units</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Length &amp; Speed</td>
+<td>Length</td>
+<td>mm, cm, m, km, in, ft, yd, mi</td>
+</tr>
+<tr>
+<td></td>
+<td>Speed</td>
+<td>m/s, km/h, mph, knot</td>
+</tr>
+<tr>
+<td>Weight &amp; Volume</td>
+<td>Mass</td>
+<td>mg, g, kg, oz, lb</td>
+</tr>
+<tr>
+<td></td>
+<td>Volume</td>
+<td>mL, L, m³, fl_oz, gal, cup</td>
+</tr>
+<tr>
+<td>Area &amp; Angle</td>
+<td>Area</td>
+<td>mm², cm², m², km², ha, in², ft², ac</td>
+</tr>
+<tr>
+<td></td>
+<td>Angle</td>
+<td>deg, rad, grad</td>
+</tr>
+<tr>
+<td>Temperature</td>
+<td>Temperature</td>
+<td>C, F, K</td>
+</tr>
+<tr>
+<td>Digital Storage</td>
+<td>Data</td>
+<td>B, KB, MB, GB, TB, KiB, MiB, GiB</td>
+</tr>
+<tr>
+<td>Energy &amp; Power</td>
+<td>Energy</td>
+<td>J, kJ, cal, kcal, Wh, kWh</td>
+</tr>
+<tr>
+<td></td>
+<td>Power</td>
+<td>W, kW, MW, HP, BTU/h</td>
+</tr>
+<tr>
+<td>Pressure &amp; Time</td>
+<td>Pressure</td>
+<td>Pa, kPa, MPa, bar, psi, atm, mmHg</td>
+</tr>
+<tr>
+<td></td>
+<td>Time</td>
+<td>ms, s, min, h, day</td>
+</tr>
+</tbody></table>
+</div>
+<p><strong>How to use a converter:</strong> Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.</p>
+<h3 id="encryption--ciphers">Encryption &amp; Ciphers<a class="heading-anchor" href="#encryption--ciphers" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Encryption &amp; Ciphers</strong> tab provides four tools:</p>
+<ul>
+<li><p><strong>AES-256-CBC:</strong> Encrypt or decrypt text with a password using AES-256 in CBC mode. Encryption produces a hex-encoded string containing the salt, IV, and ciphertext. Decryption requires the same password used during encryption. Uses PBKDF2 with 100,000 iterations for key derivation.</p>
+</li>
+<li><p><strong>Base64:</strong> Encode plain text to Base64 or decode Base64 back to plain text. Handles Unicode text correctly.</p>
+</li>
+<li><p><strong>ROT13:</strong> Apply the classic ROT13 letter substitution cipher (A↔N, B↔O, etc.). Non-letter characters pass through unchanged. Applying ROT13 twice recovers the original text.</p>
+</li>
+<li><p><strong>Hash / Checksum:</strong> Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: <strong>SHA-256</strong>, <strong>SHA-512</strong>, <strong>SHA-1</strong>, and <strong>MD5</strong>. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>Implementation notes:</strong></p>
+<ul>
+<li>Unit converters, Base64, and ROT13 run directly in the browser.</li>
+<li>AES and hash/checksum operations are handled by Fyr&#39;s local server API.</li>
+<li>Outputs use standard text encodings and hash formats shown in the UI.</li>
+</ul>
+<p><strong>Security note:</strong> The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.</p>
+</blockquote>
+
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#1-what-fyr-is" class="text-gray-600 hover:text-brand-600">1. What Fyr Is</a></li>
+                            <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
+                            <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
+                            <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
+                            <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
+                            <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
+                            <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
+                            <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
+                            <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
+                            <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
+                            <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
+                            <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
+                            <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
+                            <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
+                            <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
+                            <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
+                            <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
+                            <li class="pl-4"><a href="#downloads" class="text-gray-600 hover:text-brand-600">Downloads</a></li>
+                            <li class=""><a href="#5-zim-reading" class="text-gray-600 hover:text-brand-600">5. ZIM Reading</a></li>
+                            <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
+                            <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
+                            <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
+                            <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
+                            <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
+                            <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
+                            <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
+                            <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
+                            <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
+                            <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
+                            <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
+                            <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
+                            <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>
+                            <li class="pl-4"><a href="#encryption--ciphers" class="text-gray-600 hover:text-brand-600">Encryption &amp; Ciphers</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>

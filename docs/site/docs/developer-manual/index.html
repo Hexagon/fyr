@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fyr Developer Manual: Architecture, API, AI Runtime and Releases</title>
+    <meta name="description" content="The Fyr Developer Manual: Rust workspace layout, Candle GGUF inference, access-control architecture, API endpoints, Docker multi-arch builds and the release process.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/docs/developer-manual/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=ceee88d895">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/docs/developer-manual/">
+    <meta property="og:title" content="Fyr Developer Manual: Architecture, API, AI Runtime and Releases">
+    <meta property="og:description" content="The Fyr Developer Manual: Rust workspace layout, Candle GGUF inference, access-control architecture, API endpoints, Docker multi-arch builds and the release process.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fyr Developer Manual: Architecture, API, AI Runtime and Releases">
+    <meta name="twitter:description" content="The Fyr Developer Manual: Rust workspace layout, Candle GGUF inference, access-control architecture, API endpoints, Docker multi-arch builds and the release process.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "Fyr Developer Manual",
+      "description": "The Fyr Developer Manual: Rust workspace layout, Candle GGUF inference, access-control architecture, API endpoints, Docker multi-arch builds and the release process.",
+      "url": "https://fyr.guide/docs/developer-manual/",
+      "mainEntityOfPage": "https://fyr.guide/docs/developer-manual/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-01-01",
+      "dateModified": "2026-10-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Documentation",
+          "item": "https://fyr.guide/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Developer Manual",
+          "item": "https://fyr.guide/docs/developer-manual/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Developer Manual</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Developer Manual</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#1-overview" class="text-gray-600 hover:text-brand-600">1. Overview</a></li>
+                            <li class=""><a href="#11-ai-integration-with-candle" class="text-gray-600 hover:text-brand-600">1.1 AI Integration with Candle</a></li>
+                            <li class="pl-4"><a href="#cpu-optimization-and-thread-pool-sizing" class="text-gray-600 hover:text-brand-600">CPU optimization and thread pool sizing</a></li>
+                            <li class="pl-4"><a href="#inference-hardening" class="text-gray-600 hover:text-brand-600">Inference hardening</a></li>
+                            <li class="pl-4"><a href="#recommended-model-files" class="text-gray-600 hover:text-brand-600">Recommended model files</a></li>
+                            <li class=""><a href="#2-local-development" class="text-gray-600 hover:text-brand-600">2. Local Development</a></li>
+                            <li class="pl-4"><a href="#prerequisites" class="text-gray-600 hover:text-brand-600">Prerequisites</a></li>
+                            <li class="pl-4"><a href="#frontend-unit-tests" class="text-gray-600 hover:text-brand-600">Frontend unit tests</a></li>
+                            <li class="pl-4"><a href="#web-app-manifest" class="text-gray-600 hover:text-brand-600">Web app manifest</a></li>
+                            <li class="pl-4"><a href="#build-frontend" class="text-gray-600 hover:text-brand-600">Build frontend</a></li>
+                            <li class="pl-4"><a href="#build-backend" class="text-gray-600 hover:text-brand-600">Build backend</a></li>
+                            <li class="pl-4"><a href="#dev-mode" class="text-gray-600 hover:text-brand-600">Dev mode</a></li>
+                            <li class="pl-4"><a href="#runtime-environment-overrides" class="text-gray-600 hover:text-brand-600">Runtime environment overrides</a></li>
+                            <li class=""><a href="#3-docker" class="text-gray-600 hover:text-brand-600">3. Docker</a></li>
+                            <li class="pl-4"><a href="#multi-arch-builds-and-cpu-features" class="text-gray-600 hover:text-brand-600">Multi-arch builds and CPU features</a></li>
+                            <li class=""><a href="#35-access-control-architecture" class="text-gray-600 hover:text-brand-600">3.5 Access Control Architecture</a></li>
+                            <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
+                            <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
+                            <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
+                            <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
+                            <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
+                            <li class=""><a href="#6-documentation-rules" class="text-gray-600 hover:text-brand-600">6. Documentation Rules</a></li>
+                            <li class=""><a href="#7-building-documentation-artifacts" class="text-gray-600 hover:text-brand-600">7. Building Documentation Artifacts</a></li>
+                            <li class="pl-4"><a href="#website-fyrguide" class="text-gray-600 hover:text-brand-600">Website (fyr.guide)</a></li>
+                            <li class=""><a href="#8-current-known-gaps" class="text-gray-600 hover:text-brand-600">8. Current Known Gaps</a></li>
+                            <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
+                            <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p class="not-prose text-sm text-gray-600 bg-gray-200/70 border border-gray-300 rounded-lg px-4 py-3 mb-8">This page is generated from <a class="text-brand-600 underline" href="https://github.com/Hexagon/fyr/blob/main/docs/developer/DEVELOPER_MANUAL.md">docs/developer/DEVELOPER_MANUAL.md</a> on GitHub, the canonical source. Installation steps live on the <a class="text-brand-600 underline" href="/#installation">installation section</a>.</p><h2 id="1-overview">1. Overview<a class="heading-anchor" href="#1-overview" aria-label="Link to this section">#</a></h2>
+<p>Fyr is a Rust workspace with a Vue frontend.</p>
+<blockquote>
+<p><strong>Project status:</strong> Fyr is currently in <strong>preview</strong>; prefer additive and backward-compatible changes where practical.</p>
+</blockquote>
+<p>Documentation map:</p>
+<ul>
+<li>Product overview and quick navigation: <a href="https://github.com/Hexagon/fyr/blob/main/README.md" rel="noopener">README.md</a></li>
+<li>Installation/deployment site: <a href="/">docs/site/index.html</a></li>
+<li>End-user behavior reference: <a href="/docs/user-manual/">User Manual</a></li>
+<li>Contributor workflow and validation requirements: <a href="https://github.com/Hexagon/fyr/blob/main/CONTRIBUTING.md" rel="noopener">CONTRIBUTING.md</a></li>
+<li>Governance and ownership boundaries: <a href="https://github.com/Hexagon/fyr/blob/main/AGENTS.md" rel="noopener">AGENTS.md</a></li>
+</ul>
+<p>Workspace modules:</p>
+<ul>
+<li><code>crates/types</code>: shared types and configuration.</li>
+<li><code>crates/downloader</code>: task management and routing.</li>
+<li><code>crates/server</code>: Axum HTTP API and static serving.</li>
+<li><code>crates/ui/frontend</code>: Vue 3 application built into <code>public/static/</code>.</li>
+<li><code>crates/server/src/ai</code>: Candle-powered GGUF model loading and assistant endpoints.</li>
+</ul>
+<p>The Tools page (<code>crates/ui/frontend/src/pages/Tools.vue</code>) mixes client-only and API-backed behavior. Unit converters, Base64, and ROT13 run entirely in-browser, while AES and hash/checksum operations call backend endpoints (<code>POST /api/tools/aes</code>, <code>POST /api/tools/hash</code>) implemented in <code>crates/server/src/handlers.rs</code>.</p>
+<p>Downloader timeout centralization:</p>
+<ul>
+<li>URL download request timeout is sourced from persisted app settings at <code>settings.modules.downloads.request_timeout_seconds</code>.</li>
+<li>On server startup and each <code>PUT /api/settings</code>, the server applies this value to <code>DownloadManager</code> for future tasks.</li>
+<li>Valid range is clamped to <code>30..=86400</code> seconds; default is <code>300</code> seconds.</li>
+</ul>
+<h2 id="11-ai-integration-with-candle">1.1 AI Integration with Candle<a class="heading-anchor" href="#11-ai-integration-with-candle" aria-label="Link to this section">#</a></h2>
+<p>Fyr integrates GGUF models with native Rust inference tooling.</p>
+<p>Dependencies:</p>
+<ul>
+<li><code>candle-core</code></li>
+<li><code>candle-nn</code></li>
+<li><code>candle-transformers</code></li>
+</ul>
+<p>Model lifecycle:</p>
+<ul>
+<li><code>ModelManager</code> scans <code>DATA_DIR/models</code> for <code>.gguf</code> files.</li>
+<li><code>ModelLoader</code> validates GGUF magic bytes and parses metadata.</li>
+<li>Loader verifies tokenizer metadata before marking a model as ready.</li>
+</ul>
+<p>Performance recommendation:</p>
+<ul>
+<li>Build release binaries with CPU tuning:</li>
+</ul>
+<pre><code class="language-bash">RUSTFLAGS=&quot;-C target-cpu=native&quot; cargo build --release -p server --bin fyr
+</code></pre>
+<ul>
+<li>On Windows PowerShell:</li>
+</ul>
+<pre><code class="language-powershell">$env:RUSTFLAGS=&quot;-C target-cpu=native&quot;
+cargo build --release -p server --bin fyr
+Remove-Item Env:RUSTFLAGS
+</code></pre>
+<ul>
+<li>Use <code>target-cpu=native</code> only for local/self-hosted builds that will run on the same CPU family. For portable binaries and published images, keep the generic target settings.</li>
+</ul>
+<h3 id="cpu-optimization-and-thread-pool-sizing">CPU optimization and thread pool sizing<a class="heading-anchor" href="#cpu-optimization-and-thread-pool-sizing" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>GGUF weights are loaded via <code>memmap2</code> (<code>crates/server/src/ai/loader.rs</code>) instead of being read fully into a <code>Vec&lt;u8&gt;</code>. The OS pages weight data in on demand and can evict it under memory pressure, which matters on RAM-constrained boards such as a Raspberry Pi.</li>
+<li>At startup, <code>configure_ai_runtime()</code> in <code>crates/server/src/main.rs</code> logs detected CPU SIMD capabilities (NEON/fp16/dotprod/fcma on aarch64, AVX2/FMA on x86_64), comparing what the running binary was compiled with against what the hardware actually supports. This check runs on the real deployment hardware at process startup, so it stays accurate even when the Docker image itself was built under QEMU emulation for a foreign architecture (see Docker section below).</li>
+<li>The same function sizes Candle&#39;s CPU thread pool via <code>CANDLE_NUM_THREADS</code>/<code>RAYON_NUM_THREADS</code>, defaulting to <code>std::thread::available_parallelism()</code> (cgroup/quota-aware, unlike a naive core count). Override with <code>FYR_AI_THREADS=&lt;n&gt;</code>, or set <code>CANDLE_NUM_THREADS</code>/<code>RAYON_NUM_THREADS</code> directly for full manual control; Fyr will not overwrite either variable if already set.</li>
+<li>Each inference run logs a <code>tracing::info!</code> summary of prefill and decode throughput (tokens and tok/s, separately) from <code>spawn_quantized_inference()</code> in <code>crates/server/src/ai/manager.rs</code>, regardless of how the run ends (success, error, or early stop), to make performance regressions and slow hardware easy to spot in server logs.</li>
+<li>For aarch64 self-builds targeting known hardware, use the Dockerfile&#39;s <code>RUST_TARGET_FEATURES</code> build arg (e.g. <code>+dotprod</code> for Raspberry Pi 5 / Cortex-A75 and newer) to compile in optional ARMv8.2+ kernels. Baseline NEON is always enabled on aarch64 and does not require this flag.</li>
+</ul>
+<h3 id="inference-hardening">Inference hardening<a class="heading-anchor" href="#inference-hardening" aria-label="Link to this section">#</a></h3>
+<p>The streaming inference loop in <code>crates/server/src/ai/manager.rs</code> applies two server-side guards before sending tokens to the client:</p>
+<ol>
+<li><p><strong>Repetition detection</strong> — <code>is_repeating()</code> compares the last 32 generated tokens with the 32 tokens before them. If they match, generation stops immediately. This prevents models from getting stuck in a loop when temperature is low or the prompt is ambiguous.</p>
+</li>
+<li><p><strong>ChatML stop markers</strong> — <code>first_role_marker_index()</code> catches <code>&lt;|im_start|&gt;</code> and <code>&lt;|im_end|&gt;</code> tokens in addition to plain-text role prefixes such as <code>ASSISTANT:</code> and <code>USER:</code>. Generation stops and the visible prefix is flushed when any marker is detected.</p>
+</li>
+</ol>
+<p><code>&lt;think&gt;…&lt;/think&gt;</code> blocks are passed through to the client as-is. The Vue frontend (<code>crates/ui/frontend/src/pages/Assistant.vue</code>) splits incoming tokens into response text and think-block content using <code>parseThinkAndText()</code>. The assistant now shows a generic thinking placeholder immediately on send, then upgrades that block with live <code>&lt;think&gt;</code> content if the model emits it.</p>
+<p>The browser streaming client in <code>crates/ui/frontend/src/services/api.js</code> reads the SSE response body with <code>fetch()</code> and a <code>ReadableStream</code> reader rather than relying on <code>EventSource</code>. This avoids the chunked final-render behavior seen in some environments and keeps stop/error handling explicit.</p>
+<h3 id="recommended-model-files">Recommended model files<a class="heading-anchor" href="#recommended-model-files" aria-label="Link to this section">#</a></h3>
+<p>Fyr&#39;s inference runtime currently supports GGUF files for the <strong>Qwen2</strong>, <strong>Llama</strong>, and <strong>Phi-3 / Phi-3.5</strong> architecture families when tokenizer metadata is embedded. For Phi-3/Phi-3.5 specifically, a sidecar tokenizer JSON may be required for reliable generation quality.</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Suggested model</th>
+<th>Quantization</th>
+<th>Approx. size</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Small</td>
+<td><code>Qwen2.5-1.5B-Instruct</code></td>
+<td>Q8_0</td>
+<td>~1.7 GB</td>
+<td>Fast/simple answers, workable on 4 GB Raspberry Pi 5 systems</td>
+</tr>
+<tr>
+<td>Standard</td>
+<td><code>Qwen2.5-3B-Instruct</code></td>
+<td>Q6_K</td>
+<td>~2.6 GB</td>
+<td>Recommended default for Raspberry Pi 5 RAG usage</td>
+</tr>
+<tr>
+<td>Large</td>
+<td><code>Qwen2.5-7B-Instruct</code></td>
+<td>Q4_K_M</td>
+<td>~4.5 GB</td>
+<td>Intended for 8 GB Raspberry Pi 5 systems</td>
+</tr>
+<tr>
+<td>Extra large</td>
+<td><code>Qwen2.5-14B-Instruct</code></td>
+<td>Q4_K_M</td>
+<td>~9.8 GB</td>
+<td>Desktop-grade RAG quality on 16 GB+ systems</td>
+</tr>
+<tr>
+<td>Extra large (alt)</td>
+<td><code>Qwen2.5-7B-Instruct</code></td>
+<td>Q8_0</td>
+<td>~8.5 GB</td>
+<td>Smaller desktop alternative when 14B is too heavy</td>
+</tr>
+<tr>
+<td>Llama alternative</td>
+<td><code>Llama-3.2-3B-Instruct</code></td>
+<td>Q4_K_M</td>
+<td>~2.0 GB</td>
+<td>Good cross-domain instruct model; some downloads require Hugging Face license acceptance</td>
+</tr>
+<tr>
+<td>Phi alternative</td>
+<td><code>Phi-3.5-mini-instruct</code></td>
+<td>Q4_K_M</td>
+<td>~2.4 GB</td>
+<td>Compact reasoning-oriented option with <code>phi3</code> GGUF architecture</td>
+</tr>
+</tbody></table>
+</div>
+<p>GGUF files for these models are commonly published on <a href="https://huggingface.co/models?library=gguf" rel="noopener">Hugging Face</a>. Examples used by Fyr&#39;s curated catalog include <code>Qwen/Qwen2.5-3B-Instruct-GGUF</code>, <code>bartowski/Llama-3.2-3B-Instruct-GGUF</code>, and <code>bartowski/Phi-3.5-mini-instruct-GGUF</code>.</p>
+<p>Default assistant profiles used by Fyr:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>temperature</th>
+<th>max_tokens</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Precise</td>
+<td>0.1</td>
+<td>512</td>
+<td>Focused, factual answers</td>
+</tr>
+<tr>
+<td>Balanced</td>
+<td>0.2</td>
+<td>512</td>
+<td>Default, concise and reliable</td>
+</tr>
+<tr>
+<td>Creative</td>
+<td>0.7</td>
+<td>1024</td>
+<td>More elaborate, varied responses</td>
+</tr>
+</tbody></table>
+</div>
+<ul>
+<li><code>num_ctx = 2048</code> — auto-upgrade to <code>8192</code> when host RAM &gt; 16 GB</li>
+<li>Manual override: set <code>settings.modules.assistant.high_ram_context = true</code> or <code>settings.modules.assistant.num_ctx</code> to an explicit value</li>
+</ul>
+<p>Conversation context: the SSE endpoint accepts an optional <code>history</code> query parameter — a JSON array of <code>{&quot;role&quot;:&quot;user&quot;|&quot;assistant&quot;,&quot;text&quot;:&quot;...&quot;}</code> objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.</p>
+<p>Catalog file:</p>
+<ul>
+<li>Fyr seeds <code>DATA_DIR/curated-content.json</code> from the bundled <code>public/data/curated-content.json</code> when the file is missing.</li>
+<li>Existing <code>DATA_DIR/curated-content.json</code> files are preserved so operators can maintain a local curated list across upgrades.</li>
+<li>The frontend content manager reads <code>/data/curated-content.json</code>, shows curated entries when a category is empty, and keeps them as supplemental recommendations when local files already exist.</li>
+<li>Curated entries may include an optional <code>download_url</code> field that queues a direct download from the content manager UI.</li>
+</ul>
+<p>Models with a built-in reasoning mode (Qwen3, DeepSeek-R1, etc.) are supported. Their <code>&lt;think&gt;…&lt;/think&gt;</code> output is displayed in the UI as a collapsible &quot;Thinking&quot; block above the live response stream.</p>
+<p>Prompt formatting is architecture-specific:</p>
+<ul>
+<li><code>qwen2</code> uses ChatML-style <code>&lt;|im_start|&gt;...&lt;|im_end|&gt;</code> prompts.</li>
+<li><code>llama</code> uses the Llama 3 instruct header template with <code>&lt;|start_header_id|&gt;</code> and <code>&lt;|eot_id|&gt;</code> markers.</li>
+<li><code>phi3</code> uses the Phi chat template with <code>&lt;|system|&gt;</code>, <code>&lt;|user|&gt;</code>, <code>&lt;|assistant|&gt;</code>, and <code>&lt;|end|&gt;</code> delimiters.</li>
+</ul>
+<p>Extending model support:</p>
+<ul>
+<li>Current integration uses GGUF metadata parsing plus quantized variable loading.</li>
+<li>Add architecture-specific runtime and prompt formatting in <code>crates/server/src/ai/loader.rs</code> and <code>crates/server/src/ai/manager.rs</code> when introducing new generation backends.</li>
+<li>Keep unsupported architectures failing with explicit error messages instead of fallback panics.</li>
+</ul>
+<h2 id="2-local-development">2. Local Development<a class="heading-anchor" href="#2-local-development" aria-label="Link to this section">#</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="heading-anchor" href="#prerequisites" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Rust 1.70+</li>
+<li>Node.js 24</li>
+<li>npm 9+</li>
+</ul>
+<p>CI-pinned versions for parity:</p>
+<ul>
+<li>Rust stable (Docker build uses <code>rust:bookworm</code>)</li>
+</ul>
+<h3 id="frontend-unit-tests">Frontend unit tests<a class="heading-anchor" href="#frontend-unit-tests" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>cd crates/ui/frontend &amp;&amp; npm test</code> runs Vitest (<code>happy-dom</code> environment) over <code>src/**/*.test.js</code>; CI runs it before the frontend build.</li>
+<li>Keep testable logic in plain modules under <code>src/services/</code> or <code>src/modules/</code> (pure functions, composables) and colocate <code>*.test.js</code> next to them. Vue pages should stay thin glue around those modules.</li>
+</ul>
+<h3 id="web-app-manifest">Web app manifest<a class="heading-anchor" href="#web-app-manifest" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>crates/ui/frontend/public/manifest.webmanifest</code> (served at <code>/static/manifest.webmanifest</code>, <code>start_url</code>/<code>scope</code> <code>/</code>) plus PNG icons in <code>public/assets/icons/</code> (192, 512, maskable 512, 180 apple-touch) rendered from <code>fyr-icon.svg</code>.</li>
+<li>There is intentionally no service worker: Fyr is usually reached over plain HTTP on a LAN, where browsers refuse to register service workers, and the app is useless without its server anyway.</li>
+</ul>
+<h3 id="build-frontend">Build frontend<a class="heading-anchor" href="#build-frontend" aria-label="Link to this section">#</a></h3>
+<ol>
+<li><code>cd crates/ui/frontend</code></li>
+<li><code>npm ci</code> (or <code>npm install</code> for local iteration)</li>
+<li><code>npm run build</code></li>
+</ol>
+<h3 id="build-backend">Build backend<a class="heading-anchor" href="#build-backend" aria-label="Link to this section">#</a></h3>
+<ol>
+<li>From workspace root: <code>cargo build --release -p server</code></li>
+<li>Run: <code>./target/release/fyr</code></li>
+</ol>
+<h3 id="dev-mode">Dev mode<a class="heading-anchor" href="#dev-mode" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Frontend: <code>npm run dev</code></li>
+<li>Backend: <code>cargo run -p server</code></li>
+<li>The Vite dev server proxies <code>/api</code>, <code>/data</code>, and <code>/docs</code> to the backend. Override the backend target with <code>FYR_DEV_PROXY_TARGET</code> when the server runs somewhere other than the local default.</li>
+</ul>
+<h3 id="runtime-environment-overrides">Runtime environment overrides<a class="heading-anchor" href="#runtime-environment-overrides" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>DATA_DIR</code> (default <code>./public/data</code>)</li>
+<li><code>FYR_HOST</code> (default <code>127.0.0.1</code>)</li>
+<li><code>FYR_PORT</code> (default <code>8080</code>)</li>
+<li><code>FYR_ADMIN_PASSWORD</code> (optional; enables password-protected admin mode)</li>
+<li><code>FYR_READONLY</code> (optional; enables strict read-only mode; all mutating endpoints return 403)</li>
+<li><code>FYR_DEV_PROXY_TARGET</code> (optional Vite dev proxy target; useful when the backend runs in Docker or on another host)</li>
+</ul>
+<h2 id="3-docker">3. Docker<a class="heading-anchor" href="#3-docker" aria-label="Link to this section">#</a></h2>
+<p>Reference image name in all docs/examples:</p>
+<ul>
+<li><code>hexagon/fyr:latest</code></li>
+</ul>
+<p>For complete Docker installation and configuration (including persistence, bind mounts, and platform-specific notes), see the canonical installation guide at <a href="/">docs/site/index.html</a> or <a href="/#installation">fyr.guide/#installation</a>.</p>
+<p>Container expectations:</p>
+<ul>
+<li>App static assets live under <code>/app/public</code>.</li>
+<li>Docker image builds frontend assets during image build and bundles generated files under <code>/app/public/static</code>.</li>
+<li>The final Rust image build uses <code>FYR_USE_PREBUILT_FRONTEND=1</code> so <code>crates/server/build.rs</code> reuses those prebuilt assets instead of running <code>npm ci</code> again in the Rust builder stage.</li>
+<li>Writable content directory is mounted to <code>/data</code>.</li>
+<li>Startup sync overwrites <code>user-manual.md</code> and <code>developer-manual.md</code> in <code>DATA_DIR/books/</code> from image-bundled manuals.</li>
+<li>Healthcheck uses <code>GET /api/status</code>.</li>
+<li>Startup performs writable-path preflight checks and fails fast if <code>DATA_DIR</code> is not writable.</li>
+<li>Bind failures now include actionable diagnostics for <code>FYR_HOST</code> and <code>FYR_PORT</code>.</li>
+</ul>
+<h3 id="multi-arch-builds-and-cpu-features">Multi-arch builds and CPU features<a class="heading-anchor" href="#multi-arch-builds-and-cpu-features" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>docker/setup-qemu-action</code> + <code>buildx</code> are used in CI to produce <code>linux/arm64</code> images on <code>x86_64</code> GitHub-hosted runners. This is QEMU-emulated user-mode execution of <code>rustc</code>/<code>cargo</code>, not true cross-compilation (host and target triple both resolve to <code>aarch64-unknown-linux-gnu</code> from Cargo&#39;s point of view), so build correctness is unaffected. The main practical costs are much slower CI build times for the <code>arm64</code> leg and no reliable build-time signal for optional ARMv8.2+ CPU feature probing under emulation.</li>
+<li>The Dockerfile accepts an optional <code>RUST_TARGET_FEATURES</code> build arg (default empty) that is threaded into <code>RUSTFLAGS</code> as <code>-C target-feature=&lt;value&gt;</code>. Use it only for self-builds targeting known hardware, e.g.:</li>
+</ul>
+<pre><code class="language-bash">docker build --build-arg RUST_TARGET_FEATURES=+dotprod -t fyr:rpi5 .
+</code></pre>
+<ul>
+<li>Never set <code>RUST_TARGET_FEATURES</code> when building the published multi-arch <code>hexagon/fyr:*</code> tags — it would silently break older aarch64 boards (Raspberry Pi 3/4, Cortex-A53/A72) that do not implement <code>dotprod</code>/<code>i8mm</code>/<code>fp16</code> and would crash with an illegal-instruction fault. Baseline NEON is part of the mandatory ARMv8-A instruction set and is always available regardless of this flag.</li>
+<li>Because build-time feature negotiation is unreliable under emulation, Fyr instead detects and logs real CPU capabilities at process startup on the actual deployment hardware (<code>configure_ai_runtime()</code> in <code>crates/server/src/main.rs</code>; see § 1.1 above). Check the startup logs after deploying to a new device to confirm whether a rebuild with <code>RUST_TARGET_FEATURES</code> would help.</li>
+</ul>
+<p>Published image strategy:</p>
+<ul>
+<li>Default tags are optimized multi-arch manifests assembled from architecture-specific tuned images:<ul>
+<li><code>hexagon/fyr:latest</code> and <code>hexagon/fyr:vX.Y.Z</code></li>
+<li><code>hexagon/fyr:dev</code></li>
+</ul>
+</li>
+<li>Compatibility-first legacy tags are published for older hardware:<ul>
+<li><code>hexagon/fyr:legacy</code> and <code>hexagon/fyr:vX.Y.Z-legacy</code> (multi-arch manifest)</li>
+<li><code>hexagon/fyr:pc-legacy</code> and <code>hexagon/fyr:vX.Y.Z-pc-legacy</code> (generic x86_64)</li>
+<li><code>hexagon/fyr:rpi-legacy</code> and <code>hexagon/fyr:vX.Y.Z-rpi-legacy</code> (generic arm64)</li>
+<li>Dev equivalents: <code>hexagon/fyr:dev-legacy</code>, <code>hexagon/fyr:dev-pc-legacy</code>, <code>hexagon/fyr:dev-rpi-legacy</code> (plus SHA-suffixed variants)</li>
+</ul>
+</li>
+</ul>
+<p>Use default tags only when the target CPU definitely supports the required instructions. For mixed fleets or older boards/PCs, prefer the legacy tags.</p>
+<h2 id="35-access-control-architecture">3.5 Access Control Architecture<a class="heading-anchor" href="#35-access-control-architecture" aria-label="Link to this section">#</a></h2>
+<p>Fyr implements a two-level access control system controlled entirely by environment variables at startup. The restriction is enforced at the Axum API layer — the frontend also adapts its UI, but that is a secondary UX concern, not the security boundary.</p>
+<h3 id="modes">Modes<a class="heading-anchor" href="#modes" aria-label="Link to this section">#</a></h3>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Env var</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Open (default)</td>
+<td><em>(none)</em></td>
+<td>All endpoints accessible</td>
+</tr>
+<tr>
+<td>Password-protected</td>
+<td><code>FYR_ADMIN_PASSWORD=&lt;pass&gt;</code></td>
+<td>Mutating endpoints require a valid session cookie</td>
+</tr>
+<tr>
+<td>Strict read-only</td>
+<td><code>FYR_READONLY=true</code></td>
+<td>All mutating endpoints return <code>403 Forbidden</code>; no login possible</td>
+</tr>
+</tbody></table>
+</div>
+<h3 id="implementation-cratesserversrcauthrs">Implementation (<code>crates/server/src/auth.rs</code>)<a class="heading-anchor" href="#implementation-cratesserversrcauthrs" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong><code>AuthManager</code></strong> — in-memory struct holding:<ul>
+<li>A <code>Mutex&lt;HashSet&lt;String&gt;&gt;</code> of live session tokens (UUIDs).</li>
+<li>A <code>Mutex&lt;HashMap&lt;String, RateLimitEntry&gt;&gt;</code> for per-IP rate limiting.</li>
+</ul>
+</li>
+<li><strong><code>require_admin</code> middleware</strong> — Axum <code>from_fn_with_state</code> middleware applied via <code>route_layer</code> to a sub-router containing all mutating routes. It checks:<ol>
+<li>If <code>FYR_READONLY</code> → return <code>403</code>.</li>
+<li>If no password configured → pass through (open mode).</li>
+<li>Otherwise → validate the <code>fyr_session</code> cookie value against <code>AuthManager::tokens</code>.</li>
+</ol>
+</li>
+<li><strong>Session cookie</strong> — <code>HttpOnly; Path=/; SameSite=Strict</code>. Not accessible to JavaScript.</li>
+<li><strong>Rate limiting</strong> — 10 failed attempts per 5-minute window per client IP. The rate-limit key is always the real TCP peer address (<code>ConnectInfo&lt;SocketAddr&gt;</code>), so clients cannot bypass limits by spoofing <code>X-Forwarded-For</code> headers. When Fyr runs behind a reverse proxy, all requests share the proxy&#39;s IP; in that case the proxy should handle rate limiting.</li>
+<li><strong><code>AuthConfig</code></strong> lives in <code>crates/types/src/config.rs</code> and is populated from env vars in <code>Config::default()</code>.</li>
+<li><strong><code>can_view_system_details</code></strong> — decides whether a caller may see host details: everyone in open mode, only valid admin sessions in password mode, nobody in read-only mode. Public endpoints use it to redact output for other callers:<ul>
+<li><code>/api/status</code>, <code>/api/config</code>, <code>/api/storage</code> and <code>/api/reader/zim/:filename/meta</code> return empty strings for filesystem paths (and <code>server_host</code>); <code>/api/storage</code> also omits <code>free_*</code>/<code>capacity_*</code> while keeping per-category usage.</li>
+<li><code>/api/content/*</code> listings return the bare filename as <code>file_path</code>, and <code>/api/downloads</code> / <code>/api/download/:task_id/status</code> reduce <code>LocalFile</code> source paths to the filename.
+New public endpoints that expose paths or disk details must apply the same check.</li>
+</ul>
+</li>
+</ul>
+<h3 id="adding-new-protected-endpoints">Adding new protected endpoints<a class="heading-anchor" href="#adding-new-protected-endpoints" aria-label="Link to this section">#</a></h3>
+<p>Add the route to the <code>protected</code> <code>Router</code> in <code>create_router</code> in <code>crates/server/src/main.rs</code>. The <code>route_layer(admin_mw)</code> call automatically covers all routes in that sub-router.</p>
+<h3 id="auth-endpoints-always-public">Auth endpoints (always public)<a class="heading-anchor" href="#auth-endpoints-always-public" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>GET /api/auth/status</code> — returns <code>{ readonly, requires_auth, authenticated }</code>. Use this to determine the current access mode.</li>
+<li><code>POST /api/auth/login</code> — body: <code>{ &quot;password&quot;: &quot;...&quot; }</code>. Returns <code>Set-Cookie: fyr_session=&lt;token&gt;; HttpOnly; Path=/; SameSite=Strict</code> on success. Returns <code>429 Too Many Requests</code> when rate-limited.</li>
+<li><code>POST /api/auth/logout</code> — clears the session cookie and revokes the token.</li>
+</ul>
+<h3 id="core-read-only-endpoints-always-public">Core read-only endpoints (always public)<a class="heading-anchor" href="#core-read-only-endpoints-always-public" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>GET /api/status</code></li>
+<li><code>GET /api/config</code></li>
+<li><code>GET /api/storage</code></li>
+<li><code>GET /api/settings</code></li>
+<li><code>GET /api/content/maps</code></li>
+<li><code>GET /api/maps/tiles/:filename/metadata</code> — MBTiles metadata as JSON</li>
+<li><code>GET /api/maps/tiles/:filename/:z/:x/:y</code> — MBTiles tile endpoint (XYZ convention). Tiles and metadata are read through <code>mbtiles::MbtilesPool</code>, which keeps up to 8 idle read-only SQLite connections plus the cached tile format per archive, keyed by file size + mtime so a replaced archive is reopened instead of served from stale handles.</li>
+<li><code>GET /api/content/books</code></li>
+<li><code>GET /api/content/poi</code></li>
+<li><code>GET /api/content/models</code></li>
+<li><code>GET /api/content/misc</code></li>
+<li><code>GET /api/content/:type/:filename/download</code> — browser file download endpoint used by Content Manager. Streams via <code>tower_http::services::ServeFile</code> (no in-memory buffering), supports <code>Range</code>/<code>If-Range</code>/<code>HEAD</code>, and sets <code>Content-Disposition: attachment</code> with an ASCII <code>filename</code> plus RFC 5987 <code>filename*</code>.</li>
+<li><code>GET /api/download/:task_id/status</code></li>
+<li><code>GET /api/downloads</code></li>
+</ul>
+<h3 id="admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly">Admin-only endpoints (require auth when <code>FYR_ADMIN_PASSWORD</code> is set; always blocked when <code>FYR_READONLY</code>)<a class="heading-anchor" href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>PUT /api/settings</code></li>
+<li><code>DELETE /api/content/:type/:filename</code> — permanently delete a content file from disk</li>
+<li><code>POST /api/download</code></li>
+<li><code>DELETE /api/download/:task_id</code></li>
+<li><code>DELETE /api/download/:task_id/dismiss</code></li>
+<li><code>POST /api/import/upload</code></li>
+<li><code>POST /api/import/download/:filename</code></li>
+<li><code>POST /api/models/upload</code></li>
+<li><code>POST /api/models/import</code></li>
+<li><code>POST /api/models/:filename/load</code></li>
+<li><code>DELETE /api/models/:filename/load</code></li>
+</ul>
+<p>Download routing: URL downloads stream into <code>inbox/&lt;task_id&gt;-&lt;filename&gt;.part</code> (unique per task, so concurrent downloads of the same filename cannot corrupt each other) and are then moved to their content folder with <code>DownloadManager::move_file</code>, which falls back to copy + delete when <code>rename</code> fails across filesystems (for example when <code>maps/</code> or <code>books/</code> is a separate Docker volume).</p>
+<p><code>ModelManager::import_model</code> and <code>load_model</code> accept only bare <code>.gguf</code> filenames (<code>validate_model_filename</code>; anything with directory components or <code>..</code> returns <code>ModelError::InvalidFilename</code> → <code>400</code>). GGUF parsing/weight loading and the inbox→models move run on Tokio&#39;s blocking pool (<code>spawn_blocking</code>) so a multi-second model load never stalls other requests.</p>
+<p>AI read-only endpoints (always public):</p>
+<ul>
+<li><code>GET /api/models</code></li>
+<li><code>GET /api/models/:filename/health</code></li>
+<li><code>GET /api/models/:filename/infer/stream</code></li>
+</ul>
+<p>Model upload/import flow:</p>
+<ul>
+<li>Model uploads are initiated from the Content Manager models section; the Assistant links there instead of uploading directly.</li>
+<li>Content Manager uploads <code>.gguf</code> files as multipart form data to <code>POST /api/import/upload</code>.</li>
+<li>The server sanitizes the filename, validates the <code>.gguf</code> extension and <code>GGUF</code> magic bytes, and writes the file into <code>DATA_DIR/inbox</code>.</li>
+<li>Frontend then calls <code>POST /api/import/download/:filename</code>, allowing <code>DownloadManager</code> to route the staged file into <code>DATA_DIR/models</code>.</li>
+</ul>
+<p>Generic local import flow:</p>
+<ul>
+<li>Content Manager uploads supported files as multipart form data to <code>POST /api/import/upload</code>.</li>
+<li>Server writes uploaded files to <code>DATA_DIR/inbox</code> and returns detected content type metadata.</li>
+<li>Frontend then calls <code>POST /api/import/download/:filename</code> to enqueue a <code>DownloadSource::LocalFile</code> task.</li>
+<li><code>DownloadManager</code> runs local import workers with the same task lifecycle and persistence model used by URL downloads, and the frontend refreshes both download tasks and content listings when task states change.</li>
+</ul>
+<p>Current inference path:</p>
+<ul>
+<li>Fyr now has a real <code>qwen2</code> inference path based on <code>candle_transformers::models::quantized_qwen2::ModelWeights</code> plus <code>LogitsProcessor</code> sampling.</li>
+<li>The runtime currently requires tokenizer metadata embedded in the GGUF file.</li>
+<li>Loader tokenizer resolution order is: <code>&lt;model&gt;.tokenizer.json</code>, <code>&lt;model&gt;.json</code>, <code>tokenizer.json</code> in the model directory, then GGUF tokenizer metadata fallback.</li>
+<li>Phi/Phi-3.5 models should prefer the official tokenizer JSON sidecar when available.</li>
+<li>If tokenizer metadata is missing, model loading fails with a clear validation error.</li>
+</ul>
+<p>Unified Library API endpoints (read-only, always public):</p>
+<ul>
+<li><code>GET /api/library/books/:filename</code> — Unified book metadata (title, author, format, file size, MIME type, TOC/search availability)</li>
+<li><code>GET /api/library/books/:filename/toc</code> — Unified table of contents (EPUB nav/ncx, ZIM articles, PDF outline, Markdown headings)</li>
+<li><code>GET /api/library/books/:filename/search?q=...&amp;limit=20</code> — Unified full-text search (ZIM articles, EPUB spine items, Markdown lines)</li>
+</ul>
+<p>Handlers that do synchronous disk or archive work — content listings (including EPUB/ZIM title extraction), <code>/api/status</code> file counts, <code>/api/storage</code> directory walks, the assistant&#39;s content catalog summary, library metadata/TOC/search and all native ZIM article/content/search endpoints — run that work through <code>handlers::run_blocking</code> (a <code>spawn_blocking</code> wrapper). New handlers that walk directories, parse archives or scan ZIM indexes must do the same so tiles and UI requests keep flowing on low-core devices such as a Raspberry Pi.</p>
+<p>The library module (<code>crates/server/src/library.rs</code>) implements format-agnostic extraction for metadata, TOC, and search. Each format handler (EPUB, ZIM, PDF, Markdown) is isolated in its own helper section within the module.</p>
+<p>Reader and ZIM endpoints:</p>
+<ul>
+<li><code>GET /api/reader/capabilities</code></li>
+<li><code>GET /api/reader/open/:filename</code></li>
+<li><code>GET /api/reader/zim/:filename/meta</code></li>
+<li><code>GET /api/reader/zim/:filename/capabilities</code></li>
+<li><code>GET /api/reader/zim/:filename/native/article</code></li>
+<li><code>GET /api/reader/zim/:filename/native/content/*path</code></li>
+</ul>
+<p>Static content aliases:</p>
+<ul>
+<li><code>GET /static/*path</code> — SPA build output. Content-hashed bundles under <code>/static/js/</code> and <code>/static/css/</code> are served with <code>Cache-Control: public, max-age=31536000, immutable</code> (<code>static_cache_headers</code> in <code>main.rs</code>); <code>index.html</code>, <code>/static/assets/</code> (unhashed files copied from <code>crates/ui/frontend/public/</code>) and all other responses keep the global <code>no-store</code> policy.</li>
+<li><code>GET /data/maps/*path</code>, <code>GET /data/books/*path</code>, <code>GET /data/poi/*path</code> and <code>GET /data/curated-content.json</code> — the only published parts of <code>DATA_DIR</code>. <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are intentionally not served; unmatched <code>/data/*</code> and <code>/api/*</code> paths return <code>404</code> instead of the SPA <code>index.html</code>.</li>
+<li><code>GET /docs/books/*path</code> (book-only alias used by reader integrations)</li>
+<li>Content Manager&#39;s per-file <strong>Download</strong> action calls <code>/api/content/:type/:filename/download</code>.</li>
+</ul>
+<p>Native ZIM integration notes:</p>
+<ul>
+<li>Frontend reader logic is split into format-specific modules under <code>crates/ui/frontend/src/modules/reader/</code> (<code>useEpubReader</code>, <code>useMarkdownReader</code>, <code>usePdfReader</code>, <code>useZimReader</code>) and orchestrated by <code>useUnifiedReader</code>.</li>
+<li><code>.zim</code> archives are opened through the native ZIM module, which fetches metadata/capabilities from server endpoints and renders article HTML in a sandboxed iframe (<code>srcdoc</code>) with same-origin navigation bridged via <code>postMessage</code>.</li>
+<li>Native ZIM rendering preserves sanitized archive root attributes (<code>html</code>/<code>body</code> class, id, lang, dir, style) so archive-authored layout systems (for example Wikipedia main-page mosaic rules) can apply without Fyr-specific fallback selectors.</li>
+<li>The ZIM sandbox document does not inject Fyr fallback theme CSS; rendering uses archive-provided CSS plus browser defaults.</li>
+<li>Server-side article resolution uses the Rust <code>zim</code> crate and returns article payloads through <code>/api/reader/zim/:filename/native/article</code>.</li>
+<li>Blob/resource lookup is available via <code>/api/reader/zim/:filename/native/content/*path</code>, and rewritten asset links in the frontend target this endpoint.</li>
+<li>Native mode is always active for <code>.zim</code> archives. The <code>FYR_ZIM_NATIVE_EXPERIMENTAL</code> toggle has been removed.</li>
+</ul>
+<p>Reader shell layout notes:</p>
+<ul>
+<li><code>Books.vue</code> uses a unified reader viewport where each format surface owns its own scroll behavior.</li>
+<li>Read mode uses a single consolidated top toolbar that merges title, filename, status, ZIM search controls, and compact ZIM metadata chips (adapter/archive/article).</li>
+<li>The Library panel auto-collapses whenever a book is opened; collapsed mode hides the panel entirely so the reader owns the full stage, and the state remains session-local (no persistence).</li>
+<li>Legacy dynamic iframe height synchronization for ZIM and cross-surface resize plumbing were removed to avoid nested scrollbar complexity.</li>
+</ul>
+<p>Licensing and distribution notes:</p>
+<ul>
+<li>Fyr source code remains MIT-licensed at repository root.</li>
+<li>Native ZIM support is implemented directly in server code using Rust dependencies in <code>crates/server/Cargo.toml</code>.</li>
+</ul>
+<p>Download lifecycle notes:</p>
+<ul>
+<li>Download tasks are persisted to <code>DATA_DIR/download_tasks.json</code> using atomic write/rename.</li>
+<li>Persisted tasks are loaded on startup and immediately available through <code>GET /api/downloads</code>.</li>
+<li>URL downloads and local file imports both run in background workers with bounded retry/copy status updates.</li>
+<li>Cancellation is cooperative: <code>DELETE /api/download/:task_id</code> marks the task as cancelled and worker state transitions preserve that terminal status.</li>
+<li>Startup cleanup prunes stale <code>*.part</code> temp files from <code>DATA_DIR/inbox</code> (older than 24h).</li>
+</ul>
+<h2 id="4-platform-support-guidance">4. Platform Support Guidance<a class="heading-anchor" href="#4-platform-support-guidance" aria-label="Link to this section">#</a></h2>
+<p>Primary support targets:</p>
+<ul>
+<li>Linux <code>x86_64</code></li>
+<li>Linux <code>aarch64</code> (including Raspberry Pi 64-bit)</li>
+<li>Windows <code>x86_64</code></li>
+</ul>
+<p>Recommendations:</p>
+<ul>
+<li>Prefer Docker multi-arch images for operational parity.</li>
+<li>Buildx example:</li>
+</ul>
+<pre><code class="language-bash">docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t hexagon/fyr:latest \
+  --push .
+</code></pre>
+<ul>
+<li>For native releases, cross-compile with explicit Rust targets.</li>
+<li>Keep ARM runtime memory/storage constraints in mind for large map/ZIM archives.</li>
+</ul>
+<h2 id="5-release-process-devmain">5. Release Process (dev/main)<a class="heading-anchor" href="#5-release-process-devmain" aria-label="Link to this section">#</a></h2>
+<p>Branch model:</p>
+<ul>
+<li><code>dev</code> is the integration branch and produces dev releases.</li>
+<li><code>main</code> is the stable branch and produces stable releases only.</li>
+</ul>
+<p>PR flow:</p>
+<ol>
+<li>Merge feature branches into <code>dev</code>.</li>
+<li>Validate and promote with a PR from <code>dev</code> to <code>main</code>.</li>
+<li>Tag the <code>main</code> commit as <code>vX.Y.Z</code> for stable release.</li>
+</ol>
+<p>GitHub workflows:</p>
+<ul>
+<li><code>.github/workflows/release-dev.yml</code><ul>
+<li>Trigger: merged PR into <code>dev</code> (or manual dispatch).</li>
+<li>Runs full preflight (tests/check/build/docs).</li>
+<li>Publishes Docker optimized multi-arch dev images:<ul>
+<li><code>hexagon/fyr:dev</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;</code></li>
+</ul>
+</li>
+<li>Publishes Docker optimized architecture-specific dev images:<ul>
+<li><code>hexagon/fyr:dev-amd64-avx2</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;-amd64-avx2</code></li>
+<li><code>hexagon/fyr:dev-arm64-dotprod</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;-arm64-dotprod</code></li>
+</ul>
+</li>
+<li>Publishes Docker legacy dev images:<ul>
+<li><code>hexagon/fyr:dev-legacy</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;-legacy</code></li>
+<li><code>hexagon/fyr:dev-pc-legacy</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;-pc-legacy</code></li>
+<li><code>hexagon/fyr:dev-rpi-legacy</code></li>
+<li><code>hexagon/fyr:dev-&lt;git-sha&gt;-rpi-legacy</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>.github/workflows/release.yml</code><ul>
+<li>Trigger: push tag <code>v*.*.*</code> (or manual dispatch with <code>version</code>).</li>
+<li>Verifies the release commit is reachable from <code>main</code>.</li>
+<li>Runs full preflight and publishes Docker optimized multi-arch stable images:<ul>
+<li><code>hexagon/fyr:vX.Y.Z</code></li>
+<li><code>hexagon/fyr:latest</code></li>
+</ul>
+</li>
+<li>Publishes architecture-specific optimized build artifacts used to assemble the optimized manifests.</li>
+<li>Publishes Docker legacy stable images:<ul>
+<li><code>hexagon/fyr:vX.Y.Z-legacy</code></li>
+<li><code>hexagon/fyr:legacy</code></li>
+<li><code>hexagon/fyr:vX.Y.Z-pc-legacy</code></li>
+<li><code>hexagon/fyr:pc-legacy</code></li>
+<li><code>hexagon/fyr:vX.Y.Z-rpi-legacy</code></li>
+<li><code>hexagon/fyr:rpi-legacy</code></li>
+</ul>
+</li>
+<li>Creates a GitHub release with auto-generated notes.</li>
+</ul>
+</li>
+</ul>
+<p>Required repository secrets:</p>
+<ul>
+<li><code>DOCKERHUB_USERNAME</code></li>
+<li><code>DOCKERHUB_TOKEN</code></li>
+</ul>
+<p>Operator release commands:</p>
+<ol>
+<li>Prepare <code>dev</code> and ensure CI/workflows are green.</li>
+<li>Merge promotion PR <code>dev -&gt; main</code>.</li>
+<li>Create and push stable tag:</li>
+</ol>
+<pre><code class="language-bash">git checkout main
+git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z
+</code></pre>
+<ol start="4">
+<li>Confirm workflow <code>Stable Release</code> completed and images were published.</li>
+</ol>
+<h2 id="6-documentation-rules">6. Documentation Rules<a class="heading-anchor" href="#6-documentation-rules" aria-label="Link to this section">#</a></h2>
+<ol>
+<li>Keep implementation details in developer docs, not user docs.</li>
+<li>Keep transient delivery/status reports out of permanent docs.</li>
+<li>Update docs in the same change set as endpoint or behavior changes.</li>
+<li>Canonical docs are restricted to <code>README.md</code>, <code>docs/site/index.html</code>, <code>AGENTS.md</code>, <code>docs/user/USER_MANUAL.md</code>, <code>docs/developer/DEVELOPER_MANUAL.md</code>, and <code>CONTRIBUTING.md</code>.</li>
+</ol>
+<h2 id="7-building-documentation-artifacts">7. Building Documentation Artifacts<a class="heading-anchor" href="#7-building-documentation-artifacts" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Source script: <code>docs/build/build-manuals.js</code></li>
+<li>Outputs:<ul>
+<li><code>public/data/books/user-manual.md</code></li>
+<li><code>public/data/books/developer-manual.md</code></li>
+</ul>
+</li>
+</ul>
+<p>Runtime note:</p>
+<ul>
+<li>These two files are treated as system-managed docs and are synchronized into <code>DATA_DIR/books/</code> at server startup.</li>
+</ul>
+<p>Run:</p>
+<ol>
+<li><code>cd docs/build</code></li>
+<li><code>npm run build</code></li>
+</ol>
+<h3 id="website-fyrguide">Website (fyr.guide)<a class="heading-anchor" href="#website-fyrguide" aria-label="Link to this section">#</a></h3>
+<p>GitHub Pages deploys <code>docs/site/</code> verbatim, so generated site files are committed. <code>npm run build</code> also runs <code>docs/build/build-site.js</code>, which generates:</p>
+<ul>
+<li><code>docs/site/css/site.css</code> — minified Tailwind CSS (pinned <code>tailwindcss</code> 3.4 + typography; config in <code>docs/build/site/tailwind.config.js</code>, source <code>docs/build/site/input.css</code>). There is no runtime CDN; fonts are self-hosted in <code>docs/site/fonts/</code>.</li>
+<li><code>docs/site/guides/**</code>, <code>docs/site/compare/</code> — from HTML fragments with a <code>&lt;!--meta {...} --&gt;</code> header in <code>docs/build/site/content/</code>, wrapped in the shared layout (<code>docs/build/site/layout.js</code>).</li>
+<li><code>docs/site/docs/user-manual/</code> and <code>docs/site/docs/developer-manual/</code> — rendered from the two canonical manuals (GitHub-compatible heading anchors).</li>
+<li><code>docs/site/guides/index.html</code>, <code>docs/site/docs/index.html</code>, <code>docs/site/404.html</code>, <code>docs/site/sitemap.xml</code> (lastmod tracked by content hash in <code>docs/build/site/lastmod.json</code>).</li>
+<li>In <code>docs/site/index.html</code>, only the <code>&lt;!-- build:… --&gt;</code> regions (JSON-LD with <code>softwareVersion</code> from the workspace <code>Cargo.toml</code> and the FAQ, CTA band, footer, GitHub script) and the CSS cache-buster. Everything else on the landing page is hand-edited.</li>
+</ul>
+<p><code>npm run check</code> fails if any generated file is stale and runs <code>check-site.js</code> (one <code>&lt;h1&gt;</code>, heading order, unique title/description, canonical/OG tags, JSON-LD parsing, internal links and anchors, image alt/size, sitemap coverage, and <code>data-sync=&quot;index&quot;</code> snippets matching the landing page). PR validation runs it, so edits to the manuals, <code>Cargo.toml</code> version, <code>index.html</code> FAQ or site sources need <code>npm run build</code> and a commit of the regenerated files. The deploy workflow (<code>.github/workflows/docs-site.yml</code>) rebuilds and checks before uploading.</p>
+<p>Images: landing-page AVIF/WebP variants and <code>img/og-image.jpg</code> are generated from the source PNGs with <code>node optimize-images.js</code> after <code>npm install --no-save sharp@0.34.5</code> (not part of the regular build).</p>
+<h2 id="8-current-known-gaps">8. Current Known Gaps<a class="heading-anchor" href="#8-current-known-gaps" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Download resume/range continuation is not yet implemented for interrupted <em>URL</em> downloads into Fyr. On startup <code>DownloadManager::recover_interrupted_tasks</code> marks persisted non-terminal tasks (<code>queued</code>/<code>downloading</code>/<code>validating</code>/<code>routing</code>) as <code>failed</code> (&quot;interrupted by server restart&quot;) and deletes their <code>.part</code> files, because workers do not survive a restart. (Browser downloads <em>from</em> Fyr via <code>/api/content/:type/:filename/download</code> do support <code>Range</code>.)</li>
+<li>CI checks for markdown/manual consistency are still basic and do not enforce cross-document semantic consistency.</li>
+</ul>
+<h2 id="9-recommended-validation-sequence">9. Recommended Validation Sequence<a class="heading-anchor" href="#9-recommended-validation-sequence" aria-label="Link to this section">#</a></h2>
+<p>Run from repository root unless noted:</p>
+<ol>
+<li><code>cargo test --workspace --all-targets</code></li>
+<li><code>cargo check -p server</code></li>
+<li><code>cd crates/ui/frontend &amp;&amp; npm ci &amp;&amp; npm run build</code></li>
+<li><code>cd docs/build &amp;&amp; npm ci &amp;&amp; npm run build</code></li>
+<li>Validate native ZIM flow by opening a <code>.zim</code> file in Books and confirming article payload retrieval.</li>
+</ol>
+<h2 id="10-native-zim-reader-notes">10. Native ZIM Reader Notes<a class="heading-anchor" href="#10-native-zim-reader-notes" aria-label="Link to this section">#</a></h2>
+<ol>
+<li>Keep server-side reader contracts stable:</li>
+</ol>
+<ul>
+<li><code>/api/reader/zim/:filename/meta</code></li>
+<li><code>/api/reader/zim/:filename/capabilities</code></li>
+<li><code>/api/reader/zim/:filename/native/article</code></li>
+<li><code>/api/reader/zim/:filename/native/content/*path</code></li>
+</ul>
+<ol start="2">
+<li>Maintain clean-room implementation boundaries: all ZIM reader logic must be implemented directly in Fyr&#39;s Rust server code using the <code>zim</code> crate. Do not bundle or wrap third-party reader JavaScript bundles.</li>
+<li>Validate representative archives after reader changes and monitor unsupported compression/edge-case failures.</li>
+</ol>
+
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#1-overview" class="text-gray-600 hover:text-brand-600">1. Overview</a></li>
+                            <li class=""><a href="#11-ai-integration-with-candle" class="text-gray-600 hover:text-brand-600">1.1 AI Integration with Candle</a></li>
+                            <li class="pl-4"><a href="#cpu-optimization-and-thread-pool-sizing" class="text-gray-600 hover:text-brand-600">CPU optimization and thread pool sizing</a></li>
+                            <li class="pl-4"><a href="#inference-hardening" class="text-gray-600 hover:text-brand-600">Inference hardening</a></li>
+                            <li class="pl-4"><a href="#recommended-model-files" class="text-gray-600 hover:text-brand-600">Recommended model files</a></li>
+                            <li class=""><a href="#2-local-development" class="text-gray-600 hover:text-brand-600">2. Local Development</a></li>
+                            <li class="pl-4"><a href="#prerequisites" class="text-gray-600 hover:text-brand-600">Prerequisites</a></li>
+                            <li class="pl-4"><a href="#frontend-unit-tests" class="text-gray-600 hover:text-brand-600">Frontend unit tests</a></li>
+                            <li class="pl-4"><a href="#web-app-manifest" class="text-gray-600 hover:text-brand-600">Web app manifest</a></li>
+                            <li class="pl-4"><a href="#build-frontend" class="text-gray-600 hover:text-brand-600">Build frontend</a></li>
+                            <li class="pl-4"><a href="#build-backend" class="text-gray-600 hover:text-brand-600">Build backend</a></li>
+                            <li class="pl-4"><a href="#dev-mode" class="text-gray-600 hover:text-brand-600">Dev mode</a></li>
+                            <li class="pl-4"><a href="#runtime-environment-overrides" class="text-gray-600 hover:text-brand-600">Runtime environment overrides</a></li>
+                            <li class=""><a href="#3-docker" class="text-gray-600 hover:text-brand-600">3. Docker</a></li>
+                            <li class="pl-4"><a href="#multi-arch-builds-and-cpu-features" class="text-gray-600 hover:text-brand-600">Multi-arch builds and CPU features</a></li>
+                            <li class=""><a href="#35-access-control-architecture" class="text-gray-600 hover:text-brand-600">3.5 Access Control Architecture</a></li>
+                            <li class="pl-4"><a href="#modes" class="text-gray-600 hover:text-brand-600">Modes</a></li>
+                            <li class="pl-4"><a href="#implementation-cratesserversrcauthrs" class="text-gray-600 hover:text-brand-600">Implementation (crates/server/src/auth.rs)</a></li>
+                            <li class="pl-4"><a href="#adding-new-protected-endpoints" class="text-gray-600 hover:text-brand-600">Adding new protected endpoints</a></li>
+                            <li class="pl-4"><a href="#auth-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Auth endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#core-read-only-endpoints-always-public" class="text-gray-600 hover:text-brand-600">Core read-only endpoints (always public)</a></li>
+                            <li class="pl-4"><a href="#admin-only-endpoints-require-auth-when-fyr_admin_password-is-set-always-blocked-when-fyr_readonly" class="text-gray-600 hover:text-brand-600">Admin-only endpoints (require auth when FYR_ADMIN_PASSWORD is set; always blocked when FYR_READONLY)</a></li>
+                            <li class=""><a href="#4-platform-support-guidance" class="text-gray-600 hover:text-brand-600">4. Platform Support Guidance</a></li>
+                            <li class=""><a href="#5-release-process-devmain" class="text-gray-600 hover:text-brand-600">5. Release Process (dev/main)</a></li>
+                            <li class=""><a href="#6-documentation-rules" class="text-gray-600 hover:text-brand-600">6. Documentation Rules</a></li>
+                            <li class=""><a href="#7-building-documentation-artifacts" class="text-gray-600 hover:text-brand-600">7. Building Documentation Artifacts</a></li>
+                            <li class="pl-4"><a href="#website-fyrguide" class="text-gray-600 hover:text-brand-600">Website (fyr.guide)</a></li>
+                            <li class=""><a href="#8-current-known-gaps" class="text-gray-600 hover:text-brand-600">8. Current Known Gaps</a></li>
+                            <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
+                            <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>
