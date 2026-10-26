@@ -474,7 +474,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 2. **Replace the program or image.** Docker: `docker pull hexagon/fyr:latest`, then remove and re-create the container with the **same** volume (`-v fyr-data:/data -e DATA_DIR=/data`). The image is multi-arch: the same tag works on Intel/AMD (`x86_64`) and ARM64 (`aarch64`, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same `DATA_DIR`.
 3. **Start it.** Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.
 
-**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only). Other 1.0 features may add their own folders (for example a search `index/` or `tls/` certificates); all of them live inside the data folder, so keep mounting the whole folder.
+**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only) and, only with `FYR_TLS=self-signed`, `tls/` (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). Other 1.0 features may add their own folders (for example a search `index/`); all of them live inside the data folder, so keep mounting the whole folder.
 
 **New environment variables** (all optional; defaults keep 0.5.x behaviour except that Messages is on):
 
@@ -483,6 +483,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 - `FYR_MESSAGES_MAX_PER_CHANNEL` — newest messages kept per channel (default 1000).
 - `FYR_MESSAGES_MAX_AGE_DAYS` — maximum age of encrypted-channel messages (default 90).
 - `FYR_TRUSTED_PROXIES` — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.
+- `FYR_TLS`, `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (§2a), off by default. Turning it on changes the address to `https://`.
 
 If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/`FYR_READONLY` (§3a) and the Messages posting rules (§3d) after upgrading.
 
