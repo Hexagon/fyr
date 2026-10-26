@@ -55,6 +55,12 @@ pub struct InferStreamQuery {
     /// JSON-encoded array of `{"role":"user"|"assistant","text":"..."}` objects
     /// representing prior conversation turns (most recent last).
     pub history: Option<String>,
+    /// Ground the answer in the offline library ("ask your library"):
+    /// retrieve passages, inject them as numbered sources and emit a
+    /// `sources` SSE event before the first token.
+    pub use_library: Option<bool>,
+    /// Maximum number of library sources (default 4, clamped to 1..=8).
+    pub sources_limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]

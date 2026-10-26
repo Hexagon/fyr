@@ -150,9 +150,24 @@ Three response modes are available:
 | **Balanced** | temperature=0.2, max_tokens=512 — default, concise and reliable |
 | **Creative** | temperature=0.7, max_tokens=1024 — more elaborate, varied responses |
 
+### Ask your library (answers with sources)
+
+Turn on **Use library** next to the mode buttons to have the assistant answer from your own offline books instead of only from what the model remembers.
+
+- Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: **ZIM** archives by article title (for example *Gustav Vasa* or *Water purification*), **Markdown** files by section, and **EPUB** books by chapter. PDFs are not searched yet.
+- The best-matching passages (up to four) are given to the model as numbered sources. The model is asked to cite them as `[1]`, `[2]`, … and to say when your library does not cover the question.
+- Sources appear as chips under the answer; clicking a chip or a `[n]` citation in the text opens that article or book in **Books** (ZIM articles open directly; other books open with the matching words searched).
+- If nothing matches, the answer shows *No matching passages found in your library.*
+- Tips: name the topic explicitly ("Who was Gustav Vasa?" works better than "who was he?"), and prefer article-style titles for ZIM archives. The search is capped at a few seconds, so very large libraries return the best matches found within that time.
+- Sources take room in the model's context window. On small windows (2048 tokens) Fyr shortens sources and drops older conversation turns first; your question is always kept.
+
+The **Use library** setting and your chosen mode are remembered per browser.
+
 ### Persisting the default model
 
 The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.
+
+The conversation (including answer sources) is also kept in browser storage until you press **Restart Conversation**. **Regenerate** replaces the last answer instead of appending a duplicate question. If generation fails, the error is shown in the answer bubble; if the model was unloaded meanwhile, select it again in the model library.
 
 ## 3c. Searching Everything
 Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside a text field) and press Enter to open the **Search** page (`/search?q=...`). One query covers:
@@ -342,6 +357,11 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - Confirm the `.gguf` model includes tokenizer metadata.
 - For `phi3`/`phi-3.5`, confirm a sidecar tokenizer JSON exists next to the `.gguf` model.
 - If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.
+
+### "Use library" finds no sources
+- Make sure the books are in the `books/` data folder (ZIM, EPUB or Markdown; PDFs are not searched).
+- For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.
+- Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.
 
 ### Assistant load fails or runs slowly
 - Check model health in the assistant status line.

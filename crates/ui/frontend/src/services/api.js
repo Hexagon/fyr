@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { buildSearchParams } from '../modules/search/searchResults.js'
+import { parseSourcesEvent } from './citations.js'
 
 const API_BASE = '/api'
 const REQUEST_TIMEOUT_MS = 120000
@@ -115,8 +116,27 @@ const extractNextSseFrame = (buffer) => {
   }
 }
 
+// Route one parsed SSE frame of the inference stream to its handler.
+// Returns true when the stream is complete (`done`).
+const dispatchInferenceEvent = (parsed, handlers = {}) => {
+  switch (parsed?.event) {
+    case 'token':
+      handlers.onToken?.(parsed.data)
+      return false
+    case 'sources':
+      // Library sources ("ask your library"); sent once, before any token.
+      handlers.onSources?.(parseSourcesEvent(parsed.data))
+      return false
+    case 'done':
+      handlers.onDone?.()
+      return true
+    default:
+      return false
+  }
+}
+
 // Exported for unit tests.
-export { mapContentItem, encodePathPreservingSlashes, parseSseFrame, extractNextSseFrame }
+export { mapContentItem, encodePathPreservingSlashes, parseSseFrame, extractNextSseFrame, dispatchInferenceEvent }
 
 export const apiService = {
   getReaderCapabilities: async () => {
@@ -309,7 +329,7 @@ export const apiService = {
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
-  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [] }, handlers = {}) => {
+  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [], useLibrary = false, sourcesLimit }, handlers = {}) => {
     const params = new URLSearchParams({
       prompt,
       temperature: String(temperature),
@@ -317,6 +337,12 @@ export const apiService = {
     })
     if (numCtx != null) {
       params.set('num_ctx', String(numCtx))
+    }
+    if (useLibrary) {
+      params.set('use_library', 'true')
+      if (sourcesLimit != null) {
+        params.set('sources_limit', String(sourcesLimit))
+      }
     }
     if (history.length > 0) {
       params.set('history', JSON.stringify(history))
@@ -374,12 +400,8 @@ export const apiService = {
             const { frame, remainder } = extracted
             buffer = remainder
 
-            const parsed = parseSseFrame(frame)
-            if (parsed.event === 'token') {
-              handlers.onToken?.(parsed.data)
-            } else if (parsed.event === 'done') {
+            if (dispatchInferenceEvent(parseSseFrame(frame), handlers)) {
               completed = true
-              handlers.onDone?.()
               close()
               return
             }
@@ -390,12 +412,8 @@ export const apiService = {
 
         const trailing = buffer + decoder.decode()
         if (!closed && trailing.trim()) {
-          const parsed = parseSseFrame(trailing)
-          if (parsed.event === 'token') {
-            handlers.onToken?.(parsed.data)
-          } else if (parsed.event === 'done') {
+          if (dispatchInferenceEvent(parseSseFrame(trailing), handlers)) {
             completed = true
-            handlers.onDone?.()
           }
         }
 

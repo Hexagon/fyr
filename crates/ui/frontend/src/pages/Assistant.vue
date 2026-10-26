@@ -66,7 +66,29 @@
                   <summary class="think-summary">{{ message.isThinking || message.waitingForFirstToken ? 'Thinking…' : 'Thinking' }}</summary>
                   <div class="think-content">{{ message.thinkText || 'Preparing response…' }}<span v-if="message.isThinking || message.waitingForFirstToken" class="think-cursor">▌</span></div>
                 </details>
-                <div v-html="renderMarkdown(message.text)"></div>
+                <div v-html="renderAssistantMarkdown(message)" @click="onMarkdownClick"></div>
+                <p v-if="message.error" class="bubble-error">{{ message.error }}</p>
+                <div v-if="Array.isArray(message.sources)" class="sources-row">
+                  <span class="sources-label">Sources</span>
+                  <template v-if="message.sources.length">
+                    <template v-for="source in message.sources" :key="source.n">
+                      <router-link
+                        v-if="source.link"
+                        class="source-chip"
+                        :to="source.link"
+                        :title="`${source.title} — ${source.source}`"
+                      >
+                        <span class="source-num">[{{ source.n }}]</span> {{ source.title }}
+                        <span class="source-file">{{ source.source }}</span>
+                      </router-link>
+                      <span v-else class="source-chip" :title="`${source.title} — ${source.source}`">
+                        <span class="source-num">[{{ source.n }}]</span> {{ source.title }}
+                        <span class="source-file">{{ source.source }}</span>
+                      </span>
+                    </template>
+                  </template>
+                  <span v-else class="sources-empty">No matching passages found in your library.</span>
+                </div>
               </div>
               <div v-else class="bubble-content plain-content">{{ message.text }}</div>
             </div>
@@ -94,6 +116,13 @@
                   @click="selectedPreset = p.id"
                 >{{ p.label }}</button>
               </div>
+              <label
+                class="library-toggle"
+                title="Search your offline books (ZIM, EPUB, Markdown) and answer with numbered sources"
+              >
+                <input v-model="useLibrary" type="checkbox" :disabled="streaming" />
+                Use library
+              </label>
             </div>
 
             <div class="action-row">
@@ -123,17 +152,31 @@
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { apiService } from '../services/api'
 import { useAuthState, isAdminLocked } from '../services/auth'
+import { linkCitations, normalizeSources } from '../services/citations'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const authState = useAuthState()
 const adminLocked = computed(() => isAdminLocked())
+const router = useRouter()
 
 const STORAGE_KEY_MODEL = 'fyr_assistant_default_model'
 const STORAGE_KEY_HISTORY = 'fyr_assistant_history'
+const STORAGE_KEY_USE_LIBRARY = 'fyr_assistant_use_library'
+const STORAGE_KEY_PRESET = 'fyr_assistant_preset'
 const MAX_HISTORY_MESSAGES = 6
+const LIBRARY_SOURCES_LIMIT = 4
+
+const readPref = (key) => {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+
+const writePref = (key, value) => {
+  try { localStorage.setItem(key, value) } catch { /* ignore storage failures */ }
+}
 
 const presets = [
   { id: 'precise', label: 'Precise', description: 'Focused, factual answers', temperature: 0.1, maxTokens: 512 },
@@ -147,7 +190,8 @@ const selectedModel = ref(null)
 const modelHealth = ref(null)
 const messages = ref([])
 const prompt = ref('')
-const selectedPreset = ref('balanced')
+const selectedPreset = ref(presets.some(p => p.id === readPref(STORAGE_KEY_PRESET)) ? readPref(STORAGE_KEY_PRESET) : 'balanced')
+const useLibrary = ref(readPref(STORAGE_KEY_USE_LIBRARY) === 'true')
 const loadingModel = ref(false)
 const streaming = ref(false)
 const chatHistoryRef = ref(null)
@@ -232,8 +276,10 @@ const persistConversation = () => {
       role: message.role,
       text: message.text || '',
       thinkText: message.thinkText || '',
-      isThinking: !!message.isThinking,
-      streaming: false
+      isThinking: false,
+      streaming: false,
+      ...(Array.isArray(message.sources) ? { sources: message.sources } : {}),
+      ...(message.error ? { error: message.error } : {})
     }))
 
   try {
@@ -263,8 +309,12 @@ const restoreConversation = () => {
         role: message.role,
         text: String(message.text || ''),
         thinkText: String(message.thinkText || ''),
-        isThinking: !!message.isThinking,
-        streaming: false
+        // A reload can never resume a stream, so never restore a live
+        // "Thinking…" indicator.
+        isThinking: false,
+        streaming: false,
+        sources: Array.isArray(message.sources) ? normalizeSources(message.sources) : null,
+        error: typeof message.error === 'string' ? message.error : ''
       }))
   } catch {
     messages.value = []
@@ -347,7 +397,7 @@ const sendPrompt = () => {
   const history = buildHistory()
   messages.value.push({ id: generateId(), role: 'user', text: userPrompt })
 
-  const assistantMessage = {
+  messages.value.push({
     id: generateId(),
     role: 'assistant',
     rawText: '',
@@ -355,22 +405,33 @@ const sendPrompt = () => {
     thinkText: '',
     isThinking: false,
     waitingForFirstToken: true,
-    streaming: true
-  }
-  messages.value.push(assistantMessage)
+    streaming: true,
+    sources: null,
+    error: ''
+  })
+  // Mutate through the reactive proxy (not the raw object) so streamed
+  // tokens re-render immediately.
+  const assistantMessage = messages.value[messages.value.length - 1]
   activeAssistantMessage.value = assistantMessage
 
   const preset = currentPreset.value
   streaming.value = true
+  // Save the user's prompt now; the streaming reply is persisted on completion.
+  persistConversation()
   eventSource = apiService.streamInference(
     selectedModel.value.filename,
     {
       prompt: userPrompt,
       temperature: preset.temperature,
       maxTokens: preset.maxTokens,
-      history
+      history,
+      useLibrary: useLibrary.value,
+      sourcesLimit: LIBRARY_SOURCES_LIMIT
     },
     {
+      onSources: (sources) => {
+        assistantMessage.sources = sources
+      },
       onToken: (token) => {
         assistantMessage.waitingForFirstToken = false
         assistantMessage.rawText += token
@@ -389,7 +450,8 @@ const sendPrompt = () => {
         eventSource = null
         scrollChatHistoryToBottom()
       },
-      onError: () => {
+      onError: (error) => {
+        assistantMessage.error = describeStreamError(error)
         assistantMessage.streaming = false
         assistantMessage.isThinking = false
         assistantMessage.waitingForFirstToken = false
@@ -405,10 +467,29 @@ const sendPrompt = () => {
   scrollChatHistoryToBottom()
 }
 
+const describeStreamError = (error) => {
+  const status = error?.response?.status
+  if (status === 409) {
+    return 'The model is no longer loaded. Select it in the model library to load it again.'
+  }
+  return `Generation failed: ${apiService.handleError(error)}`
+}
+
+// Replace the last exchange instead of appending a duplicate prompt (which
+// also fed the previous answer back to the model as history).
 const regenerate = () => {
-  const lastUser = [...messages.value].reverse().find(msg => msg.role === 'user')
-  if (!lastUser) return
-  prompt.value = lastUser.text
+  if (streaming.value || loadingModel.value) return
+  let lastUserIndex = -1
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    if (messages.value[i].role === 'user') {
+      lastUserIndex = i
+      break
+    }
+  }
+  if (lastUserIndex === -1) return
+  const lastPrompt = messages.value[lastUserIndex].text
+  messages.value.splice(lastUserIndex)
+  prompt.value = lastPrompt
   sendPrompt()
 }
 
@@ -446,6 +527,24 @@ const renderMarkdown = (text) => {
   return DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true }
   })
+}
+
+// Assistant answers: link [n] citations to their library sources, then render.
+const renderAssistantMarkdown = (message) => {
+  const sources = Array.isArray(message.sources) ? message.sources : []
+  return renderMarkdown(linkCitations(message.text, sources))
+}
+
+// Citation links live in v-html, so route them through the SPA router
+// instead of a full page load (modifier clicks keep browser behaviour).
+const onMarkdownClick = (event) => {
+  const anchor = event.target?.closest?.('a.citation')
+  if (!anchor) return
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const href = anchor.getAttribute('href') || ''
+  if (!href.startsWith('/') || href.startsWith('//')) return
+  event.preventDefault()
+  router.push(href)
 }
 
 // Split raw streamed text into visible response text and think-block content.
@@ -522,7 +621,16 @@ onBeforeUnmount(() => {
   persistConversation()
 })
 
-watch(messages, persistConversation, { deep: true })
+// Persisting serializes the whole conversation; skip it for every streamed
+// token and save once the stream settles (done/error/stop all flip `streaming`).
+watch(messages, () => {
+  if (!streaming.value) persistConversation()
+}, { deep: true })
+watch(streaming, (isStreaming) => {
+  if (!isStreaming) persistConversation()
+})
+watch(useLibrary, (value) => writePref(STORAGE_KEY_USE_LIBRARY, value ? 'true' : 'false'))
+watch(selectedPreset, (value) => writePref(STORAGE_KEY_PRESET, value))
 </script>
 
 <style scoped>
@@ -827,6 +935,90 @@ watch(messages, persistConversation, { deep: true })
   border-color: #77b255;
   color: #8fd28f;
   font-weight: 600;
+}
+
+.library-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  color: #c0c0c0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bubble-error {
+  margin: 0.5rem 0 0;
+  color: #ffb4a8;
+  font-size: 0.85rem;
+}
+
+.sources-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sources-label {
+  color: #a9c4a9;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.2rem;
+}
+
+.sources-empty {
+  color: #a0a0a0;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid #4a5f4a;
+  border-radius: 999px;
+  background: #1f2a1f;
+  color: #dfe9df;
+  font-size: 0.8rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.source-chip:hover {
+  border-color: #77b255;
+  background: #253025;
+}
+
+.source-num {
+  color: #8fd28f;
+  font-weight: 600;
+}
+
+.source-file {
+  color: #9aa89a;
+  font-size: 0.75rem;
+}
+
+.markdown-content :deep(.citation) {
+  color: #8fd28f;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: super;
+  line-height: 0;
+}
+
+.markdown-content :deep(a.citation:hover) {
+  text-decoration: underline;
 }
 
 .action-row {

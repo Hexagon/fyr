@@ -428,7 +428,7 @@ fn search_epub(path: &Path, needle: &str, limit: usize) -> Result<Vec<SearchResu
     Ok(results)
 }
 
-fn collect_epub_spine_items(opf_xml: &str) -> Vec<String> {
+pub(crate) fn collect_epub_spine_items(opf_xml: &str) -> Vec<String> {
     let mut items = Vec::new();
 
     // Find <spine> section
@@ -885,7 +885,7 @@ pub(crate) fn snippet_around(text: &str, needle_lower: &str, context: usize) -> 
     Some(snippet)
 }
 
-fn strip_html_tags(html: &str) -> String {
+pub(crate) fn strip_html_tags(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
 

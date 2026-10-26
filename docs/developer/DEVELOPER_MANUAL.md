@@ -106,6 +106,44 @@ Default assistant profiles used by Fyr:
 
 Conversation context: the SSE endpoint accepts an optional `history` query parameter — a JSON array of `{"role":"user"|"assistant","text":"..."}` objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.
 
+Prompt budgeting (`crates/server/src/ai/prompt.rs`): the prompt is fitted into `num_ctx` with the loaded tokenizer before inference. `input_token_budget()` reserves room for `max_tokens` (at most half the window); `fit_prompt()` always keeps the system prompt and question, then library sources (up to two thirds of the remaining room when there is history; the last one that does not fit is trimmed with `trim_text_to_tokens()`), then as much recent history as fits, dropping the oldest turns first and never keeping an orphaned assistant reply at the start. Tail-trimming the token ids (`trim_context_window`, which cuts the system prompt) is now only a last resort when even the bare prompt exceeds the budget.
+
+### Ask your library (retrieval-augmented answers)
+
+`GET /api/models/:filename/infer/stream` accepts two optional query params:
+
+| Param | Default | Notes |
+|---|---|---|
+| `use_library` | `false` | `true` enables retrieval; any value other than `true`/`false` is `400` |
+| `sources_limit` | `4` | Clamped to `1..=8` |
+
+Flow (`ai_infer_stream` in `handlers.rs`):
+
+1. `ModelManager::ensure_inference_ready()` runs first, so an unloaded model still returns `409` (validation-only models `500`) without doing any retrieval. The old path (no `use_library`) is unchanged.
+2. `ai::retrieval::retrieve()` runs on the blocking pool inside `tokio::time::timeout(time_budget + 1.5 s)`; a timeout or panic degrades to "no sources".
+3. `ModelManager::infer_stream(filename, InferRequest { .., library })` fits the prompt (above) and returns `InferStream { sources, tokens }`. `sources` lists only the passages that survived budgeting, numbered as the model sees them.
+4. The SSE stream emits `event: sources` (JSON array) before the first `token`, then `token` events and `done`:
+
+```json
+[{"n":1,"title":"Gustav Vasa","source":"wikipedia_sv.zim","link":"/books?file=wikipedia_sv.zim&path=Gustav_Vasa"},
+ {"n":2,"title":"Survival Guide › Water","source":"survival.md","link":"/books?file=survival.md&q=boil%20water"}]
+```
+
+`link` follows the Books deep-link contract: `/books?file=<filename>&path=<zim article path>` for ZIM articles (the path is the same normalized entry URL the native article endpoint accepts), `/books?file=<filename>&q=<phrase>` for Markdown/EPUB, where the phrase is a keyword bigram or keyword that occurs in the passage. Only bare filenames and archive-internal paths are ever emitted; no host paths, in any mode.
+
+Retrieval (`crates/server/src/ai/retrieval.rs`, pure helpers unit-tested):
+
+- **Keywords:** lowercase, split on non-alphanumeric characters, drop tokens under 3 characters (2-digit numbers kept) and English/Swedish stop words, max 10.
+- **ZIM candidates** (per archive, max 6 articles): exact `get_by_path` binary-search lookups for phrase variants (`Gustav_Vasa`, `Gustav_vasa`, as typed) in the `C` and `A` namespaces; a prefix scan over the `X/listing/titleOrdered/v1` article listing via `lower_bound`; and a linear title scan only for archives with at most 50 000 entries. Redirects are resolved; only HTML articles are read. Large archives are never walked end to end.
+- **Markdown:** heading sections → paragraphs. **EPUB:** OPF spine documents → block-level paragraphs. PDFs are skipped.
+- **Text:** `html_to_blocks()` drops `script`/`style`/`head`/…, splits at block elements, reuses `library::strip_html_tags`, decodes entities and removes `[12]`-style reference markers so they cannot be confused with the model's `[n]` citations.
+- **Scoring:** paragraphs are chunked to `max_passage_chars` (900), scored with BM25 (k1 = 1.2, b = 0.75, statistics over the candidate set) plus a title bonus, grouped per document (best chunk + 0.25 × second), and the top `sources_limit` documents become sources combining their two best chunks in document order.
+- **Budgets** (`RetrievalLimits::default()`): 2.5 s wall clock, 8 ZIM archives, 64 Markdown/EPUB files, 4 MiB per file/article/chapter, 32 MiB total bytes read. ZIM archives are probed first (cheap, most relevant). Each file is wrapped in `catch_unwind`; broken files are skipped with a warning.
+
+The system block appends the numbered sources (`[n] Title — file` + excerpt) and instructs the model to cite `[n]`, to cite only listed numbers, and to say when the sources do not contain the answer. With no passages it says so instead.
+
+Frontend: `services/citations.js` validates the `sources` payload (internal `/…` links only) and turns `[n]` / `[1, 2]` citations into `<a class="citation">` links (skipping code spans, fenced blocks, markdown links and reference definitions) before `marked` + DOMPurify. `services/api.js` routes SSE frames through `dispatchInferenceEvent()` (`onSources`, `onToken`, `onDone`). `Assistant.vue` persists the **Use library** toggle (`fyr_assistant_use_library`) and preset (`fyr_assistant_preset`) in `localStorage`, renders sources as `router-link` chips and routes citation clicks through the router. Tests: `citations.test.js`, `citations.render.test.js`, `api.test.js`.
+
 Catalog file:
 
 - Fyr seeds `DATA_DIR/curated-content.json` from the bundled `public/data/curated-content.json` when the file is missing.
@@ -287,7 +325,7 @@ Download routing: URL downloads stream into `inbox/<task_id>-<filename>.part` (u
 AI read-only endpoints (always public):
 - `GET /api/models`
 - `GET /api/models/:filename/health`
-- `GET /api/models/:filename/infer/stream`
+- `GET /api/models/:filename/infer/stream` (optional `use_library` / `sources_limit`; source links carry bare filenames only, see § 1.1)
 
 Model upload/import flow:
 - Model uploads are initiated from the Content Manager models section; the Assistant links there instead of uploading directly.
