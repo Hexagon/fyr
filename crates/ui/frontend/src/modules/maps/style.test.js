@@ -9,7 +9,10 @@ import {
   buildVectorLayers,
   buildMeasureLayers,
   buildPoiLayers,
-  poiLayerIds
+  poiLayerIds,
+  POI_INTERACTIVE_LAYER_IDS,
+  TRACK_SOURCE_ID,
+  buildTrackLayers
 } from './style.js'
 
 describe('style builders', () => {
@@ -78,5 +81,24 @@ describe('style builders', () => {
     expect(buildPoiLayers('x').every((l) => l.source === 'x')).toBe(true)
     const ids = poiLayerIds()
     expect(ids).toEqual(buildPoiLayers().map((l) => l.id).reverse())
+  })
+
+  it('renders POI points, lines and polygons with geometry filters', () => {
+    const byId = Object.fromEntries(buildPoiLayers().map((l) => [l.id, l]))
+    expect(byId['poi-circle-layer'].filter).toEqual(['==', '$type', 'Point'])
+    expect(byId['poi-label-layer'].filter).toEqual(['==', '$type', 'Point'])
+    expect(byId['poi-line-layer'].type).toBe('line')
+    expect(byId['poi-line-layer'].filter).toEqual(['==', '$type', 'LineString'])
+    expect(byId['poi-fill-layer'].filter).toEqual(['==', '$type', 'Polygon'])
+    for (const id of POI_INTERACTIVE_LAYER_IDS) expect(byId[id]).toBeDefined()
+    // Lines are drawn below points so markers stay clickable.
+    const order = buildPoiLayers().map((l) => l.id)
+    expect(order.indexOf('poi-line-layer')).toBeLessThan(order.indexOf('poi-circle-layer'))
+  })
+
+  it('builds the track overlay', () => {
+    const [line] = buildTrackLayers()
+    expect(line.source).toBe(TRACK_SOURCE_ID)
+    expect(line.type).toBe('line')
   })
 })

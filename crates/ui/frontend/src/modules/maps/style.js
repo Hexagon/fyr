@@ -597,15 +597,40 @@ export const POI_SOURCE_ID = 'poi-source'
 
 export const buildPoiLayers = (sourceId = POI_SOURCE_ID) => [
   {
+    id: 'poi-fill-layer',
+    type: 'fill',
+    source: sourceId,
+    filter: ['==', '$type', 'Polygon'],
+    paint: { 'fill-color': '#ff6b35', 'fill-opacity': 0.18, 'fill-outline-color': '#ff6b35' }
+  },
+  {
+    id: 'poi-line-casing-layer',
+    type: 'line',
+    source: sourceId,
+    filter: ['==', '$type', 'LineString'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': 5, 'line-opacity': 0.85 }
+  },
+  {
+    id: 'poi-line-layer',
+    type: 'line',
+    source: sourceId,
+    filter: ['==', '$type', 'LineString'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#ff6b35', 'line-width': 3 }
+  },
+  {
     id: 'poi-circle-layer',
     type: 'circle',
     source: sourceId,
+    filter: ['==', '$type', 'Point'],
     paint: { 'circle-radius': 7, 'circle-color': '#ff6b35', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
   },
   {
     id: 'poi-label-layer',
     type: 'symbol',
     source: sourceId,
+    filter: ['==', '$type', 'Point'],
     layout: {
       'text-field': ['get', 'name'],
       'text-offset': [0, 1.3],
@@ -617,5 +642,21 @@ export const buildPoiLayers = (sourceId = POI_SOURCE_ID) => [
   }
 ]
 
+/** Layers whose features open an info popup when clicked. */
+export const POI_INTERACTIVE_LAYER_IDS = ['poi-circle-layer', 'poi-line-layer', 'poi-fill-layer']
+
 /** Layer ids of the POI overlay, in removal order (top-most first). */
 export const poiLayerIds = (sourceId = POI_SOURCE_ID) => buildPoiLayers(sourceId).map((l) => l.id).reverse()
+
+export const TRACK_SOURCE_ID = 'track-source'
+
+/** Live/unsaved GPS track overlay. */
+export const buildTrackLayers = (sourceId = TRACK_SOURCE_ID) => [
+  {
+    id: 'track-line-layer',
+    type: 'line',
+    source: sourceId,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#e63946', 'line-width': 4, 'line-opacity': 0.9 }
+  }
+]
