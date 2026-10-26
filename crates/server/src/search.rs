@@ -1523,6 +1523,48 @@ fn schedule_background_index(path: PathBuf, stamp: FileStamp) {
     }
 }
 
+/// Keyword lookup in the cached title index, shared with assistant
+/// retrieval so it does not rescan archives on every question.
+///
+/// Returns URL indices of entries whose title contains any of `keywords`
+/// at a word start, ranked by how many keywords match (ties keep index
+/// order), or `None` when no index is cached for this exact file version.
+/// In that case an index build is scheduled in the background when the
+/// archive is small enough, so later questions benefit.
+pub(crate) fn cached_title_keyword_matches(
+    path: &Path,
+    entry_count: usize,
+    keywords: &[String],
+    want: usize,
+) -> Option<Vec<u32>> {
+    if keywords.is_empty() || want == 0 {
+        return Some(Vec::new());
+    }
+    let stamp = FileStamp::of(path)?;
+    let Some(index) = lock(zim_index_cache()).get(path, &stamp) else {
+        if entry_count <= ASYNC_INDEX_MAX_ENTRIES {
+            schedule_background_index(path.to_path_buf(), stamp);
+        }
+        return None;
+    };
+    Some(rank_keyword_matches(&index, keywords, want))
+}
+
+fn rank_keyword_matches(index: &ZimTitleIndex, keywords: &[String], want: usize) -> Vec<u32> {
+    let folded: Vec<String> = keywords.iter().map(|k| fold(k)).filter(|k| !k.is_empty()).collect();
+    let mut matched: Vec<(usize, u32)> = index
+        .entries
+        .iter()
+        .filter_map(|(title, idx)| {
+            let hits = folded.iter().filter(|k| contains_at_word_start(title, k)).count();
+            (hits > 0).then_some((hits, *idx))
+        })
+        .collect();
+    matched.sort_by(|a, b| b.0.cmp(&a.0));
+    matched.truncate(want);
+    matched.into_iter().map(|(_, idx)| idx).collect()
+}
+
 fn score_title_index(index: &ZimTitleIndex, query: &SearchQuery, want: usize) -> Vec<(f64, u32)> {
     let matched = index
         .entries
@@ -1679,6 +1721,47 @@ mod tests {
         // Multi-byte input is truncated on character boundaries.
         let long_unicode = "ü".repeat(500);
         assert_eq!(q(&long_unicode).display.chars().count(), MAX_QUERY_CHARS);
+    }
+
+    #[test]
+    fn keyword_matches_rank_by_matched_keyword_count() {
+        let index = ZimTitleIndex {
+            entries: vec![
+                ("water".into(), 1),
+                ("boiling water safely".into(), 2),
+                ("firewater".into(), 3),
+                ("rope knots".into(), 4),
+                ("water boiling".into(), 5),
+            ],
+        };
+        let keywords = vec!["Water".to_string(), "boiling".to_string()];
+        let ranked = rank_keyword_matches(&index, &keywords, 10);
+        // Two-keyword titles first (stable order), then single matches;
+        // "firewater" does not match at a word start.
+        assert_eq!(ranked, vec![2, 5, 1]);
+        assert_eq!(rank_keyword_matches(&index, &keywords, 1), vec![2]);
+    }
+
+    #[test]
+    fn keyword_matches_use_only_a_cache_entry_for_the_current_file_version() {
+        let dir = std::env::temp_dir().join(format!("fyr-kw-index-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tiny.zim");
+        std::fs::write(&path, b"not really a zim").unwrap();
+        let keywords = vec!["water".to_string()];
+
+        // Too large for a background build and nothing cached: no answer.
+        assert_eq!(cached_title_keyword_matches(&path, usize::MAX, &keywords, 5), None);
+
+        let stamp = FileStamp::of(&path).unwrap();
+        let index = ZimTitleIndex { entries: vec![("water".into(), 7)] };
+        lock(zim_index_cache()).insert(path.clone(), stamp, Arc::new(index), 1);
+        assert_eq!(cached_title_keyword_matches(&path, usize::MAX, &keywords, 5), Some(vec![7]));
+
+        // A changed file invalidates the cached index.
+        std::fs::write(&path, b"a different, longer archive body").unwrap();
+        assert_eq!(cached_title_keyword_matches(&path, usize::MAX, &keywords, 5), None);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

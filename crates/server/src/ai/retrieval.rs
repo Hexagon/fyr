@@ -969,8 +969,30 @@ fn collect_zim(
         }
     }
 
-    // 3. Small archives only: linear scan for titles containing keywords.
-    if found.len() < max_articles
+    // 3. Titles containing keywords: use the global search's cached title
+    //    index when one exists for this archive (built in the background
+    //    for archives up to its size limit); otherwise fall back to a linear
+    //    scan, for small archives only.
+    let indexed = if found.len() < max_articles && !budget.expired() {
+        crate::search::cached_title_keyword_matches(
+            path,
+            zim.header.article_count as usize,
+            keywords,
+            max_articles * 3,
+        )
+    } else {
+        None
+    };
+    if let Some(indices) = indexed {
+        for idx in indices {
+            if found.len() >= max_articles || budget.expired() {
+                break;
+            }
+            if let Ok(entry) = zim.get_by_url_index(idx) {
+                accept(entry, &mut found);
+            }
+        }
+    } else if found.len() < max_articles
         && !budget.expired()
         && zim.header.article_count <= limits.max_zim_linear_scan_entries
     {
