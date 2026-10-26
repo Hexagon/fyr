@@ -47,6 +47,7 @@ Once Fyr is running, open `http://localhost:8080` on the same machine, or `http:
 - **Maps:** map selection and viewer controls.
 - **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
+- **Search:** one search box for the whole offline library (see [3c. Searching Everything](#3c-searching-everything)).
 - **Tools:** unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.
 
 ## 3a. Access Control and Admin Login
@@ -149,6 +150,24 @@ Three response modes are available:
 ### Persisting the default model
 
 The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.
+
+## 3c. Searching Everything
+Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside a text field) and press Enter to open the **Search** page (`/search?q=...`). One query covers:
+
+| Group | What is matched | Opening a result |
+|-------|-----------------|------------------|
+| **Books** | Book titles (EPUB/PDF/Markdown/ZIM metadata) and filenames | Opens the book |
+| **Articles** | Article titles in every `.zim` archive in `books/` | Opens that article in the ZIM reader |
+| **In book text** | Text inside Markdown and EPUB books (queries of 3+ characters) | Opens the book with the search term |
+| **Maps** | Map filenames in `maps/` | Opens that map |
+| **Places** | `name` / `title` / `description` of features in GeoJSON files in `poi/` | Opens Maps centred on the place |
+
+- Results are grouped by kind with the most relevant group first; exact and "starts with" matches rank above matches in the middle of a word. Matching ignores upper/lower case (accents are not ignored: `zurich` does not find `Zürich`).
+- Use the filter chips (All, Books, Articles, Book text, Maps, Places) to narrow the search.
+- Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.
+- Search is read-only and available in every access mode, including `FYR_READONLY`.
+- Each search has a time limit so very large archives cannot freeze Fyr. Very large ZIM archives (for example a full Wikipedia) are searched by **title prefix** ("albert ein" finds "Albert Einstein"); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.
+- `.fgb` (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.
 
 ## 4. Add Content
 ### Data directories and supported file types
