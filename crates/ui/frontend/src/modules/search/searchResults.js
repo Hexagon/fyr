@@ -8,11 +8,12 @@ export const MAX_QUERY_LENGTH = 200
 export const SEARCH_DEBOUNCE_MS = 250
 
 // Display order of groups when scores tie, and their labels.
-export const KIND_ORDER = ['book', 'article', 'content', 'map', 'poi']
+export const KIND_ORDER = ['book', 'article', 'article_text', 'content', 'map', 'poi']
 
 export const KIND_LABELS = {
   book: 'Books',
   article: 'Articles',
+  article_text: 'In article text',
   content: 'In book text',
   map: 'Maps',
   poi: 'Places'
@@ -21,6 +22,7 @@ export const KIND_LABELS = {
 export const KIND_ICONS = {
   book: '📚',
   article: '📄',
+  article_text: '📝',
   content: '🔎',
   map: '🗺️',
   poi: '📍'
@@ -31,6 +33,7 @@ export const KIND_FILTERS = [
   { id: 'all', label: 'All', kinds: '' },
   { id: 'book', label: 'Books', kinds: 'book' },
   { id: 'article', label: 'Articles', kinds: 'article' },
+  { id: 'article_text', label: 'Article text', kinds: 'article_text' },
   { id: 'content', label: 'Book text', kinds: 'content' },
   { id: 'map', label: 'Maps', kinds: 'map' },
   { id: 'poi', label: 'Places', kinds: 'poi' }
@@ -79,9 +82,38 @@ export function normalizeResults(raw) {
       source: String(item.source || ''),
       score: Number.isFinite(Number(item.score)) ? Number(item.score) : 0,
       link: item.link,
+      snippet: normalizeSnippet(item.snippet),
       lat: Number.isFinite(item.lat) ? item.lat : null,
       lng: Number.isFinite(item.lng) ? item.lng : null
     }))
+}
+
+const MAX_SNIPPET_SEGMENTS = 64
+const MAX_SNIPPET_CHARS = 600
+
+/**
+ * Validate a server snippet (`[{ text, match }]`, used by `article_text`
+ * hits) into plain-text segments. Text is only ever rendered with text
+ * interpolation, never as HTML, so markup inside articles stays inert.
+ * Returns null when there is nothing usable.
+ */
+export function normalizeSnippet(raw) {
+  if (!Array.isArray(raw)) return null
+  const segments = []
+  let used = 0
+  for (const item of raw.slice(0, MAX_SNIPPET_SEGMENTS)) {
+    if (!item || typeof item.text !== 'string' || !item.text) continue
+    // eslint-disable-next-line no-control-regex
+    const text = item.text.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, MAX_SNIPPET_CHARS - used)
+    if (!text) break
+    used += text.length
+    const match = item.match === true
+    const last = segments[segments.length - 1]
+    if (last && last.match === match) last.text += text
+    else segments.push({ text, match })
+    if (used >= MAX_SNIPPET_CHARS) break
+  }
+  return segments.length ? segments : null
 }
 
 /**

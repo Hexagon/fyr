@@ -46,12 +46,17 @@
 
         <div class="file-table-wrap">
           <p v-if="contentError" class="error-text" role="alert" aria-live="assertive">{{ contentError }}</p>
+          <p v-if="indexError && activeCategory === 'books'" class="error-text" role="alert">{{ indexError }}</p>
+          <p v-if="indexStatus.lowDisk && activeCategory === 'books'" class="status-text">
+            Full-text indexing is paused because free disk space is low.
+          </p>
           <table class="file-table" v-else-if="visibleFiles.length">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Size</th>
                 <th>Modified</th>
+                <th v-if="showIndexColumn">Full-text</th>
                 <th></th>
               </tr>
             </thead>
@@ -60,6 +65,35 @@
                 <td>{{ file.filename }}</td>
                 <td>{{ formatBytes(file.size || 0) }}</td>
                 <td>{{ formatDate(file.modified) }}</td>
+                <td v-if="showIndexColumn" class="index-cell">
+                  <template v-if="isZimFilename(file.filename)">
+                    <span
+                      class="index-pill"
+                      :class="`index-${indexInfo(file.filename).tone}`"
+                      :title="indexInfo(file.filename).title"
+                    >{{ indexInfo(file.filename).label }}</span>
+                    <progress
+                      v-if="indexInfo(file.filename).showProgress"
+                      class="index-progress"
+                      max="100"
+                      :value="indexInfo(file.filename).percent"
+                    ></progress>
+                    <span v-if="!adminLocked" class="index-actions">
+                      <button
+                        v-if="indexInfo(file.filename).canBuild"
+                        class="btn btn-secondary btn-inline"
+                        :disabled="indexBusy.has(file.filename)"
+                        @click="buildFulltextIndex(file.filename)"
+                      >Build index</button>
+                      <button
+                        v-if="indexInfo(file.filename).canDelete"
+                        class="btn btn-secondary btn-inline"
+                        :disabled="indexBusy.has(file.filename)"
+                        @click="deleteFulltextIndex(file.filename)"
+                      >Delete index</button>
+                    </span>
+                  </template>
+                </td>
                 <td class="actions-cell">
                   <a
                     class="btn btn-secondary btn-inline"
@@ -278,6 +312,13 @@ import { useRoute } from 'vue-router'
 import { apiService } from '../services/api'
 import { isAdminLocked } from '../services/auth'
 import {
+  INDEX_POLL_MS,
+  describeIndexEntry,
+  isZimFilename,
+  normalizeIndexStatus,
+  shouldPollIndex
+} from '../modules/library/fulltextIndex.js'
+import {
   canRetryDownload,
   describeResumeState,
   isActiveDownloadStatus,
@@ -323,6 +364,50 @@ const confirmDeleteFile = ref(null)
 const deleteFileError = ref(null)
 
 let downloadRefreshTimer = null
+let indexRefreshTimer = null
+
+const indexStatus = ref(normalizeIndexStatus(null))
+const indexError = ref(null)
+const indexBusy = ref(new Set())
+const showIndexColumn = computed(() => activeCategory.value === 'books' && books.value.some((b) => isZimFilename(b.filename)))
+const indexInfo = (filename) =>
+  describeIndexEntry(indexStatus.value.byFile.get(filename), { enabled: indexStatus.value.enabled })
+
+const scheduleIndexRefresh = () => {
+  if (indexRefreshTimer) clearTimeout(indexRefreshTimer)
+  indexRefreshTimer = null
+  if (activeCategory.value === 'books' && shouldPollIndex(indexStatus.value)) {
+    indexRefreshTimer = setTimeout(loadIndexStatus, INDEX_POLL_MS)
+  }
+}
+
+const loadIndexStatus = async () => {
+  try {
+    indexStatus.value = normalizeIndexStatus(await apiService.getIndexStatus())
+  } catch (err) {
+    // Older servers have no index API: show nothing rather than an error.
+    indexStatus.value = normalizeIndexStatus(null)
+  }
+  scheduleIndexRefresh()
+}
+
+const runIndexAction = async (filename, action) => {
+  indexError.value = null
+  indexBusy.value = new Set([...indexBusy.value, filename])
+  try {
+    await action(filename)
+  } catch (err) {
+    indexError.value = apiService.handleError(err)
+  } finally {
+    const next = new Set(indexBusy.value)
+    next.delete(filename)
+    indexBusy.value = next
+    await loadIndexStatus()
+  }
+}
+
+const buildFulltextIndex = (filename) => runIndexAction(filename, apiService.buildIndex)
+const deleteFulltextIndex = (filename) => runIndexAction(filename, apiService.deleteIndex)
 let pendingUploadCounter = 0
 let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
@@ -871,12 +956,21 @@ watch(
 
 onMounted(async () => {
   loading.value = true
-  await Promise.all([loadContent(), loadDownloads(), loadCuratedContent()])
+  await Promise.all([loadContent(), loadDownloads(), loadCuratedContent(), loadIndexStatus()])
   loading.value = false
   scheduleDownloadRefresh()
 })
 
+watch(activeCategory, (category) => {
+  if (category === 'books') loadIndexStatus()
+  else scheduleIndexRefresh()
+})
+
 onUnmounted(() => {
+  if (indexRefreshTimer) {
+    clearTimeout(indexRefreshTimer)
+    indexRefreshTimer = null
+  }
   if (downloadRefreshTimer) {
     clearTimeout(downloadRefreshTimer)
     downloadRefreshTimer = null
@@ -885,6 +979,35 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.index-cell {
+  white-space: nowrap;
+}
+
+.index-pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid #4a4a4a;
+  color: #cfcfcf;
+}
+
+.index-ok { border-color: #2f6f3e; color: #9be3ad; }
+.index-busy { border-color: #3d5a8a; color: #a9c4ff; }
+.index-warn { border-color: #8a6d2f; color: #f3d48a; }
+.index-error { border-color: #7f1d1d; color: #fca5a5; }
+
+.index-progress {
+  width: 5rem;
+  height: 0.5rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.index-actions {
+  margin-left: 0.4rem;
+}
+
 .content-manager-page {
   display: flex;
   flex-direction: column;
