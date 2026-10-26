@@ -48,7 +48,7 @@ pub const DEFAULT_PAGE: u32 = 100;
 pub const MAX_PAGE: u32 = 500;
 /// Request body cap for messaging write endpoints.
 pub const MAX_BODY_BYTES: usize = 32 * 1024;
-pub const MAX_STREAMS_TOTAL: usize = 200;
+pub const MAX_STREAMS_TOTAL: usize = 256;
 pub const MAX_STREAMS_PER_IP: usize = 8;
 /// Streams are closed after this long; clients reconnect and catch up.
 pub const STREAM_MAX_LIFETIME: Duration = Duration::from_secs(30 * 60);
@@ -56,6 +56,8 @@ pub const PRUNE_INTERVAL: Duration = Duration::from_secs(10 * 60);
 pub const CATEGORIES: [&str; 4] = ["info", "need", "offer", "alert"];
 
 const DAY_MS: i64 = 86_400_000;
+/// Encrypted channels without messages are removed after this many idle days.
+const EMPTY_CHANNEL_DAYS: u32 = 7;
 
 pub fn now_ms() -> i64 {
     SystemTime::now()
@@ -88,6 +90,8 @@ impl Messaging {
     /// salt on first start. Blocking; call once at startup.
     pub fn open(config: &types::Config) -> anyhow::Result<Self> {
         let path = config.messages_db_path();
+        create_private_file(&path)
+            .with_context(|| format!("Failed to create messages database {}", path.display()))?;
         let store = Store::open(&path)
             .with_context(|| format!("Failed to open messages database {}", path.display()))?;
         Self::with_store(store, config.messaging.clone())
@@ -146,7 +150,9 @@ impl Messaging {
         RetentionLimits {
             max_per_channel: self.config.max_messages_per_channel,
             max_total_messages: MAX_TOTAL_MESSAGES,
-            idle_channel_ms: i64::from(self.config.max_age_days) * DAY_MS,
+            // Empty channels are cheap to re-create (ids are deterministic),
+            // so they are dropped after a week to keep junk from piling up.
+            idle_channel_ms: i64::from(self.config.max_age_days.min(EMPTY_CHANNEL_DAYS)) * DAY_MS,
         }
     }
 
@@ -180,6 +186,26 @@ impl Messaging {
                 }
             }
         });
+    }
+}
+
+/// Create the database file owner-readable only (0600 on Unix) so other
+/// local users cannot read public posts' metadata or channel verifiers.
+fn create_private_file(path: &std::path::Path) -> std::io::Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(path) {
+        Ok(_) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(err) => Err(err),
     }
 }
 

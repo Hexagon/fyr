@@ -16,7 +16,26 @@ struct Bucket {
     last: Instant,
 }
 
-/// Classic token bucket keyed by client IP.
+/// Key used for per-client limits: IPv4 addresses as-is, IPv6 addresses
+/// truncated to their /64 prefix (one host can trivially rotate addresses
+/// inside its /64), and IPv4-mapped IPv6 addresses as IPv4.
+pub fn client_key(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => ip,
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return IpAddr::V4(v4);
+            }
+            let mut segments = v6.segments();
+            for segment in &mut segments[4..] {
+                *segment = 0;
+            }
+            IpAddr::V6(std::net::Ipv6Addr::from(segments))
+        }
+    }
+}
+
+/// Classic token bucket keyed by client IP (see [`client_key`]).
 pub struct RateLimiter {
     capacity: f64,
     refill_per_sec: f64,
@@ -39,6 +58,7 @@ impl RateLimiter {
     }
 
     fn check_at(&self, ip: IpAddr, now: Instant) -> Result<(), Duration> {
+        let ip = client_key(ip);
         let mut buckets = self.buckets.lock().unwrap_or_else(|e| e.into_inner());
         if buckets.len() >= MAX_TRACKED_IPS && !buckets.contains_key(&ip) {
             self.evict_full(&mut buckets, now);
@@ -123,6 +143,7 @@ impl StreamLimiter {
     }
 
     pub fn acquire(&self, ip: IpAddr) -> Option<StreamPermit> {
+        let ip = client_key(ip);
         let mut counts = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let mine = counts.per_ip.get(&ip).copied().unwrap_or(0);
         if counts.total >= self.max_total || mine >= self.max_per_ip {
@@ -164,6 +185,19 @@ mod tests {
         // One token back after one refill period.
         assert!(limiter.check_at(ip(1), t0 + Duration::from_secs(10)).is_ok());
         assert!(limiter.check_at(ip(1), t0 + Duration::from_secs(10)).is_err());
+    }
+
+    #[test]
+    fn ipv6_clients_are_limited_per_64_prefix() {
+        let limiter = RateLimiter::new(1, Duration::from_secs(60));
+        let a: IpAddr = "2001:db8:1:2:aaaa::1".parse().unwrap();
+        let b: IpAddr = "2001:db8:1:2:bbbb::2".parse().unwrap();
+        let other: IpAddr = "2001:db8:1:3::1".parse().unwrap();
+        assert!(limiter.check(a).is_ok());
+        assert!(limiter.check(b).is_err(), "same /64 shares a bucket");
+        assert!(limiter.check(other).is_ok());
+        let mapped: IpAddr = "::ffff:10.0.0.9".parse().unwrap();
+        assert_eq!(client_key(mapped), "10.0.0.9".parse::<IpAddr>().unwrap());
     }
 
     #[test]

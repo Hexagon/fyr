@@ -128,6 +128,20 @@ async fn open_mode_public_channel_round_trip() {
 }
 
 #[tokio::test]
+async fn database_file_is_never_served() {
+    let (app, _) = app_with(OPEN);
+    call(&app, "POST", "/api/channels/public/messages", Some(public_body("x")), &[]).await;
+    for uri in ["/data/messages.sqlite", "/data/messages.sqlite-wal", "/data/../messages.sqlite"] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+    }
+}
+
+#[tokio::test]
 async fn encrypted_channel_key_checks() {
     let (app, _) = app_with(OPEN);
     let ch = channel(1);
