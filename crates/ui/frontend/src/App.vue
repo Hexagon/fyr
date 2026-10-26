@@ -33,6 +33,7 @@
         </ul>
       </div>
       <div class="navbar-right">
+        <HeaderSearch />
         <div class="clock-panel">
           <span class="clock-time">{{ currentTime }}</span>
           <span class="clock-day">{{ currentWeekday }}</span>
@@ -71,6 +72,7 @@ import { loadAppSettings } from './services/settings'
 import { useLocationState } from './services/location'
 import { getLocationClock } from './services/locationClock'
 import { loadAuthStatus, logout, useAuthState, isAdminLocked } from './services/auth'
+import HeaderSearch from './components/HeaderSearch.vue'
 
 const route = useRoute()
 const locationState = useLocationState()

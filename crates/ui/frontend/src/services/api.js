@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { buildSearchParams } from '../modules/search/searchResults.js'
 
 const API_BASE = '/api'
 const REQUEST_TIMEOUT_MS = 120000
@@ -16,6 +17,10 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Deliberately aborted requests (AbortController) must not be retried.
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
     const config = error.config || {}
     const method = String(config.method || 'get').toLowerCase()
     const isRetryableMethod = RETRYABLE_METHODS.has(method)
@@ -431,6 +436,15 @@ export const apiService = {
     params.set('q', String(q || ''))
     params.set('limit', String(limit))
     const response = await api.get(`/library/books/${encodeURIComponent(filename)}/search?${params.toString()}`)
+    return response.data
+  },
+
+  // Global offline search across books, ZIM articles, maps and POIs.
+  // opts: { limit, kinds (array or comma list), signal (AbortSignal) }
+  search: async (q, opts = {}) => {
+    const response = await api.get(`/search?${buildSearchParams(q, opts)}`, {
+      signal: opts.signal
+    })
     return response.data
   },
 
