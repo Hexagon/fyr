@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/site.css?v=487691a610">
+    <link rel="stylesheet" href="/css/site.css?v=a8ce5d088b">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://fyr.guide/docs/user-manual/">
@@ -151,6 +151,7 @@
                             <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
                             <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
                             <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#5d-reading-progress-bookmarks-and-links" class="text-gray-600 hover:text-brand-600">5d. Reading Progress, Bookmarks and Links</a></li>
                             <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
@@ -528,6 +529,24 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li>Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.</li>
 <li>Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.</li>
 </ul>
+<h2 id="5d-reading-progress-bookmarks-and-links">5d. Reading Progress, Bookmarks and Links<a class="heading-anchor" href="#5d-reading-progress-bookmarks-and-links" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Resume where you left off:</strong> Fyr remembers your last position per book: the EPUB location, the ZIM article, and the Markdown section. Opening the book again takes you back there. PDF files open inline through the browser&#39;s PDF viewer, so Fyr cannot see the page number and starts from the first page.</li>
+<li><strong>Bookmarks:</strong> use <strong>＋ Bookmark</strong> in the reader toolbar (or press <code>b</code>) to save the current position. <strong>Bookmarks (n)</strong> lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown and ZIM.</li>
+<li><strong>Continue reading:</strong> the Overview page lists your recently opened books that are still in the library. Click a card to resume reading.</li>
+<li><strong>Search inside a book:</strong> EPUB, Markdown and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it.</li>
+<li><strong>ZIM history:</strong> the ‹ / › buttons (or <code>[</code> / <code>]</code>) move back and forward between articles you opened in the current archive.</li>
+<li><strong>Text size and theme:</strong> for EPUB and Markdown, use A− / A+ (or <code>-</code> / <code>+</code>) to change the text size, and pick a Light, Sepia or Dark theme. These settings are saved in your browser.</li>
+<li><strong>Links to books:</strong> the address bar follows what you are reading, so you can bookmark or share the link, and reloading the page reopens the same book and article:<ul>
+<li><code>/books?file=&lt;filename&gt;</code> opens a book.</li>
+<li><code>/books?file=&lt;archive&gt;.zim&amp;path=&lt;article path&gt;</code> opens a specific ZIM article.</li>
+<li><code>/books?file=&lt;filename&gt;&amp;q=&lt;words&gt;</code> opens a book and runs an in-book search.</li>
+<li>The <strong>←</strong> button (Back to library) closes the book and removes these parameters from the address.</li>
+</ul>
+</li>
+<li>Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.</li>
+<li><strong>Privacy and storage:</strong> progress, bookmarks and display settings are stored only in this browser&#39;s local storage. They are not stored on the server, so they also work for read-only guests. They do not sync between browsers or devices, and clearing site data removes them. Fyr keeps the 200 most recently used books.</li>
+</ul>
 <h2 id="6-data-storage-layout">6. Data Storage Layout<a class="heading-anchor" href="#6-data-storage-layout" aria-label="Link to this section">#</a></h2>
 <p><code>public/data/</code> is created automatically and contains the following directories:</p>
 <ul>
@@ -750,6 +769,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
                             <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
                             <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
                             <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#5d-reading-progress-bookmarks-and-links" class="text-gray-600 hover:text-brand-600">5d. Reading Progress, Bookmarks and Links</a></li>
                             <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>

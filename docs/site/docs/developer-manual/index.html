@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/site.css?v=487691a610">
+    <link rel="stylesheet" href="/css/site.css?v=a8ce5d088b">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://fyr.guide/docs/developer-manual/">
@@ -154,6 +154,7 @@
                             <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
                             <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
                             <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
+                            <li class=""><a href="#12-library-reading-state-progress-bookmarks-deep-links" class="text-gray-600 hover:text-brand-600">12. Library Reading State (progress, bookmarks, deep links)</a></li>
                     </ol>
                 </details>
             <div class="lg:grid lg:grid-cols-12 lg:gap-10">
@@ -870,6 +871,39 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
 <p><strong>Ranking (pure, unit-tested):</strong> case-folded (Unicode lowercase, <code>_</code> → space) tiers: exact 1000 &gt; prefix 800 &gt; word-start 600 &gt; all tokens at word starts 450 &gt; substring 300 (2+ chars) &gt; text/description hit 250, minus ≤ 100 for extra length; books/maps +40, POIs +20. <code>merge_results</code> de-duplicates by <code>link</code> (best score wins), reserves 5 slots per kind, then fills by score.</p>
 <p><strong>Bounds:</strong> whole search runs in one <code>run_blocking</code> task with a 1.5 s budget (each ZIM archive gets an equal share of what remains, minimum 150 ms); at most 2 searches run concurrently (others queue on a semaphore); a dropped request (client abort) sets a cancel flag that stops the blocking work at its next check. Archive/parsing panics are caught per source.</p>
 <p><strong>Testing:</strong> pure ranking/merge/limit/link/cache tests and temp-file source tests live in <code>search.rs</code>; a router test in <code>main.rs</code> covers kinds, links, limits and path leakage in read-only mode. There is no ZIM writer, so ZIM paths are tested by <code>zim_title_search_against_fixture_archives</code>, which runs only when <code>FYR_TEST_ZIM_DIR</code> points at a folder of <code>.zim</code> files (for example the openZIM testing-suite <code>data/</code> archives). Frontend logic is tested in <code>modules/search/searchResults.test.js</code>.</p>
+<h2 id="12-library-reading-state-progress-bookmarks-deep-links">12. Library Reading State (progress, bookmarks, deep links)<a class="heading-anchor" href="#12-library-reading-state-progress-bookmarks-deep-links" aria-label="Link to this section">#</a></h2>
+<p>All of this lives in the browser. There are no server endpoints or server writes, so guests in password mode and in <code>FYR_READONLY</code> mode get the same features.</p>
+<p>Modules (<code>crates/ui/frontend/src/modules/</code>):</p>
+<ul>
+<li><code>library/deepLink.js</code>: pure mapping between <code>route.query</code> and reader state. Other pages should use <code>buildBookDeepLink(file, { path, q })</code> or <code>bookRoute(...)</code> rather than building URLs by hand. The contract is:<ul>
+<li><code>file</code>: a library filename. Values containing <code>/</code>, <code>\</code>, <code>..</code> or control characters are rejected.</li>
+<li><code>path</code>: a ZIM article path. A <code>#fragment</code> is allowed and leading slashes are stripped.</li>
+<li><code>q</code>: an in-book search query.</li>
+</ul>
+</li>
+<li><code>library/progress.js</code>: <code>createProgressStore()</code> / <code>progressStore</code>, stored under the localStorage key <code>fyr.library.progress.v1</code>:<ul>
+<li>Stores the last-opened time, the position and the bookmarks for each book.</li>
+<li>Keeps the 200 most recent books and 100 bookmarks per book.</li>
+<li>Entries are held in an array rather than an object keyed by filename, so filenames such as <code>__proto__</code> cannot collide with prototype keys.</li>
+<li>Every storage access is wrapped in try/catch (see <code>library/safeStorage.js</code>). If stored JSON is corrupt or has the wrong shape, it is treated as empty.</li>
+<li>If storage is missing or throws, the store falls back to an in-memory copy. If a write fails because the quota is full, the store drops the older half of the books and retries once.</li>
+</ul>
+</li>
+<li>Position shapes: <code>{type:&#39;epub&#39;, cfi, href, label}</code>, <code>{type:&#39;zim&#39;, path, label}</code>, <code>{type:&#39;md&#39;, line, label}</code>. A <code>{type:&#39;pdf&#39;, page}</code> shape is reserved; it is unused because the PDF iframe has no page API.</li>
+<li><code>library/readerPrefs.js</code>: theme (<code>light</code>/<code>sepia</code>/<code>dark</code>) and font scale (70–200%), stored under <code>fyr.reader.prefs.v1</code>.</li>
+<li><code>library/continueReading.js</code>: intersects <code>progressStore.listRecent()</code> with <code>GET /api/content/books</code> for the Home page.</li>
+<li><code>reader/articleHistory.js</code>, <code>reader/shortcuts.js</code>, <code>reader/markdownPosition.js</code>: pure helpers. <code>shortcutForEvent</code> ignores inputs, textareas, selects, contenteditable elements and events with modifier keys.</li>
+</ul>
+<p>Reader behaviour:</p>
+<ul>
+<li><code>useUnifiedReader.selectBook()</code> creates a cancellation token for each selection. Readers check <code>token.cancelled</code> after every <code>await</code>, so a slow earlier book, or its error, never replaces the book the user switched to. <code>useZimReader.loadNativeArticle()</code> numbers its requests in sequence and returns <code>null</code> for a superseded request.</li>
+<li>EPUB positions come from epub.js <code>relocated</code> events (saved after an 800 ms debounce) and are restored with <code>rendition.display(cfi)</code>. If the CFI is invalid, the reader falls back to the start of the book.</li>
+<li>Markdown is rendered block by block. <code>renderMarkdownWithLines</code> wraps each top-level block in <code>data-md-line=&quot;&lt;source line&gt;&quot;</code>. Positions use the top visible block, and <code>/api/library/books/:f/search</code> hits (<code>#&lt;line&gt;</code>) scroll to the block that contains that line.</li>
+<li>ZIM positions are the current article path (including any <code>#hash</code>). If the start path fails to load, the reader shows the main page and displays a notice.</li>
+<li><code>Books.vue</code> mirrors the reader state to the URL with <code>router.replace</code>. It records the queries it set itself, so its route watcher can tell its own URL updates apart from external navigation (for example a <code>/books</code> nav click, which closes the book). If the requested file is not in the library listing, the page shows a notice and clears the query.</li>
+<li>Pending saves are written immediately on book switch, on <code>pagehide</code>, when the page becomes hidden, and on unmount.</li>
+</ul>
+<p>Tests: <code>cd crates/ui/frontend &amp;&amp; npm test</code> runs Vitest with the shared happy-dom environment. Tests live next to the modules in <code>*.test.js</code> files. <code>readerHelpers.test.js</code> replaces DOMPurify with an identity function, because happy-dom&#39;s parser makes DOMPurify unwrap the first top-level element of each fragment; real browsers are not affected. That file tests line anchoring, not sanitization.</p>
 
                 </article>
                 <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
@@ -908,6 +942,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                             <li class=""><a href="#9-recommended-validation-sequence" class="text-gray-600 hover:text-brand-600">9. Recommended Validation Sequence</a></li>
                             <li class=""><a href="#10-native-zim-reader-notes" class="text-gray-600 hover:text-brand-600">10. Native ZIM Reader Notes</a></li>
                             <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
+                            <li class=""><a href="#12-library-reading-state-progress-bookmarks-deep-links" class="text-gray-600 hover:text-brand-600">12. Library Reading State (progress, bookmarks, deep links)</a></li>
                         </ol>
                     </div>
                 </aside>
