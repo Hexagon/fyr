@@ -1012,7 +1012,7 @@ async fn run_inference_stream(
             .sources_limit
             .unwrap_or(crate::ai::retrieval::DEFAULT_SOURCES_LIMIT)
             .clamp(1, crate::ai::retrieval::MAX_SOURCES_LIMIT);
-        Some(retrieve_library_passages(state.config.books_dir(), query.prompt.clone(), limit).await)
+        Some(retrieve_library_passages(state.config.books_dir(), state.fulltext.reader_dir(), query.prompt.clone(), limit).await)
     } else {
         None
     };
@@ -1062,13 +1062,14 @@ async fn run_inference_stream(
 /// timeouts degrade to "no sources" rather than failing the request.
 async fn retrieve_library_passages(
     books_dir: std::path::PathBuf,
+    index_dir: Option<std::path::PathBuf>,
     prompt: String,
     limit: usize,
 ) -> Vec<crate::ai::retrieval::Passage> {
     let limits = crate::ai::retrieval::RetrievalLimits::default();
     let hard_limit = limits.time_budget + std::time::Duration::from_millis(1500);
     let task = tokio::task::spawn_blocking(move || {
-        crate::ai::retrieval::retrieve(&books_dir, &prompt, limit, &limits)
+        crate::ai::retrieval::retrieve_with_index(&books_dir, index_dir.as_deref(), &prompt, limit, &limits)
     });
     match tokio::time::timeout(hard_limit, task).await {
         Ok(Ok(passages)) => passages,
@@ -1297,6 +1298,18 @@ pub async fn delete_content_file(
     })?;
     if !canonical_path.starts_with(&canonical_dir) {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if content_type == "books" && crate::fulltext::is_valid_archive_name(&sanitized) {
+        // Stop indexing the archive and drop its full-text index first, so
+        // the indexer releases the file (required on Windows).
+        let indexer = Arc::clone(&state.fulltext);
+        let name = sanitized.clone();
+        run_blocking(move || {
+            indexer.forget_archive(&name, std::time::Duration::from_secs(10));
+            Ok(())
+        })
+        .await?;
     }
 
     tokio::fs::remove_file(&file_path).await.map_err(|error| {

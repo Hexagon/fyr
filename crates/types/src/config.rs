@@ -15,6 +15,33 @@ pub struct Config {
     pub auth: AuthConfig,
     pub ai: AiConfig,
     pub messaging: MessagingConfig,
+    #[serde(default)]
+    pub fulltext: FulltextConfig,
+}
+
+/// On-disk full-text index for ZIM archives (`DATA_DIR/index`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FulltextConfig {
+    /// Master switch (`FYR_FULLTEXT`, default on). When off, no index is
+    /// built or queried and the build endpoints answer `409`.
+    pub enabled: bool,
+    /// Archives with at most this many articles are indexed automatically
+    /// (`FYR_FULLTEXT_MAX_ARTICLES`, default 200 000; `0` = manual only).
+    /// Larger archives are indexed only when an admin starts a build.
+    pub max_articles: u64,
+    /// Indexing pauses while free space on the index volume is below this
+    /// many MiB (`FYR_FULLTEXT_MIN_FREE_MB`, default 1024).
+    pub min_free_mb: u64,
+}
+
+impl Default for FulltextConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_articles: 200_000,
+            min_free_mb: 1024,
+        }
+    }
 }
 
 /// Authentication and access-control configuration
@@ -116,6 +143,7 @@ impl Config {
             },
             ai: AiConfig { threads: None },
             messaging: MessagingConfig::default(),
+            fulltext: FulltextConfig::default(),
         }
     }
 
@@ -169,6 +197,12 @@ impl Config {
             anyhow::bail!("Invalid HTTPS configuration: {error}");
         }
         Ok(())
+    }
+
+    /// Get path to the full-text index directory. Never served over HTTP
+    /// (only maps/, books/ and poi/ are exposed under `/data`).
+    pub fn index_dir(&self) -> PathBuf {
+        self.data_dir.join("index")
     }
 
     /// Get path to the curated content catalog
@@ -283,6 +317,13 @@ impl Default for Config {
             .filter(|threads| *threads > 0);
         config.ai = AiConfig { threads: ai_threads };
 
+        let fulltext_defaults = FulltextConfig::default();
+        config.fulltext = FulltextConfig {
+            enabled: env_flag("FYR_FULLTEXT").unwrap_or(fulltext_defaults.enabled),
+            max_articles: env_u64("FYR_FULLTEXT_MAX_ARTICLES").unwrap_or(fulltext_defaults.max_articles),
+            min_free_mb: env_u64("FYR_FULLTEXT_MIN_FREE_MB").unwrap_or(fulltext_defaults.min_free_mb),
+        };
+
         config
     }
 }
@@ -302,6 +343,10 @@ fn parse_flag(raw: &str) -> Option<bool> {
 
 fn env_u32(name: &str) -> Option<u32> {
     std::env::var(name).ok()?.trim().parse::<u32>().ok()
+}
+
+fn env_u64(name: &str) -> Option<u64> {
+    std::env::var(name).ok()?.trim().parse::<u64>().ok()
 }
 
 #[cfg(test)]
@@ -338,6 +383,16 @@ mod tests {
         assert_eq!(config.messaging.max_messages_per_channel, 1000);
         assert_eq!(config.messaging.max_age_days, 90);
         assert!(config.messages_db_path().ends_with("messages.sqlite"));
+    }
+
+    #[test]
+    fn fulltext_defaults_index_moderate_archives_into_a_private_dir() {
+        let config = Config::default_with_data_dir("/tmp/x");
+        assert!(config.fulltext.enabled);
+        assert_eq!(config.fulltext.max_articles, 200_000);
+        assert_eq!(config.fulltext.min_free_mb, 1024);
+        assert!(config.index_dir().ends_with("index"));
+        assert_ne!(config.index_dir(), config.books_dir());
     }
     use std::fs;
     use std::path::PathBuf;
