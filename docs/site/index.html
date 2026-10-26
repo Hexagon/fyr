@@ -534,6 +534,41 @@
                                         <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
                                         <td class="py-2">Strict read-only mode</td>
                                     </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">HTTPS</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--https</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-Https</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">off</code></td>
+                                        <td class="py-2">Serve HTTPS with a self-signed certificate (GPS / My Location on phones)</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Own certificate</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--tls-cert</code> + <code class="text-brand-400">--tls-key</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-TlsCert</code> + <code class="text-brand-400">-TlsKey</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Serve HTTPS with your PEM certificate and key (mounted read-only)</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">Certificate names</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--tls-sans</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-TlsSans</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">auto</code></td>
+                                        <td class="py-2">Extra names/IPs for the self-signed certificate (host name and LAN IPs are added automatically)</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">HTTP redirect</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--http-redirect-port</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-HttpRedirectPort</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Also redirect plain HTTP on this port (e.g. 80) to HTTPS</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">HTTPS off</td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">--no-https</code></td>
+                                        <td class="py-2 pr-4"><code class="text-brand-400">-NoHttps</code></td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Turn HTTPS off and forget saved HTTPS settings</td>
+                                    </tr>
                                     <tr>
                                         <td class="py-2 pr-4 font-mono text-brand-400">Legacy shortcut</td>
                                         <td class="py-2 pr-4"><code class="text-brand-400">--legacy</code> / <code class="text-brand-400">--pc-legacy</code> / <code class="text-brand-400">--rpi-legacy</code></td>
@@ -592,6 +627,19 @@
                     </div>
 
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
+                        <p class="text-sm text-white font-semibold mb-2">🔒 HTTPS (needed for GPS / My Location on phones)</p>
+                        <p class="text-sm text-gray-300 mb-2">Browsers only share location with <code>https://</code> pages (or <code>localhost</code>). Fyr can serve HTTPS itself with a self-signed certificate stored in the data volume. List the addresses clients use in <code class="text-brand-400">FYR_TLS_SANS</code>, because the container cannot see the host's IPs:</p>
+                        <pre class="p-2 bg-gray-950 rounded text-xs font-mono text-brand-400 border border-gray-700 overflow-x-auto">docker run -d --restart unless-stopped --name fyr \
+  -p 8080:8080 \
+  -e FYR_HOST=0.0.0.0 -e DATA_DIR=/data \
+  -e FYR_TLS=self-signed \
+  -e FYR_TLS_SANS=192.168.1.10,fyr.local \
+  -v fyr-data:/data \
+  hexagon/fyr:latest</pre>
+                        <p class="text-sm text-gray-300 mt-2">Then open <code>https://&lt;host-ip&gt;:8080</code> and accept the one-time certificate warning after comparing the SHA-256 fingerprint from <code>docker logs fyr</code> (see the User Manual, "HTTPS and Trusting This Server"). With your own certificate, mount it read-only and set <code class="text-brand-400">FYR_TLS_CERT</code> / <code class="text-brand-400">FYR_TLS_KEY</code> to the paths inside the container (readable by UID 1000). The healthcheck works in both modes. The port serves only HTTPS once enabled; add <code class="text-brand-400">-p 80:80 -e FYR_HTTP_REDIRECT_PORT=80</code> to redirect plain HTTP (use the same host and container port numbers when redirecting).</p>
+                    </div>
+
+                    <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg mt-4 not-prose">
                         <p class="text-sm text-white font-semibold mb-2">📦 Environment Variables</p>
                         <div class="overflow-x-auto">
                             <table class="w-full text-xs text-gray-300 border-collapse">
@@ -637,6 +685,26 @@
                                         <td class="py-2 pr-4 font-mono text-brand-400">FYR_TRUSTED_PROXIES</td>
                                         <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
                                         <td class="py-2">Reverse proxy IPs/CIDRs (e.g. <code class="text-brand-400">127.0.0.1</code>) whose <code>X-Forwarded-For</code> is trusted for per-client rate limits</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">off</code></td>
+                                        <td class="py-2">Set to <code class="text-brand-400">self-signed</code> to serve HTTPS with a generated certificate (kept in <code>DATA_DIR/tls/</code>)</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS_CERT / FYR_TLS_KEY</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">PEM certificate chain and private key paths; set both to serve HTTPS with your own certificate</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS_SANS</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Extra comma-separated names/IPs for the self-signed certificate</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="py-2 pr-4 font-mono text-brand-400">FYR_HTTP_REDIRECT_PORT</td>
+                                        <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                        <td class="py-2">Optional plain-HTTP port that redirects to HTTPS</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -724,6 +792,8 @@ sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</cod
                     <pre><code>sudo nmcli connection up fyr-hotspot</code></pre>
 
                     <p>Once devices connect to the <strong>Fyr</strong> Wi-Fi network, they can reach Fyr at <code>http://10.42.0.1:8080</code> (the default hotspot gateway address assigned by NetworkManager).</p>
+
+                    <p>For GPS (My Location, track recording) on phones, serve HTTPS: run Fyr with <code>FYR_TLS=self-signed</code> (installer: <code>--https</code>) and, in Docker, <code>FYR_TLS_SANS=10.42.0.1</code>. Devices then use <code>https://10.42.0.1:8080</code> and accept the certificate once.</p>
 
                     <div class="bg-gray-800/50 border border-gray-700 p-4 rounded-lg my-6 not-prose">
                         <p class="text-sm text-white font-semibold mb-1">💡 Tip: Sharing an Ethernet Connection</p>
@@ -829,6 +899,26 @@ git checkout main   # or dev, or a specific tag</code></pre>
                                     <td class="py-2 pr-4 font-mono text-brand-400">FYR_TRUSTED_PROXIES</td>
                                     <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
                                     <td class="py-2">Reverse proxy IPs/CIDRs (e.g. <code class="text-brand-400">127.0.0.1</code>) whose <code>X-Forwarded-For</code> is trusted for per-client rate limits</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">off</code></td>
+                                    <td class="py-2">Set to <code class="text-brand-400">self-signed</code> to serve HTTPS with a generated certificate (kept in <code>DATA_DIR/tls/</code>)</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS_CERT / FYR_TLS_KEY</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">PEM certificate chain and private key paths; set both to serve HTTPS with your own certificate</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_TLS_SANS</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Extra comma-separated names/IPs for the self-signed certificate</td>
+                                </tr>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 font-mono text-brand-400">FYR_HTTP_REDIRECT_PORT</td>
+                                    <td class="py-2 pr-4"><code class="text-gray-500">—</code></td>
+                                    <td class="py-2">Optional plain-HTTP port that redirects to HTTPS</td>
                                 </tr>
                             </tbody>
                         </table>

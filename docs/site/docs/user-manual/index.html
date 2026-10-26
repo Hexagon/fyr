@@ -126,6 +126,8 @@
                             <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
                             <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
                             <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#2a-https-and-trusting-this-server" class="text-gray-600 hover:text-brand-600">2a. HTTPS and Trusting This Server</a></li>
+                            <li class="pl-4"><a href="#trust-this-server-self-signed-certificate" class="text-gray-600 hover:text-brand-600">Trust this server (self-signed certificate)</a></li>
                             <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
                             <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
                             <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
@@ -166,6 +168,7 @@
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#page-does-not-load-after-enabling-https" class="text-gray-600 hover:text-brand-600">Page does not load after enabling HTTPS</a></li>
                             <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
                             <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
                             <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
@@ -218,9 +221,58 @@ It runs as a local server and is accessed from a browser.</p>
 <pre><code class="language-powershell">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
 </code></pre>
 <p>All arguments are documented inline via <code>--help</code> (Linux/macOS) or <code>-Help</code> (Windows), and the full reference table is available at <a href="/#installation">fyr.guide/#installation</a>.</p>
+<p>To serve HTTPS (needed for GPS on phones, see §2a), add <code>--https</code> (<code>-Https</code> on Windows) for a self-signed certificate, or <code>--tls-cert &lt;file&gt; --tls-key &lt;file&gt;</code> (<code>-TlsCert</code>/<code>-TlsKey</code>) for your own. The choice is remembered for <code>update</code>; <code>--no-https</code> (<code>-NoHttps</code>) turns it off again.</p>
 <h2 id="2-start-fyr">2. Start Fyr<a class="heading-anchor" href="#2-start-fyr" aria-label="Link to this section">#</a></h2>
 <p>For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use <a href="/#installation">fyr.guide/#installation</a>. (If viewing this file locally, open <code>docs/site/index.html</code> in a browser for the same installation guide.)</p>
-<p>Once Fyr is running, open <code>http://localhost:8080</code> on the same machine, or <code>http://&lt;host-or-device-ip&gt;:8080</code> if Fyr runs in Docker or on another device.</p>
+<p>Once Fyr is running, open <code>http://localhost:8080</code> on the same machine, or <code>http://&lt;host-or-device-ip&gt;:8080</code> if Fyr runs in Docker or on another device. With HTTPS enabled (§2a) use <code>https://</code> instead.</p>
+<h2 id="2a-https-and-trusting-this-server">2a. HTTPS and Trusting This Server<a class="heading-anchor" href="#2a-https-and-trusting-this-server" aria-label="Link to this section">#</a></h2>
+<p>Browsers only allow the location features (<strong>My Location</strong>, <strong>Record Track</strong>, <strong>Add location</strong> on the Board) on <code>https://</code> pages or on <code>localhost</code>. Fyr is usually opened over plain <code>http://</code> on a LAN or a Raspberry Pi hotspot, where these are blocked. HTTPS also stops a rogue hotspot from altering the Fyr page in transit, which is what keeps encrypted message channels safe against active attackers (§3d), and the admin login cookie is then only ever sent over the encrypted connection.</p>
+<p>Fyr can serve HTTPS itself; no separate proxy is needed.</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FYR_TLS=self-signed</code></td>
+<td>Fyr creates its own certificate on first start and keeps it in <code>DATA_DIR/tls/</code>. Every device shows a one-time warning that you accept (below).</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_CERT</code> + <code>FYR_TLS_KEY</code></td>
+<td>Use your own certificate (PEM chain and private key), for example from your own CA or Let&#39;s Encrypt. No warnings if devices trust the issuer. Restart Fyr after renewing it.</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_SANS</code></td>
+<td>Extra names/IPs for the self-signed certificate, comma-separated (for example <code>fyr.lan,192.168.4.1</code>).</td>
+</tr>
+<tr>
+<td><code>FYR_HTTP_REDIRECT_PORT</code></td>
+<td>Optional: also listen on this port with plain HTTP and send visitors to HTTPS (for example <code>80</code>). Off by default.</td>
+</tr>
+</tbody></table>
+</div>
+<p>Examples:</p>
+<pre><code class="language-bash"># Docker: HTTPS on port 8080, certificate valid for the Pi&#39;s hotspot address
+docker run -d -p 8080:8080 -e FYR_TLS=self-signed -e FYR_TLS_SANS=192.168.4.1 \
+  -v fyr-data:/data --name fyr hexagon/fyr:latest
+
+# Installer (adds the host&#39;s name and LAN addresses automatically)
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
+</code></pre>
+<p>Once enabled, the port speaks <strong>only</strong> HTTPS: open <code>https://&lt;host-or-ip&gt;:8080</code>. A plain <code>http://</code> address on that port no longer loads (use <code>FYR_HTTP_REDIRECT_PORT</code> if people have the old address bookmarked).</p>
+<p><strong>Which names the self-signed certificate covers:</strong> <code>localhost</code>, <code>127.0.0.1</code>, <code>::1</code>, the computer&#39;s host name and <code>&lt;hostname&gt;.local</code>, its LAN IPv4 addresses (and private <code>fd…</code> IPv6 addresses) found at startup, plus <code>FYR_TLS_SANS</code>. In Docker the container cannot see the host&#39;s addresses, so pass them in <code>FYR_TLS_SANS</code> (the installers do this for you). The certificate is valid for 825 days. Fyr creates a new one when a new name or address appears, or 30 days before it expires; devices then show the warning once more. The private key (<code>key.pem</code>) is readable only by the Fyr user.</p>
+<h3 id="trust-this-server-self-signed-certificate">Trust this server (self-signed certificate)<a class="heading-anchor" href="#trust-this-server-self-signed-certificate" aria-label="Link to this section">#</a></h3>
+<p>The first time a device opens Fyr over HTTPS it warns that the connection is &quot;not private&quot;: the certificate was made by your Fyr server, not by a public authority. Before accepting, <strong>compare its SHA-256 fingerprint</strong> with the real one. Admins find it on the <strong>Overview</strong> page (next to the data directory) and in the server log at startup (<code>docker logs fyr 2&gt;&amp;1 | grep fingerprint</code>). If the fingerprints differ, do not continue: someone may be imitating your server (unless the log shows Fyr just created a new certificate).</p>
+<ul>
+<li><strong>Chrome / Edge (Windows, macOS, Linux, Android):</strong> on the warning page choose <strong>Advanced</strong> → <strong>Proceed to … (unsafe)</strong>. To see the fingerprint, click <strong>Not secure</strong> in the address bar → certificate details (<em>SHA-256 Fingerprint</em>).</li>
+<li><strong>Firefox (desktop and Android):</strong> <strong>Advanced…</strong> → <strong>View Certificate</strong> (check <em>SHA-256</em>) → back → <strong>Accept the Risk and Continue</strong>. Firefox remembers the exception.</li>
+<li><strong>Safari (macOS):</strong> <strong>Show Details</strong> → <strong>View the certificate</strong> to check the fingerprint → <strong>visit this website</strong> → confirm (macOS may ask for your password to remember it).</li>
+<li><strong>iPhone / iPad (Safari):</strong> <strong>Show Details</strong> → <strong>visit this website</strong> → <strong>Visit Website</strong>. Tapping <strong>View Certificate</strong> on the details page shows the fingerprint on recent iOS versions.</li>
+</ul>
+<p>After accepting, the page counts as a secure connection, so the browser can ask for location permission and <strong>My Location</strong> / <strong>Record Track</strong> work. Some browsers ask again after a restart or when the certificate changes; some optional features (such as <strong>Install app</strong>) may still require a fully trusted certificate. For warning-free access on your own devices, use <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code> with a certificate they trust, or add <code>DATA_DIR/tls/cert.pem</code> to the device&#39;s trusted certificates.</p>
+<p>With your own certificate (<code>FYR_TLS_CERT</code>), Fyr also sends <code>Strict-Transport-Security</code>, so browsers that have visited once will insist on HTTPS for this address for 180 days. It is not sent for self-signed certificates.</p>
 <hr>
 <h2 id="3-main-pages">3. Main Pages<a class="heading-anchor" href="#3-main-pages" aria-label="Link to this section">#</a></h2>
 <ul>
@@ -429,7 +481,7 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <h3 id="what-the-encryption-protects-threat-model">What the encryption protects (threat model)<a class="heading-anchor" href="#what-the-encryption-protects-threat-model" aria-label="Link to this section">#</a></h3>
 <ul>
 <li><strong>Protects against:</strong> people passively sniffing the Wi-Fi, and anyone who copies or reads the server&#39;s disk.</li>
-<li><strong>Does not protect against:</strong> an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over <strong>HTTPS</strong> through a reverse proxy if that matters to you.</li>
+<li><strong>Does not protect against:</strong> an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over <strong>HTTPS</strong> (built in, see §2a, or through a reverse proxy) if that matters to you.</li>
 <li>Anyone who knows the passphrase can read everything in the channel and post under any nickname.</li>
 <li>The Board is never encrypted.</li>
 </ul>
@@ -547,7 +599,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><strong>Click any point</strong> on the map (with no tool active) to see its coordinate in both formats with <strong>Copy</strong> and <strong>Copy link</strong> buttons. Clicking a POI or track shows its name (and length for tracks).</li>
 <li><strong>Go to coordinate:</strong> in <em>Tools</em>, type a coordinate and press <strong>Go</strong>. Accepted forms include <code>59.33, 18.07</code>, <code>59.33 18.07</code>, <code>-33.86, 151.21</code>, <code>59,33 18,07</code>, <code>59.33N 18.07E</code>, <code>59°19&#39;48&quot;N 18°4&#39;12&quot;E</code>, <code>N 59° 19.8&#39; E 18° 4.2&#39;</code> and <code>59 19 48, 18 4 12</code>. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.</li>
 <li><strong>Links to a place:</strong> other pages (and people) can link to <code>/maps?lat=59.33&amp;lng=18.07&amp;zoom=14&amp;label=Camp</code>. All parameters are optional; <code>map=&lt;file&gt;</code> selects a specific map. Without <code>map</code>, Fyr picks the most detailed installed map whose coverage contains the point.</li>
-<li><strong>My Location / Record Track</strong> need the browser&#39;s location permission <strong>and a secure connection</strong>: open Fyr through <code>https://…</code> or <code>http://localhost</code>. Browsers block GPS on plain <code>http://</code> LAN addresses (for example <code>http://192.168.1.10:8080</code>); Fyr then shows an explanation instead of failing silently.</li>
+<li><strong>My Location / Record Track</strong> need the browser&#39;s location permission <strong>and a secure connection</strong>: open Fyr through <code>https://…</code> or <code>http://localhost</code>. Browsers block GPS on plain <code>http://</code> LAN addresses (for example <code>http://192.168.1.10:8080</code>); Fyr then shows an explanation instead of failing silently. To fix this on a LAN, enable HTTPS (§2a).</li>
 <li><strong>Record Track:</strong> press <strong>⏺ Record Track</strong> to log your GPS position (inaccurate fixes and jitter under a few metres are ignored). Distance, duration and point count update live and the track is drawn in red. Recording keeps running while you visit other Fyr pages, but keep the browser tab open and the screen on (Fyr requests a screen wake lock where supported). <strong>⏹ Stop Recording</strong> keeps the track: name it and <strong>Save</strong> it into a POI file (admins; default <code>tracks.geojson</code>, timestamps are kept), download it as <strong>GPX</strong>, or <strong>Discard</strong> it. An unsaved track survives a page reload and is offered again.</li>
 <li><strong>GPX import/export:</strong> open <strong>Edit POIs</strong> (<strong>View POIs</strong> for guests). <strong>⬆ Import GPX</strong> reads a <code>.gpx</code> file in the browser: waypoints become points, tracks and routes become lines (each track segment is its own line; elevation and timestamps are kept). With a POI file selected the data is appended to it; otherwise a new, not yet saved file named after the GPX is created. <strong>⬇ GPX</strong> and <strong>⬇ GeoJSON</strong> download the selected file. Polygons cannot be expressed in GPX and are skipped (the panel says how many).</li>
 <li><strong>Read-only/guest users</strong> can view POI files, tracks and imported GPX data, measure distances, record and download tracks, and export GPX/GeoJSON. Creating files, placing or removing POIs and saving require admin access (the server rejects saves in read-only mode regardless).</li>
@@ -671,6 +723,10 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000)</li>
 <li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages in days (default 90)</li>
 <li><code>FYR_TRUSTED_PROXIES</code> — comma-separated IPs or CIDR blocks of your reverse proxy (for example <code>127.0.0.1</code> or <code>172.16.0.0/12</code> for a Docker network). Only for connections from these addresses does Fyr read the visitor&#39;s address from <code>X-Forwarded-For</code>, so login and messaging rate limits apply per visitor instead of to everyone behind the proxy. Leave unset when Fyr is reached directly.</li>
+<li><code>FYR_TLS</code> — <code>self-signed</code> to serve HTTPS with a generated certificate (see §2a); <code>off</code> (default) for plain HTTP</li>
+<li><code>FYR_TLS_CERT</code>, <code>FYR_TLS_KEY</code> — paths to your own PEM certificate chain and private key; set both to serve HTTPS with them</li>
+<li><code>FYR_TLS_SANS</code> — extra comma-separated host names/IPs for the self-signed certificate</li>
+<li><code>FYR_HTTP_REDIRECT_PORT</code> — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from <code>FYR_PORT</code>)</li>
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
@@ -719,6 +775,12 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li>Stop old <code>fyr</code> processes and retry.</li>
 <li>If startup reports bind failure details, verify <code>FYR_HOST</code> and <code>FYR_PORT</code> values.</li>
 <li>If startup reports write permission issues, ensure <code>DATA_DIR</code> points to a writable folder.</li>
+<li><code>Invalid HTTPS configuration</code> or <code>Cannot read TLS certificate/private key</code>: check the <code>FYR_TLS*</code> settings (§2a). Fyr refuses to start rather than silently falling back to plain HTTP. In Docker, the container user (UID 1000) must be able to read mounted certificate and key files.</li>
+</ul>
+<h3 id="page-does-not-load-after-enabling-https">Page does not load after enabling HTTPS<a class="heading-anchor" href="#page-does-not-load-after-enabling-https" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <code>https://</code> in the address; with HTTPS on, the port no longer answers plain <code>http://</code>.</li>
+<li>A certificate warning on each device is expected with <code>FYR_TLS=self-signed</code> (§2a). If the warning says the name does not match, add the address you use to <code>FYR_TLS_SANS</code> and restart.</li>
 </ul>
 <h3 id="content-not-visible-in-ui">Content not visible in UI<a class="heading-anchor" href="#content-not-visible-in-ui" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -875,6 +937,8 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
                             <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
                             <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#2a-https-and-trusting-this-server" class="text-gray-600 hover:text-brand-600">2a. HTTPS and Trusting This Server</a></li>
+                            <li class="pl-4"><a href="#trust-this-server-self-signed-certificate" class="text-gray-600 hover:text-brand-600">Trust this server (self-signed certificate)</a></li>
                             <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
                             <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
                             <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
@@ -915,6 +979,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#page-does-not-load-after-enabling-https" class="text-gray-600 hover:text-brand-600">Page does not load after enabling HTTPS</a></li>
                             <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
                             <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
                             <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
