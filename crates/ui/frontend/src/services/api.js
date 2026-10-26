@@ -330,24 +330,19 @@ export const apiService = {
 
   // SSE token streaming helper
   streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [], useLibrary = false, sourcesLimit }, handlers = {}) => {
-    const params = new URLSearchParams({
-      prompt,
-      temperature: String(temperature),
-      max_tokens: String(maxTokens)
-    })
+    // POST with a JSON body: conversation history can be far larger than a
+    // URL allows. The GET form of the endpoint remains for compatibility.
+    const body = { prompt, temperature, max_tokens: maxTokens, history }
     if (numCtx != null) {
-      params.set('num_ctx', String(numCtx))
+      body.num_ctx = numCtx
     }
     if (useLibrary) {
-      params.set('use_library', 'true')
+      body.use_library = true
       if (sourcesLimit != null) {
-        params.set('sources_limit', String(sourcesLimit))
+        body.sources_limit = sourcesLimit
       }
     }
-    if (history.length > 0) {
-      params.set('history', JSON.stringify(history))
-    }
-    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
+    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream`
     const controller = new AbortController()
     let closed = false
 
@@ -362,10 +357,12 @@ export const apiService = {
 
       try {
         const response = await fetch(url, {
-          method: 'GET',
+          method: 'POST',
           headers: {
-            Accept: 'text/event-stream'
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json'
           },
+          body: JSON.stringify(body),
           cache: 'no-store',
           signal: controller.signal
         })

@@ -91,3 +91,44 @@ describe('inference SSE dispatch', () => {
     expect(onToken).toHaveBeenCalledWith(' world')
   })
 })
+
+describe('streamInference transport', () => {
+  it('POSTs the request as JSON so long histories never hit URL limits', async () => {
+    const { apiService } = await import('./api.js')
+    const encoder = new TextEncoder()
+    const calls = []
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async (url, init) => {
+      calls.push({ url, init })
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('event: token\ndata: Hi\n\nevent: done\ndata:\n\n'))
+          controller.close()
+        }
+      })
+      return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+    }
+
+    try {
+      const history = Array.from({ length: 50 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', text: 'x'.repeat(2000) }))
+      const tokens = []
+      await new Promise((resolve, reject) => {
+        apiService.streamInference('model a.gguf', { prompt: 'q?', history, useLibrary: true, sourcesLimit: 3 }, {
+          onToken: (token) => tokens.push(token),
+          onDone: resolve,
+          onError: reject
+        })
+      })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0].url).toBe('/api/models/model%20a.gguf/infer/stream')
+      expect(calls[0].init.method).toBe('POST')
+      const body = JSON.parse(calls[0].init.body)
+      expect(body).toMatchObject({ prompt: 'q?', use_library: true, sources_limit: 3 })
+      expect(body.history).toHaveLength(50)
+      expect(tokens).toEqual(['Hi'])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})

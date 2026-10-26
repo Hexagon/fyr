@@ -336,7 +336,7 @@ Remove-Item Env:RUSTFLAGS
 <p>Conversation context: the SSE endpoint accepts an optional <code>history</code> query parameter — a JSON array of <code>{&quot;role&quot;:&quot;user&quot;|&quot;assistant&quot;,&quot;text&quot;:&quot;...&quot;}</code> objects. The frontend passes the last six messages. The backend formats the full conversation as a multi-turn ChatML prompt before inference.</p>
 <p>Prompt budgeting (<code>crates/server/src/ai/prompt.rs</code>): the prompt is fitted into <code>num_ctx</code> with the loaded tokenizer before inference. <code>input_token_budget()</code> reserves room for <code>max_tokens</code> (at most half the window); <code>fit_prompt()</code> always keeps the system prompt and question, then library sources (up to two thirds of the remaining room when there is history; the last one that does not fit is trimmed with <code>trim_text_to_tokens()</code>), then as much recent history as fits, dropping the oldest turns first and never keeping an orphaned assistant reply at the start. Tail-trimming the token ids (<code>trim_context_window</code>, which cuts the system prompt) is now only a last resort when even the bare prompt exceeds the budget.</p>
 <h3 id="ask-your-library-retrieval-augmented-answers">Ask your library (retrieval-augmented answers)<a class="heading-anchor" href="#ask-your-library-retrieval-augmented-answers" aria-label="Link to this section">#</a></h3>
-<p><code>GET /api/models/:filename/infer/stream</code> accepts two optional query params:</p>
+<p><code>/api/models/:filename/infer/stream</code> exists as <code>POST</code> with a JSON body (<code>{prompt, temperature?, max_tokens?, num_ctx?, history: [{role, text}], use_library?, sources_limit?}</code>; used by the UI so long conversations are not limited by URL length; at most the last 200 history messages are considered) and as the original <code>GET</code> with query params (<code>history</code> as a JSON-encoded string). Both are public: inference changes no server state. Both accept two optional library params:</p>
 <div class="overflow-x-auto"><table>
 <thead>
 <tr>
@@ -368,6 +368,7 @@ Remove-Item Env:RUSTFLAGS
  {&quot;n&quot;:2,&quot;title&quot;:&quot;Survival Guide › Water&quot;,&quot;source&quot;:&quot;survival.md&quot;,&quot;link&quot;:&quot;/books?file=survival.md&amp;q=boil%20water&quot;}]
 </code></pre>
 <p><code>link</code> follows the Books deep-link contract: <code>/books?file=&lt;filename&gt;&amp;path=&lt;zim article path&gt;</code> for ZIM articles (the path is the same normalized entry URL the native article endpoint accepts), <code>/books?file=&lt;filename&gt;&amp;q=&lt;phrase&gt;</code> for Markdown/EPUB, where the phrase is a keyword bigram or keyword that occurs in the passage. Only bare filenames and archive-internal paths are ever emitted; no host paths, in any mode.</p>
+<p>Prompt-injection hardening: library passages and the catalog summary come from user-supplied files, so <code>prompt::neutralize_control_markers</code> breaks chat-template delimiters (<code>&lt;|</code>, <code>|&gt;</code>, <code>[INST]</code>, <code>&lt;s&gt;</code>, …) in titles, filenames and text before they enter the system block — tokenizers would otherwise turn e.g. <code>&lt;|im_end|&gt;</code> inside an article into a real special token and let it open a new turn. The sources header also tells the model to treat excerpts as quoted material, never as instructions.</p>
 <p>Retrieval (<code>crates/server/src/ai/retrieval.rs</code>, pure helpers unit-tested):</p>
 <ul>
 <li><strong>Keywords:</strong> lowercase, split on non-alphanumeric characters, drop tokens under 3 characters (2-digit numbers kept) and English/Swedish stop words, max 10.</li>
@@ -589,7 +590,7 @@ New public endpoints that expose paths or disk details must apply the same check
 <ul>
 <li><code>GET /api/models</code></li>
 <li><code>GET /api/models/:filename/health</code></li>
-<li><code>GET /api/models/:filename/infer/stream</code> (optional <code>use_library</code> / <code>sources_limit</code>; source links carry bare filenames only, see § 1.1)</li>
+<li><code>GET|POST /api/models/:filename/infer/stream</code> (POST takes a JSON body; optional <code>use_library</code> / <code>sources_limit</code>; source links carry bare filenames only, see § 1.1)</li>
 </ul>
 <p>Model upload/import flow:</p>
 <ul>

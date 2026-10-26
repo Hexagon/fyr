@@ -1,7 +1,7 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ChatMessage, ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ImportModelRequest, ImportModelResponse, InferStreamBody, InferStreamQuery, LoadModelResponse,
     ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
@@ -936,6 +936,30 @@ pub async fn ai_infer_stream(
     Path(filename): Path<String>,
     Query(query): Query<InferStreamQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    run_inference_stream(state, filename, query.into()).await
+}
+
+/// POST /api/models/:filename/infer/stream — Same as the GET variant, with
+/// the request (including conversation history) in a JSON body. Inference
+/// reads the loaded model only and changes no server state, so it is public
+/// like the GET form.
+pub async fn ai_infer_stream_post(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Json(body): Json<InferStreamBody>,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    run_inference_stream(state, filename, body).await
+}
+
+/// Conversation turns beyond this are dropped before prompt fitting; the
+/// context window keeps far fewer anyway.
+const MAX_HISTORY_MESSAGES: usize = 200;
+
+async fn run_inference_stream(
+    state: Arc<AppState>,
+    filename: String,
+    query: InferStreamBody,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     let temperature = query.temperature.unwrap_or(DEFAULT_ASSISTANT_TEMPERATURE);
     let max_tokens = query
         .max_tokens
@@ -946,12 +970,11 @@ pub async fn ai_infer_stream(
         .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
         .clamp(256, 32768);
 
+    let skip = query.history.len().saturating_sub(MAX_HISTORY_MESSAGES);
     let history: Vec<(String, String)> = query
         .history
-        .as_deref()
-        .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
-        .unwrap_or_default()
         .into_iter()
+        .skip(skip)
         .map(|m| (m.role, m.text))
         .collect();
 

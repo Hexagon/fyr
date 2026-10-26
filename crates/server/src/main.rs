@@ -247,7 +247,10 @@ fn create_router(state: AppState) -> Router {
         )
         .route("/api/models", get(handlers::ai_list_models))
         .route("/api/models/:filename/health", get(handlers::ai_model_health))
-        .route("/api/models/:filename/infer/stream", get(handlers::ai_infer_stream))
+        .route(
+            "/api/models/:filename/infer/stream",
+            get(handlers::ai_infer_stream).post(handlers::ai_infer_stream_post),
+        )
         .route("/api/download/:task_id/status", get(handlers::get_download_status))
         .route("/api/downloads", get(handlers::list_downloads))
         .route("/api/reader/capabilities", get(handlers::reader_capabilities))
@@ -661,6 +664,42 @@ mod tests {
 
         let bad_flag = get(&app, "/api/models/missing.gguf/infer/stream?prompt=x&use_library=maybe", None).await;
         assert_eq!(bad_flag.status(), StatusCode::BAD_REQUEST);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn infer_stream_post_accepts_long_history_and_stays_public() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let mut config = (*state.config).clone();
+        config.auth.readonly = true;
+        state.config = Arc::new(config);
+        let app = create_router(state);
+
+        // ~300 KB of history: far beyond what fits in a URL.
+        let history: Vec<serde_json::Value> = (0..300)
+            .map(|i| {
+                serde_json::json!({
+                    "role": if i % 2 == 0 { "user" } else { "assistant" },
+                    "text": "x".repeat(1000),
+                })
+            })
+            .collect();
+        let body = serde_json::json!({
+            "prompt": "boil water",
+            "history": history,
+            "use_library": true,
+        })
+        .to_string();
+
+        // Inference changes no state, so read-only mode does not block it;
+        // the unloaded model is the only reason it fails.
+        let response = post_json(&app, "/api/models/missing.gguf/infer/stream", &body, None).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+
+        let malformed = post_json(&app, "/api/models/missing.gguf/infer/stream", "{\"history\": 1}", None).await;
+        assert!(malformed.status().is_client_error(), "{}", malformed.status());
 
         let _ = fs::remove_dir_all(data_dir);
     }

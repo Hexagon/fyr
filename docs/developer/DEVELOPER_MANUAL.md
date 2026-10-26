@@ -110,7 +110,7 @@ Prompt budgeting (`crates/server/src/ai/prompt.rs`): the prompt is fitted into `
 
 ### Ask your library (retrieval-augmented answers)
 
-`GET /api/models/:filename/infer/stream` accepts two optional query params:
+`/api/models/:filename/infer/stream` exists as `POST` with a JSON body (`{prompt, temperature?, max_tokens?, num_ctx?, history: [{role, text}], use_library?, sources_limit?}`; used by the UI so long conversations are not limited by URL length; at most the last 200 history messages are considered) and as the original `GET` with query params (`history` as a JSON-encoded string). Both are public: inference changes no server state. Both accept two optional library params:
 
 | Param | Default | Notes |
 |---|---|---|
@@ -130,6 +130,8 @@ Flow (`ai_infer_stream` in `handlers.rs`):
 ```
 
 `link` follows the Books deep-link contract: `/books?file=<filename>&path=<zim article path>` for ZIM articles (the path is the same normalized entry URL the native article endpoint accepts), `/books?file=<filename>&q=<phrase>` for Markdown/EPUB, where the phrase is a keyword bigram or keyword that occurs in the passage. Only bare filenames and archive-internal paths are ever emitted; no host paths, in any mode.
+
+Prompt-injection hardening: library passages and the catalog summary come from user-supplied files, so `prompt::neutralize_control_markers` breaks chat-template delimiters (`<|`, `|>`, `[INST]`, `<s>`, …) in titles, filenames and text before they enter the system block — tokenizers would otherwise turn e.g. `<|im_end|>` inside an article into a real special token and let it open a new turn. The sources header also tells the model to treat excerpts as quoted material, never as instructions.
 
 Retrieval (`crates/server/src/ai/retrieval.rs`, pure helpers unit-tested):
 
@@ -325,7 +327,7 @@ Download routing: URL downloads stream into `inbox/<task_id>-<filename>.part` (u
 AI read-only endpoints (always public):
 - `GET /api/models`
 - `GET /api/models/:filename/health`
-- `GET /api/models/:filename/infer/stream` (optional `use_library` / `sources_limit`; source links carry bare filenames only, see § 1.1)
+- `GET|POST /api/models/:filename/infer/stream` (POST takes a JSON body; optional `use_library` / `sources_limit`; source links carry bare filenames only, see § 1.1)
 
 Model upload/import flow:
 - Model uploads are initiated from the Content Manager models section; the Assistant links there instead of uploading directly.

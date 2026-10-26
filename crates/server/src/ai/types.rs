@@ -63,6 +63,39 @@ pub struct InferStreamQuery {
     pub sources_limit: Option<usize>,
 }
 
+/// JSON body for `POST /api/models/:filename/infer/stream`. Same fields as
+/// [`InferStreamQuery`], but `history` is a real array, so long conversations
+/// are not limited by URL length.
+#[derive(Debug, Deserialize)]
+pub struct InferStreamBody {
+    pub prompt: String,
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<usize>,
+    pub num_ctx: Option<usize>,
+    #[serde(default)]
+    pub history: Vec<ChatMessage>,
+    pub use_library: Option<bool>,
+    pub sources_limit: Option<usize>,
+}
+
+impl From<InferStreamQuery> for InferStreamBody {
+    fn from(query: InferStreamQuery) -> Self {
+        Self {
+            prompt: query.prompt,
+            temperature: query.temperature,
+            max_tokens: query.max_tokens,
+            num_ctx: query.num_ctx,
+            history: query
+                .history
+                .as_deref()
+                .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
+                .unwrap_or_default(),
+            use_library: query.use_library,
+            sources_limit: query.sources_limit,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
