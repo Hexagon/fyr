@@ -770,7 +770,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><strong>Replace the program or image.</strong> Docker: <code>docker pull hexagon/fyr:latest</code>, then remove and re-create the container with the <strong>same</strong> volume (<code>-v fyr-data:/data -e DATA_DIR=/data</code>). The image is multi-arch: the same tag works on Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same <code>DATA_DIR</code>.</li>
 <li><strong>Start it.</strong> Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.</li>
 </ol>
-<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). Other 1.0 features may add their own folders (for example a search <code>index/</code>); all of them live inside the data folder, so keep mounting the whole folder.</p>
+<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). <code>index/</code> holds the full-text indexes of ZIM archives (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.</p>
 <p><strong>New environment variables</strong> (all optional; defaults keep 0.5.x behaviour except that Messages is on):</p>
 <ul>
 <li><code>FYR_MESSAGING</code> — <code>false</code> turns Messages off.</li>
@@ -779,6 +779,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages (default 90).</li>
 <li><code>FYR_TRUSTED_PROXIES</code> — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.</li>
 <li><code>FYR_TLS</code>, <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code>, <code>FYR_TLS_SANS</code>, <code>FYR_HTTP_REDIRECT_PORT</code> — built-in HTTPS (§2a), off by default. Turning it on changes the address to <code>https://</code>.</li>
+<li><code>FYR_FULLTEXT</code>, <code>FYR_FULLTEXT_MAX_ARTICLES</code>, <code>FYR_FULLTEXT_MIN_FREE_MB</code> — ZIM full-text index (§3c). On by default: after the upgrade, ZIM archives with up to 200 000 articles are indexed once in the background, which uses some CPU and disk space for a while.</li>
 </ul>
 <p>If you expose Fyr to people you do not fully trust, review <code>FYR_ADMIN_PASSWORD</code>/<code>FYR_READONLY</code> (§3a) and the Messages posting rules (§3d) after upgrading.</p>
 <p><strong>Going back to 0.5.x:</strong> stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores <code>messages.sqlite</code>.</p>
