@@ -150,23 +150,23 @@
                 <button
                   type="button"
                   class="toolbar-button"
-                  aria-label="Smaller text"
-                  title="Smaller text (-)"
+                  :aria-label="isPdfSelected ? 'Zoom out' : 'Smaller text'"
+                  :title="isPdfSelected ? 'Zoom out (-)' : 'Smaller text (-)'"
                   :disabled="readerPrefs.fontScale <= FONT_SCALE_MIN"
                   @click="changeFontScale(-1)"
                 >
-                  A−
+                  {{ isPdfSelected ? '−' : 'A−' }}
                 </button>
-                <span class="toolbar-value" aria-label="Text size">{{ readerPrefs.fontScale }}%</span>
+                <span class="toolbar-value" :aria-label="isPdfSelected ? 'Zoom (100% fits the page width)' : 'Text size'">{{ readerPrefs.fontScale }}%</span>
                 <button
                   type="button"
                   class="toolbar-button"
-                  aria-label="Larger text"
-                  title="Larger text (+)"
+                  :aria-label="isPdfSelected ? 'Zoom in' : 'Larger text'"
+                  :title="isPdfSelected ? 'Zoom in (+)' : 'Larger text (+)'"
                   :disabled="readerPrefs.fontScale >= FONT_SCALE_MAX"
                   @click="changeFontScale(1)"
                 >
-                  A+
+                  {{ isPdfSelected ? '+' : 'A+' }}
                 </button>
                 <select v-model="themeModel" class="toolbar-select" aria-label="Reader theme">
                   <option v-for="theme in READER_THEMES" :key="theme" :value="theme">{{ themeLabel(theme) }}</option>
@@ -254,7 +254,7 @@
           <div v-if="readerError" class="status-card status-error" role="alert" aria-live="assertive">{{ readerError }}</div>
 
           <div v-if="bookSearchLoading || bookSearchResults.length || bookSearchRan" class="zim-search-feedback">
-            <p v-if="bookSearchLoading" class="reader-subtle">Searching...</p>
+            <p v-if="bookSearchLoading" class="reader-subtle" role="status">{{ bookSearchProgress || 'Searching...' }}</p>
 
             <div v-else-if="bookSearchResults.length" class="zim-search-results">
               <button
@@ -272,6 +272,9 @@
               </button>
             </div>
             <p v-else-if="bookSearchRan" class="reader-subtle">No matches found.</p>
+            <p v-if="bookSearchTruncated && !bookSearchLoading" class="reader-subtle">
+              Showing the first {{ bookSearchResults.length }} matches. Refine the search to see the rest.
+            </p>
           </div>
 
           <div class="reader-canvas">
@@ -292,17 +295,27 @@
               <article ref="markdownContentRef" class="markdown-content" v-html="markdownHtml"></article>
             </div>
 
-            <div v-else-if="isPdfSelected" class="reader-surface pdf-reader">
-              <iframe
-                class="pdf-frame"
-                :src="pdfUrl || selectedPdfUrl"
-                title="PDF reader"
-                loading="lazy"
-              ></iframe>
-              <p class="reader-subtle">
-                If inline PDF rendering is unavailable,
-                <a :href="pdfUrl || selectedPdfUrl" target="_blank" rel="noopener noreferrer">open it in a new tab</a>.
+            <div v-else-if="isPdfSelected" class="reader-surface pdf-reader" :style="{ background: pdfBackdrop }">
+              <PdfViewer
+                v-if="pdfDoc"
+                ref="pdfViewerRef"
+                class="pdf-viewer-surface"
+                :doc="pdfDoc"
+                :theme="readerPrefs.theme"
+                :zoom="readerPrefs.fontScale / 100"
+                :highlight-query="pdfHighlightQuery"
+                :initial-position="pdfInitialPosition"
+                :label="selectedBook.title || getDisplayName(selectedBook.filename)"
+                @position="onPdfPosition"
+                @ready="onPdfReady"
+                @error="onPdfViewerError"
+              />
+              <p v-else-if="readerError" class="pdf-message">
+                You can still
+                <a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer" download>download the file</a>
+                and open it in another app.
               </p>
+              <p v-else class="pdf-message" role="status">Loading PDF…</p>
             </div>
 
             <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
@@ -342,6 +355,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUnifiedReader } from '../modules/reader/useUnifiedReader'
+import PdfViewer from '../modules/reader/PdfViewer.vue'
+import { searchPdfText } from '../modules/reader/pdfSearch'
+import { describePdfError } from '../modules/reader/usePdfReader'
 import { createArticleHistory } from '../modules/reader/articleHistory'
 import { findBlockForLine, headingLabelFor, topVisibleLine } from '../modules/reader/markdownPosition'
 import { shortcutForEvent } from '../modules/reader/shortcuts'
@@ -378,6 +394,19 @@ const bookSearchRan = ref(false)
 /** Query of the last search actually run (mirrored to `?q=`). */
 const lastSearchRun = ref('')
 const bookSearchInputRef = ref(null)
+const bookSearchProgress = ref('')
+const bookSearchTruncated = ref(false)
+
+const pdfViewerRef = ref(null)
+/** Where the PDF viewer starts: { page, offset } from a deep link or saved progress. */
+const pdfInitialPosition = ref(null)
+/** Page shown in the PDF viewer (mirrored to `?page=`); 0 until it is ready. */
+const currentPdfPage = ref(0)
+/** Query whose matches are highlighted on the PDF pages. */
+const pdfHighlightQuery = ref('')
+// Filename of the book the mounted PDF viewer belongs to (set when it is
+// ready). Position events from a viewer of another book are ignored.
+let pdfOwner = null
 
 const zimNativeFrameRef = ref(null)
 const zimLoading = ref(false)
@@ -422,6 +451,9 @@ const {
   zimPendingHash,
   zimStartPathFailed,
   pdfUrl,
+  pdfDoc,
+  pdfPageCount,
+  pdfGetPageText,
   hasExtension,
   decodePathDeep,
   selectBook: selectWithUnifiedReader,
@@ -446,9 +478,12 @@ const filteredBooks = computed(() => {
 })
 
 const selectedPdfUrl = computed(() => {
+  if (pdfUrl.value) return pdfUrl.value
   if (!hasExtension(selectedBook.value?.filename, '.pdf')) return ''
-  return `/data/books/${encodeURIComponent(selectedBook.value.filename)}`
+  return `/docs/books/${encodeURIComponent(selectedBook.value.filename)}`
 })
+
+const isPdfReady = computed(() => isPdfSelected.value && Boolean(pdfDoc.value))
 
 const shouldUseNativeZimAdapter = computed(() => {
   return activeFormat.value === 'zim' && zimAdapter.value?.supports_native_render === true
@@ -456,7 +491,7 @@ const shouldUseNativeZimAdapter = computed(() => {
 
 const supportsBookSearch = computed(() => {
   if (isZimSelected.value) return shouldUseNativeZimAdapter.value
-  return Boolean(isEpubSelected.value) || isMarkdownSelected.value
+  return Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfReady.value
 })
 
 const bookSearchPlaceholder = computed(() => {
@@ -466,21 +501,27 @@ const bookSearchPlaceholder = computed(() => {
   return 'Search in this book'
 })
 
-const supportsDisplayPrefs = computed(() => Boolean(isEpubSelected.value) || isMarkdownSelected.value)
+const supportsDisplayPrefs = computed(
+  () => Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfSelected.value
+)
 
 const supportsBookmarks = computed(() => {
   if (isZimSelected.value) return shouldUseNativeZimAdapter.value
-  return Boolean(isEpubSelected.value) || isMarkdownSelected.value
+  return Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfSelected.value
 })
 
 const canBookmarkNow = computed(() => {
   if (!supportsBookmarks.value) return false
   if (isEpubSelected.value) return Boolean(epubPosition.value?.cfi)
   if (isZimSelected.value) return Boolean(currentZimEntry.value)
+  if (isPdfSelected.value) return isPdfReady.value && currentPdfPage.value > 0
   return Boolean(markdownHtml.value)
 })
 
 const themeColors = computed(() => READER_THEME_COLORS[readerPrefs.value.theme] || READER_THEME_COLORS.light)
+
+// Backdrop between PDF pages, a shade darker than the page itself.
+const pdfBackdrop = computed(() => ({ light: '#dfe3e7', sepia: '#e2d6b9', dark: '#0d1013' })[readerPrefs.value.theme] || '#dfe3e7')
 
 const markdownStyle = computed(() => ({
   '--reader-bg': themeColors.value.background,
@@ -572,6 +613,7 @@ const querySignature = (query) => JSON.stringify(buildReaderQuery(query))
 const currentReaderState = () => ({
   file: selectedBook.value?.filename || null,
   path: isZimSelected.value ? currentZimEntry.value || null : null,
+  page: isPdfSelected.value ? currentPdfPage.value || pdfInitialPosition.value?.page || null : null,
   q: lastSearchRun.value || null
 })
 
@@ -606,6 +648,9 @@ const applyRouteQuery = async (query) => {
     if (parsed.path && isZimSelected.value && parsed.path !== currentZimEntry.value) {
       await loadZimArticle(parsed.path)
     }
+    if (parsed.page && isPdfReady.value && parsed.page !== currentPdfPage.value) {
+      pdfViewerRef.value?.goTo(parsed.page, 0)
+    }
     if (parsed.q && parsed.q !== lastSearchRun.value) {
       bookSearchQuery.value = parsed.q
       await runBookSearch()
@@ -615,7 +660,7 @@ const applyRouteQuery = async (query) => {
     return
   }
 
-  await selectBook(book, { path: parsed.path, q: parsed.q })
+  await selectBook(book, { path: parsed.path, page: parsed.page, q: parsed.q })
 }
 
 watch(
@@ -668,8 +713,48 @@ const currentMarkdownPosition = () => {
   return { type: 'md', line, label: heading || `Line ${line}` }
 }
 
+const pdfPositionOf = (position) =>
+  position ? { type: 'pdf', page: position.page, offset: position.offset, label: `Page ${position.page}` } : null
+
+const currentPdfPosition = () => {
+  if (!isPdfReady.value || !pdfOwner || pdfOwner !== selectedBook.value?.filename) return null
+  return pdfPositionOf(pdfViewerRef.value?.currentPosition())
+}
+
+/** Queue the PDF viewer's exact position (it reports scrolls with a delay). */
+const capturePdfPosition = () => {
+  const position = currentPdfPosition()
+  if (position) schedulePositionSave(pdfOwner, position)
+}
+
+const onPdfPosition = (position) => {
+  const book = selectedBook.value
+  if (!book || !isPdfSelected.value || pdfOwner !== book.filename) return
+  const saved = pdfPositionOf(position)
+  if (!saved) return
+  schedulePositionSave(book.filename, saved)
+  if (currentPdfPage.value !== saved.page) {
+    currentPdfPage.value = saved.page
+    syncUrl()
+  }
+}
+
+const onPdfReady = () => {
+  const book = selectedBook.value
+  if (!book || !isPdfSelected.value) return
+  pdfOwner = book.filename
+  currentPdfPage.value = pdfViewerRef.value?.currentPosition()?.page || 1
+  if (!lastSearchRun.value) pdfViewerRef.value?.focus()
+  syncUrl()
+}
+
+const onPdfViewerError = (error) => {
+  readerError.value = describePdfError(error)
+}
+
 const currentPosition = () => {
   if (isEpubSelected.value) return epubPosition.value
+  if (isPdfSelected.value) return currentPdfPosition()
   if (isZimSelected.value && currentZimEntry.value) {
     return { type: 'zim', path: currentZimEntry.value, label: zimNativeArticle.value?.title || currentZimEntry.value }
   }
@@ -701,9 +786,15 @@ const onMarkdownScroll = () => {
   }, 300)
 }
 
-const onPageHide = () => flushPendingSave()
+const onPageHide = () => {
+  capturePdfPosition()
+  flushPendingSave()
+}
 const onVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') flushPendingSave()
+  if (document.visibilityState === 'hidden') {
+    capturePdfPosition()
+    flushPendingSave()
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -792,6 +883,8 @@ const jumpToPosition = async (position) => {
       await loadZimArticle(position.path)
     } else if (position.type === 'md' && isMarkdownSelected.value) {
       scrollToMarkdownLine(position.line || 1, { highlight: true })
+    } else if (position.type === 'pdf' && isPdfReady.value) {
+      pdfViewerRef.value?.goTo(position.page, position.offset || 0)
     }
   } catch (error) {
     readerError.value = apiService.handleError(error)
@@ -981,7 +1074,26 @@ const clearBookSearch = () => {
   bookSearchResults.value = []
   bookSearchRan.value = false
   bookSearchLoading.value = false
+  bookSearchProgress.value = ''
+  bookSearchTruncated.value = false
   lastSearchRun.value = ''
+  pdfHighlightQuery.value = ''
+}
+
+/** Client-side search over the PDF's text (the server does not read PDFs). */
+const searchOpenPdf = async (book, q, seq) => {
+  const isCancelled = () => seq !== bookSearchSeq || selectedBook.value !== book
+  const outcome = await searchPdfText({
+    pageCount: pdfPageCount.value,
+    getPageText: pdfGetPageText,
+    query: q,
+    isCancelled,
+    onProgress: (page, total) => {
+      if (!isCancelled() && total > 20) bookSearchProgress.value = `Searching page ${page} of ${total}...`
+    }
+  })
+  if (!outcome || isCancelled()) return null
+  return outcome
 }
 
 const runBookSearch = async () => {
@@ -1001,10 +1113,21 @@ const runBookSearch = async () => {
   readerError.value = null
   bookSearchLoading.value = true
   bookSearchRan.value = false
+  bookSearchProgress.value = ''
+  bookSearchTruncated.value = false
   lastSearchRun.value = q
   syncUrl()
 
   try {
+    if (isPdfSelected.value) {
+      const outcome = await searchOpenPdf(book, q, seq)
+      if (!outcome) return
+      bookSearchResults.value = outcome.results
+      bookSearchTruncated.value = outcome.truncated
+      bookSearchRan.value = true
+      pdfHighlightQuery.value = q
+      return
+    }
     const response = isZimSelected.value
       ? await apiService.getZimNativeSearch(book.filename, q, 24)
       : await apiService.getLibraryBookSearch(book.filename, q, 24)
@@ -1031,6 +1154,11 @@ const openSearchResult = async (result) => {
   if (isZimSelected.value) {
     if (isCurrentSearchResult(resultPath)) return
     await loadZimArticle(resultPath)
+    return
+  }
+
+  if (isPdfSelected.value) {
+    if (Number.isFinite(result.page)) pdfViewerRef.value?.showMatch(result.page, result.occurrence || 0)
     return
   }
 
@@ -1117,6 +1245,9 @@ const resetReaderUi = () => {
   bookSearchQuery.value = ''
   clearBookSearch()
   bookmarksOpen.value = false
+  pdfOwner = null
+  currentPdfPage.value = 0
+  pdfInitialPosition.value = null
   if (markdownScrollTimer) {
     clearTimeout(markdownScrollTimer)
     markdownScrollTimer = null
@@ -1128,6 +1259,7 @@ const resetReaderUi = () => {
  * come from deep links; otherwise the remembered position is restored.
  */
 const selectBook = async (book, options = {}) => {
+  capturePdfPosition()
   flushPendingSave()
   resetReaderUi()
   readerNotice.value = ''
@@ -1141,10 +1273,17 @@ const selectBook = async (book, options = {}) => {
   bookSearchQuery.value = options.q || ''
   // Deep-link opens already have the right URL; plain clicks record the file now
   // so a reload during loading reopens the same book.
-  if (!options.path && !options.q) syncUrl()
-
   const saved = progressStore.getPosition(book.filename)
   const deepLinkPath = options.path || null
+  const deepLinkPage = options.page || null
+  if (deepLinkPage) {
+    // Keep the saved spot within the page when the link points at that page.
+    const offset = saved?.type === 'pdf' && saved.page === deepLinkPage ? saved.offset || 0 : 0
+    pdfInitialPosition.value = { page: deepLinkPage, offset }
+  } else if (saved?.type === 'pdf') {
+    pdfInitialPosition.value = { page: saved.page, offset: saved.offset || 0 }
+  }
+  if (!options.path && !options.q && !deepLinkPage) syncUrl()
   markdownRestoring = true
 
   await nextTick()
@@ -1182,6 +1321,7 @@ const selectBook = async (book, options = {}) => {
 }
 
 const returnToLibrary = ({ updateUrl = true } = {}) => {
+  capturePdfPosition()
   flushPendingSave()
   resetReaderUi()
   disposeUnifiedReader()
@@ -1217,6 +1357,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  capturePdfPosition()
   flushPendingSave()
   window.removeEventListener('message', handleZimMessage)
   window.removeEventListener('keydown', handleReaderKeyboard)
@@ -1720,14 +1861,24 @@ onBeforeUnmount(() => {
 .pdf-reader {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  overflow: hidden;
 }
 
-.pdf-frame {
-  width: 100%;
+.pdf-viewer-surface {
   flex: 1;
   min-height: 0;
-  border: none;
+  width: 100%;
+}
+
+.pdf-message {
+  margin: auto;
+  padding: 1.5rem;
+  text-align: center;
+  color: #4b5563;
+}
+
+.pdf-message a {
+  color: #1a5fb4;
 }
 
 .zim-reader {

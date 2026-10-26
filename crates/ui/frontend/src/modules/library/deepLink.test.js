@@ -4,15 +4,16 @@ import { buildBookDeepLink, buildReaderQuery, bookRoute, parseReaderQuery, reade
 
 describe('parseReaderQuery', () => {
   it('returns empty state without a file', () => {
-    expect(parseReaderQuery({})).toEqual({ file: null, path: null, q: null })
-    expect(parseReaderQuery(null)).toEqual({ file: null, path: null, q: null })
-    expect(parseReaderQuery({ path: 'A/B', q: 'x' })).toEqual({ file: null, path: null, q: null })
+    expect(parseReaderQuery({})).toEqual({ file: null, path: null, page: null, q: null })
+    expect(parseReaderQuery(null)).toEqual({ file: null, path: null, page: null, q: null })
+    expect(parseReaderQuery({ path: 'A/B', q: 'x' })).toEqual({ file: null, path: null, page: null, q: null })
   })
 
   it('parses file, path and q', () => {
     expect(parseReaderQuery({ file: 'wiki.zim', path: '/A/Earth#History', q: '  plate   tectonics ' })).toEqual({
       file: 'wiki.zim',
       path: 'A/Earth#History',
+      page: null,
       q: 'plate tectonics'
     })
   })
@@ -28,7 +29,7 @@ describe('parseReaderQuery', () => {
   })
 
   it('drops empty or invalid path and q', () => {
-    expect(parseReaderQuery({ file: 'a.zim', path: '///', q: '   ' })).toEqual({ file: 'a.zim', path: null, q: null })
+    expect(parseReaderQuery({ file: 'a.zim', path: '///', q: '   ' })).toEqual({ file: 'a.zim', path: null, page: null, q: null })
     expect(parseReaderQuery({ file: 'a.zim', path: 'A/\nB' }).path).toBeNull()
     expect(parseReaderQuery({ file: 'a.zim', q: 'x'.repeat(500) }).q).toHaveLength(256)
   })
@@ -66,6 +67,40 @@ describe('buildBookDeepLink', () => {
     const href = buildBookDeepLink(file, { path, q })
     expect(href.startsWith('/books?')).toBe(true)
     const parsed = parseReaderQuery(parseQuery(href.slice('/books?'.length)))
-    expect(parsed).toEqual({ file, path, q })
+    expect(parsed).toEqual({ file, path, page: null, q })
+  })
+})
+
+describe('PDF page parameter', () => {
+  it('accepts positive integer pages (string or number)', () => {
+    expect(parseReaderQuery({ file: 'a.pdf', page: '12' }).page).toBe(12)
+    expect(parseReaderQuery({ file: 'a.pdf', page: ' 3 ' }).page).toBe(3)
+    expect(parseReaderQuery({ file: 'a.pdf', page: [null, '7'] }).page).toBe(7)
+    expect(buildReaderQuery({ file: 'a.pdf', page: 4 })).toEqual({ file: 'a.pdf', page: '4' })
+  })
+
+  it('ignores invalid pages instead of rejecting the link', () => {
+    for (const page of ['0', '-2', '1.5', 'abc', '', '1e3', '99999999', '0x10']) {
+      expect(parseReaderQuery({ file: 'a.pdf', page })).toEqual({ file: 'a.pdf', path: null, page: null, q: null })
+    }
+    expect(parseReaderQuery({ page: '3' }).page).toBeNull()
+  })
+
+  it('old links without page keep working and compare equal', () => {
+    expect(readerStateEquals({ file: 'a.pdf' }, { file: 'a.pdf', page: null })).toBe(true)
+    expect(readerStateEquals({ file: 'a.pdf', page: '2' }, { file: 'a.pdf', page: 2 })).toBe(true)
+    expect(readerStateEquals({ file: 'a.pdf', page: '2' }, { file: 'a.pdf', page: '3' })).toBe(false)
+  })
+
+  it('round-trips page and q through a link', () => {
+    const href = buildBookDeepLink('Field guide (2).pdf', { page: 42, q: 'water filter' })
+    expect(href).toBe('/books?file=Field+guide+%282%29.pdf&page=42&q=water+filter')
+    expect(parseReaderQuery(parseQuery(href.slice('/books?'.length)))).toEqual({
+      file: 'Field guide (2).pdf',
+      path: null,
+      page: 42,
+      q: 'water filter'
+    })
+    expect(bookRoute('a.pdf', { page: 5 })).toEqual({ path: '/books', query: { file: 'a.pdf', page: '5' } })
   })
 })

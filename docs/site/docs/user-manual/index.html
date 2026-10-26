@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="/css/site.css?v=a8ce5d088b">
+    <link rel="stylesheet" href="/css/site.css?v=06137f43e4">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://fyr.guide/docs/user-manual/">
@@ -661,8 +661,12 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </ul>
 <h2 id="5b-pdf-reading">5b. PDF Reading<a class="heading-anchor" href="#5b-pdf-reading" aria-label="Link to this section">#</a></h2>
 <ul>
-<li>Select a <code>.pdf</code> file in Books to open it inline in the built-in reader panel.</li>
-<li>If your browser blocks inline PDF rendering, use the &quot;open it in a new tab&quot; link shown under the reader panel.</li>
+<li>Select a <code>.pdf</code> file in Books to open it in the built-in PDF reader. Fyr renders PDFs itself (with pdf.js, bundled with Fyr), so it works offline and the same way in every browser.</li>
+<li>Pages scroll continuously. Only the pages near the screen are drawn, so long manuals (hundreds of pages) stay fast on phones.</li>
+<li>Pages fit the width of the reader by default. Use <strong>−</strong> / <strong>+</strong> (or <code>-</code> / <code>+</code>) to zoom; 100% means &quot;fit width&quot;. The zoom shares the saved text-size setting with EPUB and Markdown.</li>
+<li>The <strong>Light</strong>, <strong>Sepia</strong> and <strong>Dark</strong> themes recolor PDF pages too. Dark inverts the page colors, so photos and colored diagrams also appear inverted; switch back to Light for those.</li>
+<li>You can select and copy text on pages that contain real text. Scanned PDFs (images of pages) have no text, so selection and search find nothing in them.</li>
+<li>Password-protected (encrypted) and damaged PDFs show an error message with a link to download the file, so you can open it in another app.</li>
 </ul>
 <h2 id="5c-reader-shell">5c. Reader Shell<a class="heading-anchor" href="#5c-reader-shell" aria-label="Link to this section">#</a></h2>
 <ul>
@@ -674,15 +678,16 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </ul>
 <h2 id="5d-reading-progress-bookmarks-and-links">5d. Reading Progress, Bookmarks and Links<a class="heading-anchor" href="#5d-reading-progress-bookmarks-and-links" aria-label="Link to this section">#</a></h2>
 <ul>
-<li><strong>Resume where you left off:</strong> Fyr remembers your last position per book: the EPUB location, the ZIM article, and the Markdown section. Opening the book again takes you back there. PDF files open inline through the browser&#39;s PDF viewer, so Fyr cannot see the page number and starts from the first page.</li>
-<li><strong>Bookmarks:</strong> use <strong>＋ Bookmark</strong> in the reader toolbar (or press <code>b</code>) to save the current position. <strong>Bookmarks (n)</strong> lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown and ZIM.</li>
+<li><strong>Resume where you left off:</strong> Fyr remembers your last position per book: the EPUB location, the ZIM article, the Markdown section and the PDF page (including how far down the page you were). Opening the book again takes you back there.</li>
+<li><strong>Bookmarks:</strong> use <strong>＋ Bookmark</strong> in the reader toolbar (or press <code>b</code>) to save the current position. <strong>Bookmarks (n)</strong> lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown, PDF and ZIM. A PDF has at most one bookmark per page (named &quot;Page N&quot;).</li>
 <li><strong>Continue reading:</strong> the Overview page lists your recently opened books that are still in the library. Click a card to resume reading.</li>
-<li><strong>Search inside a book:</strong> EPUB, Markdown and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it.</li>
+<li><strong>Search inside a book:</strong> EPUB, Markdown, PDF and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it. PDF search runs in your browser over the PDF&#39;s text: it ignores case and accents, lists every match with its page and surrounding text (up to 200 matches), highlights the matches on the pages, and clicking a result scrolls to that match. Searching a long PDF the first time takes a few seconds; the progress is shown while it runs.</li>
 <li><strong>ZIM history:</strong> the ‹ / › buttons (or <code>[</code> / <code>]</code>) move back and forward between articles you opened in the current archive.</li>
-<li><strong>Text size and theme:</strong> for EPUB and Markdown, use A− / A+ (or <code>-</code> / <code>+</code>) to change the text size, and pick a Light, Sepia or Dark theme. These settings are saved in your browser.</li>
+<li><strong>Text size and theme:</strong> for EPUB and Markdown, use A− / A+ (or <code>-</code> / <code>+</code>) to change the text size, and pick a Light, Sepia or Dark theme. For PDFs the same buttons zoom the page. These settings are saved in your browser.</li>
 <li><strong>Links to books:</strong> the address bar follows what you are reading, so you can bookmark or share the link, and reloading the page reopens the same book and article:<ul>
 <li><code>/books?file=&lt;filename&gt;</code> opens a book.</li>
 <li><code>/books?file=&lt;archive&gt;.zim&amp;path=&lt;article path&gt;</code> opens a specific ZIM article.</li>
+<li><code>/books?file=&lt;filename&gt;.pdf&amp;page=&lt;n&gt;</code> opens a PDF at page <em>n</em>. While you read a PDF, the address bar follows the current page.</li>
 <li><code>/books?file=&lt;filename&gt;&amp;q=&lt;words&gt;</code> opens a book and runs an in-book search.</li>
 <li>The <strong>←</strong> button (Back to library) closes the book and removes these parameters from the address.</li>
 </ul>
@@ -820,7 +825,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 </ul>
 <h3 id="use-library-finds-no-sources">&quot;Use library&quot; finds no sources<a class="heading-anchor" href="#use-library-finds-no-sources" aria-label="Link to this section">#</a></h3>
 <ul>
-<li>Make sure the books are in the <code>books/</code> data folder (ZIM, EPUB or Markdown; PDFs are not searched).</li>
+<li>Make sure the books are in the <code>books/</code> data folder (ZIM, EPUB or Markdown; global search matches PDFs by title only, so open the PDF and use its in-book search).</li>
 <li>For ZIM archives, ask about the topic by its article title; Fyr looks articles up by title rather than full-text searching huge archives.</li>
 <li>Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.</li>
 </ul>
