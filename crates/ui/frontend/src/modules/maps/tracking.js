@@ -1,6 +1,7 @@
 // Pure track-recording logic used with navigator.geolocation.watchPosition.
 
 import { haversineDistance } from './geo.js'
+import { t } from '../../i18n/index.js'
 
 /** Fixes worse than this (metres, 1σ) are ignored. */
 export const DEFAULT_MAX_ACCURACY_M = 75
@@ -78,7 +79,7 @@ export const trackDurationMs = (track, now = Date.now()) => {
 export const defaultTrackName = (date = new Date()) => {
   const d = date instanceof Date ? date : new Date(date)
   const pad = (n) => String(n).padStart(2, '0')
-  return `Track ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return t('maps.track.defaultName', { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` })
 }
 
 /** LineString feature for a recorded track, or null when it has fewer than two points. */
@@ -138,30 +139,30 @@ export const deserializeTrack = (text) => {
 
 // ── Geolocation availability / errors ──────────────────────────────
 
-export const INSECURE_CONTEXT_MESSAGE =
-  'Location needs a secure connection: open Fyr via https:// or http://localhost. Browsers block GPS on plain http:// LAN addresses; the server operator can turn on HTTPS (FYR_TLS=self-signed).'
+/** Message shown when geolocation is blocked because the page is not on HTTPS. */
+export const insecureContextMessage = () => t('maps.geo.insecure', { setting: 'FYR_TLS=self-signed' })
 
 /**
  * Check whether geolocation can work here.
  * @returns {{ ok: boolean, message: string|null }}
  */
 export const checkGeolocationSupport = ({ isSecureContext, geolocation } = {}) => {
-  if (isSecureContext === false) return { ok: false, message: INSECURE_CONTEXT_MESSAGE }
-  if (!geolocation) return { ok: false, message: 'Geolocation is not supported by this browser' }
+  if (isSecureContext === false) return { ok: false, message: insecureContextMessage() }
+  if (!geolocation) return { ok: false, message: t('maps.geo.unsupported') }
   return { ok: true, message: null }
 }
 
 /** Human readable message for a GeolocationPositionError. */
 export const geolocationErrorMessage = (err, { isSecureContext } = {}) => {
-  if (isSecureContext === false) return INSECURE_CONTEXT_MESSAGE
+  if (isSecureContext === false) return insecureContextMessage()
   switch (err?.code) {
     case 1:
-      return 'Location access was denied. Allow location for this site in your browser settings.'
+      return t('maps.geo.denied')
     case 2:
-      return 'Could not determine location (no GPS fix). Move to open sky and try again.'
+      return t('maps.geo.noFix')
     case 3:
-      return 'Timed out waiting for a location fix.'
+      return t('maps.geo.timeout')
     default:
-      return 'Could not determine location'
+      return t('maps.geo.failed')
   }
 }

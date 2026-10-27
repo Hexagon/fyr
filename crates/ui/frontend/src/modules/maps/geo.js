@@ -1,5 +1,7 @@
 // Pure geographic helpers. Positions are GeoJSON-style [lng, lat] arrays.
 
+import { formatBytes as formatLocaleBytes, formatNumber } from '../../i18n/index.js'
+
 export const EARTH_RADIUS_KM = 6371
 
 const toRad = (x) => (x * Math.PI) / 180
@@ -25,10 +27,10 @@ export const pathLength = (points) => {
   return total
 }
 
-/** Human readable distance: metres below 1 km, otherwise km with 2 decimals. */
+/** Human readable distance: metres below 1 km, otherwise km with 2 decimals (UI locale). */
 export const formatDistance = (km) => {
-  if (km < 1) return `${Math.round(km * 1000)} m`
-  return `${km.toFixed(2)} km`
+  if (km < 1) return `${formatNumber(Math.round(km * 1000), { useGrouping: false })} m`
+  return `${formatNumber(km, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false })} km`
 }
 
 /** Human readable duration for a number of milliseconds: "1:02:03" or "2:03". */
@@ -41,13 +43,7 @@ export const formatDuration = (ms) => {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
 }
 
-export const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
+export const formatBytes = (bytes) => formatLocaleBytes(bytes)
 
 /** Wrap a longitude into [-180, 180]. */
 export const normalizeLng = (lng) => {

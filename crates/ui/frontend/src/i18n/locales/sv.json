@@ -90,7 +90,9 @@
     "remove": "Ta bort",
     "tryAgain": "Försök igen",
     "cancel": "Avbryt",
-    "na": "saknas"
+    "na": "saknas",
+    "yes": "Ja",
+    "no": "Nej"
   },
   "time": {
     "justNow": "nyss",
@@ -592,6 +594,400 @@
       "waiting": "Väntar på indexering",
       "autoHint": "Indexeras automatiskt i bakgrunden",
       "manualHint": "Stort arkiv: starta indexeringen manuellt (använder diskutrymme och processortid)"
+    }
+  },
+  "tools": {
+    "expandNav": "Visa verktygsmenyn",
+    "collapseNav": "Dölj verktygsmenyn",
+    "groups": {
+      "length_speed": "Längd och hastighet",
+      "weight_volume": "Vikt och volym",
+      "area_angle": "Area och vinkel",
+      "temperature": "Temperatur",
+      "digital": "Digital lagring",
+      "energy_power": "Energi och effekt",
+      "pressure_time": "Tryck och tid",
+      "nav_weather": "Navigering och väder"
+    },
+    "textTools": "Textverktyg",
+    "numberTools": "Talverktyg",
+    "tabsLabel": "Verktygskategorier",
+    "tabs": {
+      "converters": "Omvandlare",
+      "text": "Text och tal",
+      "datetime": "Datum och tid",
+      "ciphers": "Kryptering och chiffer"
+    },
+    "unitConverters": "Enhetsomvandlare",
+    "enterValue": "Ange värde",
+    "fromUnit": "Från enhet",
+    "toUnit": "Till enhet",
+    "temperature": "Temperatur",
+    "converters": {
+      "length": "Längd",
+      "speed": "Hastighet",
+      "mass": "Massa",
+      "volume": "Volym",
+      "area": "Area",
+      "angle": "Vinkel",
+      "data": "Data",
+      "energy": "Energi",
+      "power": "Effekt",
+      "pressure": "Tryck",
+      "time": "Tid",
+      "coordinates": "Koordinater (decimal ↔ DMS)",
+      "windchill": "Köldeffekt",
+      "heatindex": "Värmeindex"
+    },
+    "units": {
+      "label": "Enheter",
+      "day": "dygn",
+      "week": "vecka",
+      "knot": "knop",
+      "cup": "kopp (US)",
+      "tbsp": "msk",
+      "tsp": "tsk",
+      "flOz": "fl oz",
+      "gal": "gal (US)",
+      "deg": "grader"
+    },
+    "coord": {
+      "direction": "Riktning",
+      "toDms": "Decimal → DMS",
+      "toDec": "DMS → decimal",
+      "latDec": "Latitud (decimal)",
+      "lonDec": "Longitud (decimal)",
+      "range": "{min} till {max}",
+      "latD": "Lat grader",
+      "latM": "Lat minuter",
+      "latS": "Lat sekunder",
+      "lonD": "Long grader",
+      "lonM": "Long minuter",
+      "lonS": "Long sekunder",
+      "result": "Lat: {lat}°   Long: {lon}°"
+    },
+    "windchill": {
+      "info": "Upplevd temperatur när vinden gör att det känns kallare. Gäller för lufttemperatur ≤ 10 °C (50 °F) och vindhastighet ≥ 4,8 km/h (3 mph).",
+      "wind": "Vindhastighet",
+      "tempLimit": "Köldeffekt gäller för temperaturer ≤ {limit}.",
+      "windLimit": "Köldeffekt gäller för vindhastigheter ≥ {limit}."
+    },
+    "example": "t.ex. {value}",
+    "feelsLike": "Känns som:",
+    "heatindex": {
+      "info": "Upplevd temperatur som kombinerar lufttemperatur och relativ luftfuktighet. Gäller för temperaturer ≥ 27 °C (80 °F) och luftfuktighet ≥ 40 %.",
+      "humidity": "Luftfuktighet (%)",
+      "tempLimit": "Värmeindex gäller för temperaturer ≥ 27 °C (80 °F).",
+      "humidityLimit": "Värmeindex gäller för relativ luftfuktighet ≥ 40 %."
+    },
+    "textNumberTools": "Text- och talverktyg",
+    "text": {
+      "wordcount": "Ord- och teckenräknare",
+      "caseconv": "Skiftlägesomvandlare",
+      "urlencode": "URL-koda/avkoda",
+      "ascii": "ASCII-/Unicode-uppslag",
+      "baseconv": "Talbasomvandlare"
+    },
+    "wordcount": {
+      "text": "Text",
+      "placeholder": "Klistra in eller skriv din text här …",
+      "chars": "Tecken",
+      "charsNoSpace": "Tecken (utan mellanslag)",
+      "words": "Ord",
+      "lines": "Rader",
+      "sentences": "Meningar",
+      "paragraphs": "Stycken"
+    },
+    "input": "Indata",
+    "caseconv": {
+      "placeholder": "Ange text att omvandla …",
+      "title": "Versal Varje Ord",
+      "sentence": "Versal i början"
+    },
+    "result": "Resultat:",
+    "mode": "Läge",
+    "encode": "Koda",
+    "decode": "Avkoda",
+    "urlencode": {
+      "plain": "Vanlig URL/text",
+      "encoded": "Kodad sträng",
+      "encodedPlaceholder": "Ange kodad sträng"
+    },
+    "baseconv": {
+      "input": "Indatavärde",
+      "placeholder": "Ange tal",
+      "from": "Från bas",
+      "binary": "Binärt",
+      "octal": "Oktalt",
+      "decimal": "Decimalt",
+      "hexadecimal": "Hexadecimalt",
+      "hex": "Hex",
+      "invalid": "Ogiltigt tal för vald bas."
+    },
+    "ascii": {
+      "input": "Tecken eller decimal kod",
+      "placeholder": "t.ex. A eller 65",
+      "character": "Tecken",
+      "invalid": "Ange ett enskilt tecken eller en dec-/hex-/bin-/okt-kod."
+    },
+    "datetimeTools": "Datum- och tidsverktyg",
+    "datetime": {
+      "unix": "Unix-tidsstämpel",
+      "duration": "Tidsåtgångsräknare",
+      "dayofyear": "Dag på året/vecka"
+    },
+    "unix": {
+      "title": "Omvandlare för Unix-tidsstämplar",
+      "now": "Nu",
+      "seconds": "Unix-tidsstämpel (sekunder)",
+      "local": "Lokal",
+      "datestr": "Datum/tid (lokal)",
+      "result": "Unix-tidsstämpel:"
+    },
+    "duration": {
+      "start": "Startdatum/-tid",
+      "end": "Slutdatum/-tid",
+      "days": "Dagar",
+      "hours": "Timmar",
+      "minutes": "Minuter",
+      "seconds": "Sekunder",
+      "human": "Läsbart",
+      "d": "{n} d",
+      "h": "{n} h",
+      "m": "{n} min",
+      "s": "{n} s"
+    },
+    "dayofyear": {
+      "title": "Dag på året/veckonummer",
+      "date": "Datum",
+      "doy": "Dag på året",
+      "week": "Veckonummer (ISO)",
+      "dow": "Veckodag",
+      "daysLeft": "Dagar kvar av året",
+      "leap": "Skottår"
+    },
+    "cipher": "Chiffer",
+    "ciphers": {
+      "aes": "AES-kryptering",
+      "base64": "Base64",
+      "rot13": "ROT13",
+      "morse": "Morsekod",
+      "hash": "Hash/kontrollsumma"
+    },
+    "aes": {
+      "encrypt": "Kryptera",
+      "decrypt": "Dekryptera",
+      "keySource": "Nyckelkälla",
+      "password": "Lösenord",
+      "rawKey": "Rå nyckel (hex)",
+      "bits": "Bitar",
+      "cipherMode": "Chifferläge",
+      "kdfInfo": "Nyckelhärledning: {kdf}. Saltet läggs först i utdata.",
+      "kdf": "PBKDF2-HMAC-SHA256, {n} iterationer",
+      "ecbWarning": "ECB är inte autentiserat och avslöjar mönster i klartexten. Använd CBC eller GCM för känsliga data.",
+      "gcmWarning": "GCM-läget stöder bara 256-bitarsnycklar.",
+      "keyHex": "Nyckel (hex)",
+      "passwordPlaceholder": "Ange lösenord",
+      "keyPlaceholder": "Ange hexnyckel",
+      "ciphertext": "Chiffertext (hex)",
+      "encryptPlaceholder": "Text att kryptera",
+      "decryptPlaceholder": "Hexsträng att dekryptera",
+      "failed": "Åtgärden misslyckades. Kontrollera lösenord och indata."
+    },
+    "plaintext": "Klartext",
+    "base64": {
+      "string": "Base64-sträng",
+      "encodePlaceholder": "Text att koda",
+      "decodePlaceholder": "Base64-sträng att avkoda"
+    },
+    "rot13": {
+      "placeholder": "Text att köra ROT13 på"
+    },
+    "morse": {
+      "toMorse": "Text → morse",
+      "toText": "Morse → text",
+      "textLabel": "Text (bokstäver, siffror)",
+      "codeLabel": "Morsekod (punkter och streck, mellanslag mellan tecken, / mellan ord)",
+      "unknown": "Okänd kod: {code}",
+      "invalid": "Ogiltig morsekod."
+    },
+    "hash": {
+      "algorithm": "Algoritm",
+      "placeholder": "Text att hasha",
+      "result": "Hash:"
+    },
+    "errors": {
+      "invalidOperation": "Ogiltig indata för den här åtgärden.",
+      "invalidInput": "Ogiltig indata."
+    }
+  },
+  "maps": {
+    "panels": {
+      "hideSelector": "Dölj panelen med tillgängliga kartor",
+      "showSelector": "Visa panelen med tillgängliga kartor",
+      "hideMaps": "Dölj kartor",
+      "showMaps": "Visa kartor",
+      "hideLayersPanel": "Dölj lagerpanelen",
+      "showLayersPanel": "Visa lagerpanelen",
+      "hideLayers": "Dölj lager",
+      "showLayers": "Visa lager",
+      "hideInfoPanel": "Dölj panelen med kartinformation",
+      "showInfoPanel": "Visa panelen med kartinformation",
+      "hideInfo": "Dölj info",
+      "showInfo": "Visa info",
+      "hideToolsPanel": "Dölj verktygspanelen",
+      "showToolsPanel": "Visa verktygspanelen",
+      "hideTools": "Dölj verktyg",
+      "showTools": "Visa verktyg"
+    },
+    "available": "Tillgängliga kartor",
+    "loading": "Läser in kartor …",
+    "noMaps": "Inga kartor finns.",
+    "addMaps": "Lägg till kartor",
+    "selectMap": "Välj en karta att visa",
+    "layers": {
+      "title": "Kartlager",
+      "rasterNotice": "Rasterläge upptäckt. Inställningar för vektorlager är avstängda.",
+      "water": "Vatten",
+      "landuse": "Markanvändning",
+      "park": "Parker",
+      "building": "Byggnader",
+      "road": "Vägar",
+      "railway": "Järnvägar",
+      "boundary": "Gränser",
+      "labels": "Etiketter"
+    },
+    "info": {
+      "mode": "Läge: {mode}",
+      "coverage": "Täckning: {bounds}",
+      "vector": "Vektorplattor",
+      "raster": "Rasterplattor",
+      "unknown": "Okänt"
+    },
+    "tools": {
+      "myLocationHint": "Centrera kartan på webbläsarens nuvarande plats",
+      "locating": "Söker plats …",
+      "myLocation": "Min plats"
+    },
+    "goto": {
+      "placeholder": "Gå till: 59.33, 18.07 eller 59°19'N 18°4'E",
+      "label": "Gå till koordinat",
+      "go": "Gå",
+      "removeMarker": "Ta bort markör",
+      "invalid": "Koordinaten kunde inte tolkas. Prova ”{example1}” eller ”{example2}”."
+    },
+    "measure": {
+      "hint": "Mät avstånd genom att klicka på punkter på kartan",
+      "stop": "Sluta mäta",
+      "start": "Mät avstånd",
+      "clickHint": "Klicka på kartan för att lägga till vägpunkter.",
+      "noPoints": "Inga punkter än",
+      "points": "{count} punkt | {count} punkter",
+      "clear": "Rensa"
+    },
+    "track": {
+      "stopHint": "Sluta spela in och behåll spåret",
+      "recordHint": "Spela in ditt GPS-spår",
+      "stop": "Stoppa inspelning",
+      "record": "Spela in spår",
+      "points": "{count} pkt | {count} pkt",
+      "recording": "Spelar in. Håll fliken öppen och skärmen på.",
+      "recordingAccuracy": "Spelar in · ±{accuracy} m. Håll fliken öppen och skärmen på.",
+      "recovered": "Ett osparat spår från förra sessionen har återställts.",
+      "name": "Spårets namn",
+      "saveTo": "Spara spåret i POI-fil",
+      "readOnly": "Skrivskyddat läge: ladda ned spåret, eller logga in som admin för att spara det på servern.",
+      "discard": "Kasta",
+      "confirmNew": "Starta en ny inspelning? Det nuvarande osparade spåret kastas.",
+      "confirmDiscard": "Kasta det inspelade spåret?",
+      "saved": "Spåret har sparats i {file}.",
+      "saveFailed": "Det gick inte att spara spåret: {error}",
+      "defaultName": "Spår {date}",
+      "waitingFix": "Väntar på bättre GPS-position (±{accuracy} m)",
+      "tooShort": "Spåret kastades: färre än två GPS-punkter spelades in."
+    },
+    "saving": "Sparar …",
+    "save": "Spara",
+    "poi": {
+      "editHint": "Lägg till och redigera egna intressepunkter",
+      "viewHint": "Visa intressepunkter och spår",
+      "close": "Stäng POI-panelen",
+      "edit": "Redigera POI",
+      "view": "Visa POI",
+      "file": "POI-fil",
+      "selectFile": "välj fil",
+      "notSaved": "inte sparad",
+      "newFile": "Skapa ny POI-fil",
+      "newFilePlaceholder": "namn.geojson",
+      "create": "Skapa",
+      "clickToPlace": "Klicka på kartan för att placera en POI.",
+      "featuresLoaded": "{count} objekt inläst. | {count} objekt inlästa.",
+      "name": "POI-namn",
+      "add": "Lägg till",
+      "show": "Visa {name}",
+      "saveChanges": "Spara ändringar",
+      "saved": "Sparat",
+      "readOnly": "Skrivskyddat läge: importerade data visas men sparas inte.",
+      "unnamed": "(namnlös)",
+      "confirmDiscard": "Kasta osparade ändringar i {file}?",
+      "createFailed": "Det gick inte att skapa filen: {error}",
+      "saveFailed": "Det gick inte att spara: {error}"
+    },
+    "gpx": {
+      "importHint": "Importera vägpunkter, spår och rutter från en .gpx-fil",
+      "import": "Importera GPX",
+      "downloadAs": "Ladda ned som {format}",
+      "waypoints": "{count} vägpunkt | {count} vägpunkter",
+      "tracks": "{count} spår | {count} spår",
+      "routes": "{count} rutt | {count} rutter",
+      "imported": "Importerade {items}.",
+      "empty": "GPX-filen innehöll inga vägpunkter, spår eller rutter.",
+      "skipped": "Hoppade över {count} ogiltig punkt. | Hoppade över {count} ogiltiga punkter.",
+      "importFailed": "Det gick inte att importera {file}: {error}",
+      "invalid": "Ogiltig GPX-fil",
+      "saveHint": "Klicka på ”{button}” för att behålla det.",
+      "exportedPartial": "Exporterade {exported} objekt; {skipped} polygoner/andra objekt kan inte representeras i GPX.",
+      "notXml": "Filen är inte giltig XML",
+      "notGpx": "Filen är inte ett GPX-dokument",
+      "defaultWaypoint": "Vägpunkt {n}",
+      "defaultTrack": "Spår {n}",
+      "defaultRoute": "Rutt {n}"
+    },
+    "coord": {
+      "copyHint": "{source} – klicka för att kopiera",
+      "cursor": "Markör",
+      "center": "Kartans mitt",
+      "showDecimal": "Visa decimala grader",
+      "showDms": "Visa grader, minuter, sekunder",
+      "copyFailed": "Kopieringen misslyckades",
+      "copyLink": "Kopiera länk"
+    },
+    "note": {
+      "vector": "Vektorplattläge. Lager kan stylas och slås av och på.",
+      "raster": "Rasterplattläge. Plattorna är förrenderade och stilinställningarna är begränsade.",
+      "detecting": "Identifierar plattläge."
+    },
+    "errors": {
+      "notAvailable": "Kartan ”{name}” är inte tillgänglig.",
+      "savingFailed": "Det gick inte att spara",
+      "render": "Det gick inte att rita den valda kartan.",
+      "load": "Det gick inte att läsa in kartdata.",
+      "renderer": "Kartritaren rapporterade ett fel.",
+      "init": "Det gick inte att starta kartan."
+    },
+    "controls": {
+      "zoomIn": "Zooma in",
+      "zoomOut": "Zooma ut",
+      "resetBearing": "Återställ riktningen mot norr",
+      "attribution": "Visa/dölj källhänvisning"
+    },
+    "geo": {
+      "insecure": "Platstjänsten kräver en säker anslutning: öppna Fyr via https:// eller http://localhost. Webbläsare blockerar GPS på vanliga http://-adresser i lokala nätverk; serverns ansvarige kan slå på HTTPS ({setting}).",
+      "unsupported": "Webbläsaren stöder inte platstjänster",
+      "denied": "Åtkomst till platsen nekades. Tillåt plats för den här webbplatsen i webbläsarens inställningar.",
+      "noFix": "Platsen kunde inte fastställas (ingen GPS-position). Gå ut under öppen himmel och försök igen.",
+      "timeout": "Tidsgränsen för att få en position överskreds.",
+      "failed": "Platsen kunde inte fastställas"
     }
   }
 }

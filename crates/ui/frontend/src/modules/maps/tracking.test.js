@@ -11,7 +11,7 @@ import {
   deserializeTrack,
   checkGeolocationSupport,
   geolocationErrorMessage,
-  INSECURE_CONTEXT_MESSAGE
+  insecureContextMessage
 } from './tracking.js'
 
 const T0 = Date.UTC(2026, 6, 1, 8, 0, 0)
@@ -122,7 +122,7 @@ describe('track output', () => {
 
 describe('geolocation support and errors', () => {
   it('flags insecure contexts first', () => {
-    expect(checkGeolocationSupport({ isSecureContext: false, geolocation: {} })).toEqual({ ok: false, message: INSECURE_CONTEXT_MESSAGE })
+    expect(checkGeolocationSupport({ isSecureContext: false, geolocation: {} })).toEqual({ ok: false, message: insecureContextMessage() })
     expect(checkGeolocationSupport({ isSecureContext: true }).ok).toBe(false)
     expect(checkGeolocationSupport({ isSecureContext: true, geolocation: {} }).ok).toBe(true)
     expect(checkGeolocationSupport({ geolocation: {} }).ok).toBe(true)
@@ -133,6 +133,6 @@ describe('geolocation support and errors', () => {
     expect(geolocationErrorMessage({ code: 2 })).toMatch(/no GPS fix/)
     expect(geolocationErrorMessage({ code: 3 })).toMatch(/Timed out/)
     expect(geolocationErrorMessage({})).toBe('Could not determine location')
-    expect(geolocationErrorMessage({ code: 1 }, { isSecureContext: false })).toBe(INSECURE_CONTEXT_MESSAGE)
+    expect(geolocationErrorMessage({ code: 1 }, { isSecureContext: false })).toBe(insecureContextMessage())
   })
 })

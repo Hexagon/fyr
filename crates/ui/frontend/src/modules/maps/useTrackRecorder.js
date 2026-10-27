@@ -3,6 +3,7 @@
 // a crashed mobile tab does not lose it.
 
 import { reactive, shallowRef } from 'vue'
+import { t } from '../../i18n/index.js'
 import {
   createTrack,
   positionToFix,
@@ -113,7 +114,7 @@ export const createTrackRecorder = ({ env } = {}) => {
     onFix?.(fix)
     const { accepted, reason } = addFix(track, fix)
     if (reason === 'inaccurate') {
-      state.warning = `Waiting for a better GPS fix (±${Math.round(fix.accuracy)} m)`
+      state.warning = t('maps.track.waitingFix', { accuracy: Math.round(fix.accuracy) })
     }
     if (accepted) {
       syncStats(track)
@@ -181,7 +182,7 @@ export const createTrackRecorder = ({ env } = {}) => {
       finished.value = track
       persist(true)
     } else {
-      if (wasRecording && !state.error) state.warning = 'Track discarded: fewer than two GPS points were recorded.'
+      if (wasRecording && !state.error) state.warning = t('maps.track.tooShort')
       track = null
       finished.value = null
       storage.clear()

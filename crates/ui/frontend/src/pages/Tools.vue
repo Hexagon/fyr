@@ -3,11 +3,11 @@
     <div class="tools-layout">
       <aside class="tools-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
-          <h3 v-if="!sidebarCollapsed">Tools</h3>
+          <h3 v-if="!sidebarCollapsed">{{ t('nav.tools') }}</h3>
           <button
             class="icon-btn"
-            :aria-label="sidebarCollapsed ? 'Expand tools navigation panel' : 'Collapse tools navigation panel'"
-            :title="sidebarCollapsed ? 'Expand panel' : 'Collapse panel'"
+            :aria-label="sidebarCollapsed ? t('tools.expandNav') : t('tools.collapseNav')"
+            :title="sidebarCollapsed ? t('assistant.expandPanel') : t('assistant.collapsePanel')"
             :aria-expanded="String(!sidebarCollapsed)"
             aria-controls="tools-sidebar-content"
             @click="toggleSidebar"
@@ -20,59 +20,59 @@
           <!-- Converters sidebar -->
           <template v-if="activeTab === 'converters'">
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Length & Speed</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.length_speed') }}</h4>
               <a v-for="cat in converterGroups.length_speed" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Weight & Volume</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.weight_volume') }}</h4>
               <a v-for="cat in converterGroups.weight_volume" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Area & Angle</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.area_angle') }}</h4>
               <a v-for="cat in converterGroups.area_angle" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Temperature</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.temperature') }}</h4>
               <a v-for="cat in converterGroups.temperature" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Digital Storage</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.digital') }}</h4>
               <a v-for="cat in converterGroups.digital" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Energy & Power</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.energy_power') }}</h4>
               <a v-for="cat in converterGroups.energy_power" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Pressure & Time</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.pressure_time') }}</h4>
               <a v-for="cat in converterGroups.pressure_time" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Navigation & Weather</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.groups.nav_weather') }}</h4>
               <a v-for="cat in converterGroups.nav_weather" :key="cat.id" :href="'#' + cat.id" class="sidebar-item"
                 :class="{ active: activeConverter === cat.id }" @click.prevent="scrollToConverter(cat.id)">
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </a>
             </div>
           </template>
@@ -80,10 +80,10 @@
           <!-- Ciphers sidebar -->
           <template v-if="activeTab === 'ciphers'">
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Encryption & Ciphers</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.tabs.ciphers') }}</h4>
               <button v-for="tool in cipherTools" :key="tool.id" class="sidebar-item"
                 :class="{ active: activeCipher === tool.id }" @click="selectCipher(tool.id)">
-                {{ tool.label }}
+                {{ t(tool.labelKey) }}
               </button>
             </div>
           </template>
@@ -91,17 +91,17 @@
           <!-- Text & Numbers sidebar -->
           <template v-if="activeTab === 'text'">
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Text Tools</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.textTools') }}</h4>
               <button v-for="tool in textTools" :key="tool.id" class="sidebar-item"
                 :class="{ active: activeTextTool === tool.id }" @click="activeTextTool = tool.id">
-                {{ tool.label }}
+                {{ t(tool.labelKey) }}
               </button>
             </div>
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Number Tools</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.numberTools') }}</h4>
               <button v-for="tool in numberTools" :key="tool.id" class="sidebar-item"
                 :class="{ active: activeTextTool === tool.id }" @click="activeTextTool = tool.id">
-                {{ tool.label }}
+                {{ t(tool.labelKey) }}
               </button>
             </div>
           </template>
@@ -109,10 +109,10 @@
           <!-- Date & Time sidebar -->
           <template v-if="activeTab === 'datetime'">
             <div class="sidebar-section">
-              <h4 class="sidebar-section-title">Date & Time</h4>
+              <h4 class="sidebar-section-title">{{ t('tools.tabs.datetime') }}</h4>
               <button v-for="tool in datetimeTools" :key="tool.id" class="sidebar-item"
                 :class="{ active: activeDatetimeTool === tool.id }" @click="activeDatetimeTool = tool.id">
-                {{ tool.label }}
+                {{ t(tool.labelKey) }}
               </button>
             </div>
           </template>
@@ -121,22 +121,22 @@
 
       <section class="tools-panel">
         <div class="tools-topbar">
-          <div class="tools-tabs" role="group" aria-label="Tool category tabs">
+          <div class="tools-tabs" role="group" :aria-label="t('tools.tabsLabel')">
             <button type="button" class="tools-tab" :class="{ active: activeTab === 'converters' }"
               :aria-pressed="String(activeTab === 'converters')" @click="activeTab = 'converters'">
-              Converters
+              {{ t('tools.tabs.converters') }}
             </button>
             <button type="button" class="tools-tab" :class="{ active: activeTab === 'text' }"
               :aria-pressed="String(activeTab === 'text')" @click="activeTab = 'text'">
-              Text &amp; Numbers
+              {{ t('tools.tabs.text') }}
             </button>
             <button type="button" class="tools-tab" :class="{ active: activeTab === 'datetime' }"
               :aria-pressed="String(activeTab === 'datetime')" @click="activeTab = 'datetime'">
-              Date &amp; Time
+              {{ t('tools.tabs.datetime') }}
             </button>
             <button type="button" class="tools-tab" :class="{ active: activeTab === 'ciphers' }"
               :aria-pressed="String(activeTab === 'ciphers')" @click="activeTab = 'ciphers'">
-              Encryption &amp; Ciphers
+              {{ t('tools.tabs.ciphers') }}
             </button>
           </div>
         </div>
@@ -144,23 +144,23 @@
         <!-- Unit Converters Panel -->
         <template v-if="activeTab === 'converters'">
           <div class="panel-header">
-            <h2>Unit Converters</h2>
+            <h2>{{ t('tools.unitConverters') }}</h2>
           </div>
 
           <div v-for="group in converterCardGroups" :key="group.key" class="converter-group">
-            <h3 class="group-heading">{{ group.label }}</h3>
+            <h3 class="group-heading">{{ t(group.labelKey) }}</h3>
             <div v-for="cat in group.categories" :key="cat.id" :id="cat.id" class="converter-card">
-              <div class="card-header"><h3>{{ cat.label }}</h3></div>
+              <div class="card-header"><h3>{{ t(cat.labelKey) }}</h3></div>
               <div class="converter-body">
                 <div class="converter-input-row">
                   <input v-model.number="converters[cat.id].value" type="number" step="any"
-                    placeholder="Enter value" class="tool-input" @input="convertCurrent(cat.id)" />
-                  <select v-model="converters[cat.id].from" class="tool-select" @change="convertCurrent(cat.id)">
-                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                    :placeholder="t('tools.enterValue')" :aria-label="t('tools.enterValue')" class="tool-input" @input="convertCurrent(cat.id)" />
+                  <select v-model="converters[cat.id].from" class="tool-select" :aria-label="t('tools.fromUnit')" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ unitLabel(u) }}</option>
                   </select>
                   <span class="arrow">→</span>
-                  <select v-model="converters[cat.id].to" class="tool-select" @change="convertCurrent(cat.id)">
-                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ u }}</option>
+                  <select v-model="converters[cat.id].to" class="tool-select" :aria-label="t('tools.toUnit')" @change="convertCurrent(cat.id)">
+                    <option v-for="u in getUnits(cat.id)" :key="u" :value="u">{{ unitLabel(u) }}</option>
                   </select>
                 </div>
                 <div class="converter-result-row">
@@ -174,40 +174,40 @@
 
           <!-- Coordinate Converter -->
           <div class="converter-group">
-            <h3 class="group-heading">Navigation &amp; Weather</h3>
+            <h3 class="group-heading">{{ t('tools.groups.nav_weather') }}</h3>
 
             <div id="coordinates" class="converter-card">
-              <div class="card-header"><h3>Coordinates (Decimal ↔ DMS)</h3></div>
+              <div class="card-header"><h3>{{ t('tools.converters.coordinates') }}</h3></div>
               <div class="converter-body">
                 <div class="cipher-input-row">
                   <label class="tool-label">
-                    Direction
+                    {{ t('tools.coord.direction') }}
                     <select v-model="coordMode" class="tool-select">
-                      <option value="to_dms">Decimal → DMS</option>
-                      <option value="to_dec">DMS → Decimal</option>
+                      <option value="to_dms">{{ t('tools.coord.toDms') }}</option>
+                      <option value="to_dec">{{ t('tools.coord.toDec') }}</option>
                     </select>
                   </label>
                 </div>
                 <div v-if="coordMode === 'to_dms'" class="cipher-input-row">
                   <label class="tool-label">
-                    Latitude (decimal)
+                    {{ t('tools.coord.latDec') }}
                     <input v-model.number="coordDec.lat" type="number" step="any" min="-90" max="90"
-                      class="tool-input" placeholder="-90 to 90" @input="convertCoordToDms" />
+                      class="tool-input" :placeholder="t('tools.coord.range', { min: -90, max: 90 })" @input="convertCoordToDms" />
                   </label>
                   <label class="tool-label">
-                    Longitude (decimal)
+                    {{ t('tools.coord.lonDec') }}
                     <input v-model.number="coordDec.lon" type="number" step="any" min="-180" max="180"
-                      class="tool-input" placeholder="-180 to 180" @input="convertCoordToDms" />
+                      class="tool-input" :placeholder="t('tools.coord.range', { min: -180, max: 180 })" @input="convertCoordToDms" />
                   </label>
                 </div>
                 <div v-else class="cipher-input-row">
-                  <label class="tool-label">Lat Degrees<input v-model.number="coordDms.latD" type="number" step="1" class="tool-input" @input="convertCoordToDecimal" /></label>
-                  <label class="tool-label">Lat Minutes<input v-model.number="coordDms.latM" type="number" step="1" min="0" max="59" class="tool-input" @input="convertCoordToDecimal" /></label>
-                  <label class="tool-label">Lat Seconds<input v-model.number="coordDms.latS" type="number" step="any" min="0" max="59.999" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.latD') }}<input v-model.number="coordDms.latD" type="number" step="1" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.latM') }}<input v-model.number="coordDms.latM" type="number" step="1" min="0" max="59" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.latS') }}<input v-model.number="coordDms.latS" type="number" step="any" min="0" max="59.999" class="tool-input" @input="convertCoordToDecimal" /></label>
                   <label class="tool-label">N/S<select v-model="coordDms.latDir" class="tool-select" @change="convertCoordToDecimal"><option>N</option><option>S</option></select></label>
-                  <label class="tool-label">Lon Degrees<input v-model.number="coordDms.lonD" type="number" step="1" class="tool-input" @input="convertCoordToDecimal" /></label>
-                  <label class="tool-label">Lon Minutes<input v-model.number="coordDms.lonM" type="number" step="1" min="0" max="59" class="tool-input" @input="convertCoordToDecimal" /></label>
-                  <label class="tool-label">Lon Seconds<input v-model.number="coordDms.lonS" type="number" step="any" min="0" max="59.999" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.lonD') }}<input v-model.number="coordDms.lonD" type="number" step="1" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.lonM') }}<input v-model.number="coordDms.lonM" type="number" step="1" min="0" max="59" class="tool-input" @input="convertCoordToDecimal" /></label>
+                  <label class="tool-label">{{ t('tools.coord.lonS') }}<input v-model.number="coordDms.lonS" type="number" step="any" min="0" max="59.999" class="tool-input" @input="convertCoordToDecimal" /></label>
                   <label class="tool-label">E/W<select v-model="coordDms.lonDir" class="tool-select" @change="convertCoordToDecimal"><option>E</option><option>W</option></select></label>
                 </div>
                 <div class="converter-result-row">
@@ -220,20 +220,20 @@
 
             <!-- Wind Chill -->
             <div id="windchill" class="converter-card">
-              <div class="card-header"><h3>Wind Chill</h3></div>
+              <div class="card-header"><h3>{{ t('tools.converters.windchill') }}</h3></div>
               <div class="converter-body">
-                <div class="cipher-info">Apparent temperature when wind makes it feel colder. Valid for air temp ≤ 10°C (50°F) and wind speed ≥ 4.8 km/h (3 mph).</div>
+                <div class="cipher-info">{{ t('tools.windchill.info') }}</div>
                 <div class="cipher-input-row">
                   <label class="tool-label">
-                    Temperature
-                    <input v-model.number="windChill.temp" type="number" step="any" class="tool-input" placeholder="e.g. 0" @input="calcWindChill" />
+                    {{ t('tools.temperature') }}
+                    <input v-model.number="windChill.temp" type="number" step="any" class="tool-input" :placeholder="t('tools.example', { value: 0 })" @input="calcWindChill" />
                   </label>
                   <label class="tool-label">
-                    Wind Speed
-                    <input v-model.number="windChill.wind" type="number" step="any" min="0" class="tool-input" placeholder="e.g. 20" @input="calcWindChill" />
+                    {{ t('tools.windchill.wind') }}
+                    <input v-model.number="windChill.wind" type="number" step="any" min="0" class="tool-input" :placeholder="t('tools.example', { value: 20 })" @input="calcWindChill" />
                   </label>
                   <label class="tool-label">
-                    Units
+                    {{ t('tools.units.label') }}
                     <select v-model="windChill.units" class="tool-select" @change="calcWindChill">
                       <option value="metric">°C / km/h</option>
                       <option value="imperial">°F / mph</option>
@@ -242,7 +242,7 @@
                 </div>
                 <div class="converter-result-row">
                   <div class="tool-result" v-if="windChill.result !== null">
-                    <span class="result-label">Feels like:</span>
+                    <span class="result-label">{{ t('tools.feelsLike') }}</span>
                     <span class="result-value">{{ windChill.result }} {{ windChill.units === 'metric' ? '°C' : '°F' }}</span>
                   </div>
                   <p v-if="windChill.error" class="cipher-error">{{ windChill.error }}</p>
@@ -252,20 +252,20 @@
 
             <!-- Heat Index -->
             <div id="heatindex" class="converter-card">
-              <div class="card-header"><h3>Heat Index</h3></div>
+              <div class="card-header"><h3>{{ t('tools.converters.heatindex') }}</h3></div>
               <div class="converter-body">
-                <div class="cipher-info">Apparent temperature combining air temperature and relative humidity. Valid for temperatures ≥ 27°C (80°F) and humidity ≥ 40%.</div>
+                <div class="cipher-info">{{ t('tools.heatindex.info') }}</div>
                 <div class="cipher-input-row">
                   <label class="tool-label">
-                    Temperature
-                    <input v-model.number="heatIndex.temp" type="number" step="any" class="tool-input" placeholder="e.g. 35" @input="calcHeatIndex" />
+                    {{ t('tools.temperature') }}
+                    <input v-model.number="heatIndex.temp" type="number" step="any" class="tool-input" :placeholder="t('tools.example', { value: 35 })" @input="calcHeatIndex" />
                   </label>
                   <label class="tool-label">
-                    Humidity (%)
-                    <input v-model.number="heatIndex.humidity" type="number" step="any" min="0" max="100" class="tool-input" placeholder="e.g. 70" @input="calcHeatIndex" />
+                    {{ t('tools.heatindex.humidity') }}
+                    <input v-model.number="heatIndex.humidity" type="number" step="any" min="0" max="100" class="tool-input" :placeholder="t('tools.example', { value: 70 })" @input="calcHeatIndex" />
                   </label>
                   <label class="tool-label">
-                    Units
+                    {{ t('tools.units.label') }}
                     <select v-model="heatIndex.units" class="tool-select" @change="calcHeatIndex">
                       <option value="metric">°C</option>
                       <option value="imperial">°F</option>
@@ -274,7 +274,7 @@
                 </div>
                 <div class="converter-result-row">
                   <div class="tool-result" v-if="heatIndex.result !== null">
-                    <span class="result-label">Feels like:</span>
+                    <span class="result-label">{{ t('tools.feelsLike') }}</span>
                     <span class="result-value">{{ heatIndex.result }} {{ heatIndex.units === 'metric' ? '°C' : '°F' }}</span>
                   </div>
                   <p v-if="heatIndex.error" class="cipher-error">{{ heatIndex.error }}</p>
@@ -288,50 +288,50 @@
         <!-- Text & Numbers Panel -->
         <template v-if="activeTab === 'text'">
           <div class="panel-header">
-            <h2>Text &amp; Number Tools</h2>
+            <h2>{{ t('tools.textNumberTools') }}</h2>
           </div>
 
           <!-- Word / Character Counter -->
           <div v-if="activeTextTool === 'wordcount'" class="cipher-card text-card">
-            <div class="card-header"><h3>Word &amp; Character Counter</h3></div>
+            <div class="card-header"><h3>{{ t('tools.text.wordcount') }}</h3></div>
             <div class="cipher-body">
               <label class="tool-label tool-label-wide">
-                Text
+                {{ t('tools.wordcount.text') }}
                 <textarea v-model="textTools_state.wordcount.text" class="tool-textarea" rows="6"
-                  placeholder="Paste or type your text here…" @input="calcWordCount"></textarea>
+                  :placeholder="t('tools.wordcount.placeholder')" @input="calcWordCount"></textarea>
               </label>
               <div class="stat-grid">
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.chars }}</span><span class="stat-lbl">Characters</span></div>
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.charsNoSpace }}</span><span class="stat-lbl">Chars (no spaces)</span></div>
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.words }}</span><span class="stat-lbl">Words</span></div>
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.lines }}</span><span class="stat-lbl">Lines</span></div>
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.sentences }}</span><span class="stat-lbl">Sentences</span></div>
-                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.paragraphs }}</span><span class="stat-lbl">Paragraphs</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.chars }}</span><span class="stat-lbl">{{ t('tools.wordcount.chars') }}</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.charsNoSpace }}</span><span class="stat-lbl">{{ t('tools.wordcount.charsNoSpace') }}</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.words }}</span><span class="stat-lbl">{{ t('tools.wordcount.words') }}</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.lines }}</span><span class="stat-lbl">{{ t('tools.wordcount.lines') }}</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.sentences }}</span><span class="stat-lbl">{{ t('tools.wordcount.sentences') }}</span></div>
+                <div class="stat-cell"><span class="stat-num">{{ textTools_state.wordcount.paragraphs }}</span><span class="stat-lbl">{{ t('tools.wordcount.paragraphs') }}</span></div>
               </div>
             </div>
           </div>
 
           <!-- Case Converter -->
           <div v-if="activeTextTool === 'caseconv'" class="cipher-card text-card">
-            <div class="card-header"><h3>Case Converter</h3></div>
+            <div class="card-header"><h3>{{ t('tools.text.caseconv') }}</h3></div>
             <div class="cipher-body">
               <label class="tool-label tool-label-wide">
-                Input
+                {{ t('tools.input') }}
                 <textarea v-model="textTools_state.caseconv.text" class="tool-textarea" rows="4"
-                  placeholder="Enter text to convert…"></textarea>
+                  :placeholder="t('tools.caseconv.placeholder')"></textarea>
               </label>
               <div class="cipher-input-row">
                 <button class="btn btn-secondary" @click="applyCase('upper')">UPPERCASE</button>
                 <button class="btn btn-secondary" @click="applyCase('lower')">lowercase</button>
-                <button class="btn btn-secondary" @click="applyCase('title')">Title Case</button>
-                <button class="btn btn-secondary" @click="applyCase('sentence')">Sentence case</button>
+                <button class="btn btn-secondary" @click="applyCase('title')">{{ t('tools.caseconv.title') }}</button>
+                <button class="btn btn-secondary" @click="applyCase('sentence')">{{ t('tools.caseconv.sentence') }}</button>
                 <button class="btn btn-secondary" @click="applyCase('camel')">camelCase</button>
                 <button class="btn btn-secondary" @click="applyCase('snake')">snake_case</button>
                 <button class="btn btn-secondary" @click="applyCase('kebab')">kebab-case</button>
               </div>
               <div class="cipher-result-row" v-if="textTools_state.caseconv.result !== null">
                 <div class="tool-result">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <span class="result-code">{{ textTools_state.caseconv.result }}</span>
                 </div>
               </div>
@@ -340,26 +340,26 @@
 
           <!-- URL Encode / Decode -->
           <div v-if="activeTextTool === 'urlencode'" class="cipher-card text-card">
-            <div class="card-header"><h3>URL Encode / Decode</h3></div>
+            <div class="card-header"><h3>{{ t('tools.text.urlencode') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Mode
+                  {{ t('tools.mode') }}
                   <select v-model="textTools_state.urlencode.mode" class="tool-select">
-                    <option value="encode">Encode</option>
-                    <option value="decode">Decode</option>
+                    <option value="encode">{{ t('tools.encode') }}</option>
+                    <option value="decode">{{ t('tools.decode') }}</option>
                   </select>
                 </label>
                 <label class="tool-label tool-label-wide">
-                  {{ textTools_state.urlencode.mode === 'encode' ? 'Plain URL / text' : 'Encoded string' }}
+                  {{ textTools_state.urlencode.mode === 'encode' ? t('tools.urlencode.plain') : t('tools.urlencode.encoded') }}
                   <textarea v-model="textTools_state.urlencode.text" class="tool-textarea" rows="3"
-                    :placeholder="textTools_state.urlencode.mode === 'encode' ? 'https://example.com/path?q=hello world' : 'Enter encoded string'"
+                    :placeholder="textTools_state.urlencode.mode === 'encode' ? 'https://example.com/path?q=hello world' : t('tools.urlencode.encodedPlaceholder')"
                     @input="handleUrlEncode"></textarea>
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="textTools_state.urlencode.result !== null">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <code class="result-code">{{ textTools_state.urlencode.result }}</code>
                 </div>
                 <p v-if="textTools_state.urlencode.error" class="cipher-error">{{ textTools_state.urlencode.error }}</p>
@@ -369,31 +369,31 @@
 
           <!-- Number Base Converter -->
           <div v-if="activeTextTool === 'baseconv'" class="cipher-card text-card">
-            <div class="card-header"><h3>Number Base Converter</h3></div>
+            <div class="card-header"><h3>{{ t('tools.text.baseconv') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Input value
+                  {{ t('tools.baseconv.input') }}
                   <input v-model="textTools_state.baseconv.value" type="text" class="tool-input"
-                    placeholder="Enter number" @input="handleBaseConv" />
+                    :placeholder="t('tools.baseconv.placeholder')" @input="handleBaseConv" />
                 </label>
                 <label class="tool-label">
-                  From base
+                  {{ t('tools.baseconv.from') }}
                   <select v-model="textTools_state.baseconv.from" class="tool-select" @change="handleBaseConv">
-                    <option value="2">Binary (2)</option>
-                    <option value="8">Octal (8)</option>
-                    <option value="10">Decimal (10)</option>
-                    <option value="16">Hexadecimal (16)</option>
+                    <option value="2">{{ t('tools.baseconv.binary') }} (2)</option>
+                    <option value="8">{{ t('tools.baseconv.octal') }} (8)</option>
+                    <option value="10">{{ t('tools.baseconv.decimal') }} (10)</option>
+                    <option value="16">{{ t('tools.baseconv.hexadecimal') }} (16)</option>
                   </select>
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="textTools_state.baseconv.results !== null">
                   <div class="base-results">
-                    <div class="base-row"><span class="base-lbl">Binary</span><code class="result-code">{{ textTools_state.baseconv.results.bin }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Octal</span><code class="result-code">{{ textTools_state.baseconv.results.oct }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Decimal</span><code class="result-code">{{ textTools_state.baseconv.results.dec }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Hex</span><code class="result-code">{{ textTools_state.baseconv.results.hex }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.binary') }}</span><code class="result-code">{{ textTools_state.baseconv.results.bin }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.octal') }}</span><code class="result-code">{{ textTools_state.baseconv.results.oct }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.decimal') }}</span><code class="result-code">{{ textTools_state.baseconv.results.dec }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.hex') }}</span><code class="result-code">{{ textTools_state.baseconv.results.hex }}</code></div>
                   </div>
                 </div>
                 <p v-if="textTools_state.baseconv.error" class="cipher-error">{{ textTools_state.baseconv.error }}</p>
@@ -403,23 +403,23 @@
 
           <!-- ASCII Table -->
           <div v-if="activeTextTool === 'ascii'" class="cipher-card text-card">
-            <div class="card-header"><h3>ASCII / Unicode Lookup</h3></div>
+            <div class="card-header"><h3>{{ t('tools.text.ascii') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Character or decimal code
+                  {{ t('tools.ascii.input') }}
                   <input v-model="textTools_state.ascii.value" type="text" class="tool-input"
-                    placeholder="e.g. A or 65" @input="handleAsciiLookup" />
+                    :placeholder="t('tools.ascii.placeholder')" @input="handleAsciiLookup" />
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="textTools_state.ascii.result !== null">
                   <div class="base-results">
-                    <div class="base-row"><span class="base-lbl">Character</span><code class="result-code">{{ textTools_state.ascii.result.char }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Decimal</span><code class="result-code">{{ textTools_state.ascii.result.dec }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Hex</span><code class="result-code">{{ textTools_state.ascii.result.hex }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Binary</span><code class="result-code">{{ textTools_state.ascii.result.bin }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Octal</span><code class="result-code">{{ textTools_state.ascii.result.oct }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.ascii.character') }}</span><code class="result-code">{{ textTools_state.ascii.result.char }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.decimal') }}</span><code class="result-code">{{ textTools_state.ascii.result.dec }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.hex') }}</span><code class="result-code">{{ textTools_state.ascii.result.hex }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.binary') }}</span><code class="result-code">{{ textTools_state.ascii.result.bin }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.baseconv.octal') }}</span><code class="result-code">{{ textTools_state.ascii.result.oct }}</code></div>
                   </div>
                 </div>
                 <p v-if="textTools_state.ascii.error" class="cipher-error">{{ textTools_state.ascii.error }}</p>
@@ -431,41 +431,41 @@
         <!-- Date & Time Panel -->
         <template v-if="activeTab === 'datetime'">
           <div class="panel-header">
-            <h2>Date &amp; Time Tools</h2>
+            <h2>{{ t('tools.datetimeTools') }}</h2>
           </div>
 
           <!-- Unix Timestamp -->
           <div v-if="activeDatetimeTool === 'unix'" class="cipher-card">
-            <div class="card-header"><h3>Unix Timestamp Converter</h3></div>
+            <div class="card-header"><h3>{{ t('tools.unix.title') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
-                <button class="btn btn-secondary" @click="setNowTimestamp">Now</button>
+                <button class="btn btn-secondary" @click="setNowTimestamp">{{ t('tools.unix.now') }}</button>
               </div>
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Unix timestamp (seconds)
+                  {{ t('tools.unix.seconds') }}
                   <input v-model="dt.unix.ts" type="number" step="1" class="tool-input"
-                    placeholder="e.g. 1700000000" @input="unixToHuman" />
+                    :placeholder="t('tools.example', { value: '1700000000' })" @input="unixToHuman" />
                 </label>
               </div>
               <div class="cipher-result-row" v-if="dt.unix.human">
                 <div class="tool-result">
                   <div class="base-results">
                     <div class="base-row"><span class="base-lbl">UTC</span><code class="result-code">{{ dt.unix.human.utc }}</code></div>
-                    <div class="base-row"><span class="base-lbl">Local</span><code class="result-code">{{ dt.unix.human.local }}</code></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.unix.local') }}</span><code class="result-code">{{ dt.unix.human.local }}</code></div>
                     <div class="base-row"><span class="base-lbl">ISO 8601</span><code class="result-code">{{ dt.unix.human.iso }}</code></div>
                   </div>
                 </div>
               </div>
               <div class="cipher-input-row" style="margin-top: 0.5rem;">
                 <label class="tool-label tool-label-wide">
-                  Date/time string (local)
+                  {{ t('tools.unix.datestr') }}
                   <input v-model="dt.unix.datestr" type="datetime-local" class="tool-input" style="width:auto" @input="humanToUnix" />
                 </label>
               </div>
               <div class="cipher-result-row" v-if="dt.unix.tsOut !== null">
                 <div class="tool-result">
-                  <span class="result-label">Unix timestamp:</span>
+                  <span class="result-label">{{ t('tools.unix.result') }}</span>
                   <span class="result-value">{{ dt.unix.tsOut }}</span>
                 </div>
               </div>
@@ -474,26 +474,26 @@
 
           <!-- Duration Calculator -->
           <div v-if="activeDatetimeTool === 'duration'" class="cipher-card">
-            <div class="card-header"><h3>Duration Calculator</h3></div>
+            <div class="card-header"><h3>{{ t('tools.datetime.duration') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Start date/time
+                  {{ t('tools.duration.start') }}
                   <input v-model="dt.duration.start" type="datetime-local" class="tool-input" style="width:auto" @input="calcDuration" />
                 </label>
                 <label class="tool-label">
-                  End date/time
+                  {{ t('tools.duration.end') }}
                   <input v-model="dt.duration.end" type="datetime-local" class="tool-input" style="width:auto" @input="calcDuration" />
                 </label>
               </div>
               <div class="cipher-result-row" v-if="dt.duration.result">
                 <div class="tool-result">
                   <div class="base-results">
-                    <div class="base-row"><span class="base-lbl">Days</span><span class="result-value">{{ dt.duration.result.days }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Hours</span><span class="result-value">{{ dt.duration.result.hours }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Minutes</span><span class="result-value">{{ dt.duration.result.minutes }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Seconds</span><span class="result-value">{{ dt.duration.result.seconds }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Human</span><span class="result-value">{{ dt.duration.result.human }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.duration.days') }}</span><span class="result-value">{{ dt.duration.result.days }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.duration.hours') }}</span><span class="result-value">{{ dt.duration.result.hours }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.duration.minutes') }}</span><span class="result-value">{{ dt.duration.result.minutes }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.duration.seconds') }}</span><span class="result-value">{{ dt.duration.result.seconds }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.duration.human') }}</span><span class="result-value">{{ dt.duration.result.human }}</span></div>
                   </div>
                 </div>
               </div>
@@ -502,23 +502,23 @@
 
           <!-- Day of Year / Week -->
           <div v-if="activeDatetimeTool === 'dayofyear'" class="cipher-card">
-            <div class="card-header"><h3>Day of Year / Week Number</h3></div>
+            <div class="card-header"><h3>{{ t('tools.dayofyear.title') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Date
+                  {{ t('tools.dayofyear.date') }}
                   <input v-model="dt.dayofyear.date" type="date" class="tool-input" style="width:auto" @input="calcDayOfYear" />
                 </label>
-                <button class="btn btn-secondary" @click="setTodayDayOfYear">Today</button>
+                <button class="btn btn-secondary" @click="setTodayDayOfYear">{{ t('time.today') }}</button>
               </div>
               <div class="cipher-result-row" v-if="dt.dayofyear.result">
                 <div class="tool-result">
                   <div class="base-results">
-                    <div class="base-row"><span class="base-lbl">Day of year</span><span class="result-value">{{ dt.dayofyear.result.doy }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Week number (ISO)</span><span class="result-value">{{ dt.dayofyear.result.week }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Day of week</span><span class="result-value">{{ dt.dayofyear.result.dow }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Days left in year</span><span class="result-value">{{ dt.dayofyear.result.daysLeft }}</span></div>
-                    <div class="base-row"><span class="base-lbl">Leap year</span><span class="result-value">{{ dt.dayofyear.result.leap ? 'Yes' : 'No' }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.dayofyear.doy') }}</span><span class="result-value">{{ dt.dayofyear.result.doy }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.dayofyear.week') }}</span><span class="result-value">{{ dt.dayofyear.result.week }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.dayofyear.dow') }}</span><span class="result-value">{{ dt.dayofyear.result.dow }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.dayofyear.daysLeft') }}</span><span class="result-value">{{ dt.dayofyear.result.daysLeft }}</span></div>
+                    <div class="base-row"><span class="base-lbl">{{ t('tools.dayofyear.leap') }}</span><span class="result-value">{{ dt.dayofyear.result.leap ? t('common.yes') : t('common.no') }}</span></div>
                   </div>
                 </div>
               </div>
@@ -540,21 +540,21 @@
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Mode
+                  {{ t('tools.mode') }}
                   <select v-model="ciphers.aes.mode" class="tool-select">
-                    <option value="encrypt">Encrypt</option>
-                    <option value="decrypt">Decrypt</option>
+                    <option value="encrypt">{{ t('tools.aes.encrypt') }}</option>
+                    <option value="decrypt">{{ t('tools.aes.decrypt') }}</option>
                   </select>
                 </label>
                 <label class="tool-label">
-                  Key Source
+                  {{ t('tools.aes.keySource') }}
                   <select v-model="ciphers.aes.key_type" class="tool-select">
-                    <option value="password">Password (PBKDF2)</option>
-                    <option value="raw">Raw Key (hex)</option>
+                    <option value="password">{{ t('tools.aes.password') }} (PBKDF2)</option>
+                    <option value="raw">{{ t('tools.aes.rawKey') }}</option>
                   </select>
                 </label>
                 <label class="tool-label">
-                  Bits
+                  {{ t('tools.aes.bits') }}
                   <select v-model="ciphers.aes.bits" class="tool-select">
                     <option value="128">128</option>
                     <option value="192">192</option>
@@ -562,7 +562,7 @@
                   </select>
                 </label>
                 <label class="tool-label">
-                  Cipher Mode
+                  {{ t('tools.aes.cipherMode') }}
                   <select v-model="ciphers.aes.cipher_mode" class="tool-select">
                     <option value="gcm">GCM</option>
                     <option value="cbc">CBC</option>
@@ -572,36 +572,37 @@
               </div>
 
               <div class="cipher-info" v-if="ciphers.aes.key_type === 'password'">
-                Key derivation: <strong>PBKDF2-HMAC-SHA256, 100,000 iterations</strong>.
-                Salt is prepended to the output.
+                <i18n-t keypath="tools.aes.kdfInfo" scope="global">
+                  <template #kdf><strong>{{ t('tools.aes.kdf', { n: n(100000) }) }}</strong></template>
+                </i18n-t>
               </div>
               <div class="cipher-info cipher-warning" v-if="ciphers.aes.cipher_mode === 'ecb'">
-                ⚠ ECB is not authenticated and reveals plaintext patterns. Use CBC or GCM for sensitive data.
+                ⚠ {{ t('tools.aes.ecbWarning') }}
               </div>
               <div class="cipher-info cipher-warning" v-if="ciphers.aes.cipher_mode === 'gcm' && ciphers.aes.bits !== '256'">
-                ⚠ GCM mode only supports 256-bit keys.
+                ⚠ {{ t('tools.aes.gcmWarning') }}
               </div>
 
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  {{ ciphers.aes.key_type === 'password' ? 'Password' : 'Key (hex)' }}
+                  {{ ciphers.aes.key_type === 'password' ? t('tools.aes.password') : t('tools.aes.keyHex') }}
                   <input v-model="ciphers.aes.key_source" type="text" class="tool-input"
-                    :placeholder="ciphers.aes.key_type === 'password' ? 'Enter password' : 'Enter hex key'" />
+                    :placeholder="ciphers.aes.key_type === 'password' ? t('tools.aes.passwordPlaceholder') : t('tools.aes.keyPlaceholder')" />
                 </label>
                 <label class="tool-label tool-label-wide">
-                  {{ ciphers.aes.mode === 'encrypt' ? 'Plaintext' : 'Ciphertext (hex)' }}
+                  {{ ciphers.aes.mode === 'encrypt' ? t('tools.plaintext') : t('tools.aes.ciphertext') }}
                   <textarea v-model="ciphers.aes.text" class="tool-textarea" rows="4"
-                    :placeholder="ciphers.aes.mode === 'encrypt' ? 'Text to encrypt' : 'Hex string to decrypt'"></textarea>
+                    :placeholder="ciphers.aes.mode === 'encrypt' ? t('tools.aes.encryptPlaceholder') : t('tools.aes.decryptPlaceholder')"></textarea>
                 </label>
                 <div class="cipher-actions">
                   <button class="btn btn-primary" @click="handleAes" :disabled="cipherWorking">
-                    {{ ciphers.aes.mode === 'encrypt' ? 'Encrypt' : 'Decrypt' }}
+                    {{ ciphers.aes.mode === 'encrypt' ? t('tools.aes.encrypt') : t('tools.aes.decrypt') }}
                   </button>
                 </div>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="ciphers.aes.result !== null">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <code class="result-code">{{ ciphers.aes.result }}</code>
                 </div>
                 <p v-if="ciphers.aes.error" class="cipher-error">{{ ciphers.aes.error }}</p>
@@ -615,22 +616,22 @@
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Mode
+                  {{ t('tools.mode') }}
                   <select v-model="ciphers.base64.mode" class="tool-select">
-                    <option value="encode">Encode</option>
-                    <option value="decode">Decode</option>
+                    <option value="encode">{{ t('tools.encode') }}</option>
+                    <option value="decode">{{ t('tools.decode') }}</option>
                   </select>
                 </label>
                 <label class="tool-label tool-label-wide">
-                  {{ ciphers.base64.mode === 'encode' ? 'Plaintext' : 'Base64 string' }}
+                  {{ ciphers.base64.mode === 'encode' ? t('tools.plaintext') : t('tools.base64.string') }}
                   <textarea v-model="ciphers.base64.text" class="tool-textarea" rows="4"
-                    :placeholder="ciphers.base64.mode === 'encode' ? 'Text to encode' : 'Base64 string to decode'"
+                    :placeholder="ciphers.base64.mode === 'encode' ? t('tools.base64.encodePlaceholder') : t('tools.base64.decodePlaceholder')"
                     @input="handleBase64"></textarea>
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="ciphers.base64.result !== null">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <code class="result-code">{{ ciphers.base64.result }}</code>
                 </div>
                 <p v-if="ciphers.base64.error" class="cipher-error">{{ ciphers.base64.error }}</p>
@@ -644,14 +645,14 @@
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label tool-label-wide">
-                  Input
+                  {{ t('tools.input') }}
                   <textarea v-model="ciphers.rot13.text" class="tool-textarea" rows="4"
-                    placeholder="Text to apply ROT13" @input="handleRot13"></textarea>
+                    :placeholder="t('tools.rot13.placeholder')" @input="handleRot13"></textarea>
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="ciphers.rot13.result !== null">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <code class="result-code">{{ ciphers.rot13.result }}</code>
                 </div>
               </div>
@@ -660,18 +661,18 @@
 
           <!-- Morse Code -->
           <div v-if="activeCipher === 'morse'" class="cipher-card">
-            <div class="card-header"><h3>Morse Code</h3></div>
+            <div class="card-header"><h3>{{ t('tools.ciphers.morse') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Mode
+                  {{ t('tools.mode') }}
                   <select v-model="ciphers.morse.mode" class="tool-select">
-                    <option value="encode">Text → Morse</option>
-                    <option value="decode">Morse → Text</option>
+                    <option value="encode">{{ t('tools.morse.toMorse') }}</option>
+                    <option value="decode">{{ t('tools.morse.toText') }}</option>
                   </select>
                 </label>
                 <label class="tool-label tool-label-wide">
-                  {{ ciphers.morse.mode === 'encode' ? 'Text (letters, digits)' : 'Morse code (dots and dashes, space between chars, / between words)' }}
+                  {{ ciphers.morse.mode === 'encode' ? t('tools.morse.textLabel') : t('tools.morse.codeLabel') }}
                   <textarea v-model="ciphers.morse.text" class="tool-textarea" rows="4"
                     :placeholder="ciphers.morse.mode === 'encode' ? 'HELLO WORLD' : '.... . .-.. .-.. --- / .-- --- .-. .-.. -..'"
                     @input="handleMorse"></textarea>
@@ -679,7 +680,7 @@
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="ciphers.morse.result !== null">
-                  <span class="result-label">Result:</span>
+                  <span class="result-label">{{ t('tools.result') }}</span>
                   <code class="result-code">{{ ciphers.morse.result }}</code>
                 </div>
                 <p v-if="ciphers.morse.error" class="cipher-error">{{ ciphers.morse.error }}</p>
@@ -689,11 +690,11 @@
 
           <!-- Hash / Checksum -->
           <div v-if="activeCipher === 'hash'" class="cipher-card">
-            <div class="card-header"><h3>Hash / Checksum</h3></div>
+            <div class="card-header"><h3>{{ t('tools.ciphers.hash') }}</h3></div>
             <div class="cipher-body">
               <div class="cipher-input-row">
                 <label class="tool-label">
-                  Algorithm
+                  {{ t('tools.hash.algorithm') }}
                   <select v-model="ciphers.hash.algo" class="tool-select" @change="handleHash">
                     <option value="sha256">SHA-256</option>
                     <option value="sha512">SHA-512</option>
@@ -702,14 +703,14 @@
                   </select>
                 </label>
                 <label class="tool-label tool-label-wide">
-                  Input
+                  {{ t('tools.input') }}
                   <textarea v-model="ciphers.hash.text" class="tool-textarea" rows="4"
-                    placeholder="Text to hash" @input="handleHash"></textarea>
+                    :placeholder="t('tools.hash.placeholder')" @input="handleHash"></textarea>
                 </label>
               </div>
               <div class="cipher-result-row">
                 <div class="tool-result" v-if="ciphers.hash.result !== null">
-                  <span class="result-label">Hash:</span>
+                  <span class="result-label">{{ t('tools.hash.result') }}</span>
                   <code class="result-code">{{ ciphers.hash.result }}</code>
                 </div>
               </div>
@@ -723,8 +724,12 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiService } from '../services/api.js'
 
+const { t, n, locale } = useI18n()
+// Some calculators use a local `t` for temperature.
+const tr = t
 const sidebarCollapsed = ref(false)
 const activeTab = ref('converters')
 const activeConverter = ref('length')
@@ -733,78 +738,71 @@ const activeTextTool = ref('wordcount')
 const activeDatetimeTool = ref('unix')
 const cipherWorking = ref(false)
 
-const groupLabels = {
-  length_speed: 'Length & Speed',
-  weight_volume: 'Weight & Volume',
-  area_angle: 'Area & Angle',
-  temperature: 'Temperature',
-  digital: 'Digital Storage',
-  energy_power: 'Energy & Power',
-  pressure_time: 'Pressure & Time'
-}
+// Converter groups and tools carry message keys; templates translate them.
+const groupLabelKey = (groupKey) => `tools.groups.${groupKey}`
 
 const converterGroups = {
   length_speed: [
-    { id: 'length', label: 'Length' },
-    { id: 'speed', label: 'Speed' }
+    { id: 'length', labelKey: 'tools.converters.length' },
+    { id: 'speed', labelKey: 'tools.converters.speed' }
   ],
   weight_volume: [
-    { id: 'mass', label: 'Mass' },
-    { id: 'volume', label: 'Volume' }
+    { id: 'mass', labelKey: 'tools.converters.mass' },
+    { id: 'volume', labelKey: 'tools.converters.volume' }
   ],
   area_angle: [
-    { id: 'area', label: 'Area' },
-    { id: 'angle', label: 'Angle' }
+    { id: 'area', labelKey: 'tools.converters.area' },
+    { id: 'angle', labelKey: 'tools.converters.angle' }
   ],
   temperature: [
-    { id: 'temperature', label: 'Temperature' }
+    { id: 'temperature', labelKey: 'tools.temperature' }
   ],
   digital: [
-    { id: 'data', label: 'Data' }
+    { id: 'data', labelKey: 'tools.converters.data' }
   ],
   energy_power: [
-    { id: 'energy', label: 'Energy' },
-    { id: 'power', label: 'Power' }
+    { id: 'energy', labelKey: 'tools.converters.energy' },
+    { id: 'power', labelKey: 'tools.converters.power' }
   ],
   pressure_time: [
-    { id: 'pressure', label: 'Pressure' },
-    { id: 'time', label: 'Time' }
+    { id: 'pressure', labelKey: 'tools.converters.pressure' },
+    { id: 'time', labelKey: 'tools.converters.time' }
   ],
   nav_weather: [
-    { id: 'coordinates', label: 'Coordinates (Decimal ↔ DMS)' },
-    { id: 'windchill', label: 'Wind Chill' },
-    { id: 'heatindex', label: 'Heat Index' }
+    { id: 'coordinates', labelKey: 'tools.converters.coordinates' },
+    { id: 'windchill', labelKey: 'tools.converters.windchill' },
+    { id: 'heatindex', labelKey: 'tools.converters.heatindex' }
   ]
 }
 
 const cipherTools = [
-  { id: 'aes', label: 'AES Encryption' },
-  { id: 'base64', label: 'Base64' },
-  { id: 'rot13', label: 'ROT13' },
-  { id: 'morse', label: 'Morse Code' },
-  { id: 'hash', label: 'Hash / Checksum' }
+  { id: 'aes', labelKey: 'tools.ciphers.aes' },
+  { id: 'base64', labelKey: 'tools.ciphers.base64' },
+  { id: 'rot13', labelKey: 'tools.ciphers.rot13' },
+  { id: 'morse', labelKey: 'tools.ciphers.morse' },
+  { id: 'hash', labelKey: 'tools.ciphers.hash' }
 ]
 
 const textTools = [
-  { id: 'wordcount', label: 'Word & Character Counter' },
-  { id: 'caseconv', label: 'Case Converter' },
-  { id: 'urlencode', label: 'URL Encode / Decode' },
-  { id: 'ascii', label: 'ASCII / Unicode Lookup' }
+  { id: 'wordcount', labelKey: 'tools.text.wordcount' },
+  { id: 'caseconv', labelKey: 'tools.text.caseconv' },
+  { id: 'urlencode', labelKey: 'tools.text.urlencode' },
+  { id: 'ascii', labelKey: 'tools.text.ascii' }
 ]
 
 const numberTools = [
-  { id: 'baseconv', label: 'Number Base Converter' }
+  { id: 'baseconv', labelKey: 'tools.text.baseconv' }
 ]
 
 const datetimeTools = [
-  { id: 'unix', label: 'Unix Timestamp' },
-  { id: 'duration', label: 'Duration Calculator' },
-  { id: 'dayofyear', label: 'Day of Year / Week' }
+  { id: 'unix', labelKey: 'tools.datetime.unix' },
+  { id: 'duration', labelKey: 'tools.datetime.duration' },
+  { id: 'dayofyear', labelKey: 'tools.datetime.dayofyear' }
 ]
 
 const currentCipherLabel = computed(() => {
   const tool = cipherTools.find(t => t.id === activeCipher.value)
-  return tool ? tool.label : 'Cipher'
+  return tool ? t(tool.labelKey) : t('tools.cipher')
 })
 
 const toggleSidebar = () => {
@@ -845,6 +843,12 @@ function getUnits(catId) {
   return unitSets[catId] || []
 }
 
+// Unit symbols are international; only word-like units are translated.
+const TRANSLATED_UNITS = { day: 'day', week: 'week', knot: 'knot', cup: 'cup', tbsp: 'tbsp', tsp: 'tsp', fl_oz: 'flOz', gal: 'gal', deg: 'deg' }
+function unitLabel(unit) {
+  return TRANSLATED_UNITS[unit] ? t(`tools.units.${TRANSLATED_UNITS[unit]}`) : unit
+}
+
 function makeConverterState(units) {
   return reactive({
     value: null,
@@ -874,7 +878,7 @@ const converterCardGroups = computed(() => {
     .filter(([groupKey]) => groupKey !== 'nav_weather')
     .map(([groupKey, group]) => ({
       key: groupKey,
-      label: groupLabels[groupKey] || groupKey,
+      labelKey: groupLabelKey(groupKey),
       categories: group.filter((cat) => Boolean(converters[cat.id]))
     }))
 })
@@ -1056,7 +1060,7 @@ function convertCoordToDecimal() {
   }
   const lat = dmsToDec(latD, latM, latS, latDir)
   const lon = dmsToDec(lonD, lonM, lonS, lonDir)
-  coordResult.value = `Lat: ${lat.toFixed(6)}°   Lon: ${lon.toFixed(6)}°`
+  coordResult.value = t('tools.coord.result', { lat: lat.toFixed(6), lon: lon.toFixed(6) })
 }
 
 // --- Wind Chill (Environment Canada / US NWS formula) ---
@@ -1070,13 +1074,13 @@ function calcWindChill() {
 
   if (windChill.units === 'imperial') {
     // °F / mph
-    if (t > 50) { windChill.error = 'Wind chill applies to temperatures ≤ 50°F.'; return }
-    if (v < 3) { windChill.error = 'Wind chill applies to wind speeds ≥ 3 mph.'; return }
+    if (t > 50) { windChill.error = tr('tools.windchill.tempLimit', { limit: '50°F' }); return }
+    if (v < 3) { windChill.error = tr('tools.windchill.windLimit', { limit: '3 mph' }); return }
     windChill.result = Math.round((35.74 + 0.6215 * t - 35.75 * Math.pow(v, 0.16) + 0.4275 * t * Math.pow(v, 0.16)) * 10) / 10
   } else {
     // °C / km/h
-    if (t > 10) { windChill.error = 'Wind chill applies to temperatures ≤ 10°C.'; return }
-    if (v < 4.8) { windChill.error = 'Wind chill applies to wind speeds ≥ 4.8 km/h.'; return }
+    if (t > 10) { windChill.error = tr('tools.windchill.tempLimit', { limit: '10°C' }); return }
+    if (v < 4.8) { windChill.error = tr('tools.windchill.windLimit', { limit: '4.8 km/h' }); return }
     windChill.result = Math.round((13.12 + 0.6215 * t - 11.37 * Math.pow(v, 0.16) + 0.3965 * t * Math.pow(v, 0.16)) * 10) / 10
   }
 }
@@ -1093,8 +1097,8 @@ function calcHeatIndex() {
   // Convert to Fahrenheit for calculation
   const tF = heatIndex.units === 'metric' ? t * 9 / 5 + 32 : t
 
-  if (tF < 80) { heatIndex.error = 'Heat index applies to temperatures ≥ 27°C (80°F).'; return }
-  if (rh < 40) { heatIndex.error = 'Heat index applies to relative humidity ≥ 40%.'; return }
+  if (tF < 80) { heatIndex.error = tr('tools.heatindex.tempLimit'); return }
+  if (rh < 40) { heatIndex.error = tr('tools.heatindex.humidityLimit'); return }
 
   const hi = -42.379 + 2.04901523 * tF + 10.14333127 * rh
     - 0.22475541 * tF * rh - 0.00683783 * tF * tF
@@ -1127,7 +1131,7 @@ async function handleAes() {
     ciphers.aes.result = result.result
   } catch (e) {
     const msg = e?.response?.data?.message || e.message || ''
-    ciphers.aes.error = msg || 'Operation failed. Check your password and input.'
+    ciphers.aes.error = msg || t('tools.aes.failed')
     ciphers.aes.result = null
   } finally {
     cipherWorking.value = false
@@ -1149,7 +1153,7 @@ function handleBase64() {
       ciphers.base64.result = decodeURIComponent(escape(atob(ciphers.base64.text)))
     }
   } catch (e) {
-    ciphers.base64.error = e.message || 'Invalid input for this operation.'
+    ciphers.base64.error = e.message || t('tools.errors.invalidOperation')
     ciphers.base64.result = null
   }
 }
@@ -1201,13 +1205,13 @@ function handleMorse() {
       ciphers.morse.result = words.map(word =>
         word.trim().split(/\s+/).map(code => {
           const ch = MORSE_REVERSE[code]
-          if (!ch) throw new Error(`Unknown code: ${code}`)
+          if (!ch) throw new Error(t('tools.morse.unknown', { code }))
           return ch
         }).join('')
       ).join(' ')
     }
   } catch (e) {
-    ciphers.morse.error = e.message || 'Invalid Morse code input.'
+    ciphers.morse.error = e.message || t('tools.morse.invalid')
     ciphers.morse.result = null
   }
 }
@@ -1288,7 +1292,7 @@ function handleUrlEncode() {
       textTools_state.urlencode.result = decodeURIComponent(textTools_state.urlencode.text)
     }
   } catch (e) {
-    textTools_state.urlencode.error = e.message || 'Invalid input.'
+    textTools_state.urlencode.error = e.message || t('tools.errors.invalidInput')
     textTools_state.urlencode.result = null
   }
 }
@@ -1309,7 +1313,7 @@ function handleBaseConv() {
       hex: n.toString(16).toUpperCase()
     }
   } catch (e) {
-    textTools_state.baseconv.error = 'Invalid number for selected base.'
+    textTools_state.baseconv.error = t('tools.baseconv.invalid')
   }
 }
 
@@ -1327,7 +1331,7 @@ function handleAsciiLookup() {
     else if (/^0b[01]+$/.test(v)) parsed = parseInt(v.slice(2), 2)
     else if (/^0o[0-7]+$/.test(v)) parsed = parseInt(v.slice(2), 8)
     else parsed = parseInt(v, 10)
-    if (isNaN(parsed) || parsed < 0) { textTools_state.ascii.error = 'Enter a single character or a dec/hex/bin/oct code.'; return }
+    if (isNaN(parsed) || parsed < 0) { textTools_state.ascii.error = t('tools.ascii.invalid'); return }
     code = parsed
   }
   textTools_state.ascii.result = {
@@ -1350,7 +1354,7 @@ function unixToHuman() {
   const d = new Date(Number(dt.unix.ts) * 1000)
   dt.unix.human = {
     utc: d.toUTCString(),
-    local: d.toLocaleString(),
+    local: d.toLocaleString(locale.value),
     iso: d.toISOString()
   }
 }
@@ -1372,10 +1376,10 @@ function calcDuration() {
   const minutes = Math.floor(diff / 60)
   const seconds = Math.floor(diff - minutes * 60)
   const parts = []
-  if (days) parts.push(`${days}d`)
-  if (hours) parts.push(`${hours}h`)
-  if (minutes) parts.push(`${minutes}m`)
-  if (seconds || !parts.length) parts.push(`${seconds}s`)
+  if (days) parts.push(t('tools.duration.d', { n: days }))
+  if (hours) parts.push(t('tools.duration.h', { n: hours }))
+  if (minutes) parts.push(t('tools.duration.m', { n: minutes }))
+  if (seconds || !parts.length) parts.push(t('tools.duration.s', { n: seconds }))
   dt.duration.result = { days, hours, minutes, seconds, human: parts.join(' ') }
 }
 
@@ -1402,11 +1406,10 @@ function calcDayOfYear() {
   const startOfWeek1 = new Date(jan4)
   startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7))
   const week = Math.round((nearestThursday - startOfWeek1) / (7 * 86400000)) + 1
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   dt.dayofyear.result = {
     doy,
     week,
-    dow: dayNames[d.getDay()],
+    dow: d.toLocaleDateString(locale.value, { weekday: 'long' }),
     daysLeft: daysInYear - doy,
     leap: isLeap
   }
