@@ -5,8 +5,8 @@
         v-if="libraryCollapsed"
         type="button"
         class="library-toggle library-expand"
-        aria-label="Expand Library panel"
-        title="Expand library panel"
+        :aria-label="t('books.expandLibrary')"
+        :title="t('books.expandLibrary')"
         @click="toggleLibrary"
       >
         »
@@ -14,14 +14,14 @@
       <aside v-if="!libraryCollapsed" class="books-library">
         <header class="library-header">
           <div class="library-header-copy">
-            <h2>Library</h2>
-            <p>{{ filteredBooks.length }} item(s)</p>
+            <h2>{{ t('nav.books') }}</h2>
+            <p>{{ t('books.items', { count: filteredBooks.length }, filteredBooks.length) }}</p>
           </div>
           <button
             type="button"
             class="library-toggle"
-            aria-label="Collapse Library panel"
-            title="Collapse library panel"
+            :aria-label="t('books.collapseLibrary')"
+            :title="t('books.collapseLibrary')"
             @click="toggleLibrary"
           >
             «
@@ -32,31 +32,28 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search by title or filename"
-            aria-label="Filter library by title or filename"
+            :placeholder="t('books.filterPlaceholder')"
+            :aria-label="t('books.filterLabel')"
             class="search-input"
           />
         </div>
 
-        <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
+        <p class="library-hint">{{ t('books.supported', { formats: '.epub, .pdf, .mobi, .md, .zim' }) }}</p>
 
         <details class="progress-transfer">
-          <summary>Move reading progress</summary>
-          <p class="library-hint">
-            Positions and bookmarks are stored in this browser. Export them to a file and import it on another
-            device; imports merge (newest position wins, bookmarks are combined).
-          </p>
+          <summary>{{ t('books.progress.summary') }}</summary>
+          <p class="library-hint">{{ t('books.progress.intro') }}</p>
           <div class="progress-transfer-actions">
-            <button type="button" class="progress-transfer-btn" @click="exportProgress">Export</button>
+            <button type="button" class="progress-transfer-btn" @click="exportProgress">{{ t('books.progress.export') }}</button>
             <label class="progress-transfer-btn">
-              Import
+              {{ t('books.progress.import') }}
               <input type="file" accept=".json,application/json" class="progress-file-input" @change="importProgress" />
             </label>
           </div>
           <p v-if="progressTransferStatus" class="library-hint" role="status">{{ progressTransferStatus }}</p>
         </details>
 
-        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">Loading books...</p>
+        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">{{ t('books.loading') }}</p>
         <p v-else-if="booksError" class="status-card status-error" role="alert" aria-live="assertive">{{ booksError }}</p>
 
         <div v-else-if="filteredBooks.length" class="books-list">
@@ -79,7 +76,7 @@
         </div>
 
         <p v-else class="library-empty">
-          No books found. <router-link to="/content">Add books</router-link>
+          {{ t('books.noBooks') }} <router-link to="/content">{{ t('books.addBooks') }}</router-link>
         </p>
       </aside>
 
@@ -92,8 +89,8 @@
               <button
                 type="button"
                 class="reader-back"
-                aria-label="Back to library"
-                title="Back to library"
+                :aria-label="t('books.backToLibrary')"
+                :title="t('books.backToLibrary')"
                 @click="returnToLibrary()"
               >
                 ←
@@ -105,30 +102,30 @@
               <div class="reader-toolbar-meta">
                 <span class="badge badge-format">{{ activeFormat.toUpperCase() }}</span>
                 <span v-if="showReaderStatusBadge" class="badge" :class="readerStatusClass">{{ compactReaderStatusLabel }}</span>
-                <span v-if="zimAdapter" class="badge">Adapter: {{ zimAdapter.mode }}</span>
-                <span v-if="zimMeta" class="badge">Archive: {{ formatBytes(zimMeta.size_bytes) }}</span>
+                <span v-if="zimAdapter" class="badge">{{ t('books.badges.adapter', { mode: zimAdapter.mode }) }}</span>
+                <span v-if="zimMeta" class="badge">{{ t('books.badges.archive', { size: formatBytes(zimMeta.size_bytes) }) }}</span>
                 <span v-if="shouldUseNativeZimAdapter && zimNativeArticle?.title" class="badge" :title="zimNativeArticle.title">
-                  Article: {{ zimNativeArticle.title }}
+                  {{ t('books.badges.article', { title: zimNativeArticle.title }) }}
                 </span>
                 <button
                   type="button"
                   class="reader-focus-toggle"
                   :aria-pressed="String(readerFocusMode)"
-                  :title="readerFocusMode ? 'Exit focused reader mode (Esc)' : 'Enter focused reader mode'"
+                  :title="readerFocusMode ? t('books.focus.exitHint') : t('books.focus.enterHint')"
                   @click="toggleReaderFocus"
                 >
-                  {{ readerFocusMode ? 'Exit focus' : 'Focus mode' }}
+                  {{ readerFocusMode ? t('books.focus.exit') : t('books.focus.enter') }}
                 </button>
               </div>
             </div>
 
-            <div class="reader-toolbar-tools" role="toolbar" aria-label="Reader tools">
-              <div v-if="isZimSelected" class="toolbar-group" role="group" aria-label="Article history">
+            <div class="reader-toolbar-tools" role="toolbar" :aria-label="t('books.toolbar.tools')">
+              <div v-if="isZimSelected" class="toolbar-group" role="group" :aria-label="t('books.toolbar.history')">
                 <button
                   type="button"
                   class="toolbar-button"
-                  aria-label="Previous article"
-                  title="Previous article ([)"
+                  :aria-label="t('books.toolbar.previous')"
+                  :title="`${t('books.toolbar.previous')} ([)`"
                   :disabled="!zimCanBack || zimLoading"
                   @click="zimHistoryBack"
                 >
@@ -137,8 +134,8 @@
                 <button
                   type="button"
                   class="toolbar-button"
-                  aria-label="Next article"
-                  title="Next article (])"
+                  :aria-label="t('books.toolbar.next')"
+                  :title="`${t('books.toolbar.next')} (])`"
                   :disabled="!zimCanForward || zimLoading"
                   @click="zimHistoryForward"
                 >
@@ -146,53 +143,53 @@
                 </button>
               </div>
 
-              <div v-if="supportsDisplayPrefs" class="toolbar-group" role="group" aria-label="Display settings">
+              <div v-if="supportsDisplayPrefs" class="toolbar-group" role="group" :aria-label="t('books.toolbar.display')">
                 <button
                   type="button"
                   class="toolbar-button"
-                  :aria-label="isPdfSelected ? 'Zoom out' : 'Smaller text'"
-                  :title="isPdfSelected ? 'Zoom out (-)' : 'Smaller text (-)'"
+                  :aria-label="isPdfSelected ? t('common.zoomOut') : t('books.toolbar.smaller')"
+                  :title="`${isPdfSelected ? t('common.zoomOut') : t('books.toolbar.smaller')} (-)`"
                   :disabled="readerPrefs.fontScale <= FONT_SCALE_MIN"
                   @click="changeFontScale(-1)"
                 >
                   {{ isPdfSelected ? '−' : 'A−' }}
                 </button>
-                <span class="toolbar-value" :aria-label="isPdfSelected ? 'Zoom (100% fits the page width)' : 'Text size'">{{ readerPrefs.fontScale }}%</span>
+                <span class="toolbar-value" :aria-label="isPdfSelected ? t('books.toolbar.zoomLevel') : t('books.toolbar.textSize')">{{ readerPrefs.fontScale }}%</span>
                 <button
                   type="button"
                   class="toolbar-button"
-                  :aria-label="isPdfSelected ? 'Zoom in' : 'Larger text'"
-                  :title="isPdfSelected ? 'Zoom in (+)' : 'Larger text (+)'"
+                  :aria-label="isPdfSelected ? t('common.zoomIn') : t('books.toolbar.larger')"
+                  :title="`${isPdfSelected ? t('common.zoomIn') : t('books.toolbar.larger')} (+)`"
                   :disabled="readerPrefs.fontScale >= FONT_SCALE_MAX"
                   @click="changeFontScale(1)"
                 >
                   {{ isPdfSelected ? '+' : 'A+' }}
                 </button>
-                <select v-model="themeModel" class="toolbar-select" aria-label="Reader theme">
+                <select v-model="themeModel" class="toolbar-select" :aria-label="t('books.toolbar.theme')">
                   <option v-for="theme in READER_THEMES" :key="theme" :value="theme">{{ themeLabel(theme) }}</option>
                 </select>
               </div>
 
-              <div class="toolbar-group" role="group" aria-label="Bookmarks">
+              <div class="toolbar-group" role="group" :aria-label="t('books.bookmarks.title')">
                 <button
                   type="button"
                   class="toolbar-button"
-                  aria-label="Add bookmark at the current position"
-                  :title="supportsBookmarks ? 'Add bookmark (b)' : 'Bookmarks are not available for this format'"
+                  :aria-label="t('books.bookmarks.addHere')"
+                  :title="supportsBookmarks ? t('books.bookmarks.addHint') : t('books.bookmarks.unsupported')"
                   :disabled="!canBookmarkNow"
                   @click="addBookmarkHere"
                 >
-                  ＋ Bookmark
+                  ＋ {{ t('books.bookmarks.add') }}
                 </button>
                 <button
                   type="button"
                   class="toolbar-button"
                   :aria-expanded="bookmarksOpen ? 'true' : 'false'"
                   aria-controls="reader-bookmarks"
-                  :aria-label="`Show bookmarks (${bookmarks.length})`"
+                  :aria-label="t('books.bookmarks.show', { count: bookmarks.length })"
                   @click="bookmarksOpen = !bookmarksOpen"
                 >
-                  Bookmarks ({{ bookmarks.length }})
+                  {{ t('books.bookmarks.count', { count: bookmarks.length }) }}
                 </button>
               </div>
             </div>
@@ -210,28 +207,28 @@
                 class="zim-search-input"
                 :placeholder="bookSearchPlaceholder"
                 :disabled="!supportsBookSearch"
-                aria-label="Search in this book"
+                :aria-label="t('books.search.inBook')"
               />
               <button
                 type="submit"
                 class="zim-search-button"
                 :disabled="!supportsBookSearch"
               >
-                Search
+                {{ t('common.search') }}
               </button>
             </form>
           </header>
 
           <div v-if="bookmarksOpen" id="reader-bookmarks" class="bookmarks-panel">
             <p v-if="!bookmarks.length" class="reader-subtle">
-              No bookmarks yet. Use “＋ Bookmark” (or press b) to save the current position.
+              {{ t('books.bookmarks.empty', { button: `＋ ${t('books.bookmarks.add')}` }) }}
             </p>
             <ul v-else class="bookmark-list">
               <li v-for="bookmark in bookmarks" :key="bookmark.id" class="bookmark-item">
                 <button
                   type="button"
                   class="bookmark-jump"
-                  :aria-label="`Go to bookmark: ${bookmark.title}`"
+                  :aria-label="t('books.bookmarks.goTo', { title: bookmark.title })"
                   @click="jumpToPosition(bookmark.position)"
                 >
                   <span class="bookmark-title">{{ bookmark.title }}</span>
@@ -240,8 +237,8 @@
                 <button
                   type="button"
                   class="bookmark-remove"
-                  :aria-label="`Remove bookmark: ${bookmark.title}`"
-                  title="Remove bookmark"
+                  :aria-label="t('books.bookmarks.removeNamed', { title: bookmark.title })"
+                  :title="t('books.bookmarks.remove')"
                   @click="removeBookmark(bookmark)"
                 >
                   ✕
@@ -254,7 +251,7 @@
           <div v-if="readerError" class="status-card status-error" role="alert" aria-live="assertive">{{ readerError }}</div>
 
           <div v-if="bookSearchLoading || bookSearchResults.length || bookSearchRan" class="zim-search-feedback">
-            <p v-if="bookSearchLoading" class="reader-subtle" role="status">{{ bookSearchProgress || 'Searching...' }}</p>
+            <p v-if="bookSearchLoading" class="reader-subtle" role="status">{{ bookSearchProgress || t('common.searching') }}</p>
 
             <div v-else-if="bookSearchResults.length" class="zim-search-results">
               <button
@@ -267,13 +264,13 @@
                 :title="result.snippet || result.path"
                 @click="openSearchResult(result)"
               >
-                <span class="result-title">{{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ' (current)' : '' }}</span>
+                <span class="result-title">{{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ` (${t('books.search.current')})` : '' }}</span>
                 <span v-if="!isZimSelected && result.snippet" class="result-snippet">{{ result.snippet }}</span>
               </button>
             </div>
-            <p v-else-if="bookSearchRan" class="reader-subtle">No matches found.</p>
+            <p v-else-if="bookSearchRan" class="reader-subtle">{{ t('books.search.noMatches') }}</p>
             <p v-if="bookSearchTruncated && !bookSearchLoading" class="reader-subtle">
-              Showing the first {{ bookSearchResults.length }} matches. Refine the search to see the rest.
+              {{ t('books.search.truncated', { count: bookSearchResults.length }) }}
             </p>
           </div>
 
@@ -311,11 +308,11 @@
                 @error="onPdfViewerError"
               />
               <p v-else-if="readerError" class="pdf-message">
-                You can still
-                <a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer" download>download the file</a>
-                and open it in another app.
+                <i18n-t keypath="books.pdf.fallback" scope="global">
+                  <template #link><a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer" download>{{ t('books.pdf.downloadLink') }}</a></template>
+                </i18n-t>
               </p>
-              <p v-else class="pdf-message" role="status">Loading PDF…</p>
+              <p v-else class="pdf-message" role="status">{{ t('books.pdf.loading') }}</p>
             </div>
 
             <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
@@ -328,23 +325,23 @@
                   @load="onZimFrameLoad"
                   scrolling="auto"
                   sandbox="allow-scripts allow-same-origin"
-                  title="ZIM article"
+                  :title="t('books.zim.frameTitle')"
                 ></iframe>
-                <p v-else-if="shouldUseNativeZimAdapter" class="reader-subtle">No native article content was returned for this archive.</p>
+                <p v-else-if="shouldUseNativeZimAdapter" class="reader-subtle">{{ t('books.zim.noContent') }}</p>
                 <p v-else-if="zimAdapter" class="status-card status-error">{{ nativeZimUnavailableMessage }}</p>
               </div>
 
             </div>
 
             <div v-else-if="unifiedReaderStatus !== 'idle' && !unifiedReaderStatus.startsWith('loading')" class="status-card status-warning">
-              Select an EPUB, Markdown file, PDF, or ZIM in the library.
+              {{ t('books.selectFormat') }}
             </div>
           </div>
         </div>
 
         <div v-else class="reader-empty">
           <p v-if="readerNotice" class="status-card status-warning" role="status">{{ readerNotice }}</p>
-          <p>Pick a book from the library to open the reader.</p>
+          <p>{{ t('books.pickBook') }}</p>
         </div>
       </section>
     </div>
@@ -354,6 +351,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { errorText, formatBytes } from '../i18n/index.js'
 import { useUnifiedReader } from '../modules/reader/useUnifiedReader'
 import PdfViewer from '../modules/reader/PdfViewer.vue'
 import { searchPdfText } from '../modules/reader/pdfSearch'
@@ -375,6 +374,7 @@ import {
 } from '../modules/library/readerPrefs'
 import { apiService } from '../services/api'
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -496,9 +496,9 @@ const supportsBookSearch = computed(() => {
 
 const bookSearchPlaceholder = computed(() => {
   if (isZimSelected.value) {
-    return shouldUseNativeZimAdapter.value ? 'Search article title or path' : 'Native ZIM mode is required for search'
+    return shouldUseNativeZimAdapter.value ? t('books.search.zimPlaceholder') : t('books.search.zimUnavailable')
   }
-  return 'Search in this book'
+  return t('books.search.inBook')
 })
 
 const supportsDisplayPrefs = computed(
@@ -537,7 +537,7 @@ const themeModel = computed({
   set: (theme) => updatePrefs({ theme })
 })
 
-const themeLabel = (theme) => ({ light: 'Light', sepia: 'Sepia', dark: 'Dark' })[theme] || theme
+const themeLabel = (theme) => (['light', 'sepia', 'dark'].includes(theme) ? t(`books.theme.${theme}`) : theme)
 
 const readerStatusClass = computed(() => {
   if (readerError.value) return 'badge-error'
@@ -556,7 +556,9 @@ const compactReaderStatusLabel = computed(() => {
   const label = readerStatusLabel.value
   if (!label || label === 'idle') return ''
   if (label.startsWith('opened ')) return ''
-  if (label.startsWith('loading ')) return 'loading'
+  if (label.startsWith('loading ')) return t('books.status.loading')
+  if (label === 'unsupported format') return t('books.status.unsupported')
+  if (label === 'failed') return t('books.status.failed')
   return label
 })
 
@@ -564,7 +566,7 @@ const showReaderStatusBadge = computed(() => compactReaderStatusLabel.value.leng
 
 const nativeZimUnavailableMessage = computed(() => {
   if (activeFormat.value !== 'zim') return ''
-  return 'Native ZIM parsing is unavailable for this archive with the current parser implementation.'
+  return t('books.zim.unavailable')
 })
 
 const toggleLibrary = () => {
@@ -598,7 +600,7 @@ const announce = (message) => {
 const formatBookmarkDate = (timestamp) => {
   if (!timestamp) return ''
   try {
-    return new Date(timestamp).toLocaleString()
+    return new Date(timestamp).toLocaleString(locale.value)
   } catch {
     return ''
   }
@@ -639,7 +641,7 @@ const applyRouteQuery = async (query) => {
   const book = books.value.find((item) => item.filename === parsed.file)
   if (!book) {
     if (selectedBook.value) returnToLibrary({ updateUrl: false })
-    readerNotice.value = `“${parsed.file}” is not in the library. It may have been removed or renamed.`
+    readerNotice.value = t('books.notices.notInLibrary', { file: parsed.file })
     replaceQuery({})
     return
   }
@@ -710,11 +712,11 @@ const currentMarkdownPosition = () => {
   const line = topVisibleLine(container, surface.getBoundingClientRect().top) || 1
   const block = findBlockForLine(container, line)
   const heading = headingLabelFor(container, block)
-  return { type: 'md', line, label: heading || `Line ${line}` }
+  return { type: 'md', line, label: heading || t('books.position.line', { line }) }
 }
 
 const pdfPositionOf = (position) =>
-  position ? { type: 'pdf', page: position.page, offset: position.offset, label: `Page ${position.page}` } : null
+  position ? { type: 'pdf', page: position.page, offset: position.offset, label: t('books.position.page', { page: position.page }) } : null
 
 const currentPdfPosition = () => {
   if (!isPdfReady.value || !pdfOwner || pdfOwner !== selectedBook.value?.filename) return null
@@ -830,7 +832,7 @@ const progressTransferStatus = ref('')
 const exportProgress = () => {
   const data = progressStore.exportData()
   saveText(JSON.stringify(data, null, 2), datedFilename('reading-progress'))
-  progressTransferStatus.value = `Exported ${data.books.length} book(s).`
+  progressTransferStatus.value = t('books.progress.exported', { count: data.books.length }, data.books.length)
 }
 
 const importProgress = async (event) => {
@@ -842,9 +844,11 @@ const importProgress = async (event) => {
     const result = progressStore.importData(raw)
     refreshBookmarks()
     progressTransferStatus.value =
-      `Imported: ${result.booksAdded} new book(s), ${result.booksUpdated} updated, ${result.bookmarksAdded} bookmark(s) added.`
+      t('books.progress.imported', { added: result.booksAdded, updated: result.booksUpdated, bookmarks: result.bookmarksAdded })
   } catch (err) {
-    progressTransferStatus.value = err instanceof SyntaxError ? 'Import failed: the file is not valid JSON.' : `Import failed: ${err?.message || err}`
+    progressTransferStatus.value = err instanceof SyntaxError
+      ? t('books.progress.invalidJson')
+      : t('books.progress.importFailed', { error: errorText(err, 'books.progress.unknownError') })
   } finally {
     input.value = ''
   }
@@ -855,15 +859,15 @@ const addBookmarkHere = () => {
   const position = currentPosition()
   if (!position) return
   const before = bookmarks.value.length
-  const title = position.label || (position.type === 'epub' ? 'EPUB location' : 'Bookmark')
+  const title = position.label || (position.type === 'epub' ? t('books.position.epub') : t('books.bookmark'))
   const saved = progressStore.addBookmark(selectedBook.value.filename, { title, position })
   refreshBookmarks()
   if (!saved) {
-    announce('Could not save bookmark.')
+    announce(t('books.bookmarks.saveFailed'))
   } else if (bookmarks.value.length === before) {
-    announce(`Already bookmarked: ${saved.title}`)
+    announce(t('books.bookmarks.already', { title: saved.title }))
   } else {
-    announce(`Bookmark added: ${saved.title}`)
+    announce(t('books.bookmarks.added', { title: saved.title }))
   }
 }
 
@@ -871,7 +875,7 @@ const removeBookmark = (bookmark) => {
   if (!selectedBook.value) return
   progressStore.removeBookmark(selectedBook.value.filename, bookmark.id)
   refreshBookmarks()
-  announce(`Bookmark removed: ${bookmark.title}`)
+  announce(t('books.bookmarks.removed', { title: bookmark.title }))
 }
 
 const jumpToPosition = async (position) => {
@@ -1089,7 +1093,7 @@ const searchOpenPdf = async (book, q, seq) => {
     query: q,
     isCancelled,
     onProgress: (page, total) => {
-      if (!isCancelled() && total > 20) bookSearchProgress.value = `Searching page ${page} of ${total}...`
+      if (!isCancelled() && total > 20) bookSearchProgress.value = t('books.search.progress', { page, total })
     }
   })
   if (!outcome || isCancelled()) return null
@@ -1133,7 +1137,7 @@ const runBookSearch = async () => {
       : await apiService.getLibraryBookSearch(book.filename, q, 24)
     if (seq !== bookSearchSeq || selectedBook.value !== book) return
     if (typeof response === 'string') {
-      throw new Error('Search endpoint returned HTML. Restart the server to load the latest backend routes.')
+      throw new Error(t('books.search.htmlResponse'))
     }
     bookSearchResults.value = Array.isArray(response?.results) ? response.results : []
     bookSearchRan.value = true
@@ -1221,13 +1225,6 @@ const handleReaderKeyboard = (event) => {
 // Book selection
 // ---------------------------------------------------------------------------
 
-const formatBytes = (bytes) => {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${units[i]}`
-}
-
 const fileExt = (filename) => {
   const clean = String(filename || '')
   const idx = clean.lastIndexOf('.')
@@ -1301,8 +1298,8 @@ const selectBook = async (book, options = {}) => {
     if (zimNativeArticle.value) onZimArticleShown(zimNativeArticle.value)
     if (zimStartPathFailed.value) {
       readerNotice.value = deepLinkPath
-        ? `Article “${deepLinkPath}” was not found in this archive; showing the main page instead.`
-        : 'The last read article is no longer available; showing the main page instead.'
+        ? t('books.notices.articleMissing', { path: deepLinkPath })
+        : t('books.notices.lastArticleMissing')
     }
   }
 

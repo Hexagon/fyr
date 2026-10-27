@@ -16,9 +16,9 @@ export const estimateTimeZoneOffsetMinutes = (longitude) => {
   return offsetHours * 60
 }
 
-export const formatInOffset = (date, offsetMinutes, options) => {
+export const formatInOffset = (date, offsetMinutes, options, locale = undefined) => {
   const shifted = new Date(date.getTime() + offsetMinutes * 60_000)
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: 'UTC',
     ...options
   }).format(shifted)
@@ -82,12 +82,14 @@ const calculateSunEventMinutes = (date, latitude, longitude, offsetMinutes, isSu
   return utcHours * 60
 }
 
-export const getLocationClock = (now, location) => {
+// `locale` is the UI language ('en', 'sv'); undefined uses the browser default.
+export const getLocationClock = (now, location, locale = undefined) => {
+  const locales = locale ? [locale] : []
   if (!location) {
     return {
       mode: 'system',
-      timeText: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      dateText: now.toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
+      timeText: now.toLocaleTimeString(locales, { hour: '2-digit', minute: '2-digit' }),
+      dateText: now.toLocaleDateString(locales, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
       sunriseText: null,
       sunsetText: null,
       offsetMinutes: 0
@@ -95,8 +97,8 @@ export const getLocationClock = (now, location) => {
   }
 
   const offsetMinutes = estimateTimeZoneOffsetMinutes(location.longitude)
-  const timeText = formatInOffset(now, offsetMinutes, { hour: '2-digit', minute: '2-digit' })
-  const dateText = formatInOffset(now, offsetMinutes, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  const timeText = formatInOffset(now, offsetMinutes, { hour: '2-digit', minute: '2-digit' }, locale)
+  const dateText = formatInOffset(now, offsetMinutes, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }, locale)
   const sunriseMinutes = calculateSunEventMinutes(now, location.latitude, location.longitude, offsetMinutes, true)
   const sunsetMinutes = calculateSunEventMinutes(now, location.latitude, location.longitude, offsetMinutes, false)
 

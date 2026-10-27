@@ -2,6 +2,7 @@
 // progress.js, restricted to files that are still in the library listing.
 
 import { buildBookDeepLink } from './deepLink'
+import { locale, t } from '../../i18n/index.js'
 
 const formatOf = (filename) => {
   const idx = String(filename || '').lastIndexOf('.')
@@ -45,13 +46,13 @@ export const formatRelativeTime = (timestamp, now = Date.now()) => {
   const minute = 60 * 1000
   const hour = 60 * minute
   const day = 24 * hour
-  if (diff < minute) return 'just now'
-  if (diff < hour) return `${Math.floor(diff / minute)} min ago`
+  if (diff < minute) return t('time.justNow')
+  if (diff < hour) return t('time.minutesAgo', { count: Math.floor(diff / minute) })
   if (diff < day) {
     const h = Math.floor(diff / hour)
-    return `${h} hour${h === 1 ? '' : 's'} ago`
+    return t('time.hoursAgo', { count: h }, h)
   }
   const d = Math.floor(diff / day)
-  if (d < 30) return `${d} day${d === 1 ? '' : 's'} ago`
-  return new Date(timestamp).toLocaleDateString()
+  if (d < 30) return t('time.daysAgo', { count: d }, d)
+  return new Date(timestamp).toLocaleDateString(locale())
 }

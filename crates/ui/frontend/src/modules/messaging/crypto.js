@@ -24,6 +24,7 @@ import { hkdf } from '@noble/hashes/hkdf.js'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex, hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js'
 import { xchacha20poly1305 } from '@noble/ciphers/chacha.js'
+import { localizedError } from '../../i18n/errors.js'
 
 /** Versioned KDF parameters. Never change an existing entry: add a new one. */
 export const KDF_VERSIONS = Object.freeze({
@@ -97,9 +98,9 @@ export const deriveChannelKeys = async ({ name, passphrase, serverSalt, version 
   const params = kdfOverride || KDF_VERSIONS[version]
   if (!params) throw new Error(`Unknown KDF version ${version}`)
   const normalizedName = normalizeChannelName(name)
-  if (!normalizedName) throw new Error('Channel name is required')
+  if (!normalizedName) throw localizedError('messages.errors.nameRequired', 'Channel name is required')
   const pass = normalizePassphrase(passphrase)
-  if (!pass) throw new Error('Passphrase is required')
+  if (!pass) throw localizedError('messages.errors.passphraseRequired', 'Passphrase is required')
 
   const salt = channelSalt(serverSalt, normalizedName, version)
   const master = await scryptAsync(utf8ToBytes(pass), salt, {
@@ -159,7 +160,7 @@ export const buildPayload = ({ nick, deviceTag, text, sentAt = Date.now(), categ
 export const encryptMessage = (encKey, channelId, payload, nonce = randomBytes(NONCE_BYTES)) => {
   const plaintext = padPlaintext(JSON.stringify(payload))
   if (plaintext.length + TAG_BYTES > MAX_CIPHERTEXT_BYTES) {
-    throw new Error('Message is too long to encrypt')
+    throw localizedError('messages.errors.tooLong', 'Message is too long to encrypt')
   }
   const sealed = xchacha20poly1305(encKey, nonce, utf8ToBytes(channelId)).encrypt(plaintext)
   return { nonce: toBase64(nonce), ciphertext: toBase64(sealed) }
@@ -226,8 +227,8 @@ const KEY_EXPORT_KDF = Object.freeze({ name: 'scrypt', N: 2 ** 15, r: 8, p: 1 })
 const KEY_EXPORT_MAX_BYTES = 256 * 1024
 const HEX32 = /^[0-9a-f]{32}$/
 const HEX64 = /^[0-9a-f]{64}$/
-const NOT_A_KEY_FILE = 'Not a Fyr channel key file'
-const WRONG_PASSPHRASE = 'Wrong passphrase or damaged file'
+const notAKeyFile = () => localizedError('messages.errors.notAKeyFile', 'Not a Fyr channel key file')
+const wrongPassphrase = () => localizedError('messages.errors.wrongPassphrase', 'Wrong passphrase or damaged file')
 
 const keyExportAad = ({ N, r, p }, saltB64) => utf8ToBytes(`fyr-channel-keys/v1|${N}|${r}|${p}|${saltB64}`)
 
@@ -255,11 +256,11 @@ const cleanChannels = (list) =>
 export const exportChannelKeys = async (channels, passphrase, { kdf = KEY_EXPORT_KDF, onProgress, now = Date.now() } = {}) => {
   const pass = normalizePassphrase(passphrase)
   if ([...pass].length < KEY_EXPORT_MIN_PASSPHRASE) {
-    throw new Error(`Use a passphrase of at least ${KEY_EXPORT_MIN_PASSPHRASE} characters`)
+    throw localizedError('messages.errors.filePassphraseShort', `Use a passphrase of at least ${KEY_EXPORT_MIN_PASSPHRASE} characters`, { min: KEY_EXPORT_MIN_PASSPHRASE })
   }
   if (!validKdf(kdf)) throw new Error('Invalid KDF parameters')
   const list = cleanChannels(channels)
-  if (!list.length) throw new Error('There are no remembered channels to export')
+  if (!list.length) throw localizedError('messages.errors.nothingToExport', 'There are no remembered channels to export')
   const salt = randomBytes(16)
   const saltB64 = toBase64(salt)
   const key = await scryptAsync(utf8ToBytes(pass), salt, { N: kdf.N, r: kdf.r, p: kdf.p, dkLen: 32, onProgress })
@@ -287,17 +288,17 @@ export const exportChannelKeys = async (channels, passphrase, { kdf = KEY_EXPORT
  * @returns {Promise<{ exportedAt: number|null, channels: Array }>}
  */
 export const importChannelKeys = async (text, passphrase, { onProgress } = {}) => {
-  if (typeof text !== 'string' || text.length > KEY_EXPORT_MAX_BYTES) throw new Error(NOT_A_KEY_FILE)
+  if (typeof text !== 'string' || text.length > KEY_EXPORT_MAX_BYTES) throw notAKeyFile()
   let file
   try {
     file = JSON.parse(text)
   } catch {
-    throw new Error(NOT_A_KEY_FILE)
+    throw notAKeyFile()
   }
-  if (!file || file.format !== KEY_EXPORT_FORMAT) throw new Error(NOT_A_KEY_FILE)
-  if (file.v !== KEY_EXPORT_VERSION) throw new Error(`Unsupported key file version ${file.v}`)
+  if (!file || file.format !== KEY_EXPORT_FORMAT) throw notAKeyFile()
+  if (file.v !== KEY_EXPORT_VERSION) throw localizedError('messages.errors.keyFileVersion', `Unsupported key file version ${file.v}`, { version: String(file.v) })
   if (!validKdf(file.kdf) || typeof file.salt !== 'string' || typeof file.nonce !== 'string' || typeof file.ciphertext !== 'string') {
-    throw new Error(NOT_A_KEY_FILE)
+    throw notAKeyFile()
   }
   let salt, nonce, ciphertext
   try {
@@ -305,15 +306,15 @@ export const importChannelKeys = async (text, passphrase, { onProgress } = {}) =
     nonce = fromBase64(file.nonce)
     ciphertext = fromBase64(file.ciphertext)
   } catch {
-    throw new Error(NOT_A_KEY_FILE)
+    throw notAKeyFile()
   }
-  if (salt.length !== 16 || nonce.length !== NONCE_BYTES || ciphertext.length < TAG_BYTES) throw new Error(NOT_A_KEY_FILE)
+  if (salt.length !== 16 || nonce.length !== NONCE_BYTES || ciphertext.length < TAG_BYTES) throw notAKeyFile()
   const key = await scryptAsync(utf8ToBytes(normalizePassphrase(passphrase)), salt, { N: file.kdf.N, r: 8, p: 1, dkLen: 32, onProgress })
   let plaintext
   try {
     plaintext = xchacha20poly1305(key, nonce, keyExportAad(file.kdf, file.salt)).decrypt(ciphertext)
   } catch {
-    throw new Error(WRONG_PASSPHRASE)
+    throw wrongPassphrase()
   } finally {
     key.fill(0)
   }
@@ -321,7 +322,7 @@ export const importChannelKeys = async (text, passphrase, { onProgress } = {}) =
   try {
     payload = JSON.parse(textDecoder.decode(plaintext))
   } catch {
-    throw new Error(WRONG_PASSPHRASE)
+    throw wrongPassphrase()
   }
   return {
     exportedAt: Number.isFinite(payload?.exported_at) ? payload.exported_at : null,

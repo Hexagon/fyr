@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrackRecorder, TRACK_STORAGE_KEY } from './useTrackRecorder.js'
-import { INSECURE_CONTEXT_MESSAGE } from './tracking.js'
+import { insecureContextMessage } from './tracking.js'
 
 const makeGeo = () => {
   const geo = {
@@ -29,7 +29,7 @@ describe('createTrackRecorder', () => {
     const geo = makeGeo()
     const rec = createTrackRecorder({ env: { navigator: { geolocation: geo }, isSecureContext: false } })
     expect(rec.start()).toBe(false)
-    expect(rec.state.error).toBe(INSECURE_CONTEXT_MESSAGE)
+    expect(rec.state.error).toBe(insecureContextMessage())
     expect(geo.watchPosition).not.toHaveBeenCalled()
   })
 

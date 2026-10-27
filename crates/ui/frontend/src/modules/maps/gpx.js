@@ -7,6 +7,9 @@
 // Elevation (<ele>) becomes the third coordinate value.
 // Elements are matched by local name so default and prefixed namespaces work.
 
+import { localizedError } from '../../i18n/errors.js'
+import { t } from '../../i18n/index.js'
+
 const GPX_NS = 'http://www.topografix.com/GPX/1/1'
 
 // ── DOM helpers (namespace agnostic) ────────────────────────────────
@@ -78,11 +81,11 @@ export const parseGpx = (text) => {
   if (typeof DOMParser === 'undefined') throw new Error('GPX import needs a browser with DOMParser')
   const doc = new DOMParser().parseFromString(String(text ?? ''), 'application/xml')
   if (doc.getElementsByTagName('parsererror').length > 0) {
-    throw new Error('The file is not valid XML')
+    throw localizedError('maps.gpx.notXml', 'The file is not valid XML')
   }
   const root = doc.documentElement
   if (!root || localNameOf(root) !== 'gpx') {
-    throw new Error('The file is not a GPX document')
+    throw localizedError('maps.gpx.notGpx', 'The file is not a GPX document')
   }
 
   const features = []
@@ -95,7 +98,7 @@ export const parseGpx = (text) => {
     if (!point) { counts.skippedPoints++; return }
     counts.waypoints++
     const props = descriptiveProps(wpt)
-    if (!props.name) props.name = `Waypoint ${counts.waypoints}`
+    if (!props.name) props.name = t('maps.gpx.defaultWaypoint', { n: counts.waypoints })
     if (point.time) props.time = point.time
     props.gpxType = 'wpt'
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: point.position }, properties: props })
@@ -112,7 +115,7 @@ export const parseGpx = (text) => {
       .filter((pts) => pts.length >= 2)
     if (segments.length === 0) return
     counts.tracks++
-    const baseName = trkProps.name || `Track ${counts.tracks}`
+    const baseName = trkProps.name || t('maps.gpx.defaultTrack', { n: counts.tracks })
     segments.forEach((pts, idx) => {
       const props = { ...trkProps, name: segments.length > 1 ? `${baseName} (${idx + 1}/${segments.length})` : baseName, gpxType: 'trk' }
       if (segments.length > 1) props.segment = idx + 1
@@ -129,7 +132,7 @@ export const parseGpx = (text) => {
     if (pts.length < 2) return
     counts.routes++
     const props = descriptiveProps(rte)
-    if (!props.name) props.name = `Route ${counts.routes}`
+    if (!props.name) props.name = t('maps.gpx.defaultRoute', { n: counts.routes })
     props.gpxType = 'rte'
     features.push(lineFeature(pts, props))
   })

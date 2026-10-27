@@ -62,7 +62,12 @@ export default defineConfig({
   base: '/static/',
   plugins: [vue(), pdfjsAssets()],
   define: {
-    __FYR_PDFJS_ASSET_DIR__: JSON.stringify(pdfjsAssetDir)
+    __FYR_PDFJS_ASSET_DIR__: JSON.stringify(pdfjsAssetDir),
+    // vue-i18n feature flags: composition API only (drops the legacy API
+    // from the bundle), no devtools hooks in production.
+    __VUE_I18N_FULL_INSTALL__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false
   },
   build: {
     outDir: '../../../public/static',
@@ -84,7 +89,9 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.js']
+    include: ['src/**/*.test.js'],
+    // Loads every English message namespace so module tests see real text.
+    setupFiles: ['src/i18n/testSetup.js']
   },
   server: {
     proxy: {

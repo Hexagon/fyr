@@ -1,11 +1,11 @@
 <template>
   <div class="messages-page">
     <div v-if="loadError" class="notice notice-error" role="alert">{{ loadError }}</div>
-    <div v-else-if="config && !config.enabled" class="notice">Messages are disabled on this server.</div>
+    <div v-else-if="config && !config.enabled" class="notice">{{ t('messages.disabled') }}</div>
 
     <div v-else-if="config" class="messages-layout">
       <!-- Sidebar: Board, remembered/joined channels, join form -->
-      <aside class="sidebar" aria-label="Channels">
+      <aside class="sidebar" :aria-label="t('messages.channels')">
         <ul class="channel-list">
           <li v-for="channel in channels" :key="channel.id">
             <button
@@ -18,59 +18,56 @@
               <span class="channel-icon" aria-hidden="true">{{ channel.kind === 'public' ? '📌' : '🔒' }}</span>
               <span class="channel-name">{{ channel.label }}</span>
               <span v-if="channel.kind === 'public' && board.unread && activeId !== channel.id" class="badge">{{ board.unread }}</span>
-              <span v-if="channel.kind === 'encrypted' && !channel.remembered" class="channel-session" title="Not remembered on this device">session</span>
+              <span v-if="channel.kind === 'encrypted' && !channel.remembered" class="channel-session" :title="t('messages.notRemembered')">{{ t('messages.session') }}</span>
             </button>
           </li>
         </ul>
 
         <details class="join-details" :open="channels.length === 1">
-        <summary>🔒 Join or create an encrypted channel</summary>
+        <summary>🔒 {{ t('messages.join.summary') }}</summary>
         <form class="join-form" @submit.prevent="joinChannel" autocomplete="off">
           <label>
-            <span>Channel name</span>
-            <input v-model="join.name" type="text" maxlength="80" required placeholder="e.g. camp north" autocapitalize="off" />
+            <span>{{ t('messages.join.name') }}</span>
+            <input v-model="join.name" type="text" maxlength="80" required :placeholder="t('messages.join.namePlaceholder')" autocapitalize="off" />
           </label>
           <label>
-            <span>Passphrase</span>
-            <input v-model="join.passphrase" type="password" required minlength="8" placeholder="4+ random words" autocomplete="new-password" />
+            <span>{{ t('messages.join.passphrase') }}</span>
+            <input v-model="join.passphrase" type="password" required minlength="8" :placeholder="t('messages.join.passphrasePlaceholder')" autocomplete="new-password" />
           </label>
           <label class="check">
             <input v-model="join.remember" type="checkbox" />
-            <span>Remember on this device (stores keys, never the passphrase)</span>
+            <span>{{ t('messages.join.remember') }}</span>
           </label>
-          <p v-if="join.passphrase && join.passphrase.length < 12" class="hint">Short passphrases can be guessed offline by anyone who sniffs the channel id. Prefer 4+ random words.</p>
+          <p v-if="join.passphrase && join.passphrase.length < 12" class="hint">{{ t('messages.join.shortWarning') }}</p>
           <button type="submit" class="btn btn-primary" :disabled="join.busy">
-            {{ join.busy ? `Deriving keys… ${Math.round(join.progress * 100)}%` : 'Join' }}
+            {{ join.busy ? t('messages.join.deriving', { pct: Math.round(join.progress * 100) }) : t('messages.join.submit') }}
           </button>
           <div v-if="join.notFound" class="create-offer">
-            <p>No channel “{{ join.notFound.name }}” with this passphrase exists yet.</p>
-            <button type="button" class="btn btn-primary" :disabled="join.busy || !config.can_post" @click="createChannel">Create this channel</button>
-            <p v-if="!config.can_post" class="hint">You cannot create channels on this server.</p>
+            <p>{{ t('messages.join.notFound', { name: join.notFound.name }) }}</p>
+            <button type="button" class="btn btn-primary" :disabled="join.busy || !config.can_post" @click="createChannel">{{ t('messages.join.create') }}</button>
+            <p v-if="!config.can_post" class="hint">{{ t('messages.join.cannotCreate') }}</p>
           </div>
           <p v-if="join.error" class="form-error" role="alert">{{ join.error }}</p>
         </form>
         </details>
 
         <details class="join-details">
-          <summary>🔑 Move channel keys to another device</summary>
+          <summary>🔑 {{ t('messages.keys.summary') }}</summary>
           <div class="join-form">
-            <p class="hint">
-              Exports the keys of remembered channels as a file encrypted with a passphrase you choose
-              (never the channel passphrases). Keys only work on this Fyr server, or one restored from its backup.
-            </p>
+            <p class="hint">{{ t('messages.keys.intro') }}</p>
             <label>
-              <span>File passphrase</span>
-              <input v-model="keyTransfer.passphrase" type="password" minlength="8" autocomplete="new-password" placeholder="8+ characters" />
+              <span>{{ t('messages.keys.filePassphrase') }}</span>
+              <input v-model="keyTransfer.passphrase" type="password" minlength="8" autocomplete="new-password" :placeholder="t('messages.keys.filePassphrasePlaceholder')" />
             </label>
             <button type="button" class="btn btn-primary" :disabled="keyTransfer.busy || !rememberedCount" @click="exportKeys">
-              {{ keyTransfer.busy === 'export' ? `Encrypting… ${Math.round(keyTransfer.progress * 100)}%` : `Export ${rememberedCount} channel key(s)` }}
+              {{ keyTransfer.busy === 'export' ? t('messages.keys.encrypting', { pct: Math.round(keyTransfer.progress * 100) }) : t('messages.keys.export', { count: rememberedCount }, rememberedCount) }}
             </button>
             <label>
-              <span>Import a key file</span>
+              <span>{{ t('messages.keys.importFile') }}</span>
               <input ref="keyFileInput" type="file" accept=".json,application/json" @change="onKeyFile" />
             </label>
             <button type="button" class="btn btn-ghost" :disabled="keyTransfer.busy || !keyTransfer.file" @click="importKeys">
-              {{ keyTransfer.busy === 'import' ? `Decrypting… ${Math.round(keyTransfer.progress * 100)}%` : 'Import keys' }}
+              {{ keyTransfer.busy === 'import' ? t('messages.keys.decrypting', { pct: Math.round(keyTransfer.progress * 100) }) : t('messages.keys.import') }}
             </button>
             <p v-if="keyTransfer.status" class="hint" role="status">{{ keyTransfer.status }}</p>
             <p v-if="keyTransfer.error" class="form-error" role="alert">{{ keyTransfer.error }}</p>
@@ -79,11 +76,11 @@
 
         <div class="identity">
           <label>
-            <span>Your nickname</span>
-            <input v-model="nickname" type="text" maxlength="40" placeholder="Pick a nickname" @change="saveNickname" />
+            <span>{{ t('messages.nickname') }}</span>
+            <input v-model="nickname" type="text" maxlength="40" :placeholder="t('messages.nicknamePlaceholder')" @change="saveNickname" />
           </label>
           <p class="hint">
-            Device tag
+            {{ t('messages.deviceTag') }}
             <span class="dot" :style="{ background: deviceColor(deviceTag) }" aria-hidden="true"></span>
             <code>{{ deviceTag }}</code>
           </p>
@@ -91,68 +88,72 @@
       </aside>
 
       <!-- Main pane -->
-      <section class="main-pane" :aria-label="activeChannel ? activeChannel.label : 'Messages'">
+      <section class="main-pane" :aria-label="activeChannel ? activeChannel.label : t('nav.messages')">
         <header class="pane-header" v-if="activeChannel">
           <div class="pane-title">
             <h3>{{ activeChannel.label }}</h3>
             <span class="conn" :class="`conn-${connection}`" role="status">{{ connectionLabel }}</span>
           </div>
           <div class="pane-actions">
-            <button type="button" class="btn btn-ghost" :aria-expanded="String(showInfo)" @click="showInfo = !showInfo">ⓘ Security</button>
+            <button type="button" class="btn btn-ghost" :aria-expanded="String(showInfo)" @click="showInfo = !showInfo">ⓘ {{ t('messages.security') }}</button>
             <template v-if="activeChannel.kind === 'encrypted'">
-              <button type="button" class="btn btn-ghost" :aria-expanded="String(showShare)" @click="showShare = !showShare">Share</button>
-              <button v-if="activeChannel.remembered" type="button" class="btn btn-ghost" @click="forgetChannel(activeChannel)">Forget</button>
-              <button v-else type="button" class="btn btn-ghost" @click="rememberChannel(activeChannel)">Remember</button>
-              <button v-if="config.can_moderate" type="button" class="btn btn-danger" @click="deleteChannel(activeChannel)">Delete channel</button>
+              <button type="button" class="btn btn-ghost" :aria-expanded="String(showShare)" @click="showShare = !showShare">{{ t('messages.share') }}</button>
+              <button v-if="activeChannel.remembered" type="button" class="btn btn-ghost" @click="forgetChannel(activeChannel)">{{ t('messages.forget') }}</button>
+              <button v-else type="button" class="btn btn-ghost" @click="rememberChannel(activeChannel)">{{ t('messages.remember') }}</button>
+              <button v-if="config.can_moderate" type="button" class="btn btn-danger" @click="deleteChannel(activeChannel)">{{ t('messages.deleteChannel') }}</button>
             </template>
           </div>
         </header>
 
         <div v-if="showInfo" class="info-popover" role="note">
-          <h4>What is protected?</h4>
+          <h4>{{ t('messages.info.title') }}</h4>
           <template v-if="activeChannel?.kind === 'public'">
-            <p>The Board is <strong>public and unencrypted</strong>: everyone who can reach this server can read it, and the server stores it in plain text.</p>
+            <i18n-t keypath="messages.info.board" tag="p" scope="global">
+              <template #public><strong>{{ t('messages.info.boardPublic') }}</strong></template>
+            </i18n-t>
           </template>
           <ul>
-            <li>Encrypted channels are encrypted on your device with a key derived from the channel name and passphrase. The server only stores ciphertext.</li>
-            <li><strong>Protects against</strong> passive Wi-Fi sniffing and anyone reading the server's disk.</li>
-            <li><strong>Does not protect against</strong> an active attacker who can modify this page's code on plain HTTP (for example a rogue hotspot). Put Fyr behind HTTPS (a reverse proxy) for that.</li>
-            <li>Anyone with the passphrase can read everything and post under any nickname; nicknames and device tags are not verified.</li>
-            <li>A weak passphrase can be guessed offline by someone who captures the channel id. Use 4+ random words.</li>
+            <li>{{ t('messages.info.encrypted') }}</li>
+            <li><strong>{{ t('messages.info.protectsLabel') }}</strong> {{ t('messages.info.protects') }}</li>
+            <li><strong>{{ t('messages.info.notProtectsLabel') }}</strong> {{ t('messages.info.notProtects') }}</li>
+            <li>{{ t('messages.info.anyone') }}</li>
+            <li>{{ t('messages.info.weak') }}</li>
           </ul>
         </div>
 
         <div v-if="showShare && activeChannel?.kind === 'encrypted'" class="share-panel">
-          <p>Share this link (the part after <code>#</code> never reaches the server):</p>
+          <i18n-t keypath="messages.shareLink.intro" tag="p" scope="global">
+            <template #hash><code>#</code></template>
+          </i18n-t>
           <label class="check warn">
             <input v-model="shareIncludePassphrase" type="checkbox" :disabled="!sessionPassphrase(activeChannel.id)" />
-            <span>Include the passphrase in the link — anyone who sees the link or QR code can read and post.</span>
+            <span>{{ t('messages.shareLink.includePassphrase') }}</span>
           </label>
-          <p v-if="!sessionPassphrase(activeChannel.id)" class="hint">The passphrase is not kept on this device, so links contain the channel name only.</p>
+          <p v-if="!sessionPassphrase(activeChannel.id)" class="hint">{{ t('messages.shareLink.noPassphrase') }}</p>
           <div class="share-row">
             <input class="share-link" :value="shareLink" readonly @focus="$event.target.select()" />
-            <button type="button" class="btn btn-ghost" @click="copyShareLink">{{ copied ? 'Copied' : 'Copy' }}</button>
+            <button type="button" class="btn btn-ghost" @click="copyShareLink">{{ copied ? t('common.copied') : t('common.copy') }}</button>
           </div>
-          <img v-if="shareQr" class="qr" :src="shareQr" alt="QR code for the share link" width="180" height="180" />
+          <img v-if="shareQr" class="qr" :src="shareQr" :alt="t('messages.shareLink.qrAlt')" width="180" height="180" />
         </div>
 
         <div v-if="activeChannel?.kind === 'public' && pinned.length" class="pinned">
-          <h4>📌 Pinned</h4>
+          <h4>📌 {{ t('messages.pinned') }}</h4>
           <article v-for="m in pinned" :key="`p${m.id}`" class="pinned-item">
-            <span v-if="m.category" class="chip" :class="`chip-${m.category}`">{{ CATEGORY_LABELS[m.category] }}</span>
+            <span v-if="m.category" class="chip" :class="`chip-${m.category}`">{{ categoryLabel(m.category) }}</span>
             <strong>{{ m.nick }}</strong>:
             <template v-for="(seg, i) in linkify(m.text)" :key="i"><a v-if="seg.type === 'link'" :href="seg.href" target="_blank" rel="noopener noreferrer nofollow">{{ seg.text }}</a><span v-else>{{ seg.text }}</span></template>
-            <button v-if="config.can_moderate" type="button" class="link-btn" @click="setPinned(m, false)">Unpin</button>
+            <button v-if="config.can_moderate" type="button" class="link-btn" @click="setPinned(m, false)">{{ t('messages.unpin') }}</button>
           </article>
         </div>
 
         <div ref="listEl" class="message-list" aria-live="polite" @scroll="onScroll">
-          <button v-if="hasOlder" type="button" class="btn btn-ghost load-older" :disabled="loadingOlder" @click="loadOlder">Load older messages</button>
+          <button v-if="hasOlder" type="button" class="btn btn-ghost load-older" :disabled="loadingOlder" @click="loadOlder">{{ t('messages.loadOlder') }}</button>
           <p v-if="channelError" class="notice notice-error">
             {{ channelError }}
-            <button v-if="channelMissing && config.can_post" type="button" class="btn btn-ghost" @click="recreateChannel">Create it again</button>
+            <button v-if="channelMissing && config.can_post" type="button" class="btn btn-ghost" @click="recreateChannel">{{ t('messages.recreate') }}</button>
           </p>
-          <p v-else-if="!loadingMessages && !messages.length" class="empty">No messages yet. Say hello!</p>
+          <p v-else-if="!loadingMessages && !messages.length" class="empty">{{ t('messages.empty') }}</p>
           <section v-for="group in groups" :key="group.key" class="day-group">
             <h4 class="day-label"><span>{{ group.label }}</span></h4>
             <article
@@ -162,18 +163,18 @@
               :class="{ own: m.own, undecryptable: m.undecryptable, alert: m.category === 'alert' }"
             >
               <div class="meta">
-                <span class="dot" :style="{ background: deviceColor(m.device_tag) }" :title="`Device ${m.device_tag}`" aria-hidden="true"></span>
+                <span class="dot" :style="{ background: deviceColor(m.device_tag) }" :title="t('messages.device', { tag: m.device_tag })" aria-hidden="true"></span>
                 <span class="nick">{{ m.nick }}</span>
-                <span v-if="m.category" class="chip" :class="`chip-${m.category}`">{{ CATEGORY_LABELS[m.category] }}</span>
+                <span v-if="m.category" class="chip" :class="`chip-${m.category}`">{{ categoryLabel(m.category) }}</span>
                 <time :datetime="new Date(m.created_at).toISOString()">{{ timeLabel(m.created_at) }}</time>
-                <span v-if="m.pinned" title="Pinned" aria-label="Pinned">📌</span>
+                <span v-if="m.pinned" :title="t('messages.pinned')" :aria-label="t('messages.pinned')">📌</span>
               </div>
-              <p v-if="m.undecryptable" class="text muted">Unable to decrypt this message.</p>
+              <p v-if="m.undecryptable" class="text muted">{{ t('messages.undecryptable') }}</p>
               <p v-else class="text"><template v-for="(seg, i) in linkify(m.text)" :key="i"><a v-if="seg.type === 'link'" :href="seg.href" target="_blank" rel="noopener noreferrer nofollow">{{ seg.text }}</a><span v-else>{{ seg.text }}</span></template></p>
               <router-link v-if="m.lat != null && m.lng != null" class="location" :to="mapsLink({ lat: m.lat, lng: m.lng, label: m.text })">📍 {{ formatCoords(m.lat, m.lng) }}</router-link>
               <div v-if="config.can_moderate" class="mod-actions">
-                <button v-if="activeChannel?.kind === 'public'" type="button" class="link-btn" @click="setPinned(m, !m.pinned)">{{ m.pinned ? 'Unpin' : 'Pin' }}</button>
-                <button type="button" class="link-btn danger" @click="deleteMessage(m)">Delete</button>
+                <button v-if="activeChannel?.kind === 'public'" type="button" class="link-btn" @click="setPinned(m, !m.pinned)">{{ m.pinned ? t('messages.unpin') : t('messages.pin') }}</button>
+                <button type="button" class="link-btn danger" @click="deleteMessage(m)">{{ t('common.delete') }}</button>
               </div>
             </article>
           </section>
@@ -185,22 +186,22 @@
             v-model="nickname"
             type="text"
             maxlength="40"
-            placeholder="Your nickname (shown with your messages)"
-            aria-label="Your nickname"
+            :placeholder="t('messages.composer.nicknamePlaceholder')"
+            :aria-label="t('messages.nickname')"
             @change="saveNickname"
           />
           <div class="composer-options">
-            <select v-model="draft.category" aria-label="Category">
-              <option value="">Chat</option>
-              <option v-for="c in CATEGORIES" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
+            <select v-model="draft.category" :aria-label="t('messages.composer.category')">
+              <option value="">{{ t('messages.composer.chat') }}</option>
+              <option v-for="c in CATEGORIES" :key="c" :value="c">{{ categoryLabel(c) }}</option>
             </select>
-            <button type="button" class="btn btn-ghost" @click="toggleLocation">{{ draft.location ? `📍 ${formatCoords(draft.location.lat, draft.location.lng)} ✕` : '📍 Add location' }}</button>
-            <select v-if="activeChannel.kind === 'public'" v-model.number="draft.ttlDays" aria-label="Keep for">
-              <option :value="1">Keep 1 day</option>
-              <option :value="7">Keep 7 days</option>
-              <option :value="30">Keep 30 days</option>
-              <option :value="90">Keep 90 days</option>
-              <option :value="365">Keep 1 year</option>
+            <button type="button" class="btn btn-ghost" @click="toggleLocation">{{ draft.location ? `📍 ${formatCoords(draft.location.lat, draft.location.lng)} ✕` : `📍 ${t('messages.composer.addLocation')}` }}</button>
+            <select v-if="activeChannel.kind === 'public'" v-model.number="draft.ttlDays" :aria-label="t('messages.composer.keepFor')">
+              <option :value="1">{{ t('messages.composer.keepDays', { count: 1 }, 1) }}</option>
+              <option :value="7">{{ t('messages.composer.keepDays', { count: 7 }, 7) }}</option>
+              <option :value="30">{{ t('messages.composer.keepDays', { count: 30 }, 30) }}</option>
+              <option :value="90">{{ t('messages.composer.keepDays', { count: 90 }, 90) }}</option>
+              <option :value="365">{{ t('messages.composer.keepYear') }}</option>
             </select>
           </div>
           <p v-if="locationError" class="form-error">{{ locationError }}</p>
@@ -210,16 +211,16 @@
               v-model="draft.text"
               rows="2"
               :maxlength="config.limits.max_text_chars"
-              :placeholder="nickname ? `Message as ${nickname} (Enter sends, Shift+Enter newline)` : 'Message (set a nickname first)'"
-              aria-label="Message"
+              :placeholder="nickname ? t('messages.composer.placeholder', { nick: nickname }) : t('messages.composer.placeholderNoNick')"
+              :aria-label="t('messages.composer.message')"
               @keydown.enter.exact.prevent="send"
             ></textarea>
-            <button type="submit" class="btn btn-primary" :disabled="sending || !draft.text.trim() || !nickname.trim()">Send</button>
+            <button type="submit" class="btn btn-primary" :disabled="sending || !draft.text.trim() || !nickname.trim()">{{ t('messages.composer.send') }}</button>
           </div>
           <p class="composer-foot">
             <span>{{ charCount(draft.text) }}/{{ config.limits.max_text_chars }}</span>
-            <span v-if="activeChannel.kind === 'public'">Public — readable by everyone on this network.</span>
-            <span v-else>🔒 End-to-end encrypted</span>
+            <span v-if="activeChannel.kind === 'public'">{{ t('messages.composer.public') }}</span>
+            <span v-else>🔒 {{ t('messages.composer.e2e') }}</span>
           </p>
           <p v-if="sendError" class="form-error" role="alert">{{ sendError }}</p>
         </form>
@@ -229,13 +230,15 @@
       </section>
     </div>
 
-    <div v-else class="notice">Loading messages…</div>
+    <div v-else class="notice">{{ t('messages.loading') }}</div>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { renderSVG } from 'uqr'
+import { useI18n } from 'vue-i18n'
+import { errorText } from '../i18n/index.js'
 import { apiService } from '../services/api'
 import { useAuthState } from '../services/auth'
 import { useLocationState } from '../services/location'
@@ -249,7 +252,7 @@ import {
   keyFromHex,
   keyToHex
 } from '../modules/messaging/crypto.js'
-import { CATEGORIES, CATEGORY_LABELS, charCount, deviceColor, formatCoords, groupByDay, linkify, mapsLink, timeLabel } from '../modules/messaging/format.js'
+import { CATEGORIES, categoryLabel, charCount, deviceColor, formatCoords, groupByDay, linkify, mapsLink, timeLabel } from '../modules/messaging/format.js'
 import { PUBLIC_CHANNEL_ID, dropExpired, latestId, mergeMessages, removeMessage, toViewMessage } from '../modules/messaging/model.js'
 import { messagingStorage } from '../modules/messaging/storage.js'
 import { createChannelStream } from '../modules/messaging/stream.js'
@@ -262,6 +265,7 @@ const locationState = useLocationState()
 const board = useBoardFeed()
 
 const config = ref(null)
+const { t } = useI18n()
 const loadError = ref('')
 const nickname = ref(storage.nickname())
 const hasNickname = ref(Boolean(nickname.value))
@@ -274,7 +278,7 @@ const sessionPassphrases = new Map()
 const rememberedVersion = ref(0)
 const channels = computed(() => {
   void rememberedVersion.value
-  const list = [{ id: PUBLIC_CHANNEL_ID, label: 'Board', kind: 'public' }]
+  const list = [{ id: PUBLIC_CHANNEL_ID, label: t('messages.board'), kind: 'public' }]
   const remembered = storage.channels()
   for (const c of remembered) {
     list.push({ id: c.channelId, label: c.name, kind: 'encrypted', remembered: true, authKeyHex: c.authKey, encKeyHex: c.encKey })
@@ -317,16 +321,16 @@ const locationError = ref('')
 
 const groups = computed(() => groupByDay(messages.value))
 const connectionLabel = computed(() => ({
-  connecting: 'Connecting…',
-  live: 'Live',
-  reconnecting: 'Reconnecting…',
-  stopped: 'Offline',
-  error: 'Disconnected'
+  connecting: t('messages.connection.connecting'),
+  live: t('messages.connection.live'),
+  reconnecting: t('messages.connection.reconnecting'),
+  stopped: t('messages.connection.stopped'),
+  error: t('messages.connection.error')
 }[connection.value] || connection.value))
 
 const readOnlyReason = computed(() => {
-  if (authState.readonly) return 'This server is read-only: you can read messages but not post.'
-  return 'Posting requires an admin login on this server. You can still read the Board and channels you have keys for.'
+  if (authState.readonly) return t('messages.readOnlyServer')
+  return t('messages.loginToPost')
 })
 
 const keyCtx = (channel) => ({
@@ -392,18 +396,18 @@ const handleEvent = (channel, name, data) => {
   } else if (name === 'resync') {
     catchUp(channel, loadToken).catch(() => {})
   } else if (name === 'channel_deleted') {
-    channelError.value = 'This channel was deleted by an administrator.'
+    channelError.value = t('messages.errors.channelDeleted')
     channelMissing.value = true
   }
 }
 
 const describeError = (err) => {
   const status = err?.response?.status
-  if (status === 401) return 'Not allowed: a login or channel key is required.'
-  if (status === 403) return authState.readonly ? 'This server is read-only.' : 'Not allowed (wrong channel key?).'
-  if (status === 404) return 'This channel no longer exists on the server.'
-  if (status === 413 || status === 422) return err?.response?.data?.error || 'The message was rejected.'
-  if (status === 429) return 'You are sending too fast. Please wait a moment.'
+  if (status === 401) return t('messages.errors.unauthorized')
+  if (status === 403) return authState.readonly ? t('messages.errors.readonly') : t('messages.errors.forbidden')
+  if (status === 404) return t('messages.errors.notFound')
+  if (status === 413 || status === 422) return err?.response?.data?.error || t('messages.errors.rejected')
+  if (status === 429) return t('messages.errors.tooFast')
   return err?.response?.data?.error || apiService.handleError(err)
 }
 
@@ -513,7 +517,7 @@ const toggleLocation = () => {
     if (fromSettings && Number.isFinite(fromSettings.latitude)) {
       draft.location = { lat: Number(fromSettings.latitude.toFixed(5)), lng: Number(fromSettings.longitude.toFixed(5)) }
     } else {
-      locationError.value = 'Location unavailable: browser geolocation needs HTTPS, and no location is saved in Settings.'
+      locationError.value = t('messages.errors.locationUnavailable')
     }
   }
   if (globalThis.isSecureContext && navigator.geolocation) {
@@ -533,11 +537,11 @@ const send = async () => {
   if (!channel || !text || sending.value) return
   saveNickname()
   if (!nickname.value) {
-    sendError.value = 'Please set a nickname first.'
+    sendError.value = t('messages.errors.nicknameFirst')
     return
   }
   if (charCount(text) > config.value.limits.max_text_chars) {
-    sendError.value = 'Message is too long.'
+    sendError.value = t('messages.errors.tooLong')
     return
   }
   sending.value = true
@@ -569,7 +573,7 @@ const send = async () => {
     draft.category = ''
     composerEl.value?.focus()
   } catch (err) {
-    sendError.value = err?.response ? describeError(err) : (err?.message || 'Sending failed.')
+    sendError.value = err?.response ? describeError(err) : errorText(err, 'messages.errors.sendFailed')
   } finally {
     sending.value = false
   }
@@ -610,7 +614,7 @@ const joinChannel = async () => {
   join.error = ''
   join.notFound = null
   if (join.passphrase.length < 8) {
-    join.error = 'Use a passphrase of at least 8 characters (4+ random words is best).'
+    join.error = t('messages.errors.shortPassphrase', { min: 8 })
     return
   }
   join.busy = true
@@ -630,7 +634,7 @@ const joinChannel = async () => {
       }
     }
   } catch (err) {
-    join.error = err?.message || 'Could not derive keys.'
+    join.error = errorText(err, 'messages.errors.deriveFailed')
   } finally {
     join.busy = false
   }
@@ -708,10 +712,10 @@ const exportKeys = async () => {
       onProgress: (p) => { keyTransfer.progress = p }
     })
     saveText(text, datedFilename('channel-keys'))
-    keyTransfer.status = 'Key file saved. Keep it and its passphrase safe.'
+    keyTransfer.status = t('messages.keys.saved')
     keyTransfer.passphrase = ''
   } catch (err) {
-    keyTransfer.error = err?.message || 'Export failed'
+    keyTransfer.error = errorText(err, 'messages.keys.exportFailed')
   } finally {
     keyTransfer.busy = ''
   }
@@ -743,12 +747,12 @@ const importKeys = async () => {
       }
     }
     rememberedVersion.value += 1
-    keyTransfer.status = `Imported ${count} channel key(s).`
+    keyTransfer.status = t('messages.keys.imported', { count }, count)
     keyTransfer.file = null
     keyTransfer.passphrase = ''
     if (keyFileInput.value) keyFileInput.value.value = ''
   } catch (err) {
-    keyTransfer.error = err?.message || 'Import failed'
+    keyTransfer.error = errorText(err, 'messages.keys.importFailed')
   } finally {
     keyTransfer.busy = ''
   }
@@ -803,7 +807,7 @@ const applyFragment = () => {
 // ---------------------------------------------------------------------------
 
 const deleteMessage = async (message) => {
-  if (!window.confirm('Delete this message for everyone?')) return
+  if (!window.confirm(t('messages.confirmDeleteMessage'))) return
   try {
     await apiService.deleteChannelMessage(activeChannel.value.id, message.id)
     messages.value = removeMessage(messages.value, message.id)
@@ -823,7 +827,7 @@ const setPinned = async (message, value) => {
 }
 
 const deleteChannel = async (channel) => {
-  if (!window.confirm(`Delete channel “${channel.label}” and all its messages from the server?`)) return
+  if (!window.confirm(t('messages.confirmDeleteChannel', { name: channel.label }))) return
   try {
     await apiService.deleteChannel(channel.id)
     forgetChannel(channel)

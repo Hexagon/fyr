@@ -1,4 +1,6 @@
 // Per-browser reading progress and bookmarks.
+import { t } from '../../i18n/index.js'
+import { localizedError } from '../../i18n/errors.js'
 //
 // Stored in localStorage (not on the server) because guests in password mode
 // have no server-side writes. All storage access goes through safeStorage, so
@@ -100,7 +102,7 @@ const normalizeBookmark = (bookmark) => {
   if (!id) return null
   return {
     id,
-    title: clipText(bookmark.title) || position.label || 'Bookmark',
+    title: clipText(bookmark.title) || position.label || t('books.bookmark'),
     position,
     createdAt: finiteNumber(bookmark.createdAt) ?? 0
   }
@@ -257,7 +259,7 @@ export const createProgressStore = ({
       const createdAt = now()
       const bookmark = {
         id: `${createdAt.toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
-        title: clipText(title) || normalized.label || 'Bookmark',
+        title: clipText(title) || normalized.label || t('books.bookmark'),
         position: normalized,
         createdAt
       }
@@ -311,7 +313,7 @@ export const createProgressStore = ({
    */
   const importData = (raw) => {
     if (!raw || typeof raw !== 'object' || raw.format !== PROGRESS_EXPORT_FORMAT || raw.v !== 1) {
-      throw new Error('Not a Fyr reading progress file')
+      throw localizedError('books.progress.notAProgressFile', 'Not a Fyr reading progress file')
     }
     const incoming = normalizeState(raw, Number.MAX_SAFE_INTEGER, maxBookmarks).books
     const state = read()

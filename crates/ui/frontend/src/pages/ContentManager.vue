@@ -3,8 +3,8 @@
     <div class="manager-layout">
       <aside class="folder-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="folder-header">
-          <h3 v-if="!sidebarCollapsed">Folders</h3>
-          <button class="collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed">
+          <h3 v-if="!sidebarCollapsed">{{ t('content.folders') }}</h3>
+          <button class="collapse-btn" :aria-label="sidebarCollapsed ? t('content.expandFolders') : t('content.collapseFolders')" :aria-expanded="String(!sidebarCollapsed)" @click="sidebarCollapsed = !sidebarCollapsed">
             {{ sidebarCollapsed ? '»' : '«' }}
           </button>
         </div>
@@ -26,19 +26,19 @@
 
       <section class="manager-main">
         <div v-if="loading" class="loading-overlay">
-          <p class="loading">Loading content...</p>
+          <p class="loading">{{ t('content.loading') }}</p>
         </div>
 
         <div class="toolbar">
           <div class="search-wrap">
-            <input v-model="searchQuery" type="text" placeholder="Search files..." class="search-input" />
-            <select v-model="sortBy" class="sort-select">
-              <option value="name">Sort: Name</option>
-              <option value="size">Sort: Size</option>
-              <option value="modified">Sort: Modified</option>
+            <input v-model="searchQuery" type="text" :placeholder="t('content.searchPlaceholder')" :aria-label="t('content.searchPlaceholder')" class="search-input" />
+            <select v-model="sortBy" class="sort-select" :aria-label="t('content.sortLabel')">
+              <option value="name">{{ t('content.sortName') }}</option>
+              <option value="size">{{ t('content.sortSize') }}</option>
+              <option value="modified">{{ t('content.sortModified') }}</option>
             </select>
             <button class="btn btn-secondary" @click="sortDir = sortDir === 'asc' ? 'desc' : 'asc'">
-              {{ sortDir === 'asc' ? 'Asc' : 'Desc' }}
+              {{ sortDir === 'asc' ? t('content.asc') : t('content.desc') }}
             </button>
           </div>
 
@@ -48,16 +48,16 @@
           <p v-if="contentError" class="error-text" role="alert" aria-live="assertive">{{ contentError }}</p>
           <p v-if="indexError && activeCategory === 'books'" class="error-text" role="alert">{{ indexError }}</p>
           <p v-if="indexStatus.lowDisk && activeCategory === 'books'" class="status-text">
-            Full-text indexing is paused because free disk space is low.
+            {{ t('content.lowDisk') }}
           </p>
           <table class="file-table" v-else-if="visibleFiles.length">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Size</th>
-                <th>Modified</th>
-                <th v-if="showIndexColumn">Full-text</th>
-                <th></th>
+                <th>{{ t('content.columns.name') }}</th>
+                <th>{{ t('content.columns.size') }}</th>
+                <th>{{ t('content.columns.modified') }}</th>
+                <th v-if="showIndexColumn">{{ t('content.columns.fulltext') }}</th>
+                <th><span class="visually-hidden">{{ t('content.columns.actions') }}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -84,13 +84,13 @@
                         class="btn btn-secondary btn-inline"
                         :disabled="indexBusy.has(file.filename)"
                         @click="buildFulltextIndex(file.filename)"
-                      >Build index</button>
+                      >{{ t('content.index.build') }}</button>
                       <button
                         v-if="indexInfo(file.filename).canDelete"
                         class="btn btn-secondary btn-inline"
                         :disabled="indexBusy.has(file.filename)"
                         @click="deleteFulltextIndex(file.filename)"
-                      >Delete index</button>
+                      >{{ t('content.index.delete') }}</button>
                     </span>
                   </template>
                 </td>
@@ -100,16 +100,16 @@
                     :href="buildContentDownloadUrl(activeCategory, file.filename)"
                     :download="file.filename"
                   >
-                    Download
+                    {{ t('content.download') }}
                   </a>
-                  <button class="btn btn-danger btn-inline" @click="requestDeleteContentFile(file)">Delete</button>
+                  <button class="btn btn-danger btn-inline" @click="requestDeleteContentFile(file)">{{ t('common.delete') }}</button>
                 </td>
               </tr>
             </tbody>
           </table>
           <div v-else class="empty-panel">
-            <p class="empty-state">No files in {{ currentFolderLabel }}.</p>
-            <p v-if="!showCuratedPanel" class="status-text">Import files or queue a URL download to get started.</p>
+            <p class="empty-state">{{ t('content.noFiles', { folder: currentFolderLabel }) }}</p>
+            <p v-if="!showCuratedPanel" class="status-text">{{ t('content.getStarted') }}</p>
             <p v-if="curatedContentError" class="error-text" role="alert" aria-live="assertive">{{ curatedContentError }}</p>
           </div>
         </div>
@@ -140,7 +140,7 @@
                   :disabled="urlDownloadPending"
                   @click="startCuratedDownload(item)"
                 >
-                  {{ activeDownloadUrl === String(item.downloadUrl).trim() ? 'Downloading...' : 'Download now' }}
+                  {{ activeDownloadUrl === String(item.downloadUrl).trim() ? t('content.downloading') : t('content.downloadNow') }}
                 </button>
                 <a
                   v-if="item.source"
@@ -149,7 +149,7 @@
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Open source
+                  {{ t('content.openSource') }}
                 </a>
               </div>
             </article>
@@ -159,7 +159,7 @@
         <div class="manager-panels">
           <div class="imports-panel">
             <div class="panel-header">
-              <h3>Local Imports</h3>
+              <h3>{{ t('content.imports.title') }}</h3>
             </div>
 
             <input
@@ -172,7 +172,7 @@
 
             <div class="panel-actions">
               <button class="btn btn-primary" @click="openFilePicker" :disabled="importing">
-                {{ importing ? 'Importing...' : 'Import Files' }}
+                {{ importing ? t('content.imports.importing') : t('content.imports.button') }}
               </button>
             </div>
 
@@ -184,9 +184,9 @@
               @dragleave.prevent="onDragLeave"
               @drop.prevent="onDrop"
             >
-              Drop files here to import into {{ currentFolderLabel }}
+              {{ t('content.imports.drop', { folder: currentFolderLabel }) }}
               <br />
-              <small>Supported in this folder: {{ currentFolderHint }}</small>
+              <small>{{ t('content.imports.supported', { hint: currentFolderHint }) }}</small>
             </div>
 
             <p v-if="importError" class="error-text" role="alert" aria-live="assertive">{{ importError }}</p>
@@ -194,28 +194,28 @@
 
           <div class="downloads-panel">
             <div class="download-header">
-              <h3>Download Manager</h3>
+              <h3>{{ t('content.downloads.title') }}</h3>
               <span class="pill">{{ pendingUploads.length + downloads.length }}</span>
             </div>
 
             <div v-if="pendingUploads.length || downloads.length" class="download-list">
               <div v-for="pu in pendingUploads" :key="pu.id" class="download-item">
-                <p class="download-name">Upload: {{ pu.filename }}</p>
+                <p class="download-name">{{ t('content.downloads.upload', { name: pu.filename }) }}</p>
                 <p class="download-status">
-                  <span class="badge uploading">uploading</span>
+                  <span class="badge uploading">{{ downloadStatusLabel('uploading') }}</span>
                 </p>
                 <div v-if="pu.totalBytes > 0" class="progress-bar-wrap">
                   <div class="progress-bar-fill uploading" :style="{ width: pu.progress + '%' }"></div>
                 </div>
                 <p class="download-progress" v-if="pu.totalBytes > 0">
-                  {{ pu.progress }}% ({{ formatBytes(pu.bytesSent) }} / {{ formatBytes(pu.totalBytes) }})
+                  {{ t('content.downloads.progressOf', { pct: pu.progress, done: formatBytes(pu.bytesSent), total: formatBytes(pu.totalBytes) }) }}
                 </p>
-                <button class="btn btn-secondary btn-inline" @click="pu.abortFn()">Cancel</button>
+                <button class="btn btn-secondary btn-inline" @click="pu.abortFn()">{{ t('common.cancel') }}</button>
               </div>
               <div v-for="dl in downloads" :key="dl.id" class="download-item">
                 <p class="download-name">{{ describeDownloadSource(dl.source) }}</p>
                 <p class="download-status">
-                  <span class="badge" :class="downloadBadgeClass(dl.status)">{{ dl.status }}</span>
+                  <span class="badge" :class="downloadBadgeClass(dl.status)">{{ downloadStatusLabel(dl.status) }}</span>
                 </p>
                 <div v-if="showDownloadProgress(dl)" class="progress-bar-wrap">
                   <div class="progress-bar-fill" :class="downloadBadgeClass(dl.status)" :style="{ width: Math.max(0, Math.min(100, Math.round(Number(dl.progress) || 0))) + '%' }"></div>
@@ -232,50 +232,52 @@
                   :disabled="retryingTaskIds.has(dl.id)"
                   @click="retryDownload(dl.id)"
                 >
-                  {{ retryingTaskIds.has(dl.id) ? 'Retrying...' : retryActionLabel(dl) }}
+                  {{ retryingTaskIds.has(dl.id) ? t('content.downloads.retrying') : retryActionLabel(dl) }}
                 </button>
                 <button
                   v-if="isDownloadCancellable(dl.status)"
                   class="btn btn-secondary btn-inline"
                   @click="cancelDownload(dl.id)"
                 >
-                  Cancel
+                  {{ t('common.cancel') }}
                 </button>
                 <button
                   v-if="isDownloadDismissible(dl.status)"
                   class="btn btn-secondary btn-inline"
                   @click="dismissDownload(dl.id)"
                 >
-                  Dismiss
+                  {{ t('content.downloads.dismiss') }}
                 </button>
                 <p v-if="dl.error" class="error-text" role="alert" aria-live="assertive">{{ dl.error }}</p>
               </div>
             </div>
-            <p v-else-if="!downloadsLoading" class="empty-state">No download tasks</p>
-            <p v-if="downloadsLoading" class="status-text" role="status" aria-live="polite">Refreshing downloads...</p>
+            <p v-else-if="!downloadsLoading" class="empty-state">{{ t('content.downloads.empty') }}</p>
+            <p v-if="downloadsLoading" class="status-text" role="status" aria-live="polite">{{ t('content.downloads.refreshing') }}</p>
             <p v-if="downloadsError" class="error-text" role="alert" aria-live="assertive">{{ downloadsError }}</p>
 
             <div class="download-create">
               <p class="status-text">
-                URL downloads auto-route by extension: maps (.pmtiles, .mbtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).
+                {{ t('content.downloads.routing') }}
               </p>
               <input
                 type="text"
                 v-model="downloadUrl"
-                placeholder="Enter URL (https://example.com/file.pmtiles)"
+                :placeholder="t('content.downloads.urlPlaceholder')"
+                :aria-label="t('content.downloads.urlLabel')"
                 @keyup.enter="handleDownload"
               />
               <input
                 type="text"
                 v-model="downloadSha256"
                 class="sha256-input"
-                placeholder="SHA-256 checksum (optional)"
+                :placeholder="t('content.downloads.shaPlaceholder')"
+                :aria-label="t('content.downloads.shaPlaceholder')"
                 spellcheck="false"
                 autocomplete="off"
                 @keyup.enter="handleDownload"
               />
               <button @click="handleDownload" class="btn btn-primary" :disabled="!downloadUrl || urlDownloadPending">
-                {{ urlDownloadPending ? 'Downloading...' : 'Download URL' }}
+                {{ urlDownloadPending ? t('content.downloading') : t('content.downloads.button') }}
               </button>
             </div>
 
@@ -288,17 +290,15 @@
 
     <div v-if="confirmDeleteFile" class="confirm-overlay">
       <div class="confirm-dialog">
-        <p class="confirm-warning">⚠️ Permanent deletion</p>
-        <p class="confirm-message">
-          Are you sure you want to permanently delete
-          <strong>{{ confirmDeleteFile.filename }}</strong>?
-          This action cannot be undone.
-        </p>
+        <p class="confirm-warning">⚠️ {{ t('content.confirmDelete.title') }}</p>
+        <i18n-t keypath="content.confirmDelete.message" tag="p" class="confirm-message" scope="global">
+          <template #name><strong>{{ confirmDeleteFile.filename }}</strong></template>
+        </i18n-t>
         <p v-if="deleteFileError" class="error-text" role="alert" aria-live="assertive">{{ deleteFileError }}</p>
         <div class="confirm-actions">
-          <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">Cancel</button>
+          <button class="btn btn-secondary" :disabled="deleteFilePending" @click="cancelDeleteContentFile">{{ t('common.cancel') }}</button>
           <button class="btn btn-danger" :disabled="deleteFilePending" @click="confirmDeleteContentFile">
-            {{ deleteFilePending ? 'Deleting...' : 'Delete permanently' }}
+            {{ deleteFilePending ? t('content.confirmDelete.deleting') : t('content.confirmDelete.confirm') }}
           </button>
         </div>
       </div>
@@ -308,6 +308,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { formatBytes, formatNumber } from '../i18n/index.js'
 import { useRoute } from 'vue-router'
 import { apiService } from '../services/api'
 import { isAdminLocked } from '../services/auth'
@@ -331,6 +333,7 @@ const fileInput = ref(null)
 const dragActive = ref(false)
 const route = useRoute()
 
+const { t, locale } = useI18n()
 const activeCategory = ref('books')
 const searchQuery = ref('')
 const sortBy = ref('name')
@@ -413,11 +416,11 @@ let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
 
 const folderEntries = computed(() => [
-  { key: 'maps', label: 'Maps', icon: '🗺️', count: maps.value.length, hint: 'Maps accepts .pmtiles and .mbtiles files.' },
-  { key: 'books', label: 'Books', icon: '📚', count: books.value.length, hint: 'Books accepts .epub, .pdf, .mobi, .md, and .zim files.' },
-  { key: 'poi', label: 'POI', icon: '📍', count: pois.value.length, hint: 'POI accepts .geojson, .json, and .fgb files.' },
-  { key: 'models', label: 'Models', icon: '🤖', count: models.value.length, hint: 'Models accepts .gguf files (import flow).' },
-  { key: 'misc', label: 'Misc', icon: '📦', count: misc.value.length, hint: 'Misc stores general files such as .txt, .csv, .zip, .7z, .log, and installer packages.' }
+  { key: 'maps', label: t('content.folder.maps'), icon: '🗺️', count: maps.value.length, hint: t('content.folder.mapsHint') },
+  { key: 'books', label: t('content.folder.books'), icon: '📚', count: books.value.length, hint: t('content.folder.booksHint') },
+  { key: 'poi', label: t('content.folder.poi'), icon: '📍', count: pois.value.length, hint: t('content.folder.poiHint') },
+  { key: 'models', label: t('content.folder.models'), icon: '🤖', count: models.value.length, hint: t('content.folder.modelsHint') },
+  { key: 'misc', label: t('content.folder.misc'), icon: '📦', count: misc.value.length, hint: t('content.folder.miscHint') }
 ])
 
 const currentFolderLabel = computed(() => {
@@ -427,7 +430,7 @@ const currentFolderLabel = computed(() => {
 
 const currentFolderHint = computed(() => {
   const item = folderEntries.value.find(entry => entry.key === activeCategory.value)
-  return item?.hint || 'No folder hint available.'
+  return item?.hint || t('content.folder.noHint')
 })
 
 const filesByCategory = computed(() => ({
@@ -468,37 +471,34 @@ const curatedCatalogCategoryMap = Object.freeze({
 const formatApproximateGigabytes = (value) => {
   const size = Number(value)
   if (!Number.isFinite(size) || size <= 0) return null
-  return `~${size} GB`
+  return `~${formatNumber(size)} GB`
 }
 
 const formatArchitectureLabel = (value) => {
   const normalized = String(value || '').trim().toLowerCase()
   if (!normalized) return null
 
-  if (normalized === 'qwen2') return 'Family: Qwen2'
-  if (normalized === 'llama') return 'Family: Llama'
-  if (normalized === 'phi3') return 'Family: Phi-3'
-
-  return `Family: ${value}`
+  const family = { qwen2: 'Qwen2', llama: 'Llama', phi3: 'Phi-3' }[normalized] || value
+  return t('content.curated.family', { family })
 }
 
 const buildCuratedMeta = (category, item) => {
   if (category === 'models') {
     return [
       formatArchitectureLabel(item.architecture),
-      item.tier ? `Tier: ${item.tier}` : null,
+      item.tier ? t('content.curated.tier', { tier: item.tier }) : null,
       item.quantization || null,
       formatApproximateGigabytes(item.approx_size_gb),
-      item.license ? `License: ${item.license}` : null,
-      item.default_profile ? `Profile: ${item.default_profile}` : null,
+      item.license ? t('content.curated.license', { license: item.license }) : null,
+      item.default_profile ? t('content.curated.profile', { profile: item.default_profile }) : null,
       typeof item.tested_with_fyr === 'boolean'
-        ? (item.tested_with_fyr ? 'Validated in Fyr' : 'Runtime added in Fyr; local model validation still recommended')
+        ? (item.tested_with_fyr ? t('content.curated.validated') : t('content.curated.notValidated'))
         : null
     ].filter(Boolean)
   }
 
   const formats = Array.isArray(item.formats) && item.formats.length
-    ? `Formats: ${item.formats.map((format) => String(format).toUpperCase()).join(', ')}`
+    ? t('content.curated.formats', { formats: item.formats.map((format) => String(format).toUpperCase()).join(', ') })
     : null
 
   return [formats].filter(Boolean)
@@ -514,8 +514,8 @@ const normalizedCuratedItems = (category) => {
   return items.map((item, index) => ({
     id: item.id || `${category}-${index}`,
     title: category === 'models'
-      ? [item.model, item.quantization].filter(Boolean).join(' • ') || item.id || 'Recommended model'
-      : item.label || item.id || 'Recommended source',
+      ? [item.model, item.quantization].filter(Boolean).join(' • ') || item.id || t('content.curated.recommendedModel')
+      : item.label || item.id || t('content.curated.recommendedSource'),
     description: item.recommended_for || item.notes || '',
     downloadUrl: String(item.download_url || '').trim(),
     sha256: String(item.sha256 || '').trim(),
@@ -533,27 +533,24 @@ const showCuratedSupplement = computed(() => !contentError.value && visibleFiles
 const showCuratedPanel = computed(() => showCuratedPrimary.value || showCuratedSupplement.value)
 
 const curatedSectionTitle = computed(() => showCuratedPrimary.value
-  ? `Recommended ${currentFolderLabel.value}`
-  : `More ${currentFolderLabel.value}`)
+  ? t('content.curated.recommendedTitle', { folder: currentFolderLabel.value })
+  : t('content.curated.moreTitle', { folder: currentFolderLabel.value }))
 
 const curatedSectionHint = computed(() => showCuratedPrimary.value
-  ? `Start with the curated catalog for trusted ${currentFolderLabel.value.toLowerCase()} sources and direct downloads where available.`
-  : `Need more ${currentFolderLabel.value.toLowerCase()}? The curated catalog keeps recommended sources handy alongside your current files.`)
-
-const formatBytes = (bytes) => {
-  const value = Number(bytes)
-  if (!Number.isFinite(value) || value <= 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(sizes.length - 1, Math.floor(Math.log(value) / Math.log(k)))
-  return Math.round((value / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
+  ? t('content.curated.primaryHint', { folder: currentFolderLabel.value.toLowerCase() })
+  : t('content.curated.secondaryHint', { folder: currentFolderLabel.value.toLowerCase() }))
 
 const formatDate = (value) => {
-  if (!value) return 'n/a'
+  if (!value) return t('common.na')
   const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return 'n/a'
-  return d.toLocaleString()
+  if (Number.isNaN(d.getTime())) return t('common.na')
+  return d.toLocaleString(locale.value)
+}
+
+const DOWNLOAD_STATUSES = ['queued', 'downloading', 'validating', 'verifying', 'routing', 'completed', 'failed', 'cancelled', 'uploading']
+const downloadStatusLabel = (status) => {
+  const key = String(status || '').toLowerCase()
+  return DOWNLOAD_STATUSES.includes(key) ? t(`content.status.${key}`) : String(status || '')
 }
 
 const normalizeCategory = (value) => {
@@ -573,7 +570,7 @@ const handleDownload = async () => {
   const url = downloadUrl.value.trim()
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     urlDownloadStatus.value = null
-    urlDownloadError.value = 'URL must start with http:// or https://'
+    urlDownloadError.value = t('content.errors.urlScheme')
     return
   }
 
@@ -586,14 +583,14 @@ const handleDownload = async () => {
 
   urlDownloadPending.value = true
   activeDownloadUrl.value = url
-  urlDownloadStatus.value = 'Starting download...'
+  urlDownloadStatus.value = t('content.downloads.starting')
   urlDownloadError.value = null
 
   try {
     await apiService.createDownload(url, checksum.value)
     urlDownloadStatus.value = checksum.value
-      ? 'Download queued. The SHA-256 checksum is verified when it finishes.'
-      : 'Download queued. Monitoring progress...'
+      ? t('content.downloads.queuedSha')
+      : t('content.downloads.queued')
     downloadUrl.value = ''
     downloadSha256.value = ''
     await loadDownloads()
@@ -729,7 +726,7 @@ const importLocalFile = async (file, index, total) => {
     const uploadedFilename = uploadResponse.data?.filename
 
     if (!uploadedFilename) {
-      throw new Error('Upload did not return a filename.')
+      throw new Error(t('content.errors.noFilename'))
     }
 
     // Upload complete — remove the synthetic entry before the real task appears
@@ -739,7 +736,7 @@ const importLocalFile = async (file, index, total) => {
     const taskId = importResponse.data?.task_id
 
     if (!taskId) {
-      throw new Error('Import task could not be created.')
+      throw new Error(t('content.errors.noTask'))
     }
 
     await loadDownloads()
@@ -756,13 +753,13 @@ const importLocalFile = async (file, index, total) => {
       }
 
       if (status === 'failed' || status === 'cancelled') {
-        throw new Error(task?.error || `Import ended with status: ${status}`)
+        throw new Error(task?.error || t('content.errors.importStatus', { status: downloadStatusLabel(status) }))
       }
 
       await sleep(1000)
     }
 
-    throw new Error('Import timed out while waiting for task completion.')
+    throw new Error(t('content.errors.importTimeout'))
   } catch (err) {
     pendingUploads.value = pendingUploads.value.filter((p) => p.id !== pendingId)
     throw err
@@ -821,15 +818,15 @@ const importFiles = async (files) => {
 }
 
 const describeDownloadSource = (source) => {
-  if (!source) return 'Unknown source'
+  if (!source) return t('content.downloads.unknownSource')
   if (source.url) return source.url
   if (source.path) {
     const path = String(source.path)
     const filename = path.split(/[/\\]/).filter(Boolean).pop()
-    return filename ? `Upload: ${filename}` : path
+    return filename ? t('content.downloads.upload', { name: filename }) : path
   }
   if (typeof source === 'string') return source
-  return 'Unknown source'
+  return t('content.downloads.unknownSource')
 }
 
 const downloadBadgeClass = (status) => String(status || '').toLowerCase()
@@ -851,14 +848,14 @@ const formatDownloadProgress = (task) => {
 
   if (Number.isFinite(totalBytes) && totalBytes > 0) {
     const completedBytes = Math.min(safeBytesDownloaded, totalBytes)
-    return `${progress}% (${formatBytes(completedBytes)} / ${formatBytes(totalBytes)})`
+    return t('content.downloads.progressOf', { pct: progress, done: formatBytes(completedBytes), total: formatBytes(totalBytes) })
   }
 
   if (safeBytesDownloaded > 0) {
-    return `${progress}% (${formatBytes(safeBytesDownloaded)})`
+    return t('content.downloads.progressBytes', { pct: progress, done: formatBytes(safeBytesDownloaded) })
   }
 
-  return `${progress}%`
+  return t('content.downloads.progress', { pct: progress })
 }
 
 const loadContent = async () => {
@@ -979,6 +976,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .index-cell {
   white-space: nowrap;
 }

@@ -84,7 +84,7 @@ With your own certificate (`FYR_TLS_CERT`), Fyr also sends `Strict-Transport-Sec
 ## 3. Main Pages
 - **Home:** system status, location, sunrise/sunset, and storage overview.
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
-- **Settings:** configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
+- **Settings:** choose the interface language (per browser), configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
 - **Maps:** map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see *Navigating with maps off-grid*).
 - **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
@@ -137,8 +137,11 @@ Use this for kiosk or public library deployments where content is pre-loaded and
 ### Install as an app (phones, tablets, desktops)
 Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use **Add to Home Screen** (iOS Safari, Android Chrome) or **Install app** (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.
 
+### Language
+Fyr's interface is available in **English** and **Swedish (Svenska)**. On first visit Fyr follows the browser's language (Swedish browsers get Swedish, everything else English). Switch any time with the **EN/SV** selector next to the header search box or under **Settings → Language** (Settings needs admin access in password mode; the header selector works for everyone). The choice is saved in that browser only, so every person and device on the network can pick their own language. Book titles, file names, map and POI names, messages and server error details are shown as they are. The manuals are in English.
+
 ### Header behavior
-- The top header shows the current page context together with the clock, weekday, and date.
+- The top header shows the current page context together with the clock, weekday, and date (formatted for the selected language).
 - Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.
 
 ## 3b. Using the AI Assistant

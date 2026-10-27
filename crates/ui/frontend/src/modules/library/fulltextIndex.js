@@ -2,6 +2,8 @@
 // Content Manager (GET /api/index/status, POST /api/index/:f/build,
 // DELETE /api/index/:f). Framework-free so they can be unit tested.
 
+import { formatNumber, t } from '../../i18n/index.js'
+
 export const INDEX_POLL_MS = 3000
 
 const STATES = new Set([
@@ -51,7 +53,7 @@ export function normalizeIndexStatus(raw) {
   }
 }
 
-const formatCount = (n) => Number(n || 0).toLocaleString('en-US')
+const formatCount = (n) => formatNumber(Number(n || 0))
 
 /**
  * Display info for one archive: `{ label, tone, showProgress, percent,
@@ -61,37 +63,37 @@ const formatCount = (n) => Number(n || 0).toLocaleString('en-US')
 export function describeIndexEntry(entry, { enabled = true } = {}) {
   const base = { showProgress: false, percent: 0, canBuild: false, canDelete: false, title: '' }
   if (!enabled) {
-    return { ...base, label: 'Full-text off', tone: 'muted', title: 'Full-text indexing is disabled on this server.' }
+    return { ...base, label: t('content.index.off'), tone: 'muted', title: t('content.index.offHint') }
   }
   if (!entry) {
-    return { ...base, label: 'Not indexed', tone: 'muted', canBuild: true }
+    return { ...base, label: t('content.index.notIndexed'), tone: 'muted', canBuild: true }
   }
-  const pct = `${Math.round(entry.percent)}%`
+  const pct = Math.round(entry.percent)
   const known = { ...base, percent: entry.percent, title: entry.note || '' }
   switch (entry.state) {
     case 'ready':
-      return { ...known, label: 'Full-text ready', tone: 'ok', canDelete: true, title: `${formatCount(entry.indexedArticles)} articles indexed` }
+      return { ...known, label: t('content.index.ready'), tone: 'ok', canDelete: true, title: t('content.index.articlesIndexed', { count: formatCount(entry.indexedArticles) }, Number(entry.indexedArticles) || 0) }
     case 'indexing':
-      return { ...known, label: `Indexing ${pct}`, tone: 'busy', showProgress: true, canDelete: true, title: `${formatCount(entry.indexedArticles)} articles so far` }
+      return { ...known, label: t('content.index.indexing', { pct }), tone: 'busy', showProgress: true, canDelete: true, title: t('content.index.articlesSoFar', { count: formatCount(entry.indexedArticles) }, Number(entry.indexedArticles) || 0) }
     case 'queued':
-      return { ...known, label: 'Queued', tone: 'busy', canDelete: true }
+      return { ...known, label: t('content.index.queued'), tone: 'busy', canDelete: true }
     case 'paused':
-      return { ...known, label: `Paused ${pct}`, tone: 'warn', showProgress: true, canBuild: true, canDelete: true, title: entry.note || 'Resumes automatically' }
+      return { ...known, label: t('content.index.paused', { pct }), tone: 'warn', showProgress: true, canBuild: true, canDelete: true, title: entry.note || t('content.index.resumes') }
     case 'failed':
-      return { ...known, label: 'Index failed', tone: 'error', canBuild: true, canDelete: true }
+      return { ...known, label: t('content.index.failed'), tone: 'error', canBuild: true, canDelete: true }
     case 'excluded':
-      return { ...known, label: 'Not indexed', tone: 'muted', canBuild: true, title: 'Index deleted; build it again to re-enable full-text search' }
+      return { ...known, label: t('content.index.notIndexed'), tone: 'muted', canBuild: true, title: t('content.index.excludedHint') }
     case 'disabled':
-      return { ...known, label: 'Full-text off', tone: 'muted' }
+      return { ...known, label: t('content.index.off'), tone: 'muted' }
     default:
       return {
         ...known,
-        label: entry.auto ? 'Waiting to index' : 'Not indexed',
+        label: entry.auto ? t('content.index.waiting') : t('content.index.notIndexed'),
         tone: 'muted',
         canBuild: true,
         title: entry.auto
-          ? 'Will be indexed automatically in the background'
-          : 'Large archive: start indexing manually (uses disk space and CPU time)'
+          ? t('content.index.autoHint')
+          : t('content.index.manualHint')
       }
   }
 }

@@ -1,0 +1,229 @@
+{
+  "tools": {
+    "expandNav": "Visa verktygsmenyn",
+    "collapseNav": "Dölj verktygsmenyn",
+    "groups": {
+      "length_speed": "Längd och hastighet",
+      "weight_volume": "Vikt och volym",
+      "area_angle": "Area och vinkel",
+      "temperature": "Temperatur",
+      "digital": "Digital lagring",
+      "energy_power": "Energi och effekt",
+      "pressure_time": "Tryck och tid",
+      "nav_weather": "Navigering och väder"
+    },
+    "textTools": "Textverktyg",
+    "numberTools": "Talverktyg",
+    "tabsLabel": "Verktygskategorier",
+    "tabs": {
+      "converters": "Omvandlare",
+      "text": "Text och tal",
+      "datetime": "Datum och tid",
+      "ciphers": "Kryptering och chiffer"
+    },
+    "unitConverters": "Enhetsomvandlare",
+    "enterValue": "Ange värde",
+    "fromUnit": "Från enhet",
+    "toUnit": "Till enhet",
+    "temperature": "Temperatur",
+    "converters": {
+      "length": "Längd",
+      "speed": "Hastighet",
+      "mass": "Massa",
+      "volume": "Volym",
+      "area": "Area",
+      "angle": "Vinkel",
+      "data": "Data",
+      "energy": "Energi",
+      "power": "Effekt",
+      "pressure": "Tryck",
+      "time": "Tid",
+      "coordinates": "Koordinater (decimal ↔ DMS)",
+      "windchill": "Köldeffekt",
+      "heatindex": "Värmeindex"
+    },
+    "units": {
+      "label": "Enheter",
+      "day": "dygn",
+      "week": "vecka",
+      "knot": "knop",
+      "cup": "kopp (US)",
+      "tbsp": "msk",
+      "tsp": "tsk",
+      "flOz": "fl oz",
+      "gal": "gal (US)",
+      "deg": "grader"
+    },
+    "coord": {
+      "direction": "Riktning",
+      "toDms": "Decimal → DMS",
+      "toDec": "DMS → decimal",
+      "latDec": "Latitud (decimal)",
+      "lonDec": "Longitud (decimal)",
+      "range": "{min} till {max}",
+      "latD": "Lat grader",
+      "latM": "Lat minuter",
+      "latS": "Lat sekunder",
+      "lonD": "Long grader",
+      "lonM": "Long minuter",
+      "lonS": "Long sekunder",
+      "result": "Lat: {lat}°   Long: {lon}°"
+    },
+    "windchill": {
+      "info": "Upplevd temperatur när vinden gör att det känns kallare. Gäller för lufttemperatur ≤ 10 °C (50 °F) och vindhastighet ≥ 4,8 km/h (3 mph).",
+      "wind": "Vindhastighet",
+      "tempLimit": "Köldeffekt gäller för temperaturer ≤ {limit}.",
+      "windLimit": "Köldeffekt gäller för vindhastigheter ≥ {limit}."
+    },
+    "example": "t.ex. {value}",
+    "feelsLike": "Känns som:",
+    "heatindex": {
+      "info": "Upplevd temperatur som kombinerar lufttemperatur och relativ luftfuktighet. Gäller för temperaturer ≥ 27 °C (80 °F) och luftfuktighet ≥ 40 %.",
+      "humidity": "Luftfuktighet (%)",
+      "tempLimit": "Värmeindex gäller för temperaturer ≥ 27 °C (80 °F).",
+      "humidityLimit": "Värmeindex gäller för relativ luftfuktighet ≥ 40 %."
+    },
+    "textNumberTools": "Text- och talverktyg",
+    "text": {
+      "wordcount": "Ord- och teckenräknare",
+      "caseconv": "Skiftlägesomvandlare",
+      "urlencode": "URL-koda/avkoda",
+      "ascii": "ASCII-/Unicode-uppslag",
+      "baseconv": "Talbasomvandlare"
+    },
+    "wordcount": {
+      "text": "Text",
+      "placeholder": "Klistra in eller skriv din text här …",
+      "chars": "Tecken",
+      "charsNoSpace": "Tecken (utan mellanslag)",
+      "words": "Ord",
+      "lines": "Rader",
+      "sentences": "Meningar",
+      "paragraphs": "Stycken"
+    },
+    "input": "Indata",
+    "caseconv": {
+      "placeholder": "Ange text att omvandla …",
+      "title": "Versal Varje Ord",
+      "sentence": "Versal i början",
+      "upper": "VERSALER",
+      "lower": "gemener"
+    },
+    "result": "Resultat:",
+    "mode": "Läge",
+    "encode": "Koda",
+    "decode": "Avkoda",
+    "urlencode": {
+      "plain": "Vanlig URL/text",
+      "encoded": "Kodad sträng",
+      "encodedPlaceholder": "Ange kodad sträng"
+    },
+    "baseconv": {
+      "input": "Indatavärde",
+      "placeholder": "Ange tal",
+      "from": "Från bas",
+      "binary": "Binärt",
+      "octal": "Oktalt",
+      "decimal": "Decimalt",
+      "hexadecimal": "Hexadecimalt",
+      "hex": "Hex",
+      "invalid": "Ogiltigt tal för vald bas."
+    },
+    "ascii": {
+      "input": "Tecken eller decimal kod",
+      "placeholder": "t.ex. A eller 65",
+      "character": "Tecken",
+      "invalid": "Ange ett enskilt tecken eller en dec-/hex-/bin-/okt-kod."
+    },
+    "datetimeTools": "Datum- och tidsverktyg",
+    "datetime": {
+      "unix": "Unix-tidsstämpel",
+      "duration": "Tidsåtgångsräknare",
+      "dayofyear": "Dag på året/vecka"
+    },
+    "unix": {
+      "title": "Omvandlare för Unix-tidsstämplar",
+      "now": "Nu",
+      "seconds": "Unix-tidsstämpel (sekunder)",
+      "local": "Lokal",
+      "datestr": "Datum/tid (lokal)",
+      "result": "Unix-tidsstämpel:"
+    },
+    "duration": {
+      "start": "Startdatum/-tid",
+      "end": "Slutdatum/-tid",
+      "days": "Dagar",
+      "hours": "Timmar",
+      "minutes": "Minuter",
+      "seconds": "Sekunder",
+      "human": "Läsbart",
+      "d": "{n} d",
+      "h": "{n} h",
+      "m": "{n} min",
+      "s": "{n} s"
+    },
+    "dayofyear": {
+      "title": "Dag på året/veckonummer",
+      "date": "Datum",
+      "doy": "Dag på året",
+      "week": "Veckonummer (ISO)",
+      "dow": "Veckodag",
+      "daysLeft": "Dagar kvar av året",
+      "leap": "Skottår"
+    },
+    "cipher": "Chiffer",
+    "ciphers": {
+      "aes": "AES-kryptering",
+      "base64": "Base64",
+      "rot13": "ROT13",
+      "morse": "Morsekod",
+      "hash": "Hash/kontrollsumma"
+    },
+    "aes": {
+      "encrypt": "Kryptera",
+      "decrypt": "Dekryptera",
+      "keySource": "Nyckelkälla",
+      "password": "Lösenord",
+      "rawKey": "Rå nyckel (hex)",
+      "bits": "Bitar",
+      "cipherMode": "Chifferläge",
+      "kdfInfo": "Nyckelhärledning: {kdf}. Saltet läggs först i utdata.",
+      "kdf": "PBKDF2-HMAC-SHA256, {n} iterationer",
+      "ecbWarning": "ECB är inte autentiserat och avslöjar mönster i klartexten. Använd CBC eller GCM för känsliga data.",
+      "gcmWarning": "GCM-läget stöder bara 256-bitarsnycklar.",
+      "keyHex": "Nyckel (hex)",
+      "passwordPlaceholder": "Ange lösenord",
+      "keyPlaceholder": "Ange hexnyckel",
+      "ciphertext": "Chiffertext (hex)",
+      "encryptPlaceholder": "Text att kryptera",
+      "decryptPlaceholder": "Hexsträng att dekryptera",
+      "failed": "Åtgärden misslyckades. Kontrollera lösenord och indata."
+    },
+    "plaintext": "Klartext",
+    "base64": {
+      "string": "Base64-sträng",
+      "encodePlaceholder": "Text att koda",
+      "decodePlaceholder": "Base64-sträng att avkoda"
+    },
+    "rot13": {
+      "placeholder": "Text att köra ROT13 på"
+    },
+    "morse": {
+      "toMorse": "Text → morse",
+      "toText": "Morse → text",
+      "textLabel": "Text (bokstäver, siffror)",
+      "codeLabel": "Morsekod (punkter och streck, mellanslag mellan tecken, / mellan ord)",
+      "unknown": "Okänd kod: {code}",
+      "invalid": "Ogiltig morsekod."
+    },
+    "hash": {
+      "algorithm": "Algoritm",
+      "placeholder": "Text att hasha",
+      "result": "Hash:"
+    },
+    "errors": {
+      "invalidOperation": "Ogiltig indata för den här åtgärden.",
+      "invalidInput": "Ogiltig indata."
+    }
+  }
+}

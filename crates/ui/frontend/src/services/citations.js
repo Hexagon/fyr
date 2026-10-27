@@ -5,6 +5,8 @@
 // `[n]`; `linkCitations` turns those markers into in-app links to the Books
 // reader while leaving code spans and unknown numbers untouched.
 
+import { t } from '../i18n/index.js'
+
 const MAX_SOURCE_NUMBER = 99
 
 const escapeHtml = (value) => String(value ?? '')
@@ -27,7 +29,7 @@ export const normalizeSources = (raw) => {
     const n = Number(item.n)
     if (!Number.isInteger(n) || n < 1 || n > MAX_SOURCE_NUMBER || seen.has(n)) continue
     const source = typeof item.source === 'string' ? item.source : ''
-    const title = typeof item.title === 'string' && item.title.trim() ? item.title.trim() : source || `Source ${n}`
+    const title = typeof item.title === 'string' && item.title.trim() ? item.title.trim() : source || t('assistant.sourceN', { n })
     seen.add(n)
     out.push({
       n,

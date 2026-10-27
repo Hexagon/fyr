@@ -2,11 +2,14 @@
 // HTML: `linkify` splits it into text and link segments that the template
 // renders with text interpolation, so markup in messages stays inert.
 
+import { locale, t } from '../../i18n/index.js'
+
 const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi
 const TRAILING_PUNCTUATION = /[.,;:!?'"\]}>]+$/
 
 export const CATEGORIES = Object.freeze(['info', 'need', 'offer', 'alert'])
-export const CATEGORY_LABELS = Object.freeze({ info: 'Info', need: 'Need', offer: 'Offer', alert: 'Alert' })
+/** Translated label for a message category ('info', 'need', …). */
+export const categoryLabel = (category) => (CATEGORIES.includes(category) ? t(`category.${category}`) : String(category ?? ''))
 
 const trimUrl = (raw) => {
   let url = raw.replace(TRAILING_PUNCTUATION, '')
@@ -59,9 +62,9 @@ export const dayKey = (ts) => {
 
 export const dayLabel = (ts, now = Date.now()) => {
   const key = dayKey(ts)
-  if (key === dayKey(now)) return 'Today'
-  if (key === dayKey(now - 86400000)) return 'Yesterday'
-  return new Date(ts).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  if (key === dayKey(now)) return t('time.today')
+  if (key === dayKey(now - 86400000)) return t('time.yesterday')
+  return new Date(ts).toLocaleDateString(locale(), { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 export const timeLabel = (ts) => {

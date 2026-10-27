@@ -6,18 +6,18 @@
       <div class="overlay overlay-selector" :class="{ collapsed: !showSelector }">
         <button
           class="overlay-toggle"
-          :aria-label="showSelector ? 'Hide available maps panel' : 'Show available maps panel'"
+          :aria-label="showSelector ? t('maps.panels.hideSelector') : t('maps.panels.showSelector')"
           :aria-expanded="String(showSelector)"
           aria-controls="maps-selector-panel"
           @click="showSelector = !showSelector"
-          :title="showSelector ? 'Hide maps' : 'Show maps'"
+          :title="showSelector ? t('maps.panels.hideMaps') : t('maps.panels.showMaps')"
         >
           {{ showSelector ? '🗺️' : '📂' }}
         </button>
         <div id="maps-selector-panel" v-show="showSelector" class="overlay-content">
-          <h3>Available Maps</h3>
+          <h3>{{ t('maps.available') }}</h3>
           <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
-          <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
+          <div v-else-if="mapsLoading" class="status-state">{{ t('maps.loading') }}</div>
           <div v-else-if="maps.length" class="maps-list">
             <button
               v-for="map in maps"
@@ -31,7 +31,7 @@
             </button>
           </div>
           <p v-else class="empty-state">
-            No maps available. <router-link to="/content">Add maps</router-link>
+            {{ t('maps.noMaps') }} <router-link to="/content">{{ t('maps.addMaps') }}</router-link>
           </p>
         </div>
       </div>
@@ -39,18 +39,18 @@
       <div v-if="selectedMap" class="overlay overlay-layers" :class="{ collapsed: !showLayers }">
         <button
           class="overlay-toggle"
-          :aria-label="showLayers ? 'Hide layers panel' : 'Show layers panel'"
+          :aria-label="showLayers ? t('maps.panels.hideLayersPanel') : t('maps.panels.showLayersPanel')"
           :aria-expanded="String(showLayers)"
           aria-controls="maps-layers-panel"
           @click="showLayers = !showLayers"
-          :title="showLayers ? 'Hide layers' : 'Show layers'"
+          :title="showLayers ? t('maps.panels.hideLayers') : t('maps.panels.showLayers')"
         >
           {{ showLayers ? '🎨' : '🧩' }}
         </button>
         <div id="maps-layers-panel" v-show="showLayers" class="overlay-content">
-          <h3>Map Layers</h3>
+          <h3>{{ t('maps.layers.title') }}</h3>
           <p class="overlay-meta" v-if="renderMode === 'raster'">
-            Raster mode detected. Vector layer controls are disabled.
+            {{ t('maps.layers.rasterNotice') }}
           </p>
           <div class="layer-toggles">
             <label
@@ -65,7 +65,7 @@
                 v-model="layerVisibility[toggle.group]"
                 @change="toggleLayer(toggle.group)"
               >
-              <span class="layer-name">{{ toggle.label }}</span>
+              <span class="layer-name">{{ toggle.icon }} {{ t(toggle.labelKey) }}</span>
             </label>
           </div>
         </div>
@@ -74,11 +74,11 @@
       <div v-if="selectedMap" class="overlay overlay-info" :class="{ collapsed: !showInfo }">
         <button
           class="overlay-toggle"
-          :aria-label="showInfo ? 'Hide map info panel' : 'Show map info panel'"
+          :aria-label="showInfo ? t('maps.panels.hideInfoPanel') : t('maps.panels.showInfoPanel')"
           :aria-expanded="String(showInfo)"
           aria-controls="maps-info-panel"
           @click="showInfo = !showInfo"
-          :title="showInfo ? 'Hide info' : 'Show info'"
+          :title="showInfo ? t('maps.panels.hideInfo') : t('maps.panels.showInfo')"
         >
           {{ showInfo ? 'ℹ️' : '📍' }}
         </button>
@@ -86,16 +86,16 @@
           <h3>{{ selectedMap.filename }}</h3>
           <p v-if="selectedMap.path && selectedMap.path !== selectedMap.filename" class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
-          <p class="overlay-meta">⏰ {{ new Date(selectedMap.modified).toLocaleDateString() }}</p>
-          <p class="overlay-meta">Mode: {{ renderModeLabel }}</p>
+          <p class="overlay-meta">⏰ {{ new Date(selectedMap.modified).toLocaleDateString(locale) }}</p>
+          <p class="overlay-meta">{{ t('maps.info.mode', { mode: renderModeLabel }) }}</p>
           <p v-if="selectedMapBounds" class="overlay-meta">
-            Coverage: {{ formatBoundsText(selectedMapBounds) }}
+            {{ t('maps.info.coverage', { bounds: formatBoundsText(selectedMapBounds) }) }}
           </p>
         </div>
       </div>
 
       <div v-if="!selectedMap" class="empty-view">
-        <p>{{ mapsLoading ? 'Loading maps...' : '👈 Select a map to view' }}</p>
+        <p>{{ mapsLoading ? t('maps.loading') : `👈 ${t('maps.selectMap')}` }}</p>
       </div>
 
       <div v-if="mapError" class="map-error-banner">{{ mapError }}</div>
@@ -103,16 +103,16 @@
       <div v-if="selectedMap" class="overlay overlay-tools" :class="{ collapsed: !showTools }">
         <button
           class="overlay-toggle"
-          :aria-label="showTools ? 'Hide tools panel' : 'Show tools panel'"
+          :aria-label="showTools ? t('maps.panels.hideToolsPanel') : t('maps.panels.showToolsPanel')"
           :aria-expanded="String(showTools)"
           aria-controls="maps-tools-panel"
           @click="showTools = !showTools"
-          :title="showTools ? 'Hide tools' : 'Show tools'"
+          :title="showTools ? t('maps.panels.hideTools') : t('maps.panels.showTools')"
         >
           {{ showTools ? '🔧' : '⚙️' }}
         </button>
         <div id="maps-tools-panel" v-show="showTools" class="overlay-content">
-          <h3>Tools</h3>
+          <h3>{{ t('nav.tools') }}</h3>
 
           <div class="tool-group">
             <button
@@ -120,9 +120,9 @@
               :class="{ loading: locating }"
               :disabled="locating"
               @click="centerOnUserLocation"
-              title="Center map on your current browser location"
+              :title="t('maps.tools.myLocationHint')"
             >
-              📍 {{ locating ? 'Locating…' : 'My Location' }}
+              📍 {{ locating ? t('maps.tools.locating') : t('maps.tools.myLocation') }}
             </button>
             <p v-if="locationError" class="tool-error">{{ locationError }}</p>
           </div>
@@ -132,17 +132,17 @@
               <input
                 v-model="gotoInput"
                 class="poi-input"
-                placeholder="Go to: 59.33, 18.07 or 59°19'N 18°4'E"
-                aria-label="Go to coordinate"
+                :placeholder="t('maps.goto.placeholder')"
+                :aria-label="t('maps.goto.label')"
                 autocomplete="off"
                 spellcheck="false"
               />
-              <button class="tool-btn-secondary" type="submit" :disabled="!gotoInput.trim()">Go</button>
+              <button class="tool-btn-secondary" type="submit" :disabled="!gotoInput.trim()">{{ t('maps.goto.go') }}</button>
             </form>
             <p v-if="gotoError" class="tool-error">{{ gotoError }}</p>
             <div v-if="deepLinkTarget" class="marker-row">
               <span class="tool-hint" :title="markerSummary">📌 {{ markerSummary }}</span>
-              <button class="tool-btn-icon" @click="clearDeepLinkMarker" title="Remove marker">✕</button>
+              <button class="tool-btn-icon" @click="clearDeepLinkMarker" :title="t('maps.goto.removeMarker')" :aria-label="t('maps.goto.removeMarker')">✕</button>
             </div>
           </div>
 
@@ -151,22 +151,22 @@
               class="tool-btn"
               :class="{ active: activeTool === 'measure' }"
               @click="toggleTool('measure')"
-              title="Measure distance by clicking points on the map"
+              :title="t('maps.measure.hint')"
             >
-              📏 {{ activeTool === 'measure' ? 'Stop Measuring' : 'Measure Distance' }}
+              📏 {{ activeTool === 'measure' ? t('maps.measure.stop') : t('maps.measure.start') }}
             </button>
             <div v-if="activeTool === 'measure'" class="tool-sub-panel">
-              <p class="tool-hint">Click the map to add waypoints.</p>
-              <div v-if="measurePoints.length === 0" class="tool-dim">No points yet</div>
+              <p class="tool-hint">{{ t('maps.measure.clickHint') }}</p>
+              <div v-if="measurePoints.length === 0" class="tool-dim">{{ t('maps.measure.noPoints') }}</div>
               <div v-else class="measure-info">
-                <span>{{ measurePoints.length }} point{{ measurePoints.length !== 1 ? 's' : '' }}</span>
+                <span>{{ t('maps.measure.points', { count: measurePoints.length }, measurePoints.length) }}</span>
                 <span class="measure-distance">{{ formatDistance(measureTotalDistance) }}</span>
               </div>
               <button
                 class="tool-btn-secondary"
                 :disabled="measurePoints.length === 0"
                 @click="clearMeasure"
-              >Clear</button>
+              >{{ t('maps.measure.clear') }}</button>
             </div>
           </div>
 
@@ -175,21 +175,21 @@
               class="tool-btn"
               :class="{ active: trackState.recording }"
               @click="toggleRecording"
-              :title="trackState.recording ? 'Stop recording and keep the track' : 'Record your GPS track'"
+              :title="trackState.recording ? t('maps.track.stopHint') : t('maps.track.recordHint')"
             >
-              {{ trackState.recording ? '⏹ Stop Recording' : '⏺ Record Track' }}
+              {{ trackState.recording ? `⏹ ${t('maps.track.stop')}` : `⏺ ${t('maps.track.record')}` }}
             </button>
             <div v-if="trackState.recording || finishedTrack" class="tool-sub-panel">
               <div class="measure-info">
-                <span>{{ formatDuration(trackState.durationMs) }} · {{ trackState.points }} pt{{ trackState.points !== 1 ? 's' : '' }}</span>
+                <span>{{ formatDuration(trackState.durationMs) }} · {{ t('maps.track.points', { count: trackState.points }, trackState.points) }}</span>
                 <span class="measure-distance">{{ formatDistance(trackState.distanceKm) }}</span>
               </div>
               <p v-if="trackState.recording" class="tool-hint">
-                Recording{{ trackState.accuracy !== null ? ` · ±${Math.round(trackState.accuracy)} m` : '' }}. Keep this tab open and the screen on.
+                {{ trackState.accuracy !== null ? t('maps.track.recordingAccuracy', { accuracy: Math.round(trackState.accuracy) }) : t('maps.track.recording') }}
               </p>
-              <p v-if="trackState.recovered" class="tool-hint">Recovered an unsaved track from your last session.</p>
+              <p v-if="trackState.recovered" class="tool-hint">{{ t('maps.track.recovered') }}</p>
               <template v-if="finishedTrack && !trackState.recording">
-                <input v-model="trackName" class="poi-input" placeholder="Track name" aria-label="Track name" />
+                <input v-model="trackName" class="poi-input" :placeholder="t('maps.track.name')" :aria-label="t('maps.track.name')" />
                 <template v-if="canEdit">
                   <div class="poi-create-row">
                     <input
@@ -197,20 +197,20 @@
                       class="poi-input"
                       list="maps-poi-file-options"
                       placeholder="tracks.geojson"
-                      aria-label="Save track to POI file"
+                      :aria-label="t('maps.track.saveTo')"
                     />
                     <button class="tool-btn-secondary" :disabled="trackSaving" @click="saveTrack">
-                      {{ trackSaving ? 'Saving…' : 'Save' }}
+                      {{ trackSaving ? t('maps.saving') : t('maps.save') }}
                     </button>
                   </div>
                   <datalist id="maps-poi-file-options">
                     <option v-for="f in poiFileOptions" :key="f.filename" :value="f.filename" />
                   </datalist>
                 </template>
-                <p v-else class="tool-hint">Read-only mode: download the track, or sign in as admin to save it on the server.</p>
+                <p v-else class="tool-hint">{{ t('maps.track.readOnly') }}</p>
                 <div class="tool-row">
                   <button class="tool-btn-secondary" @click="downloadTrackGpx">⬇ GPX</button>
-                  <button class="tool-btn-secondary" @click="discardTrack">Discard</button>
+                  <button class="tool-btn-secondary" @click="discardTrack">{{ t('maps.track.discard') }}</button>
                 </div>
               </template>
             </div>
@@ -224,16 +224,16 @@
               class="tool-btn"
               :class="{ active: activeTool === 'poi' }"
               @click="toggleTool('poi')"
-              :title="canEdit ? 'Add and edit custom Points of Interest' : 'View Points of Interest and tracks'"
+              :title="canEdit ? t('maps.poi.editHint') : t('maps.poi.viewHint')"
             >
-              🏷️ {{ activeTool === 'poi' ? 'Close POI Panel' : (canEdit ? 'Edit POIs' : 'View POIs') }}
+              🏷️ {{ activeTool === 'poi' ? t('maps.poi.close') : (canEdit ? t('maps.poi.edit') : t('maps.poi.view')) }}
             </button>
             <div v-if="activeTool === 'poi'" class="tool-sub-panel">
               <div class="poi-file-row">
-                <select v-model="selectedPoiFile" @change="onPoiFileChange" class="poi-select" aria-label="POI file">
-                  <option value="">— select file —</option>
+                <select v-model="selectedPoiFile" @change="onPoiFileChange" class="poi-select" :aria-label="t('maps.poi.file')">
+                  <option value="">— {{ t('maps.poi.selectFile') }} —</option>
                   <option v-for="f in poiFileOptions" :key="f.filename" :value="f.filename">
-                    {{ f.filename }}{{ f.unsaved ? ' (not saved)' : '' }}
+                    {{ f.filename }}{{ f.unsaved ? ` (${t('maps.poi.notSaved')})` : '' }}
                   </option>
                 </select>
                 <button
@@ -241,32 +241,34 @@
                   class="tool-btn-icon"
                   :class="{ active: showNewPoiFile }"
                   @click="showNewPoiFile = !showNewPoiFile"
-                  title="Create new POI file"
+                  :title="t('maps.poi.newFile')"
+                  :aria-label="t('maps.poi.newFile')"
                 >+</button>
               </div>
               <div v-if="showNewPoiFile && canEdit" class="poi-create-row">
                 <input
                   v-model="newPoiFileName"
-                  placeholder="name.geojson"
+                  :placeholder="t('maps.poi.newFilePlaceholder')"
+                  :aria-label="t('maps.poi.newFile')"
                   class="poi-input"
                   @keydown.enter="createPoiFile"
                   @keydown.escape="showNewPoiFile = false"
                 />
-                <button class="tool-btn-secondary" :disabled="!newPoiFileName.trim()" @click="createPoiFile">Create</button>
+                <button class="tool-btn-secondary" :disabled="!newPoiFileName.trim()" @click="createPoiFile">{{ t('maps.poi.create') }}</button>
               </div>
               <div class="tool-row">
-                <button class="tool-btn-secondary" @click="openGpxPicker" title="Import waypoints, tracks and routes from a .gpx file">⬆ Import GPX</button>
+                <button class="tool-btn-secondary" @click="openGpxPicker" :title="t('maps.gpx.importHint')">⬆ {{ t('maps.gpx.import') }}</button>
                 <button
                   class="tool-btn-secondary"
                   :disabled="!poiData || poiData.features.length === 0"
                   @click="exportPoiGpx"
-                  title="Download as GPX"
+                  :title="t('maps.gpx.downloadAs', { format: 'GPX' })"
                 >⬇ GPX</button>
                 <button
                   class="tool-btn-secondary"
                   :disabled="!poiData || poiData.features.length === 0"
                   @click="exportPoiGeoJson"
-                  title="Download as GeoJSON"
+                  :title="t('maps.gpx.downloadAs', { format: 'GeoJSON' })"
                 >⬇ GeoJSON</button>
                 <input
                   ref="gpxInput"
@@ -279,27 +281,28 @@
               <p v-if="poiMessage" :class="poiMessage.type === 'error' ? 'tool-error' : 'tool-success'">{{ poiMessage.text }}</p>
               <template v-if="selectedPoiFile && poiData">
                 <p class="tool-hint">
-                  <template v-if="canEdit">Click the map to place a POI. </template>
-                  {{ poiData.features.length }} feature{{ poiData.features.length !== 1 ? 's' : '' }} loaded.
+                  <template v-if="canEdit">{{ t('maps.poi.clickToPlace') }} </template>
+                  {{ t('maps.poi.featuresLoaded', { count: poiData.features.length }, poiData.features.length) }}
                 </p>
                 <div v-if="pendingPoiCoords" class="poi-name-row">
                   <input
                     ref="poiNameInput"
                     v-model="pendingPoiName"
-                    placeholder="POI name"
+                    :placeholder="t('maps.poi.name')"
+                    :aria-label="t('maps.poi.name')"
                     class="poi-input"
                     @keydown.enter="confirmPoi"
                     @keydown.escape="cancelPoi"
                   />
-                  <button class="tool-btn-secondary" :disabled="!pendingPoiName.trim()" @click="confirmPoi">Add</button>
-                  <button class="tool-btn-icon" @click="cancelPoi" title="Cancel">✕</button>
+                  <button class="tool-btn-secondary" :disabled="!pendingPoiName.trim()" @click="confirmPoi">{{ t('maps.poi.add') }}</button>
+                  <button class="tool-btn-icon" @click="cancelPoi" :title="t('common.cancel')" :aria-label="t('common.cancel')">✕</button>
                 </div>
                 <div v-if="poiData.features.length > 0" class="poi-list">
                   <div v-for="(feat, idx) in poiData.features" :key="idx" class="poi-list-item">
-                    <button class="poi-list-name" @click="zoomToFeature(feat)" :title="'Show ' + featureLabel(feat)">
+                    <button class="poi-list-name" @click="zoomToFeature(feat)" :title="t('maps.poi.show', { name: featureLabel(feat) })">
                       {{ featureIcon(feat) }} {{ featureLabel(feat) }}
                     </button>
-                    <button v-if="canEdit" class="poi-remove-btn" @click="removePoi(idx)" title="Remove">✕</button>
+                    <button v-if="canEdit" class="poi-remove-btn" @click="removePoi(idx)" :title="t('common.remove')" :aria-label="t('common.remove')">✕</button>
                   </div>
                 </div>
                 <div v-if="canEdit" class="poi-save-row">
@@ -309,10 +312,10 @@
                     :disabled="!poiDirty || poiSaving"
                     @click="savePoiFile"
                   >
-                    {{ poiSaving ? 'Saving…' : poiDirty ? 'Save Changes' : 'Saved ✓' }}
+                    {{ poiSaving ? t('maps.saving') : poiDirty ? t('maps.poi.saveChanges') : `${t('maps.poi.saved')} ✓` }}
                   </button>
                 </div>
-                <p v-else-if="poiDirty" class="tool-hint">Read-only mode: imported data is shown but not saved.</p>
+                <p v-else-if="poiDirty" class="tool-hint">{{ t('maps.poi.readOnly') }}</p>
               </template>
             </div>
           </div>
@@ -325,23 +328,23 @@
           v-if="displayCoord"
           class="coord-readout"
           @click="copyDisplayedCoordinate"
-          :title="`${displayCoord.source === 'cursor' ? 'Cursor' : 'Map center'} — click to copy`"
+          :title="t('maps.coord.copyHint', { source: displayCoord.source === 'cursor' ? t('maps.coord.cursor') : t('maps.coord.center') })"
         >
           <span class="coord-source">{{ displayCoord.source === 'cursor' ? '🖱' : '⊕' }}</span>
           {{ displayCoordText }}
-          <span v-if="coordCopied" class="coord-copied">Copied</span>
+          <span v-if="coordCopied" class="coord-copied">{{ t('common.copied') }}</span>
         </button>
         <button
           class="coord-mode-btn"
           @click="toggleCoordMode"
-          :title="coordMode === 'dms' ? 'Show decimal degrees' : 'Show degrees, minutes, seconds'"
+          :title="coordMode === 'dms' ? t('maps.coord.showDecimal') : t('maps.coord.showDms')"
         >{{ coordMode === 'dms' ? 'DMS' : 'DEC' }}</button>
         <span class="map-note-mode">
           {{ renderMode === 'vector'
-            ? 'Vector tile mode. Layers can be styled and toggled.'
+            ? t('maps.note.vector')
             : renderMode === 'raster'
-              ? 'Raster tile mode. Tiles are pre-rendered and styling controls are limited.'
-              : 'Detecting tile mode.' }}
+              ? t('maps.note.raster')
+              : t('maps.note.detecting') }}
         </span>
       </div>
     </div>
@@ -351,6 +354,8 @@
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { errorText, formatBytes } from '../i18n/index.js'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { isAdminLocked } from '../services/auth'
@@ -361,7 +366,6 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { PMTiles, Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
-  formatBytes,
   formatDistance,
   formatDuration,
   pathLength,
@@ -401,6 +405,7 @@ import { copyText, downloadText, readFileText } from '../modules/maps/browser'
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl)
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -418,14 +423,14 @@ const renderMode = ref('unknown')
 const layerVisibility = ref(defaultLayerVisibility())
 
 const layerToggles = [
-  { group: 'water', label: '💧 Water' },
-  { group: 'landuse', label: '🌳 Land Use' },
-  { group: 'park', label: '🌲 Parks' },
-  { group: 'building', label: '🏢 Buildings' },
-  { group: 'road', label: '🛣️ Roads' },
-  { group: 'railway', label: '🚂 Railways' },
-  { group: 'boundary', label: '🗺️ Boundaries' },
-  { group: 'labels', label: '🔤 Labels' }
+  { group: 'water', icon: '💧', labelKey: 'maps.layers.water' },
+  { group: 'landuse', icon: '🌳', labelKey: 'maps.layers.landuse' },
+  { group: 'park', icon: '🌲', labelKey: 'maps.layers.park' },
+  { group: 'building', icon: '🏢', labelKey: 'maps.layers.building' },
+  { group: 'road', icon: '🛣️', labelKey: 'maps.layers.road' },
+  { group: 'railway', icon: '🚂', labelKey: 'maps.layers.railway' },
+  { group: 'boundary', icon: '🗺️', labelKey: 'maps.layers.boundary' },
+  { group: 'labels', icon: '🔤', labelKey: 'maps.layers.labels' }
 ]
 
 // Saving POI files is admin-gated server-side (PUT /api/poi is protected);
@@ -521,11 +526,21 @@ let mapReady = false
 
 const locationState = useLocationState()
 
+// MapLibre's own control tooltips/aria-labels in the UI language.
+const mapControlLocale = () => ({
+  'NavigationControl.ZoomIn': t('common.zoomIn'),
+  'NavigationControl.ZoomOut': t('common.zoomOut'),
+  'NavigationControl.ResetBearing': t('maps.controls.resetBearing'),
+  'AttributionControl.ToggleAttribution': t('maps.controls.attribution'),
+  'ScaleControl.Meters': 'm',
+  'ScaleControl.Kilometers': 'km'
+})
+
 const isVectorMode = computed(() => renderMode.value === 'vector')
 const renderModeLabel = computed(() => {
-  if (renderMode.value === 'vector') return 'Vector tiles'
-  if (renderMode.value === 'raster') return 'Raster tiles'
-  return 'Unknown'
+  if (renderMode.value === 'vector') return t('maps.info.vector')
+  if (renderMode.value === 'raster') return t('maps.info.raster')
+  return t('maps.info.unknown')
 })
 
 const buildMapDataUrl = (filename) => buildMapDataUrlFor(filename, window.location.origin)
@@ -599,7 +614,7 @@ const applyRouteQuery = async (query) => {
   let target = null
   if (parsed.map) {
     target = maps.value.find((m) => m.filename === parsed.map) || null
-    if (!target) mapError.value = `Map "${parsed.map}" is not available.`
+    if (!target) mapError.value = t('maps.errors.notAvailable', { name: parsed.map })
   }
   if (!target && parsed.hasPoint) {
     target = await chooseMapForPoint(parsed.lng, parsed.lat, selectedMap.value)
@@ -648,7 +663,7 @@ const goToCoordinate = async () => {
   gotoError.value = null
   const parsed = parseCoordinate(gotoInput.value)
   if (!parsed) {
-    gotoError.value = 'Could not read that coordinate. Try "59.33, 18.07" or "59°19\'48"N 18°04\'12"E".'
+    gotoError.value = t('maps.goto.invalid', { example1: '59.33, 18.07', example2: '59°19\'48"N 18°04\'12"E' })
     return
   }
   const zoom = Math.max(mapInstance ? mapInstance.getZoom() : 0, 13)
@@ -698,9 +713,9 @@ const featureLabel = (feature) => {
   if (type === 'LineString' || type === 'MultiLineString') {
     const lines = type === 'LineString' ? [feature.geometry.coordinates] : feature.geometry.coordinates
     const km = (lines || []).reduce((sum, line) => sum + pathLength(line || []), 0)
-    return `${name || '(unnamed)'} · ${formatDistance(km)}`
+    return `${name || t('maps.poi.unnamed')} · ${formatDistance(km)}`
   }
-  return name || '(unnamed)'
+  return name || t('maps.poi.unnamed')
 }
 
 const featureIcon = (feature) => {
@@ -740,14 +755,14 @@ const buildPopupContent = (lngLat, feature) => {
     b.textContent = text
     b.addEventListener('click', async () => {
       const ok = await onClick()
-      b.textContent = ok ? 'Copied ✓' : 'Copy failed'
+      b.textContent = ok ? `${t('common.copied')} ✓` : t('maps.coord.copyFailed')
       setTimeout(() => { b.textContent = text }, 1500)
     })
     return b
   }
   actions.append(
-    mkButton('Copy', () => copyText(formatCoordinate(lngLat.lat, lngLat.lng, coordMode.value))),
-    mkButton('Copy link', () => copyText(shareUrlFor(lngLat.lat, lngLat.lng, feature?.properties?.name)))
+    mkButton(t('common.copy'), () => copyText(formatCoordinate(lngLat.lat, lngLat.lng, coordMode.value))),
+    mkButton(t('maps.coord.copyLink'), () => copyText(shareUrlFor(lngLat.lat, lngLat.lng, feature?.properties?.name)))
   )
   root.appendChild(actions)
   return root
@@ -929,14 +944,14 @@ const toggleRecording = () => {
     recorder.stop()
     return
   }
-  if (finishedTrack.value && !window.confirm('Start a new recording? The current unsaved track will be discarded.')) return
+  if (finishedTrack.value && !window.confirm(t('maps.track.confirmNew'))) return
   trackName.value = ''
   centerOnNextFix = true
   recorder.start()
 }
 
 const discardTrack = () => {
-  if (!window.confirm('Discard the recorded track?')) return
+  if (!window.confirm(t('maps.track.confirmDiscard'))) return
   recorder.discard()
   trackName.value = ''
   trackMessage.value = null
@@ -967,7 +982,7 @@ const saveTrack = async () => {
       if (!(await savePoiFile())) {
         poiData.value.features.pop()
         addPoiLayersToMap()
-        throw new Error(poiMessage.value?.text || 'Saving failed')
+        throw new Error(poiMessage.value?.text || t('maps.errors.savingFailed'))
       }
     } else {
       let data = emptyGeoJSON()
@@ -989,10 +1004,10 @@ const saveTrack = async () => {
     }
     recorder.discard()
     trackName.value = ''
-    trackMessage.value = { type: 'success', text: `Track saved to ${target}.` }
+    trackMessage.value = { type: 'success', text: t('maps.track.saved', { file: target }) }
   } catch (err) {
     console.error('Error saving track:', err)
-    trackMessage.value = { type: 'error', text: `Could not save track: ${err?.response ? apiService.handleError(err) : err.message}` }
+    trackMessage.value = { type: 'error', text: t('maps.track.saveFailed', { error: err?.response ? apiService.handleError(err) : errorText(err, 'maps.errors.savingFailed') }) }
   } finally {
     trackSaving.value = false
   }
@@ -1030,7 +1045,7 @@ const loadPoiFiles = async () => {
 
 const onPoiFileChange = async () => {
   if (poiDirty.value && loadedPoiFile && selectedPoiFile.value !== loadedPoiFile &&
-      !window.confirm(`Discard unsaved changes to ${loadedPoiFile}?`)) {
+      !window.confirm(t('maps.poi.confirmDiscard', { file: loadedPoiFile }))) {
     selectedPoiFile.value = loadedPoiFile
     return
   }
@@ -1082,7 +1097,7 @@ const createPoiFile = async () => {
     updateCursor()
   } catch (err) {
     console.error('Error creating POI file:', err)
-    poiMessage.value = { type: 'error', text: `Could not create file: ${apiService.handleError(err)}` }
+    poiMessage.value = { type: 'error', text: t('maps.poi.createFailed', { error: apiService.handleError(err) }) }
   }
 }
 
@@ -1130,7 +1145,7 @@ const savePoiFile = async () => {
     return true
   } catch (err) {
     console.error('Error saving POI file:', err)
-    poiMessage.value = { type: 'error', text: `Could not save: ${apiService.handleError(err)}` }
+    poiMessage.value = { type: 'error', text: t('maps.poi.saveFailed', { error: apiService.handleError(err) }) }
     return false
   } finally {
     poiSaving.value = false
@@ -1145,11 +1160,11 @@ const openGpxPicker = () => {
 
 const describeImport = (counts) => {
   const parts = []
-  if (counts.waypoints) parts.push(`${counts.waypoints} waypoint${counts.waypoints !== 1 ? 's' : ''}`)
-  if (counts.tracks) parts.push(`${counts.tracks} track${counts.tracks !== 1 ? 's' : ''}`)
-  if (counts.routes) parts.push(`${counts.routes} route${counts.routes !== 1 ? 's' : ''}`)
-  let text = parts.length ? `Imported ${parts.join(', ')}.` : 'The GPX file contained no waypoints, tracks or routes.'
-  if (counts.skippedPoints) text += ` Skipped ${counts.skippedPoints} invalid point${counts.skippedPoints !== 1 ? 's' : ''}.`
+  if (counts.waypoints) parts.push(t('maps.gpx.waypoints', { count: counts.waypoints }, counts.waypoints))
+  if (counts.tracks) parts.push(t('maps.gpx.tracks', { count: counts.tracks }, counts.tracks))
+  if (counts.routes) parts.push(t('maps.gpx.routes', { count: counts.routes }, counts.routes))
+  let text = parts.length ? t('maps.gpx.imported', { items: parts.join(', ') }) : t('maps.gpx.empty')
+  if (counts.skippedPoints) text += ` ${t('maps.gpx.skipped', { count: counts.skippedPoints }, counts.skippedPoints)}`
   return text
 }
 
@@ -1162,7 +1177,7 @@ const onGpxFileSelected = async (event) => {
   try {
     result = parseGpx(await readFileText(file))
   } catch (err) {
-    poiMessage.value = { type: 'error', text: `Could not import ${file.name}: ${err.message}` }
+    poiMessage.value = { type: 'error', text: t('maps.gpx.importFailed', { file: file.name, error: errorText(err, 'maps.gpx.invalid') }) }
     return
   }
   if (result.features.length === 0) {
@@ -1185,7 +1200,7 @@ const onGpxFileSelected = async (event) => {
   addPoiLayersToMap()
   updateCursor()
   fitFeatures(result.features)
-  const saveHint = canEdit.value ? ' Click "Save Changes" to keep it.' : ''
+  const saveHint = canEdit.value ? ` ${t('maps.gpx.saveHint', { button: t('maps.poi.saveChanges') })}` : ''
   poiMessage.value = { type: 'success', text: describeImport(result.counts) + saveHint }
 }
 
@@ -1196,7 +1211,7 @@ const exportPoiGpx = () => {
   const { xml, exported, skipped } = toGpx(poiData.value, { name: selectedPoiFile.value || 'Fyr POIs' })
   downloadText(`${exportBaseName()}.gpx`, xml, 'application/gpx+xml')
   poiMessage.value = skipped
-    ? { type: 'success', text: `Exported ${exported} feature(s); ${skipped} polygon/other feature(s) cannot be represented in GPX.` }
+    ? { type: 'success', text: t('maps.gpx.exportedPartial', { exported, skipped }) }
     : null
 }
 
@@ -1296,7 +1311,8 @@ const initializeMap = async () => {
       center: view.center,
       zoom: view.zoom,
       pitch: 0,
-      bearing: 0
+      bearing: 0,
+      locale: mapControlLocale()
     })
     mapInstance = map
 
@@ -1326,7 +1342,7 @@ const initializeMap = async () => {
 
         if (!mode) {
           renderMode.value = 'unknown'
-          mapError.value = 'Unable to render the selected map.'
+          mapError.value = t('maps.errors.render')
           console.warn(`Unable to load map source for ${currentMap.filename}`)
         }
 
@@ -1337,18 +1353,18 @@ const initializeMap = async () => {
         fitToMapBoundsIfUseful(currentMap)
       } catch (error) {
         renderMode.value = 'unknown'
-        mapError.value = 'Failed to load map data.'
+        mapError.value = t('maps.errors.load')
         console.error('Map load error:', error.message)
       }
     })
 
     map.on('error', (event) => {
-      mapError.value = 'Map renderer reported an error.'
+      mapError.value = t('maps.errors.renderer')
       console.error('Map error:', event?.error || event)
     })
   } catch (error) {
     renderMode.value = 'unknown'
-    mapError.value = 'Map initialization failed.'
+    mapError.value = t('maps.errors.init')
     console.error('Error initializing map:', error)
   }
 }

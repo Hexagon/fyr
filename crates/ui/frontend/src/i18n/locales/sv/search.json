@@ -1,0 +1,49 @@
+{
+  "search": {
+    "kind": {
+      "book": "Böcker",
+      "article": "Artiklar",
+      "articleText": "I artikeltext",
+      "content": "I boktext",
+      "map": "Kartor",
+      "poi": "Platser",
+      "other": "Övrigt"
+    },
+    "filter": {
+      "all": "Alla",
+      "book": "Böcker",
+      "article": "Artiklar",
+      "articleText": "Artikeltext",
+      "content": "Boktext",
+      "map": "Kartor",
+      "poi": "Platser"
+    },
+    "untitled": "Namnlös",
+    "errors": {
+      "busy": "Sökningen är upptagen just nu. Försök igen om en stund.",
+      "server": "Sökningen misslyckades på servern. Försök igen.",
+      "rejected": "Sökförfrågan avvisades.",
+      "timeout": "Sökningen tog för lång tid. Prova en mer specifik sökning.",
+      "unreachable": "Det gick inte att nå Fyr-servern."
+    },
+    "placeholder": "Sök efter böcker, artiklar, kartor och platser …",
+    "filterLabel": "Filtrera resultat efter typ",
+    "idle": {
+      "title": "Hitta vad som helst i ditt offlinebibliotek",
+      "body": "En sökning täcker boktitlar, artikeltitlar i alla ZIM-arkiv (och artikeltext när ett arkiv har ett fulltextindex), texten i Markdown- och EPUB-böcker, kartfiler och namngivna platser i dina POI-filer.",
+      "tip": "Tips: tryck {slash} var som helst för att gå till sökningen, {arrows} för att välja ett resultat och {enter} för att öppna det."
+    },
+    "empty": {
+      "title": "Inga träffar för ”{query}”",
+      "body": "Prova färre eller andra ord, kontrollera stavningen eller byt tillbaka filtret till {all}.",
+      "partial": "Tidsgränsen för sökningen nåddes innan alla arkiv hade genomsökts."
+    },
+    "resultsLabel": "Sökresultat",
+    "partial": "Tidsgränsen för sökningen nåddes; vissa arkiv kanske inte genomsöktes helt. En mer specifik sökning går snabbare.",
+    "status": {
+      "results": "{count} träff | {count} träffar",
+      "best": "(bästa {shown} av {total})",
+      "time": "på {ms} ms"
+    }
+  }
+}

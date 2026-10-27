@@ -1,4 +1,5 @@
 // Small browser helpers for the Maps page (clipboard, file download, file read).
+import { localizedError } from '../../i18n/errors.js'
 
 /**
  * Copy text to the clipboard. Falls back to a hidden textarea + execCommand
@@ -55,7 +56,7 @@ export const readFileText = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(reader.error || new Error('Could not read file'))
+    reader.onerror = () => reject(reader.error || localizedError('files.readFailed', 'Could not read file'))
     reader.readAsText(file)
   })
 }

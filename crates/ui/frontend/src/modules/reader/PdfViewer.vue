@@ -48,6 +48,7 @@ import {
 } from './pdfLayout'
 import { buildPageText, findMatches, highlightSegments } from './pdfSearch'
 import { loadPdfjs } from './pdfjsLoader'
+import { t } from '../../i18n/index.js'
 
 const props = defineProps({
   doc: { type: Object, default: null },
@@ -55,7 +56,7 @@ const props = defineProps({
   zoom: { type: Number, default: 1 },
   highlightQuery: { type: String, default: '' },
   initialPosition: { type: Object, default: null },
-  label: { type: String, default: 'PDF document' }
+  label: { type: String, default: '' }
 })
 
 const emit = defineEmits(['position', 'ready', 'error'])
@@ -78,7 +79,11 @@ const pagesInRange = computed(() => {
 
 const sizerWidth = computed(() => Math.max(containerWidth.value, layout.value.maxWidth + 2 * layout.value.gap))
 const sizerStyle = computed(() => ({ height: `${layout.value.total}px`, width: `${sizerWidth.value}px` }))
-const ariaLabel = computed(() => `${props.label}, page ${anchorPage.value} of ${sizes.value.length || 1}`)
+const ariaLabel = computed(() => t('books.pdf.ariaLabel', {
+  label: props.label || t('books.pdf.document'),
+  page: anchorPage.value,
+  total: sizes.value.length || 1
+}))
 
 const pageStyle = (page) => {
   const l = layout.value
@@ -216,7 +221,7 @@ const showPageError = (state, page) => {
   if (!state.el || state.el.querySelector('.pdf-page-error')) return
   const note = document.createElement('p')
   note.className = 'pdf-page-error'
-  note.textContent = `Page ${page} could not be displayed.`
+  note.textContent = t('books.pdf.pageFailed', { page })
   state.el.append(note)
 }
 

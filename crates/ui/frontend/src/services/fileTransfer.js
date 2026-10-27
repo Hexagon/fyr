@@ -1,4 +1,5 @@
 // Small helpers for client-side file export/import (no server involved).
+import { localizedError } from '../i18n/errors.js'
 
 /** Offer `blob` to the user as a download named `filename`. */
 export const saveBlob = (blob, filename) => {
@@ -18,8 +19,8 @@ export const saveText = (text, filename, type = 'application/json') =>
 
 /** Read a user-picked file as text, refusing anything over `maxBytes`. */
 export const readFileText = async (file, maxBytes = 5 * 1024 * 1024) => {
-  if (!file) throw new Error('No file selected')
-  if (file.size > maxBytes) throw new Error(`File is too large (max ${Math.round(maxBytes / 1024)} KB)`)
+  if (!file) throw localizedError('files.noFile', 'No file selected')
+  if (file.size > maxBytes) throw localizedError('files.tooLarge', `File is too large (max ${Math.round(maxBytes / 1024)} KB)`, { kb: Math.round(maxBytes / 1024) })
   return file.text()
 }
 
