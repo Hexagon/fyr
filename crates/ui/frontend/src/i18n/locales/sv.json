@@ -1,0 +1,266 @@
+{
+  "language": {
+    "label": "Språk"
+  },
+  "app": {
+    "skipToContent": "Hoppa till huvudinnehållet",
+    "toggleMenu": "Visa eller dölj navigeringsmenyn",
+    "unread": "{count} oläst | {count} olästa",
+    "admin": "Admin",
+    "logout": "Logga ut",
+    "login": "Logga in",
+    "readonly": "Skrivskyddat",
+    "readonlyEnv": "{env} är satt",
+    "tagline": "Innehållsplattform för offlinebruk"
+  },
+  "nav": {
+    "home": "Översikt",
+    "maps": "Kartor",
+    "books": "Bibliotek",
+    "content": "Innehållshanterare",
+    "messages": "Meddelanden",
+    "assistant": "Assistent",
+    "tools": "Verktyg",
+    "settings": "Inställningar"
+  },
+  "routes": {
+    "home": {
+      "title": "Översikt",
+      "subtitle": "Systemstatus och översikt över offlinelagring",
+      "header": "Systemstatus"
+    },
+    "maps": {
+      "title": "Kartor",
+      "subtitle": "Bläddra bland offlinekartor och interaktiva datalager",
+      "header": "Interaktiva lager"
+    },
+    "books": {
+      "title": "Bibliotek",
+      "subtitle": "Bläddra i och läs din boksamling offline",
+      "header": "Läsning offline"
+    },
+    "content": {
+      "title": "Innehållshanterare",
+      "subtitle": "Hantera lokala filer, importer och nedladdningar",
+      "header": "Filer och importer"
+    },
+    "assistant": {
+      "title": "Assistent",
+      "subtitle": "AI-assistent offline med lokala GGUF-modeller",
+      "header": "Lokal GGUF-chatt"
+    },
+    "messages": {
+      "title": "Meddelanden",
+      "subtitle": "Öppen anslagstavla och totalkrypterade kanaler",
+      "header": "Lokala meddelanden"
+    },
+    "tools": {
+      "title": "Verktyg",
+      "subtitle": "Enhetsomvandlare, kryptering och chifferverktyg",
+      "header": "Verktyg offline"
+    },
+    "search": {
+      "title": "Sök",
+      "subtitle": "Sök efter böcker, artiklar, kartor och platser i hela offlinebiblioteket",
+      "header": "Sök överallt"
+    },
+    "settings": {
+      "title": "Inställningar",
+      "subtitle": "Ställ in plats och andra inställningar för hela appen",
+      "header": "Plats och inställningar"
+    },
+    "login": {
+      "title": "Admininloggning",
+      "subtitle": "Logga in för att komma åt adminfunktioner",
+      "header": "Adminåtkomst"
+    }
+  },
+  "headerSearch": {
+    "label": "Sök i allt offlineinnehåll",
+    "placeholder": "Sök…",
+    "title": "Sök efter böcker, artiklar, kartor och platser (tryck /)"
+  },
+  "common": {
+    "unavailable": "Inte tillgängligt",
+    "fileCount": "{count} fil | {count} filer",
+    "copy": "Kopiera",
+    "copied": "Kopierat",
+    "delete": "Ta bort"
+  },
+  "time": {
+    "justNow": "nyss",
+    "minutesAgo": "för {count} min sedan",
+    "hoursAgo": "för {count} timme sedan | för {count} timmar sedan",
+    "daysAgo": "för {count} dag sedan | för {count} dagar sedan",
+    "today": "I dag",
+    "yesterday": "I går"
+  },
+  "home": {
+    "continueReading": "Fortsätt läsa",
+    "resumeBook": "Fortsätt läsa {title}",
+    "bookmarkCount": "{count} bokmärke | {count} bokmärken",
+    "systemStatus": "Systemstatus",
+    "version": "Version: {version}",
+    "timeSource": "Tidskälla",
+    "clock": "Klocka",
+    "date": "Datum",
+    "location": "Plats",
+    "coordinates": "Koordinater",
+    "sun": "Sol",
+    "maps": "Kartor",
+    "mapsHint": "Tillgängliga PMTiles-filer",
+    "books": "Böcker",
+    "booksHint": "EPUB, PDF, MOBI, Markdown och ZIM",
+    "poi": "Intressepunkter",
+    "poiHint": "GeoJSON, JSON och FlatGeoBuf",
+    "models": "Modeller",
+    "modelsHint": "Tillgängliga GGUF-filer",
+    "misc": "Övrigt",
+    "miscHint": "Allmänna filer och installationsprogram (TXT, CSV, ZIP, 7Z, EXE, MSI)",
+    "storageUsage": "Lagringsanvändning",
+    "dataDirectory": "Datakatalog:",
+    "tlsCertificate": "HTTPS-certifikat ({mode}) SHA-256:",
+    "used": "Använt",
+    "free": "Ledigt",
+    "capacity": "Kapacitet",
+    "bytes": "{n} byte",
+    "manageContent": "Hantera innehåll",
+    "loading": "Läser in serverstatus …",
+    "errorHint": "Prova att ladda om sidan eller kontrollera anslutningen till servern.",
+    "savedLocation": "Sparad plats",
+    "systemTime": "Systemtid",
+    "noSavedLocation": "Ingen sparad plats",
+    "storagePending": "Lagring beräknas"
+  },
+  "alerts": {
+    "region": "Aktiva larm",
+    "map": "Karta",
+    "openBoard": "Öppna anslagstavlan",
+    "dismiss": "Stäng larmet"
+  },
+  "messages": {
+    "category": {
+      "info": "Info",
+      "need": "Behov",
+      "offer": "Erbjudande",
+      "alert": "Larm"
+    },
+    "board": "Anslagstavla",
+    "disabled": "Meddelanden är avstängda på den här servern.",
+    "channels": "Kanaler",
+    "notRemembered": "Sparas inte på den här enheten",
+    "session": "tillfällig",
+    "join": {
+      "summary": "Gå med i eller skapa en krypterad kanal",
+      "name": "Kanalnamn",
+      "namePlaceholder": "t.ex. lägret norr",
+      "passphrase": "Lösenfras",
+      "passphrasePlaceholder": "4+ slumpmässiga ord",
+      "remember": "Kom ihåg på den här enheten (sparar nycklar, aldrig lösenfrasen)",
+      "shortWarning": "Korta lösenfraser kan gissas offline av den som avlyssnar kanal-id:t. Använd helst 4+ slumpmässiga ord.",
+      "deriving": "Härleder nycklar … {pct} %",
+      "submit": "Gå med",
+      "notFound": "Det finns ännu ingen kanal ”{name}” med den här lösenfrasen.",
+      "create": "Skapa kanalen",
+      "cannotCreate": "Du kan inte skapa kanaler på den här servern."
+    },
+    "keys": {
+      "summary": "Flytta kanalnycklar till en annan enhet",
+      "intro": "Exporterar nycklarna till sparade kanaler som en fil krypterad med en lösenfras du väljer (aldrig kanalernas lösenfraser). Nycklarna fungerar bara på den här Fyr-servern, eller en som återställts från dess säkerhetskopia.",
+      "filePassphrase": "Lösenfras för filen",
+      "filePassphrasePlaceholder": "minst 8 tecken",
+      "encrypting": "Krypterar … {pct} %",
+      "export": "Exportera {count} kanalnyckel | Exportera {count} kanalnycklar",
+      "importFile": "Importera en nyckelfil",
+      "decrypting": "Dekrypterar … {pct} %",
+      "import": "Importera nycklar",
+      "saved": "Nyckelfilen har sparats. Förvara den och dess lösenfras säkert.",
+      "exportFailed": "Exporten misslyckades",
+      "imported": "Importerade {count} kanalnyckel. | Importerade {count} kanalnycklar.",
+      "importFailed": "Importen misslyckades"
+    },
+    "nickname": "Ditt smeknamn",
+    "nicknamePlaceholder": "Välj ett smeknamn",
+    "deviceTag": "Enhetstagg",
+    "security": "Säkerhet",
+    "share": "Dela",
+    "forget": "Glöm",
+    "remember": "Kom ihåg",
+    "deleteChannel": "Ta bort kanal",
+    "info": {
+      "title": "Vad skyddas?",
+      "board": "Anslagstavlan är {public}: alla som når den här servern kan läsa den, och servern lagrar den i klartext.",
+      "boardPublic": "öppen och okrypterad",
+      "encrypted": "Krypterade kanaler krypteras på din enhet med en nyckel som härleds från kanalnamnet och lösenfrasen. Servern lagrar bara chiffertext.",
+      "protectsLabel": "Skyddar mot",
+      "protects": "passiv avlyssning av wifi och den som läser serverns disk.",
+      "notProtectsLabel": "Skyddar inte mot",
+      "notProtects": "en aktiv angripare som kan ändra sidans kod över okrypterad HTTP (till exempel en falsk surfzon). Kör Fyr bakom HTTPS (en omvänd proxy) för det.",
+      "anyone": "Alla som har lösenfrasen kan läsa allt och skriva under valfritt smeknamn; smeknamn och enhetstaggar verifieras inte.",
+      "weak": "En svag lösenfras kan gissas offline av den som snappar upp kanal-id:t. Använd 4+ slumpmässiga ord."
+    },
+    "shareLink": {
+      "intro": "Dela den här länken (delen efter {hash} når aldrig servern):",
+      "includePassphrase": "Ta med lösenfrasen i länken – alla som ser länken eller QR-koden kan läsa och skriva.",
+      "noPassphrase": "Lösenfrasen sparas inte på den här enheten, så länkar innehåller bara kanalnamnet.",
+      "qrAlt": "QR-kod för delningslänken"
+    },
+    "pinned": "Fäst",
+    "pin": "Fäst",
+    "unpin": "Lossa",
+    "loadOlder": "Läs in äldre meddelanden",
+    "recreate": "Skapa den igen",
+    "empty": "Inga meddelanden än. Säg hej!",
+    "device": "Enhet {tag}",
+    "undecryptable": "Det gick inte att dekryptera meddelandet.",
+    "composer": {
+      "nicknamePlaceholder": "Ditt smeknamn (visas med dina meddelanden)",
+      "category": "Kategori",
+      "chat": "Chatt",
+      "addLocation": "Lägg till plats",
+      "keepFor": "Behåll i",
+      "keepDays": "Behåll {count} dag | Behåll {count} dagar",
+      "keepYear": "Behåll 1 år",
+      "placeholder": "Meddelande som {nick} (Enter skickar, Skift+Enter ny rad)",
+      "placeholderNoNick": "Meddelande (välj ett smeknamn först)",
+      "message": "Meddelande",
+      "send": "Skicka",
+      "public": "Öppet – kan läsas av alla i det här nätverket.",
+      "e2e": "Totalkrypterat"
+    },
+    "loading": "Läser in meddelanden …",
+    "connection": {
+      "connecting": "Ansluter …",
+      "live": "Live",
+      "reconnecting": "Återansluter …",
+      "stopped": "Offline",
+      "error": "Frånkopplad"
+    },
+    "readOnlyServer": "Servern är skrivskyddad: du kan läsa meddelanden men inte skriva.",
+    "loginToPost": "Det krävs admininloggning för att skriva på den här servern. Du kan fortfarande läsa anslagstavlan och kanaler du har nycklar till.",
+    "errors": {
+      "channelDeleted": "Kanalen har tagits bort av en administratör.",
+      "unauthorized": "Inte tillåtet: inloggning eller kanalnyckel krävs.",
+      "readonly": "Servern är skrivskyddad.",
+      "forbidden": "Inte tillåtet (fel kanalnyckel?).",
+      "notFound": "Kanalen finns inte längre på servern.",
+      "rejected": "Meddelandet avvisades.",
+      "tooFast": "Du skickar för snabbt. Vänta en stund.",
+      "locationUnavailable": "Plats saknas: webbläsarens platstjänst kräver HTTPS, och ingen plats är sparad i Inställningar.",
+      "nicknameFirst": "Välj ett smeknamn först.",
+      "tooLong": "Meddelandet är för långt.",
+      "sendFailed": "Det gick inte att skicka.",
+      "shortPassphrase": "Använd en lösenfras på minst {min} tecken (4+ slumpmässiga ord är bäst).",
+      "deriveFailed": "Det gick inte att härleda nycklar.",
+      "nameRequired": "Kanalnamn krävs",
+      "passphraseRequired": "Lösenfras krävs",
+      "filePassphraseShort": "Använd en lösenfras på minst {min} tecken",
+      "nothingToExport": "Det finns inga sparade kanaler att exportera",
+      "keyFileVersion": "Nyckelfilens version {version} stöds inte",
+      "notAKeyFile": "Inte en nyckelfil för Fyr-kanaler",
+      "wrongPassphrase": "Fel lösenfras eller skadad fil"
+    },
+    "confirmDeleteMessage": "Ta bort meddelandet för alla?",
+    "confirmDeleteChannel": "Ta bort kanalen ”{name}” och alla dess meddelanden från servern?"
+  }
+}

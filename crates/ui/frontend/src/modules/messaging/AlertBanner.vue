@@ -1,28 +1,30 @@
 <template>
-  <div v-if="alerts.length" class="alert-banners" role="region" aria-label="Active alerts">
+  <div v-if="alerts.length" class="alert-banners" role="region" :aria-label="t('alerts.region')">
     <div v-for="alert in alerts" :key="alert.id" class="alert-banner" role="alert">
-      <span class="alert-chip">Alert</span>
+      <span class="alert-chip">{{ t('messages.category.alert') }}</span>
       <div class="alert-body">
         <p class="alert-text">{{ firstLine(alert.text, 160) }}</p>
         <p class="alert-meta">
           {{ alert.nick }} · {{ timeLabel(alert.created_at) }}
-          <router-link v-if="alert.lat != null && alert.lng != null" :to="mapsLink({ lat: alert.lat, lng: alert.lng, label: alert.text })">📍 Map</router-link>
-          <router-link to="/messages">Open Board</router-link>
+          <router-link v-if="alert.lat != null && alert.lng != null" :to="mapsLink({ lat: alert.lat, lng: alert.lng, label: alert.text })">📍 {{ t('alerts.map') }}</router-link>
+          <router-link to="/messages">{{ t('alerts.openBoard') }}</router-link>
         </p>
       </div>
-      <button type="button" class="alert-dismiss" aria-label="Dismiss alert" @click="dismiss(alert.id)">✕</button>
+      <button type="button" class="alert-dismiss" :aria-label="t('alerts.dismiss')" @click="dismiss(alert.id)">✕</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiService } from '../../services/api'
 import { firstLine, mapsLink, timeLabel } from './format.js'
 import { PUBLIC_CHANNEL_ID, activeAlerts, mergeMessages, removeMessage, toViewMessage } from './model.js'
 import { messagingStorage } from './storage.js'
 import { startBoardFeed, subscribeBoard } from './boardFeed.js'
 
+const { t } = useI18n()
 const storage = messagingStorage()
 const rows = ref([])
 const dismissed = ref(storage.dismissedAlerts())

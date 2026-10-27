@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
+import { i18n, initLocale } from './i18n/index.js'
 
 import Home from './pages/Home.vue'
 
@@ -24,9 +25,9 @@ const routes = [
     name: 'Home',
     component: Home,
     meta: {
-      title: 'Overview',
-      subtitle: 'System status and offline storage overview',
-      headerLabel: 'System status'
+      titleKey: 'routes.home.title',
+      subtitleKey: 'routes.home.subtitle',
+      headerLabelKey: 'routes.home.header'
     }
   },
   {
@@ -34,9 +35,9 @@ const routes = [
     name: 'Maps',
     component: Maps,
     meta: {
-      title: 'Maps',
-      subtitle: 'Browse offline maps and interactive data layers',
-      headerLabel: 'Interactive layers'
+      titleKey: 'routes.maps.title',
+      subtitleKey: 'routes.maps.subtitle',
+      headerLabelKey: 'routes.maps.header'
     }
   },
   {
@@ -44,9 +45,9 @@ const routes = [
     name: 'Books',
     component: Books,
     meta: {
-      title: 'Library',
-      subtitle: 'Browse and read your offline books collection',
-      headerLabel: 'Offline reading'
+      titleKey: 'routes.books.title',
+      subtitleKey: 'routes.books.subtitle',
+      headerLabelKey: 'routes.books.header'
     }
   },
   {
@@ -54,9 +55,9 @@ const routes = [
     name: 'ContentManager',
     component: ContentManager,
     meta: {
-      title: 'Content Manager',
-      subtitle: 'Manage local files, imports, and downloads',
-      headerLabel: 'Files and imports',
+      titleKey: 'routes.content.title',
+      subtitleKey: 'routes.content.subtitle',
+      headerLabelKey: 'routes.content.header',
       requiresAdmin: true
     }
   },
@@ -65,9 +66,9 @@ const routes = [
     name: 'Assistant',
     component: Assistant,
     meta: {
-      title: 'Assistant',
-      subtitle: 'Offline AI assistant powered by local GGUF models',
-      headerLabel: 'Local GGUF chat'
+      titleKey: 'routes.assistant.title',
+      subtitleKey: 'routes.assistant.subtitle',
+      headerLabelKey: 'routes.assistant.header'
     }
   },
   {
@@ -75,9 +76,9 @@ const routes = [
     name: 'Messages',
     component: Messages,
     meta: {
-      title: 'Messages',
-      subtitle: 'Public board and end-to-end encrypted channels',
-      headerLabel: 'Local messaging'
+      titleKey: 'routes.messages.title',
+      subtitleKey: 'routes.messages.subtitle',
+      headerLabelKey: 'routes.messages.header'
     }
   },
   {
@@ -85,9 +86,9 @@ const routes = [
     name: 'Tools',
     component: Tools,
     meta: {
-      title: 'Tools',
-      subtitle: 'Unit converters, encryption, and ciphering utilities',
-      headerLabel: 'Offline utilities'
+      titleKey: 'routes.tools.title',
+      subtitleKey: 'routes.tools.subtitle',
+      headerLabelKey: 'routes.tools.header'
     }
   },
   {
@@ -95,9 +96,9 @@ const routes = [
     name: 'Search',
     component: Search,
     meta: {
-      title: 'Search',
-      subtitle: 'Search books, articles, maps and places across the offline library',
-      headerLabel: 'Search everything'
+      titleKey: 'routes.search.title',
+      subtitleKey: 'routes.search.subtitle',
+      headerLabelKey: 'routes.search.header'
     }
   },
   {
@@ -105,9 +106,9 @@ const routes = [
     name: 'Settings',
     component: Settings,
     meta: {
-      title: 'Settings',
-      subtitle: 'Configure location and other application-wide preferences',
-      headerLabel: 'Location and preferences',
+      titleKey: 'routes.settings.title',
+      subtitleKey: 'routes.settings.subtitle',
+      headerLabelKey: 'routes.settings.header',
       requiresAdmin: true
     }
   },
@@ -116,9 +117,9 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: {
-      title: 'Admin Login',
-      subtitle: 'Authenticate to access admin features',
-      headerLabel: 'Admin access'
+      titleKey: 'routes.login.title',
+      subtitleKey: 'routes.login.subtitle',
+      headerLabelKey: 'routes.login.header'
     }
   }
 ]
@@ -152,6 +153,9 @@ router.beforeEach(async (to) => {
 })
 
 const app = createApp(App)
+app.use(i18n)
 app.use(router)
-app.mount('#app')
+// Load the stored/detected language before the first render so a Swedish
+// browser never flashes English; a failed chunk load falls back to English.
+initLocale().finally(() => app.mount('#app'))
 

@@ -1,18 +1,18 @@
 <template>
   <form v-if="!onSearchPage" class="header-search" role="search" @submit.prevent="go">
-    <label for="header-search-input" class="visually-hidden">Search everything offline</label>
+    <label for="header-search-input" class="visually-hidden">{{ t('headerSearch.label') }}</label>
     <input
       id="header-search-input"
       ref="inputEl"
       v-model="text"
       type="search"
       class="header-search-input"
-      placeholder="Search…"
+      :placeholder="t('headerSearch.placeholder')"
       autocomplete="off"
       spellcheck="false"
       :maxlength="MAX_QUERY_LENGTH"
       aria-keyshortcuts="/"
-      title="Search books, articles, maps and places (press /)"
+      :title="t('headerSearch.title')"
       @keydown.esc="onEscape"
     />
     <kbd class="header-search-key" aria-hidden="true">/</kbd>
@@ -26,8 +26,10 @@
 // already on /search.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { MAX_QUERY_LENGTH, normalizeQuery } from '../modules/search/searchResults.js'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const inputEl = ref(null)
