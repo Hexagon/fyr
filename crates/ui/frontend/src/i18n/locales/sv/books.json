@@ -1,0 +1,122 @@
+{
+  "books": {
+    "expandLibrary": "Visa bibliotekspanelen",
+    "collapseLibrary": "Dölj bibliotekspanelen",
+    "items": "{count} objekt | {count} objekt",
+    "filterPlaceholder": "Sök på titel eller filnamn",
+    "filterLabel": "Filtrera biblioteket på titel eller filnamn",
+    "supported": "Format som stöds: {formats}",
+    "progress": {
+      "summary": "Flytta läsläge",
+      "intro": "Läsställen och bokmärken sparas i den här webbläsaren. Exportera dem till en fil och importera den på en annan enhet; importer slås ihop (senaste lässtället vinner, bokmärken kombineras).",
+      "export": "Exportera",
+      "import": "Importera",
+      "exported": "Exporterade {count} bok. | Exporterade {count} böcker.",
+      "imported": "Importerat: {added} nya böcker, {updated} uppdaterade, {bookmarks} bokmärken tillagda.",
+      "invalidJson": "Importen misslyckades: filen är inte giltig JSON.",
+      "importFailed": "Importen misslyckades: {error}",
+      "unknownError": "okänt fel",
+      "notAProgressFile": "Inte en fil med läsläge från Fyr"
+    },
+    "loading": "Läser in böcker …",
+    "noBooks": "Inga böcker hittades.",
+    "addBooks": "Lägg till böcker",
+    "backToLibrary": "Tillbaka till biblioteket",
+    "badges": {
+      "adapter": "Adapter: {mode}",
+      "archive": "Arkiv: {size}",
+      "article": "Artikel: {title}"
+    },
+    "focus": {
+      "exitHint": "Lämna fokuserat läsläge (Esc)",
+      "enterHint": "Gå till fokuserat läsläge",
+      "exit": "Lämna fokus",
+      "enter": "Fokusläge"
+    },
+    "toolbar": {
+      "tools": "Läsverktyg",
+      "history": "Artikelhistorik",
+      "previous": "Föregående artikel",
+      "next": "Nästa artikel",
+      "display": "Visningsinställningar",
+      "smaller": "Mindre text",
+      "larger": "Större text",
+      "zoomLevel": "Zoom (100 % passar sidbredden)",
+      "textSize": "Textstorlek",
+      "theme": "Lästema"
+    },
+    "theme": {
+      "light": "Ljust",
+      "sepia": "Sepia",
+      "dark": "Mörkt"
+    },
+    "bookmark": "Bokmärke",
+    "bookmarks": {
+      "title": "Bokmärken",
+      "addHere": "Lägg till bokmärke på nuvarande ställe",
+      "addHint": "Lägg till bokmärke (b)",
+      "unsupported": "Bokmärken finns inte för det här formatet",
+      "add": "Bokmärke",
+      "show": "Visa bokmärken ({count})",
+      "count": "Bokmärken ({count})",
+      "empty": "Inga bokmärken än. Använd ”{button}” (eller tryck b) för att spara nuvarande ställe.",
+      "goTo": "Gå till bokmärke: {title}",
+      "removeNamed": "Ta bort bokmärke: {title}",
+      "remove": "Ta bort bokmärke",
+      "saveFailed": "Det gick inte att spara bokmärket.",
+      "already": "Redan bokmärkt: {title}",
+      "added": "Bokmärke tillagt: {title}",
+      "removed": "Bokmärke borttaget: {title}"
+    },
+    "search": {
+      "inBook": "Sök i den här boken",
+      "zimPlaceholder": "Sök artikeltitel eller sökväg",
+      "zimUnavailable": "Sökning kräver inbyggt ZIM-läge",
+      "current": "aktuell",
+      "noMatches": "Inga träffar.",
+      "truncated": "Visar de första {count} träffarna. Förfina sökningen för att se resten.",
+      "progress": "Söker på sidan {page} av {total} …",
+      "htmlResponse": "Sökningen returnerade HTML. Starta om servern för att läsa in de senaste serverrutterna."
+    },
+    "pdf": {
+      "fallback": "Du kan fortfarande {link} och öppna den i en annan app.",
+      "downloadLink": "ladda ned filen",
+      "loading": "Läser in PDF …",
+      "document": "PDF-dokument",
+      "ariaLabel": "{label}, sida {page} av {total}",
+      "pageFailed": "Sidan {page} kunde inte visas.",
+      "errors": {
+        "password": "Den här PDF:en är lösenordsskyddad (krypterad) och kan inte öppnas i läsaren. Ladda ned filen och öppna den i en app som kan låsa upp den.",
+        "invalid": "Filen är inte en giltig PDF eller är skadad, så den kan inte visas.",
+        "notFound": "PDF-filen hittades inte på servern. Den kan ha tagits bort.",
+        "downloadStatus": "PDF:en kunde inte laddas ned (HTTP {status}).",
+        "download": "PDF:en kunde inte laddas ned.",
+        "openWithReason": "Det gick inte att öppna PDF:en: {error}",
+        "open": "Det gick inte att öppna PDF:en."
+      }
+    },
+    "zim": {
+      "frameTitle": "ZIM-artikel",
+      "noContent": "Inget artikelinnehåll returnerades för det här arkivet.",
+      "unavailable": "Inbyggd ZIM-tolkning är inte tillgänglig för det här arkivet med nuvarande tolk."
+    },
+    "selectFormat": "Välj en EPUB, Markdown-fil, PDF eller ZIM i biblioteket.",
+    "pickBook": "Välj en bok i biblioteket för att öppna läsaren.",
+    "status": {
+      "loading": "läser in",
+      "unsupported": "format som inte stöds",
+      "failed": "misslyckades"
+    },
+    "notices": {
+      "notInLibrary": "”{file}” finns inte i biblioteket. Den kan ha tagits bort eller bytt namn.",
+      "articleMissing": "Artikeln ”{path}” finns inte i arkivet; huvudsidan visas i stället.",
+      "lastArticleMissing": "Den senast lästa artikeln finns inte längre; huvudsidan visas i stället."
+    },
+    "position": {
+      "line": "Rad {line}",
+      "page": "Sida {page}",
+      "epub": "EPUB-position"
+    },
+    "markdownFetchFailed": "Det gick inte att hämta Markdown-filen ({status})"
+  }
+}

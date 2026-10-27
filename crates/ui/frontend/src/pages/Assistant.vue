@@ -7,7 +7,7 @@
           <button
             class="icon-btn"
             :aria-label="sidebarCollapsed ? t('assistant.expandLibrary') : t('assistant.collapseLibrary')"
-            :title="sidebarCollapsed ? t('assistant.expandPanel') : t('assistant.collapsePanel')"
+            :title="sidebarCollapsed ? t('common.expandPanel') : t('common.collapsePanel')"
             :aria-expanded="String(!sidebarCollapsed)"
             @click="toggleSidebar"
           >

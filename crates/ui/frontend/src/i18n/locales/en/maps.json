@@ -1,0 +1,169 @@
+{
+  "maps": {
+    "panels": {
+      "hideSelector": "Hide available maps panel",
+      "showSelector": "Show available maps panel",
+      "hideMaps": "Hide maps",
+      "showMaps": "Show maps",
+      "hideLayersPanel": "Hide layers panel",
+      "showLayersPanel": "Show layers panel",
+      "hideLayers": "Hide layers",
+      "showLayers": "Show layers",
+      "hideInfoPanel": "Hide map info panel",
+      "showInfoPanel": "Show map info panel",
+      "hideInfo": "Hide info",
+      "showInfo": "Show info",
+      "hideToolsPanel": "Hide tools panel",
+      "showToolsPanel": "Show tools panel",
+      "hideTools": "Hide tools",
+      "showTools": "Show tools"
+    },
+    "available": "Available Maps",
+    "loading": "Loading maps...",
+    "noMaps": "No maps available.",
+    "addMaps": "Add maps",
+    "selectMap": "Select a map to view",
+    "layers": {
+      "title": "Map Layers",
+      "rasterNotice": "Raster mode detected. Vector layer controls are disabled.",
+      "water": "Water",
+      "landuse": "Land Use",
+      "park": "Parks",
+      "building": "Buildings",
+      "road": "Roads",
+      "railway": "Railways",
+      "boundary": "Boundaries",
+      "labels": "Labels"
+    },
+    "info": {
+      "mode": "Mode: {mode}",
+      "coverage": "Coverage: {bounds}",
+      "vector": "Vector tiles",
+      "raster": "Raster tiles",
+      "unknown": "Unknown"
+    },
+    "tools": {
+      "myLocationHint": "Center map on your current browser location",
+      "locating": "Locating…",
+      "myLocation": "My Location"
+    },
+    "goto": {
+      "placeholder": "Go to: 59.33, 18.07 or 59°19'N 18°4'E",
+      "label": "Go to coordinate",
+      "go": "Go",
+      "removeMarker": "Remove marker",
+      "invalid": "Could not read that coordinate. Try \"{example1}\" or \"{example2}\"."
+    },
+    "measure": {
+      "hint": "Measure distance by clicking points on the map",
+      "stop": "Stop Measuring",
+      "start": "Measure Distance",
+      "clickHint": "Click the map to add waypoints.",
+      "noPoints": "No points yet",
+      "points": "{count} point | {count} points",
+      "clear": "Clear"
+    },
+    "track": {
+      "stopHint": "Stop recording and keep the track",
+      "recordHint": "Record your GPS track",
+      "stop": "Stop Recording",
+      "record": "Record Track",
+      "points": "{count} pt | {count} pts",
+      "recording": "Recording. Keep this tab open and the screen on.",
+      "recordingAccuracy": "Recording · ±{accuracy} m. Keep this tab open and the screen on.",
+      "recovered": "Recovered an unsaved track from your last session.",
+      "name": "Track name",
+      "saveTo": "Save track to POI file",
+      "readOnly": "Read-only mode: download the track, or sign in as admin to save it on the server.",
+      "discard": "Discard",
+      "confirmNew": "Start a new recording? The current unsaved track will be discarded.",
+      "confirmDiscard": "Discard the recorded track?",
+      "saved": "Track saved to {file}.",
+      "saveFailed": "Could not save track: {error}",
+      "defaultName": "Track {date}",
+      "waitingFix": "Waiting for a better GPS fix (±{accuracy} m)",
+      "tooShort": "Track discarded: fewer than two GPS points were recorded."
+    },
+    "saving": "Saving…",
+    "save": "Save",
+    "poi": {
+      "editHint": "Add and edit custom Points of Interest",
+      "viewHint": "View Points of Interest and tracks",
+      "close": "Close POI Panel",
+      "edit": "Edit POIs",
+      "view": "View POIs",
+      "file": "POI file",
+      "selectFile": "select file",
+      "notSaved": "not saved",
+      "newFile": "Create new POI file",
+      "newFilePlaceholder": "name.geojson",
+      "create": "Create",
+      "clickToPlace": "Click the map to place a POI.",
+      "featuresLoaded": "{count} feature loaded. | {count} features loaded.",
+      "name": "POI name",
+      "add": "Add",
+      "show": "Show {name}",
+      "saveChanges": "Save Changes",
+      "saved": "Saved",
+      "readOnly": "Read-only mode: imported data is shown but not saved.",
+      "unnamed": "(unnamed)",
+      "confirmDiscard": "Discard unsaved changes to {file}?",
+      "createFailed": "Could not create file: {error}",
+      "saveFailed": "Could not save: {error}"
+    },
+    "gpx": {
+      "importHint": "Import waypoints, tracks and routes from a .gpx file",
+      "import": "Import GPX",
+      "downloadAs": "Download as {format}",
+      "waypoints": "{count} waypoint | {count} waypoints",
+      "tracks": "{count} track | {count} tracks",
+      "routes": "{count} route | {count} routes",
+      "imported": "Imported {items}.",
+      "empty": "The GPX file contained no waypoints, tracks or routes.",
+      "skipped": "Skipped {count} invalid point. | Skipped {count} invalid points.",
+      "importFailed": "Could not import {file}: {error}",
+      "invalid": "Invalid GPX file",
+      "saveHint": "Click \"{button}\" to keep it.",
+      "exportedPartial": "Exported {exported} feature(s); {skipped} polygon/other feature(s) cannot be represented in GPX.",
+      "notXml": "The file is not valid XML",
+      "notGpx": "The file is not a GPX document",
+      "defaultWaypoint": "Waypoint {n}",
+      "defaultTrack": "Track {n}",
+      "defaultRoute": "Route {n}"
+    },
+    "coord": {
+      "copyHint": "{source} — click to copy",
+      "cursor": "Cursor",
+      "center": "Map center",
+      "showDecimal": "Show decimal degrees",
+      "showDms": "Show degrees, minutes, seconds",
+      "copyFailed": "Copy failed",
+      "copyLink": "Copy link"
+    },
+    "note": {
+      "vector": "Vector tile mode. Layers can be styled and toggled.",
+      "raster": "Raster tile mode. Tiles are pre-rendered and styling controls are limited.",
+      "detecting": "Detecting tile mode."
+    },
+    "errors": {
+      "notAvailable": "Map \"{name}\" is not available.",
+      "savingFailed": "Saving failed",
+      "render": "Unable to render the selected map.",
+      "load": "Failed to load map data.",
+      "renderer": "Map renderer reported an error.",
+      "init": "Map initialization failed."
+    },
+    "controls": {
+      "resetBearing": "Reset bearing to north",
+      "attribution": "Toggle attribution"
+    },
+    "geo": {
+      "insecure": "Location needs a secure connection: open Fyr via https:// or http://localhost. Browsers block GPS on plain http:// LAN addresses; the server operator can turn on HTTPS ({setting}).",
+      "unsupported": "Geolocation is not supported by this browser",
+      "denied": "Location access was denied. Allow location for this site in your browser settings.",
+      "noFix": "Could not determine location (no GPS fix). Move to open sky and try again.",
+      "timeout": "Timed out waiting for a location fix.",
+      "failed": "Could not determine location"
+    }
+  }
+}

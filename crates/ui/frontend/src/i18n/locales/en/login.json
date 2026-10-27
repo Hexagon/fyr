@@ -1,0 +1,15 @@
+{
+  "login": {
+    "title": "Admin Login",
+    "hint": "This server requires a password to access the Content Manager and other admin features.",
+    "password": "Admin Password",
+    "placeholder": "Enter admin password",
+    "checking": "Checking credentials...",
+    "loggingIn": "Logging in…",
+    "submit": "Log In",
+    "back": "Back to Overview",
+    "tooMany": "Too many failed attempts. Please wait a few minutes and try again.",
+    "incorrect": "Incorrect password. Please try again.",
+    "failed": "Login failed. Please try again."
+  }
+}

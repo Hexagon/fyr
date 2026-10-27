@@ -1,4 +1,5 @@
 // Client-side in-book search for PDFs, over pdf.js text content.
+import { t } from '../../i18n/index.js'
 //
 // The server's /api/library/books/:f/search does not read PDFs (that would
 // need a PDF text extractor in Rust), so the browser searches the text pdf.js
@@ -131,7 +132,7 @@ export const snippetFor = (text, start, end, radius = SNIPPET_RADIUS) => {
 export const pageResults = (page, text, query, limit = Infinity) =>
   findMatches(text, query, limit).map((match, occurrence) => ({
     path: `page:${page}:${occurrence}`,
-    title: `Page ${page}`,
+    title: t('books.position.page', { page }),
     page,
     occurrence,
     snippet: snippetFor(text, match.start, match.end)

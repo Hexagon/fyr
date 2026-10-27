@@ -1,7 +1,7 @@
 <template>
   <div v-if="alerts.length" class="alert-banners" role="region" :aria-label="t('alerts.region')">
     <div v-for="alert in alerts" :key="alert.id" class="alert-banner" role="alert">
-      <span class="alert-chip">{{ t('messages.category.alert') }}</span>
+      <span class="alert-chip">{{ t('category.alert') }}</span>
       <div class="alert-body">
         <p class="alert-text">{{ firstLine(alert.text, 160) }}</p>
         <p class="alert-meta">

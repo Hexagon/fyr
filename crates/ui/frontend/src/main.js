@@ -1,22 +1,23 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
-import { i18n, initLocale } from './i18n/index.js'
+import { i18n, initLocale, withMessages } from './i18n/index.js'
 
 import Home from './pages/Home.vue'
 
 // Every page except the landing page is loaded on demand, so phones on a
 // weak hotspot link only download MapLibre, epub.js, the crypto libraries,
 // etc. when the page that needs them is opened.
-const ContentManager = () => import('./pages/ContentManager.vue')
-const Login = () => import('./pages/Login.vue')
-const Maps = () => import('./pages/Maps.vue')
-const Books = () => import('./pages/Books.vue')
-const Assistant = () => import('./pages/Assistant.vue')
-const Settings = () => import('./pages/Settings.vue')
-const Tools = () => import('./pages/Tools.vue')
-const Search = () => import('./pages/Search.vue')
-const Messages = () => import('./pages/Messages.vue')
+// Each page's strings are a separate chunk loaded together with the page.
+const ContentManager = () => withMessages(import('./pages/ContentManager.vue'), 'content')
+const Login = () => withMessages(import('./pages/Login.vue'), 'login')
+const Maps = () => withMessages(import('./pages/Maps.vue'), 'maps')
+const Books = () => withMessages(import('./pages/Books.vue'), 'books')
+const Assistant = () => withMessages(import('./pages/Assistant.vue'), 'assistant')
+const Settings = () => withMessages(import('./pages/Settings.vue'), 'settings')
+const Tools = () => withMessages(import('./pages/Tools.vue'), 'tools')
+const Search = () => withMessages(import('./pages/Search.vue'), 'search')
+const Messages = () => withMessages(import('./pages/Messages.vue'), 'messages')
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [

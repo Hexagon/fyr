@@ -9,7 +9,7 @@ const TRAILING_PUNCTUATION = /[.,;:!?'"\]}>]+$/
 
 export const CATEGORIES = Object.freeze(['info', 'need', 'offer', 'alert'])
 /** Translated label for a message category ('info', 'need', …). */
-export const categoryLabel = (category) => (CATEGORIES.includes(category) ? t(`messages.category.${category}`) : String(category ?? ''))
+export const categoryLabel = (category) => (CATEGORIES.includes(category) ? t(`category.${category}`) : String(category ?? ''))
 
 const trimUrl = (raw) => {
   let url = raw.replace(TRAILING_PUNCTUATION, '')

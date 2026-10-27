@@ -7,7 +7,7 @@
           <button
             class="icon-btn"
             :aria-label="sidebarCollapsed ? t('tools.expandNav') : t('tools.collapseNav')"
-            :title="sidebarCollapsed ? t('assistant.expandPanel') : t('assistant.collapsePanel')"
+            :title="sidebarCollapsed ? t('common.expandPanel') : t('common.collapsePanel')"
             :aria-expanded="String(!sidebarCollapsed)"
             aria-controls="tools-sidebar-content"
             @click="toggleSidebar"
@@ -321,8 +321,8 @@
                   :placeholder="t('tools.caseconv.placeholder')"></textarea>
               </label>
               <div class="cipher-input-row">
-                <button class="btn btn-secondary" @click="applyCase('upper')">UPPERCASE</button>
-                <button class="btn btn-secondary" @click="applyCase('lower')">lowercase</button>
+                <button class="btn btn-secondary" @click="applyCase('upper')">{{ t('tools.caseconv.upper') }}</button>
+                <button class="btn btn-secondary" @click="applyCase('lower')">{{ t('tools.caseconv.lower') }}</button>
                 <button class="btn btn-secondary" @click="applyCase('title')">{{ t('tools.caseconv.title') }}</button>
                 <button class="btn btn-secondary" @click="applyCase('sentence')">{{ t('tools.caseconv.sentence') }}</button>
                 <button class="btn btn-secondary" @click="applyCase('camel')">camelCase</button>

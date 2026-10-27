@@ -1,0 +1,62 @@
+{
+  "assistant": {
+    "library": "Model Library",
+    "expandLibrary": "Expand model library panel",
+    "collapseLibrary": "Collapse model library panel",
+    "openContentManager": "Open Content Manager",
+    "loginToManage": "Log in to manage models",
+    "uploadHint": "Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.",
+    "noModels": "No GGUF models found in /data/models.",
+    "thinkingActive": "Thinking…",
+    "thinking": "Thinking",
+    "preparing": "Preparing response…",
+    "sources": "Sources",
+    "noSources": "No matching passages found in your library.",
+    "startHint": "Start the conversation with a prompt below.",
+    "promptPlaceholder": "Write your prompt...",
+    "mode": "Mode:",
+    "presets": {
+      "precise": {
+        "label": "Precise",
+        "description": "Focused, factual answers"
+      },
+      "balanced": {
+        "label": "Balanced",
+        "description": "Default: concise and reliable"
+      },
+      "creative": {
+        "label": "Creative",
+        "description": "More elaborate, varied responses"
+      }
+    },
+    "useLibraryHint": "Search your offline books (ZIM, EPUB, Markdown) and answer with numbered sources",
+    "useLibrary": "Use library",
+    "send": "Send",
+    "stop": "Stop",
+    "restart": "Restart Conversation",
+    "regenerate": "Regenerate",
+    "status": {
+      "none": "No model selected",
+      "loading": "Loading model: {name}…",
+      "selected": "Model selected: {name}",
+      "health": "Health check: {error}",
+      "loaded": "Model loaded: {name}"
+    },
+    "gate": {
+      "loadingTitle": "Loading model",
+      "selectTitle": "Select a model",
+      "unavailableTitle": "Model unavailable",
+      "notLoadedTitle": "Model not loaded",
+      "selectBody": "Choose a model from the library to begin a conversation.",
+      "loadingNote": "Please wait while the model loads…",
+      "selectNote": "Select a model from the library on the left to continue.",
+      "unavailableNote": "Try selecting the model again, or choose a different one.",
+      "notLoadedNote": "The model needs to be loaded before you can chat."
+    },
+    "errors": {
+      "unloaded": "The model is no longer loaded. Select it in the model library to load it again.",
+      "generation": "Generation failed: {error}"
+    },
+    "sourceN": "Source {n}"
+  }
+}

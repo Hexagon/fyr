@@ -1,13 +1,19 @@
 // Fyr UI internationalisation (vue-i18n, composition API, legacy: false).
 //
-// English is bundled eagerly and is the fallback for any missing key; other
-// locales are separate chunks loaded on demand, so an English-only browser
-// never downloads them. Plain JS modules translate through the exported
-// `t` / `n` / `locale` helpers; components use `useI18n()` or `$t`.
-// See DEVELOPER_MANUAL "Internationalisation" for the conventions.
+// Messages live in src/i18n/locales/<locale>/<namespace>.json. Each file has
+// one top-level key per namespace (core.json holds the shared ones: app,
+// nav, routes, common, time, …). Only English `core` is bundled eagerly; it
+// is also the fallback. Every other file is its own small chunk, loaded when
+// a page that needs it is opened (see `withMessages` in main.js) or when the
+// language changes, so a page chunk and its strings arrive together and an
+// English-only browser never downloads Swedish.
+//
+// Plain JS modules translate through the exported `t` / `formatNumber`
+// helpers; components use `useI18n()` or `$t`. See DEVELOPER_MANUAL
+// "Internationalisation" for the conventions.
 
 import { createI18n } from 'vue-i18n'
-import en from './locales/en.json'
+import enCore from './locales/en/core.json'
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, matchLocale, resolveInitialLocale, storeLocale } from './detect.js'
 import { getDefaultStorage } from '../modules/library/safeStorage.js'
 
@@ -16,21 +22,32 @@ export { SUPPORTED_LOCALES, DEFAULT_LOCALE }
 // Language names are shown in their own language so anyone can find theirs.
 export const LOCALE_NAMES = { en: 'English', sv: 'Svenska' }
 
-const loaders = {
-  sv: () => import('./locales/sv.json')
-}
+// Lazy loaders keyed by "<locale>/<namespace>".
+const loaders = Object.fromEntries(
+  Object.entries(import.meta.glob(['./locales/*/*.json', '!./locales/en/core.json'])).map(([path, load]) => [
+    path.replace(/^\.\/locales\//, '').replace(/\.json$/, ''),
+    load
+  ])
+)
+
+export const NAMESPACES = [...new Set(Object.keys(loaders).map((key) => key.split('/')[1]))]
 
 export const i18n = createI18n({
   legacy: false,
   globalInjection: true,
   locale: DEFAULT_LOCALE,
   fallbackLocale: DEFAULT_LOCALE,
-  messages: { en },
+  messages: { en: enCore },
   missingWarn: false,
   fallbackWarn: false
 })
 
 const global = i18n.global
+
+// Namespaces that pages have asked for so far (core is always needed), and
+// the "<locale>/<namespace>" pairs already merged into vue-i18n.
+const wantedNamespaces = new Set(['core'])
+const loaded = new Set(['en/core'])
 
 /** Translate outside components (modules, services). */
 export const t = (...args) => global.t(...args)
@@ -79,22 +96,45 @@ const applyDocumentLang = (code) => {
   }
 }
 
-const loadMessages = async (code) => {
-  if (global.availableLocales.includes(code)) return
-  const loader = loaders[code]
-  if (!loader) return
-  const mod = await loader()
-  global.setLocaleMessage(code, mod.default || mod)
+const loadPair = async (code, namespace) => {
+  const key = `${code}/${namespace}`
+  if (loaded.has(key) || !loaders[key]) return
+  const mod = await loaders[key]()
+  global.mergeLocaleMessage(code, mod.default || mod)
+  loaded.add(key)
 }
 
+// English is the fallback, so it is loaded alongside any other locale.
+const loadNamespacesFor = (code, namespaces) => Promise.all(
+  [...new Set([code, DEFAULT_LOCALE])].flatMap((lang) => namespaces.map((ns) => loadPair(lang, ns)))
+)
+
 /**
- * Switch the UI language. Loads the locale's messages first so the UI never
- * shows a half-translated state; `persist` stores the choice per browser.
+ * Make sure a namespace's messages are available in the active (and
+ * fallback) locale. Pages call this through their route loader.
+ */
+export const loadNamespace = async (namespace) => {
+  wantedNamespaces.add(namespace)
+  try {
+    await loadNamespacesFor(global.locale.value, [namespace])
+  } catch {
+    // Offline chunk failure: keys fall back to whatever is loaded.
+  }
+}
+
+/** Resolve `componentPromise` once the component's message namespace is loaded too. */
+export const withMessages = (componentPromise, namespace) =>
+  Promise.all([componentPromise, loadNamespace(namespace)]).then(([component]) => component)
+
+/**
+ * Switch the UI language. Loads the locale's messages (core plus every
+ * namespace used so far) first so the UI never shows a half-translated
+ * state; `persist` stores the choice per browser.
  */
 export const setLocale = async (code, { persist = true, storage = getDefaultStorage() } = {}) => {
   const next = matchLocale(code) || DEFAULT_LOCALE
   try {
-    await loadMessages(next)
+    await loadNamespacesFor(next, [...wantedNamespaces])
   } catch {
     // The chunk could not be loaded (server gone, flaky link): keep the
     // current language rather than showing raw keys.
@@ -102,6 +142,11 @@ export const setLocale = async (code, { persist = true, storage = getDefaultStor
   }
   global.locale.value = next
   applyDocumentLang(next)
+  try {
+    if (typeof document !== 'undefined') document.title = global.t('app.documentTitle')
+  } catch {
+    // ignore
+  }
   if (persist) storeLocale(storage, next)
   return next
 }

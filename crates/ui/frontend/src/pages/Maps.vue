@@ -528,8 +528,8 @@ const locationState = useLocationState()
 
 // MapLibre's own control tooltips/aria-labels in the UI language.
 const mapControlLocale = () => ({
-  'NavigationControl.ZoomIn': t('maps.controls.zoomIn'),
-  'NavigationControl.ZoomOut': t('maps.controls.zoomOut'),
+  'NavigationControl.ZoomIn': t('common.zoomIn'),
+  'NavigationControl.ZoomOut': t('common.zoomOut'),
   'NavigationControl.ResetBearing': t('maps.controls.resetBearing'),
   'AttributionControl.ToggleAttribution': t('maps.controls.attribution'),
   'ScaleControl.Meters': 'm',

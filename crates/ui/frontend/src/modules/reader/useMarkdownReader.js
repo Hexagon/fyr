@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { localizedError } from '../../i18n/errors.js'
 
 const countNewlines = (text) => {
   let count = 0
@@ -57,7 +58,7 @@ export const useMarkdownReader = () => {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch markdown file (${response.status})`)
+      throw localizedError('books.markdownFetchFailed', `Failed to fetch markdown file (${response.status})`, { status: response.status })
     }
 
     const markdown = await response.text()

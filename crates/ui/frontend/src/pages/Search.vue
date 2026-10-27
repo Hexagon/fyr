@@ -20,7 +20,7 @@
         @input="onInput"
         @keydown="onKeydown"
       />
-      <button type="submit" class="search-submit" :disabled="!normalizedQuery">{{ t('search.submit') }}</button>
+      <button type="submit" class="search-submit" :disabled="!normalizedQuery">{{ t('common.search') }}</button>
     </form>
 
     <div class="search-filters" role="group" :aria-label="t('search.filterLabel')">
@@ -38,7 +38,7 @@
     </div>
 
     <p class="search-status" aria-live="polite">
-      <template v-if="loading">{{ t('search.searching') }}</template>
+      <template v-if="loading">{{ t('common.searching') }}</template>
       <template v-else-if="response && groups.length">
         {{ statusText }}
       </template>

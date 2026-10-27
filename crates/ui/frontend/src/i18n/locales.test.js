@@ -6,11 +6,17 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
-import en from './locales/en.json'
-import sv from './locales/sv.json'
 import { SUPPORTED_LOCALES } from './detect.js'
 
-const LOCALES = { en, sv }
+// locales/<locale>/<namespace>.json, merged per locale.
+const files = import.meta.glob('./locales/*/*.json', { eager: true, import: 'default' })
+const LOCALES = {}
+const namespacesByLocale = {}
+for (const [path, data] of Object.entries(files)) {
+  const [, code, namespace] = path.match(/^\.\/locales\/([^/]+)\/([^/]+)\.json$/)
+  LOCALES[code] = { ...(LOCALES[code] || {}), ...data }
+  ;(namespacesByLocale[code] ||= []).push(namespace)
+}
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const flatten = (tree, prefix = '', out = {}) => {
@@ -65,6 +71,19 @@ describe('locale catalogues', () => {
     expect(Object.keys(LOCALES).sort()).toEqual([...SUPPORTED_LOCALES].sort())
   })
 
+  it('splits every locale into the same namespace files', () => {
+    for (const code of Object.keys(LOCALES)) {
+      expect(namespacesByLocale[code].sort(), code).toEqual(namespacesByLocale.en.sort())
+    }
+  })
+
+  it('keeps each namespace file to its own top-level key (core excepted)', () => {
+    for (const [path, data] of Object.entries(files)) {
+      const namespace = path.match(/([^/]+)\.json$/)[1]
+      if (namespace !== 'core') expect(Object.keys(data), path).toEqual([namespace])
+    }
+  })
+
   it('has more than a handful of keys', () => {
     expect(Object.keys(flat.en).length).toBeGreaterThan(100)
   })
@@ -112,6 +131,41 @@ describe('locale catalogues', () => {
     expect(broken).toEqual([])
     expect(warn).not.toHaveBeenCalled()
     expect(error).not.toHaveBeenCalled()
+  })
+
+  // Page chunks load only core + their own namespace, so a page (and the
+  // shared components on every page) must not use another page's keys.
+  it('uses only core keys and its own namespace on each page', () => {
+    const coreKeys = new Set(Object.keys(flatten(files['./locales/en/core.json'])).map((k) => k.split('.')[0]))
+    const pageNamespace = {
+      'pages/Home.vue': null,
+      'pages/Maps.vue': 'maps',
+      'pages/Books.vue': 'books',
+      'pages/ContentManager.vue': 'content',
+      'pages/Assistant.vue': 'assistant',
+      'pages/Messages.vue': 'messages',
+      'pages/Tools.vue': 'tools',
+      'pages/Search.vue': 'search',
+      'pages/Settings.vue': 'settings',
+      'pages/Login.vue': 'login',
+      'App.vue': null,
+      'components/HeaderSearch.vue': null,
+      'components/LanguageSwitcher.vue': null,
+      'modules/messaging/AlertBanner.vue': null,
+      'modules/messaging/format.js': null,
+      'services/api.js': null
+    }
+    const wrong = []
+    for (const [file, namespace] of Object.entries(pageNamespace)) {
+      const text = readFileSync(join(SRC, file), 'utf8')
+      for (const pattern of KEY_PATTERNS) {
+        for (const match of text.matchAll(pattern)) {
+          const top = match[1].split('.')[0]
+          if (!coreKeys.has(top) && top !== namespace) wrong.push(`${file}: ${match[1]}`)
+        }
+      }
+    }
+    expect(wrong).toEqual([])
   })
 
   it('defines every literal key used in the source', () => {

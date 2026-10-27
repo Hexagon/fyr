@@ -1,23 +1,24 @@
 import { markRaw, ref, shallowRef } from 'vue'
 import { documentOptions, loadPdfjs as defaultLoadPdfjs } from './pdfjsLoader'
 import { buildPageText } from './pdfSearch'
+import { t } from '../../i18n/index.js'
 
 /** User-facing message for a pdf.js load failure. */
 export const describePdfError = (error) => {
   const name = error?.name || ''
   if (name === 'PasswordException') {
-    return 'This PDF is password-protected (encrypted) and cannot be opened in the reader. Download the file and open it in an app that can unlock it.'
+    return t('books.pdf.errors.password')
   }
   if (name === 'InvalidPDFException' || name === 'FormatError') {
-    return 'This file is not a valid PDF or it is damaged, so it cannot be shown.'
+    return t('books.pdf.errors.invalid')
   }
   if (name === 'ResponseException' || name === 'MissingPDFException') {
     const status = Number(error?.status)
-    if (status === 404 || error?.missing) return 'The PDF file was not found on the server. It may have been removed.'
-    return `The PDF could not be downloaded${status ? ` (HTTP ${status})` : ''}.`
+    if (status === 404 || error?.missing) return t('books.pdf.errors.notFound')
+    return status ? t('books.pdf.errors.downloadStatus', { status }) : t('books.pdf.errors.download')
   }
   const message = String(error?.message || '').trim()
-  return message ? `Could not open this PDF: ${message}` : 'Could not open this PDF.'
+  return message ? t('books.pdf.errors.openWithReason', { error: message }) : t('books.pdf.errors.open')
 }
 
 /**

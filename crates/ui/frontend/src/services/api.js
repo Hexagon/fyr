@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { buildSearchParams } from '../modules/search/searchResults.js'
 import { parseSourcesEvent } from './citations.js'
+import { t } from '../i18n/index.js'
 
 const API_BASE = '/api'
 const REQUEST_TIMEOUT_MS = 120000
@@ -177,15 +178,15 @@ const xhrUpload = (url, file, onProgress, abortHandle) => {
     })
 
     xhr.addEventListener('error', () => {
-      reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
+      reject({ response: { status: 0, data: { message: t('api.uploadNetwork') } } })
     })
 
     xhr.addEventListener('timeout', () => {
-      reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
+      reject({ response: { status: 0, data: { message: t('api.uploadTimeout', { seconds: REQUEST_TIMEOUT_MS / 1000 }) } } })
     })
 
     xhr.addEventListener('abort', () => {
-      reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
+      reject({ response: { status: 0, data: { message: t('api.uploadAborted') } } })
     })
 
     xhr.open('POST', url)
@@ -330,7 +331,7 @@ export const apiService = {
   downloadBackup: async () => {
     const response = await fetch('/api/backup', { credentials: 'same-origin' })
     if (!response.ok) {
-      let message = `Backup failed (${response.status}).`
+      let message = t('api.backupFailed', { status: response.status })
       try {
         message = (await response.json()).message || message
       } catch (_) {
@@ -397,7 +398,7 @@ export const apiService = {
         }
 
         if (!response.body) {
-          throw new Error('Streaming response body is unavailable.')
+          throw new Error(t('api.noStream'))
         }
 
         const reader = response.body.getReader()
@@ -525,27 +526,30 @@ export const apiService = {
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
+    if (error?.i18nKey && !error?.response) {
+      return t(error.i18nKey, error.i18nParams || {})
+    }
     if (error?.message && !error?.response && !error?.code) {
       return error.message
     }
     if (error.code === 'ECONNABORTED') {
-      return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check server responsiveness.`
+      return t('api.timeout', { seconds: REQUEST_TIMEOUT_MS / 1000 })
     }
     if (!error.response) {
-      return 'Network error. Server may be offline or unreachable.'
+      return t('api.network')
     }
     if (error.response) {
       if (error.response.status >= 500) {
-        return `Server error (${error.response.status}). Please try again.`
+        return t('api.serverError', { status: error.response.status })
       }
       if (error.response.status === 404) {
-        return 'Requested resource was not found.'
+        return t('api.notFound')
       }
       if (error.response.status === 400) {
-        return error.response.data?.message || 'Invalid request.'
+        return error.response.data?.message || t('api.badRequest')
       }
-      return error.response.data?.message || `Request failed (${error.response.status}).`
+      return error.response.data?.message || t('api.requestFailed', { status: error.response.status })
     }
-    return error.message || 'Unknown error'
+    return error.message || t('api.unknown')
   }
 }
