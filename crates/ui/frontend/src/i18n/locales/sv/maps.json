@@ -164,6 +164,20 @@
       "noFix": "Platsen kunde inte fastställas (ingen GPS-position). Gå ut under öppen himmel och försök igen.",
       "timeout": "Tidsgränsen för att få en position överskreds.",
       "failed": "Platsen kunde inte fastställas"
+    },
+    "search": {
+      "title": "Hitta en plats",
+      "label": "Sök platser på kartorna",
+      "placeholder": "Ort, sjö, topp …",
+      "go": "Sök",
+      "clear": "Rensa sökningen",
+      "searching": "Söker …",
+      "results": "Hittade platser",
+      "none": "Inga platser hittades för ”{query}”.",
+      "hint": "Söker bland ortnamn i indexerade vektorkartor och i dina POI-filer.",
+      "tooShort": "Skriv minst {count} tecken.",
+      "error": "Platssökningen misslyckades. Försök igen.",
+      "onMap": "på {map}"
     }
   }
 }

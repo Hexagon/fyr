@@ -17,7 +17,8 @@
       "size": "Size",
       "modified": "Modified",
       "fulltext": "Full-text",
-      "actions": "Actions"
+      "actions": "Actions",
+      "places": "Place search"
     },
     "download": "Download",
     "noFiles": "No files in {folder}.",
@@ -128,6 +129,29 @@
       "waiting": "Waiting to index",
       "autoHint": "Will be indexed automatically in the background",
       "manualHint": "Large archive: start indexing manually (uses disk space and CPU time)"
-    }
+    },
+    "places": {
+      "build": "Index places",
+      "delete": "Delete index",
+      "off": "Off",
+      "offHint": "Place indexing is disabled on this server.",
+      "notIndexed": "Not indexed",
+      "ready": "Places ready",
+      "placesIndexed": "{count} place indexed | {count} places indexed",
+      "indexing": "Indexing {pct}%",
+      "placesSoFar": "{count} place so far | {count} places so far",
+      "queued": "Queued",
+      "paused": "Paused {pct}%",
+      "resumes": "Resumes automatically",
+      "failed": "Index failed",
+      "excludedHint": "Index deleted; index the map again to search its places",
+      "waiting": "Waiting to index",
+      "autoHint": "Place names will be indexed automatically in the background",
+      "manualHint": "Large map: start indexing manually (uses disk space and CPU time)",
+      "raster": "Raster map",
+      "rasterHint": "Raster maps have no place names to search",
+      "unsupported": "Not searchable"
+    },
+    "placesLowDisk": "Place indexing is paused because free disk space is low."
   }
 }

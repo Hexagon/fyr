@@ -5,12 +5,13 @@
 // keyboard selection and match highlighting.
 
 import { t } from '../../i18n/index.js'
+import { placeKindLabel } from '../maps/placeKind.js'
 
 export const MAX_QUERY_LENGTH = 200
 export const SEARCH_DEBOUNCE_MS = 250
 
 // Display order of groups when scores tie, and their label message keys.
-export const KIND_ORDER = ['book', 'article', 'article_text', 'content', 'map', 'poi']
+export const KIND_ORDER = ['book', 'article', 'article_text', 'content', 'map', 'place', 'poi']
 
 export const KIND_LABEL_KEYS = {
   book: 'search.kind.book',
@@ -18,6 +19,7 @@ export const KIND_LABEL_KEYS = {
   article_text: 'search.kind.articleText',
   content: 'search.kind.content',
   map: 'search.kind.map',
+  place: 'search.kind.place',
   poi: 'search.kind.poi'
 }
 
@@ -30,6 +32,7 @@ export const KIND_ICONS = {
   article_text: '📝',
   content: '🔎',
   map: '🗺️',
+  place: '🧭',
   poi: '📍'
 }
 
@@ -41,6 +44,7 @@ export const KIND_FILTERS = [
   { id: 'article_text', labelKey: 'search.filter.articleText', kinds: 'article_text' },
   { id: 'content', labelKey: 'search.filter.content', kinds: 'content' },
   { id: 'map', labelKey: 'search.filter.map', kinds: 'map' },
+  { id: 'place', labelKey: 'search.filter.place', kinds: 'place' },
   { id: 'poi', labelKey: 'search.filter.poi', kinds: 'poi' }
 ]
 
@@ -75,6 +79,21 @@ export function isSafeLink(link) {
   return typeof link === 'string' && link.startsWith('/') && !link.startsWith('//') && !link.includes('\\')
 }
 
+const PLACE_KIND_PATTERN = /^[a-z0-9_]{1,40}$/
+
+/**
+ * Subtitle of a `place` hit in the active language: the server sends
+ * "<English kind> · <matched alternative name>"; the kind part is replaced
+ * by the translated label of `place_kind`.
+ */
+export function placeSubtitle(subtitle, placeKind) {
+  const parts = String(subtitle || '').split(' · ')
+  const label = placeKindLabel(placeKind)
+  if (!label) return String(subtitle || '')
+  parts[0] = label
+  return parts.filter(Boolean).join(' · ')
+}
+
 /** Drop malformed results and coerce fields into a predictable shape. */
 export function normalizeResults(raw) {
   const list = Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
@@ -83,7 +102,10 @@ export function normalizeResults(raw) {
     .map((item) => ({
       kind: KIND_ORDER.includes(item.kind) ? item.kind : 'other',
       title: String(item.title || item.source || t('search.untitled')),
-      subtitle: item.subtitle ? String(item.subtitle) : '',
+      placeKind: typeof item.place_kind === 'string' && PLACE_KIND_PATTERN.test(item.place_kind) ? item.place_kind : '',
+      subtitle: item.kind === 'place' && typeof item.place_kind === 'string' && PLACE_KIND_PATTERN.test(item.place_kind)
+        ? placeSubtitle(item.subtitle, item.place_kind)
+        : item.subtitle ? String(item.subtitle) : '',
       source: String(item.source || ''),
       score: Number.isFinite(Number(item.score)) ? Number(item.score) : 0,
       link: item.link,

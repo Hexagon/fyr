@@ -114,6 +114,60 @@
         <div id="maps-tools-panel" v-show="showTools" class="overlay-content">
           <h3>{{ t('nav.tools') }}</h3>
 
+          <div class="tool-group place-search">
+            <form class="goto-row" role="search" @submit.prevent="submitPlaceSearch">
+              <input
+                ref="placeInput"
+                v-model="placeQuery"
+                type="search"
+                class="poi-input"
+                :placeholder="t('maps.search.placeholder')"
+                :aria-label="t('maps.search.label')"
+                :title="t('maps.search.title')"
+                autocomplete="off"
+                spellcheck="false"
+                enterkeyhint="search"
+                @input="onPlaceInput"
+                @keydown="onPlaceKeydown"
+              />
+              <button class="tool-btn-secondary" type="submit" :disabled="!placeQuery.trim()">{{ t('maps.search.go') }}</button>
+              <button
+                v-if="placeQuery"
+                class="tool-btn-icon"
+                type="button"
+                @click="clearPlaceSearch"
+                :title="t('maps.search.clear')"
+                :aria-label="t('maps.search.clear')"
+              >✕</button>
+            </form>
+            <p v-if="placeState.status === 'loading'" class="tool-hint" role="status">{{ t('maps.search.searching') }}</p>
+            <p v-else-if="placeState.status === 'short'" class="tool-hint">{{ t('maps.search.tooShort', { count: MIN_PLACE_QUERY_CHARS }) }}</p>
+            <p v-else-if="placeState.status === 'error'" class="tool-error" role="alert">{{ t('maps.search.error') }}</p>
+            <template v-else-if="placeState.status === 'done'">
+              <ul v-if="placeState.results.length" class="place-results" :aria-label="t('maps.search.results')">
+                <li v-for="(result, index) in placeState.results" :key="result.id">
+                  <button
+                    type="button"
+                    class="place-result"
+                    :class="{ active: index === placeActive }"
+                    @click="choosePlace(result)"
+                    @mouseenter="placeActive = index"
+                  >
+                    <span class="place-result-icon" aria-hidden="true">{{ result.icon }}</span>
+                    <span class="place-result-text">
+                      <span class="place-result-title">{{ result.title }}</span>
+                      <span class="place-result-detail">{{ result.detail }}</span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+              <template v-else>
+                <p class="tool-hint" role="status">{{ t('maps.search.none', { query: placeState.query }) }}</p>
+                <p class="tool-hint">{{ t('maps.search.hint') }}</p>
+              </template>
+            </template>
+          </div>
+
           <div class="tool-group">
             <button
               class="tool-btn"
@@ -397,6 +451,8 @@ import {
 } from '../modules/maps/style'
 import { formatCoordinate, formatDecimal, formatDms, parseCoordinate } from '../modules/maps/coords'
 import { parseMapsQuery, buildMapsQuery, deepLinkKey, DEFAULT_POINT_ZOOM } from '../modules/maps/deepLink'
+import { createPlaceSearch, MIN_PLACE_QUERY_CHARS, PLACE_SEARCH_KINDS, PLACE_SEARCH_LIMIT } from '../modules/maps/placeSearch'
+import { moveSelection, normalizeQuery } from '../modules/search/searchResults'
 import { createBoundsResolver } from '../modules/maps/bounds'
 import { parseGpx, toGpx } from '../modules/maps/gpx'
 import { checkGeolocationSupport, geolocationErrorMessage, defaultTrackName, trackToFeature, trackToGeoJSON } from '../modules/maps/tracking'
@@ -501,6 +557,22 @@ const markerSummary = computed(() => {
   return t.label ? `${t.label} (${coord})` : coord
 })
 
+// Place search (names from indexed vector maps + POI files, via /api/search).
+const placeInput = ref(null)
+const placeQuery = ref('')
+const placeState = ref({ status: 'idle', query: '', results: [], error: null })
+const placeActive = ref(-1)
+// Set when a search result is picked, so the view flies there instead of
+// jumping.
+let flyToNextTarget = false
+const placeSearch = createPlaceSearch({
+  request: (q, { signal }) => apiService.search(q, { limit: PLACE_SEARCH_LIMIT, kinds: PLACE_SEARCH_KINDS, signal }),
+  onState: (state) => {
+    placeState.value = state
+    placeActive.value = state.results.length ? 0 : -1
+  }
+})
+
 // Track recording (app-wide recorder so SPA navigation does not stop it)
 const recorder = getTrackRecorder()
 const trackState = recorder.state
@@ -595,7 +667,12 @@ const chooseMapForPoint = async (lng, lat, preferred) => {
 const viewDeepLinkTarget = () => {
   const t = deepLinkTarget.value
   if (!mapInstance || !t) return
-  mapInstance.jumpTo({ center: [t.lng, t.lat], zoom: t.zoom })
+  if (flyToNextTarget) {
+    mapInstance.flyTo({ center: [t.lng, t.lat], zoom: t.zoom, essential: true })
+  } else {
+    mapInstance.jumpTo({ center: [t.lng, t.lat], zoom: t.zoom })
+  }
+  flyToNextTarget = false
   updateDeepLinkMarker()
 }
 
@@ -623,6 +700,7 @@ const applyRouteQuery = async (query) => {
   if (!target) return
 
   if (target !== selectedMap.value) {
+    flyToNextTarget = false
     selectedMap.value = target // map re-initialises and centres on the deep-link target
   } else {
     viewDeepLinkTarget()
@@ -657,6 +735,56 @@ const clearDeepLinkMarker = () => {
   deepLinkTarget.value = null
   updateDeepLinkMarker()
   writeQuery(currentLinkQuery())
+}
+
+// ── Place search ────────────────────────────────────────────────────
+
+const onPlaceInput = () => placeSearch.search(placeQuery.value)
+
+const clearPlaceSearch = () => {
+  placeQuery.value = ''
+  placeSearch.search('')
+  placeInput.value?.focus()
+}
+
+const choosePlace = (result) => {
+  if (!result?.query) return
+  const parsed = parseMapsQuery(result.query)
+  if (!parsed.hasPoint) return
+  flyToNextTarget = true
+  // On phones the expanded tools panel covers the map: get out of the way.
+  if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) {
+    showTools.value = false
+  }
+  if (deepLinkKey(parsed) === lastAppliedLinkKey) {
+    // Same result again (the URL already says so): just fly back to it.
+    deepLinkTarget.value = { lat: parsed.lat, lng: parsed.lng, zoom: parsed.zoom ?? DEFAULT_POINT_ZOOM, label: parsed.label }
+    viewDeepLinkTarget()
+    return
+  }
+  router.push({ path: '/maps', query: result.query }).catch(() => {})
+}
+
+const submitPlaceSearch = () => {
+  const state = placeState.value
+  if (state.status === 'done' && state.query === normalizeQuery(placeQuery.value) && state.results.length) {
+    choosePlace(state.results[Math.max(0, placeActive.value)])
+    return
+  }
+  placeSearch.search(placeQuery.value, { immediate: true })
+}
+
+const onPlaceKeydown = (event) => {
+  const results = placeState.value.results || []
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (!results.length) return
+    event.preventDefault()
+    placeActive.value = moveSelection(placeActive.value, event.key === 'ArrowDown' ? 1 : -1, results.length)
+  } else if (event.key === 'Escape' && placeQuery.value) {
+    event.preventDefault()
+    placeQuery.value = ''
+    placeSearch.search('')
+  }
 }
 
 const goToCoordinate = async () => {
@@ -1443,6 +1571,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  placeSearch.cancel()
   recorder.setListeners({})
   if (copiedTimer) clearTimeout(copiedTimer)
   if (pointerFrame) cancelAnimationFrame(pointerFrame)
@@ -2019,6 +2148,69 @@ onBeforeUnmount(() => {
 
 .goto-row .poi-input {
   min-width: 0;
+}
+
+.place-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.place-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  background: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place-result:hover,
+.place-result.active {
+  border-color: #667eea;
+  background: #2d3f5a;
+}
+
+.place-result-icon {
+  flex: none;
+  line-height: 1.3;
+}
+
+.place-result-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.place-result-title,
+.place-result-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-result-title {
+  font-size: 0.85rem;
+}
+
+.place-result-detail {
+  font-size: 0.74rem;
+  color: #a8a8a8;
+}
+
+.place-search .tool-hint {
+  margin-top: 0.35rem;
 }
 
 .marker-row {

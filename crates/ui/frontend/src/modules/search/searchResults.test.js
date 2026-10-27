@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h } from 'vue'
+import { setLocale } from '../../i18n/index.js'
 import {
   MAX_QUERY_LENGTH,
   buildSearchParams,
@@ -236,5 +237,46 @@ describe('article_text snippets', () => {
     expect(el.querySelector('img')).toBeNull()
     expect(el.querySelector('mark').textContent).toBe('Uppsala')
     expect(el.textContent).toContain('<img src=x onerror=alert(1)>')
+  })
+})
+
+describe('place results', () => {
+  const raw = {
+    kind: 'place',
+    title: 'Göteborg',
+    subtitle: 'City · Gothenburg',
+    place_kind: 'city',
+    source: 'sweden.pmtiles',
+    score: 1100,
+    link: '/maps?map=sweden.pmtiles&lat=57.7&lng=11.97&zoom=11&label=G%C3%B6teborg',
+    lat: 57.7,
+    lng: 11.97
+  }
+
+  it('keeps the place kind and translates the subtitle', async () => {
+    const [en] = normalizeResults([raw])
+    expect(en).toMatchObject({ kind: 'place', placeKind: 'city', subtitle: 'City · Gothenburg', lat: 57.7 })
+    try {
+      await setLocale('sv', { persist: false })
+      expect(normalizeResults([raw])[0].subtitle).toBe('Stad · Gothenburg')
+      expect(normalizeResults([{ ...raw, subtitle: 'Mountain range', place_kind: 'mountain_range' }])[0].subtitle).toBe('Bergskedja')
+    } finally {
+      await setLocale('en', { persist: false })
+    }
+    // Unknown kinds get a readable fallback; malformed kinds are dropped.
+    expect(normalizeResults([{ ...raw, subtitle: 'Hot spring', place_kind: 'hot_spring' }])[0].subtitle).toBe('Hot spring')
+    const hostile = normalizeResults([{ ...raw, place_kind: '<img src=x>' }])[0]
+    expect(hostile.placeKind).toBe('')
+    expect(hostile.subtitle).toBe('City · Gothenburg')
+  })
+
+  it('groups places between maps and POIs on score ties', () => {
+    const groups = groupResults(normalizeResults([
+      { kind: 'poi', title: 'p', score: 500, link: '/p' },
+      { kind: 'place', title: 'q', score: 500, link: '/q', place_kind: 'town' },
+      { kind: 'map', title: 'm', score: 500, link: '/m' }
+    ]))
+    expect(groups.map((g) => g.kind)).toEqual(['map', 'place', 'poi'])
+    expect(groups[1].label).toBe('Places on maps')
   })
 })
