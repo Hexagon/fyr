@@ -161,6 +161,16 @@ pub fn all_terms_expr(text: &str) -> Option<String> {
     Some(parts.join(" "))
 }
 
+/// Expression matching documents that contain every term of `text` as a
+/// whole word (no prefix matching). `None` when `text` has no terms.
+pub fn exact_terms_expr(text: &str) -> Option<String> {
+    let terms = query_terms(text);
+    if terms.is_empty() {
+        return None;
+    }
+    Some(terms.iter().map(|t| quote_term(t)).collect::<Vec<_>>().join(" "))
+}
+
 /// Expression matching documents that contain any of `keywords`; BM25 then
 /// ranks documents matching more (and rarer) keywords higher.
 pub fn any_terms_expr(keywords: &[String]) -> Option<String> {

@@ -85,7 +85,7 @@ pub enum CancelReason {
 }
 
 impl CancelReason {
-    fn code(self) -> u8 {
+    pub(crate) fn code(self) -> u8 {
         match self {
             CancelReason::Shutdown => 1,
             CancelReason::Removed => 2,
@@ -93,7 +93,7 @@ impl CancelReason {
         }
     }
 
-    fn from_code(code: u8) -> Option<Self> {
+    pub(crate) fn from_code(code: u8) -> Option<Self> {
         match code {
             1 => Some(CancelReason::Shutdown),
             2 => Some(CancelReason::Removed),
@@ -641,16 +641,22 @@ fn worker_loop(shared: Arc<Shared>, settings: IndexerSettings) {
 }
 
 fn low_disk(settings: &IndexerSettings) -> bool {
-    if settings.min_free_bytes == 0 {
+    low_disk_at(&settings.index_dir, settings.min_free_bytes)
+}
+
+/// Whether free space on the volume of `index_dir` is under `min_free_bytes`
+/// (shared with the place indexer). `0` disables the guard.
+pub(crate) fn low_disk_at(index_dir: &Path, min_free_bytes: u64) -> bool {
+    if min_free_bytes == 0 {
         return false;
     }
-    let probe = if settings.index_dir.exists() {
-        settings.index_dir.as_path()
+    let probe = if index_dir.exists() {
+        index_dir
     } else {
-        settings.index_dir.parent().unwrap_or(&settings.index_dir)
+        index_dir.parent().unwrap_or(index_dir)
     };
     // Unknown free space counts as low: do not fill a disk we cannot measure.
-    fs2::available_space(probe).map_or(true, |free| free < settings.min_free_bytes)
+    fs2::available_space(probe).map_or(true, |free| free < min_free_bytes)
 }
 
 /// `(filename, path)` of every `.zim` file directly in `books_dir`, sorted.
@@ -906,12 +912,18 @@ pub fn run_job(settings: &IndexerSettings, filename: &str, control: &Arc<JobCont
 }
 
 fn throttle(settings: &IndexerSettings, worked: Duration, control: &JobControl) {
-    if settings.throttle <= 0.0 {
+    throttle_pause(settings.throttle, worked, || control.cancelled().is_some());
+}
+
+/// Sleep `factor` × `worked` (at most 5 s), waking early when `cancelled`
+/// (shared with the place indexer).
+pub(crate) fn throttle_pause(factor: f64, worked: Duration, cancelled: impl Fn() -> bool) {
+    if factor <= 0.0 || !factor.is_finite() {
         return;
     }
-    let pause = worked.mul_f64(settings.throttle).min(MAX_THROTTLE_PAUSE);
+    let pause = worked.mul_f64(factor).min(MAX_THROTTLE_PAUSE);
     let end = Instant::now() + pause;
-    while control.cancelled().is_none() {
+    while !cancelled() {
         let left = end.saturating_duration_since(Instant::now());
         if left.is_zero() {
             break;

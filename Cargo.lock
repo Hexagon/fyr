@@ -2962,6 +2962,7 @@ dependencies = [
  "chrono",
  "digest 0.10.7",
  "downloader",
+ "flate2",
  "fs2",
  "hex",
  "if-addrs",
@@ -2990,6 +2991,7 @@ dependencies = [
  "walkdir",
  "zim",
  "zip 0.6.6",
+ "zstd",
 ]
 
 [[package]]

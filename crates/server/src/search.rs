@@ -11,6 +11,7 @@
 //! | `article_text` | ZIM article bodies, via the on-disk FTS5 index |
 //! | `map`     | map filenames in maps/                             |
 //! | `poi`     | GeoJSON feature names/descriptions in poi/         |
+//! | `place`   | named places in vector maps, via the place index   |
 //!
 //! The endpoint is read-only and public. Results carry only *filenames* and
 //! frontend route descriptors (`link`), never host paths, so they are safe in
@@ -134,16 +135,20 @@ pub enum SearchKind {
     /// Words in ZIM article bodies (full-text index, see `crate::fulltext`).
     #[serde(rename = "article_text")]
     ArticleText,
+    /// Named places (towns, lakes, peaks, ...) in vector maps, via the place
+    /// index (see `crate::places`).
+    Place,
 }
 
 impl SearchKind {
-    pub const ALL: [SearchKind; 6] = [
+    pub const ALL: [SearchKind; 7] = [
         SearchKind::Book,
         SearchKind::Map,
         SearchKind::Poi,
         SearchKind::Article,
         SearchKind::Content,
         SearchKind::ArticleText,
+        SearchKind::Place,
     ];
 
     pub fn parse(value: &str) -> Option<Self> {
@@ -154,6 +159,7 @@ impl SearchKind {
             "article" | "articles" | "zim" => Some(SearchKind::Article),
             "content" | "text" | "fulltext" => Some(SearchKind::Content),
             "article_text" | "articletext" | "article_texts" => Some(SearchKind::ArticleText),
+            "place" | "places" => Some(SearchKind::Place),
             _ => None,
         }
     }
@@ -163,7 +169,7 @@ impl SearchKind {
     fn bonus(self) -> f64 {
         match self {
             SearchKind::Book | SearchKind::Map => 40.0,
-            SearchKind::Poi => 20.0,
+            SearchKind::Poi | SearchKind::Place => 20.0,
             SearchKind::Article => 0.0,
             SearchKind::Content => 0.0,
             SearchKind::ArticleText => 0.0,
@@ -186,6 +192,10 @@ pub struct SearchHit {
     /// `match` marks the query terms. Render as text, never as HTML.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet: Option<Vec<crate::fulltext::SnippetSegment>>,
+    /// Kind of a `place` hit (`city`, `village`, `lake`, `peak`, ...), so the
+    /// UI can show a translated label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lat: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -310,6 +320,8 @@ pub struct SearchRoots {
     pub poi: PathBuf,
     /// Full-text index directory; `None` when full-text search is disabled.
     pub index: Option<PathBuf>,
+    /// Place index directory; `None` when place indexing is disabled.
+    pub places: Option<PathBuf>,
 }
 
 impl SearchRoots {
@@ -319,6 +331,7 @@ impl SearchRoots {
             maps: config.maps_dir(),
             poi: config.poi_dir(),
             index: config.fulltext.enabled.then(|| config.index_dir()),
+            places: config.places.enabled.then(|| config.index_dir()),
         }
     }
 }
@@ -407,6 +420,14 @@ pub fn run_search(
         let (hits, partial) = search_poi_dir(&roots.poi, query, deadline);
         outcome.hits.extend(hits);
         outcome.partial |= partial;
+    }
+
+    if kinds.contains(&SearchKind::Place) {
+        if let Some(index_dir) = &roots.places {
+            let (hits, partial) = search_places(index_dir, &roots.maps, query, deadline);
+            outcome.hits.extend(hits);
+            outcome.partial |= partial;
+        }
     }
 
     if kinds.contains(&SearchKind::Article) {
@@ -771,6 +792,19 @@ pub fn map_link(filename: &str) -> String {
     format!("/maps?map={}", encode_component(filename))
 }
 
+/// Deep link to a place in a specific map:
+/// `/maps?map=<file>&lat=<lat>&lng=<lng>&zoom=<z>&label=<name>`.
+pub fn place_link(map: &str, lat: f64, lng: f64, zoom: u8, label: &str) -> String {
+    format!(
+        "/maps?map={}&lat={}&lng={}&zoom={}&label={}",
+        encode_component(map),
+        format_coord(lat),
+        format_coord(lng),
+        zoom,
+        encode_component(label)
+    )
+}
+
 pub fn poi_link(lat: f64, lng: f64, label: &str) -> String {
     format!(
         "/maps?lat={}&lng={}&zoom=14&label={}",
@@ -962,6 +996,7 @@ pub fn search_maps(maps_dir: &Path, query: &SearchQuery) -> Vec<SearchHit> {
                 .fold(None, |acc: Option<f64>, s| Some(acc.map_or(s, |a| a.max(s))))?;
             Some(SearchHit {
                 snippet: None,
+                place_kind: None,
                 kind: SearchKind::Map,
                 title: label,
                 subtitle: Some(format!("{} map", extension_lower(&name).to_uppercase())),
@@ -973,6 +1008,178 @@ pub fn search_maps(maps_dir: &Path, query: &SearchQuery) -> Vec<SearchHit> {
             })
         })
         .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Source: places in vector maps (place index)
+// ---------------------------------------------------------------------------
+
+/// Maximum place results taken from one map's index.
+pub const PER_MAP_PLACE_LIMIT: usize = 15;
+/// Candidates fetched per index query before scoring.
+const PLACE_CANDIDATES: usize = 120;
+/// Smallest slice of the budget handed to one map's place query.
+const MIN_PLACE_BUDGET: Duration = Duration::from_millis(60);
+/// Place importance (0–100) adds at most this much to a hit's score, less
+/// than the gap between match tiers minus the length penalty, so match
+/// quality always ranks first.
+const PLACE_IMPORTANCE_WEIGHT: f64 = 0.35;
+/// The same name and kind within this distance in two maps is one result.
+const PLACE_MERGE_KM: f64 = 2.0;
+
+/// English label for subtitles (the UI translates `place_kind` itself).
+fn humanize_kind(kind: &str) -> String {
+    let text = kind.replace('_', " ");
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// Score one stored place: the best match tier over its name and
+/// alternative names, plus a share of its importance. Also returns the
+/// alternative name that matched best, if it beat the primary name.
+pub fn score_place(row: &crate::places::store::PlaceRow, query: &SearchQuery) -> (f64, Option<String>) {
+    let mut best: Option<(f64, Option<String>)> = match_score(&row.name, query).map(|s| (s, None));
+    for alt in &row.alt {
+        if let Some(score) = match_score(alt, query) {
+            if best.as_ref().map_or(true, |(b, _)| score > *b) {
+                best = Some((score, Some(alt.clone())));
+            }
+        }
+    }
+    // The index matched every word, but not as one phrase (other order, or
+    // a word prefix inside a longer name): rank like a weak substring match.
+    let (score, alt) = best.unwrap_or((SCORE_SUBSTRING - MAX_LENGTH_PENALTY, None));
+    let importance = row.importance.clamp(0.0, 100.0) * PLACE_IMPORTANCE_WEIGHT;
+    (score + importance + SearchKind::Place.bonus(), alt)
+}
+
+fn search_map_places(
+    index_dir: &Path,
+    map: &str,
+    map_path: &Path,
+    query: &SearchQuery,
+    deadline: &Deadline,
+) -> (Vec<SearchHit>, bool) {
+    let Some(reader) = crate::places::open_reader(index_dir, map, map_path) else {
+        return (Vec::new(), false);
+    };
+    let interrupt = deadline.interrupt();
+    let mut rows: Vec<crate::places::store::PlaceRow> = Vec::new();
+    let mut partial = false;
+    // Whole-word matches first (so an exact "Å" or "Berg" is never pushed
+    // out by hundreds of more important prefix matches), then prefixes.
+    let exprs = [
+        crate::fulltext::exact_terms_expr(&query.display),
+        crate::fulltext::all_terms_expr(&query.display),
+    ];
+    for expr in exprs.iter().flatten() {
+        match reader.search(expr, PLACE_CANDIDATES, &interrupt) {
+            Ok(found) => {
+                for row in found {
+                    if !rows.iter().any(|r| r.id == row.id) {
+                        rows.push(row);
+                    }
+                }
+            }
+            Err(_) => {
+                partial = true;
+                break;
+            }
+        }
+    }
+    let scored: Vec<(f64, (crate::places::store::PlaceRow, Option<String>))> = rows
+        .into_iter()
+        .map(|row| {
+            let (score, alt) = score_place(&row, query);
+            (score, (row, alt))
+        })
+        .collect();
+    let hits = top_k(scored, PER_MAP_PLACE_LIMIT)
+        .into_iter()
+        .map(|(score, (row, alt))| {
+            let zoom = crate::places::zoom_for(&row.kind, row.category);
+            let kind_label = humanize_kind(&row.kind);
+            let subtitle = match &alt {
+                Some(alt) => format!("{kind_label} · {alt}"),
+                None => kind_label,
+            };
+            SearchHit {
+                kind: SearchKind::Place,
+                link: place_link(map, row.lat, row.lon, zoom, &row.name),
+                title: row.name,
+                subtitle: Some(subtitle),
+                source: map.to_string(),
+                score,
+                snippet: None,
+                place_kind: Some(row.kind),
+                lat: Some(row.lat),
+                lng: Some(row.lon),
+            }
+        })
+        .collect();
+    (hits, partial)
+}
+
+/// Places from every indexed vector map, each map getting an equal share of
+/// the remaining budget. The same place found in several maps (a country
+/// map and a region map) is returned once, from the map where it scored best.
+pub fn search_places(
+    index_dir: &Path,
+    maps_dir: &Path,
+    query: &SearchQuery,
+    deadline: &Deadline,
+) -> (Vec<SearchHit>, bool) {
+    let maps: Vec<(String, PathBuf)> = list_files(maps_dir)
+        .into_iter()
+        .filter(|(name, _)| crate::places::is_valid_map_name(name))
+        .filter(|(name, _)| crate::places::index_path(index_dir, name).is_file())
+        .collect();
+    let mut hits: Vec<SearchHit> = Vec::new();
+    let mut partial = false;
+    for (i, (name, path)) in maps.iter().enumerate() {
+        if deadline.expired() {
+            partial = true;
+            break;
+        }
+        let left = (maps.len() - i) as u32;
+        let share = (deadline.remaining() / left).max(MIN_PLACE_BUDGET);
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            search_map_places(index_dir, name, path, query, &deadline.child(share))
+        }));
+        match result {
+            Ok((found, cut)) => {
+                hits.extend(found);
+                partial |= cut;
+            }
+            Err(_) => warn!("Place search panicked on {}", name),
+        }
+    }
+    (merge_duplicate_places(hits), partial)
+}
+
+/// Drop place hits that repeat a better-scored hit with the same folded
+/// title and kind within [`PLACE_MERGE_KM`].
+pub fn merge_duplicate_places(mut hits: Vec<SearchHit>) -> Vec<SearchHit> {
+    hits.sort_by(compare_hits);
+    let mut kept: Vec<(String, SearchHit)> = Vec::new();
+    for hit in hits {
+        let (Some(lat), Some(lng)) = (hit.lat, hit.lng) else { continue };
+        let key = format!("{}\u{1f}{}", fold(&hit.title), hit.place_kind.as_deref().unwrap_or(""));
+        let duplicate = kept.iter().any(|(k, other)| {
+            *k == key
+                && other
+                    .lat
+                    .zip(other.lng)
+                    .is_some_and(|(olat, olng)| crate::places::haversine_km(lng, lat, olng, olat) <= PLACE_MERGE_KM)
+        });
+        if !duplicate {
+            kept.push((key, hit));
+        }
+    }
+    kept.into_iter().map(|(_, hit)| hit).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -1061,6 +1268,7 @@ pub fn search_book_titles(books: &[BookFile], query: &SearchQuery) -> Vec<Search
             };
             Some(SearchHit {
                 snippet: None,
+                place_kind: None,
                 kind: SearchKind::Book,
                 title: label,
                 subtitle: Some(subtitle),
@@ -1126,6 +1334,7 @@ pub fn search_book_contents(
 
         hits.push(SearchHit {
             snippet: None,
+            place_kind: None,
             kind: SearchKind::Content,
             title: book.label(),
             subtitle: Some(snippet),
@@ -1346,6 +1555,7 @@ pub fn search_poi_records(
             };
             SearchHit {
                 snippet: None,
+                place_kind: None,
                 kind: SearchKind::Poi,
                 title: record.name.clone(),
                 subtitle: Some(subtitle),
@@ -1517,6 +1727,7 @@ fn search_zim_archive_inner(
         };
         hits.push(SearchHit {
             snippet: None,
+            place_kind: None,
             kind: SearchKind::Article,
             title: matched_title,
             subtitle: Some(subtitle),
@@ -1571,6 +1782,7 @@ fn search_archive_text(
                     title: hit.title.replace('_', " "),
                     subtitle: Some(label.clone()),
                     snippet: (!segments.is_empty()).then_some(segments),
+                    place_kind: None,
                     source: archive.filename.clone(),
                     score: SCORE_ARTICLE_TEXT - rank as f64 * SCORE_TEXT_STEP + SearchKind::ArticleText.bonus(),
                     link: format!(
@@ -1829,6 +2041,7 @@ mod tests {
     fn hit(kind: SearchKind, title: &str, score: f64, link: &str) -> SearchHit {
         SearchHit {
             snippet: None,
+            place_kind: None,
             kind,
             title: title.to_string(),
             subtitle: None,
@@ -2023,8 +2236,9 @@ mod tests {
 
     #[test]
     fn parse_kinds_filter() {
-        assert_eq!(parse_kinds(None).len(), 6);
-        assert_eq!(parse_kinds(Some("  ")).len(), 6);
+        assert_eq!(parse_kinds(None).len(), 7);
+        assert_eq!(parse_kinds(Some("  ")).len(), 7);
+        assert_eq!(parse_kinds(Some("places")), [SearchKind::Place].into_iter().collect());
         let only = parse_kinds(Some("book, Maps,bogus"));
         assert_eq!(only, [SearchKind::Book, SearchKind::Map].into_iter().collect());
         assert!(parse_kinds(Some("bogus")).is_empty());
@@ -2039,6 +2253,10 @@ mod tests {
         );
         assert_eq!(content_link("g.md", "a&b=c"), "/books?file=g.md&q=a%26b%3Dc");
         assert_eq!(map_link("alps.pmtiles"), "/maps?map=alps.pmtiles");
+        assert_eq!(
+            place_link("nord & syd.pmtiles", -33.86881234, 151.2093, 11, "Sydney \"CBD\""),
+            "/maps?map=nord%20%26%20syd.pmtiles&lat=-33.868812&lng=151.2093&zoom=11&label=Sydney%20%22CBD%22"
+        );
         assert_eq!(
             poi_link(59.9139, 10.7522, "Café #1"),
             "/maps?lat=59.9139&lng=10.7522&zoom=14&label=Caf%C3%A9%20%231"
@@ -2166,6 +2384,7 @@ mod tests {
             maps: root.join("maps"),
             poi: root.join("poi"),
             index: None,
+            places: None,
         };
         for dir in [&roots.books, &roots.maps, &roots.poi] {
             std::fs::create_dir_all(dir).unwrap();
@@ -2235,6 +2454,7 @@ mod tests {
             maps: root.join("nope-maps"),
             poi: root.join("nope-poi"),
             index: None,
+            places: None,
         };
         let outcome = run_search(&roots, &q("anything"), &parse_kinds(None), &Deadline::after(SEARCH_BUDGET));
         assert!(outcome.hits.is_empty());

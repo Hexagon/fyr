@@ -42,6 +42,7 @@ fn app_with(mode: Mode) -> (Router, Option<String>) {
         mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
         messaging: Arc::new(super::Messaging::open(&config).expect("open db")),
         fulltext: Arc::new(crate::fulltext::FulltextIndexer::from_config(&config)),
+        places: Arc::new(crate::places::PlaceIndexer::from_config(&config)),
     };
     (crate::create_router(state), token)
 }

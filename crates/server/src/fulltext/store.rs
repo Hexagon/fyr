@@ -30,7 +30,7 @@ const RANK_FUNCTION: &str = "bm25(0.0, 4.0, 1.0)";
 /// Snippet length in tokens.
 const SNIPPET_TOKENS: i64 = 18;
 /// SQLite VM steps between deadline checks while a query runs.
-const PROGRESS_STEPS: i32 = 2000;
+pub(crate) const PROGRESS_STEPS: i32 = 2000;
 /// Readers wait at most this long for a lock (WAL readers normally never
 /// wait; this only covers a checkpoint in progress).
 const READER_BUSY_TIMEOUT: Duration = Duration::from_millis(200);
@@ -136,22 +136,28 @@ impl IndexMeta {
     }
 }
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
 }
 
-fn read_meta(conn: &Connection) -> rusqlite::Result<Option<IndexMeta>> {
+/// Every `meta` row as a map (shared with the place index).
+pub(crate) fn read_meta_map(conn: &Connection) -> rusqlite::Result<HashMap<String, String>> {
     let mut stmt = conn.prepare("SELECT key, value FROM meta")?;
     let map: HashMap<String, String> = stmt
         .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
         .collect::<rusqlite::Result<_>>()?;
-    Ok(IndexMeta::from_map(&map))
+    Ok(map)
 }
 
-fn set_meta(conn: &Connection, values: &[(&str, String)]) -> rusqlite::Result<()> {
+fn read_meta(conn: &Connection) -> rusqlite::Result<Option<IndexMeta>> {
+    Ok(IndexMeta::from_map(&read_meta_map(conn)?))
+}
+
+/// Upsert `meta` rows and stamp `updated_at` (shared with the place index).
+pub(crate) fn set_meta(conn: &Connection, values: &[(&str, String)]) -> rusqlite::Result<()> {
     let mut stmt = conn.prepare_cached(
         "INSERT INTO meta(key, value) VALUES (?1, ?2) \
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -164,7 +170,7 @@ fn set_meta(conn: &Connection, values: &[(&str, String)]) -> rusqlite::Result<()
 }
 
 /// Open an existing index without creating it, for reading only.
-fn open_read_only(path: &Path) -> rusqlite::Result<Connection> {
+pub(crate) fn open_read_only(path: &Path) -> rusqlite::Result<Connection> {
     // READ_WRITE (not READ_ONLY) so SQLite can attach the WAL/shm files even
     // after a clean close removed them; `query_only` forbids any writes.
     let conn = Connection::open_with_flags(
@@ -190,7 +196,7 @@ pub fn is_disk_full(error: &rusqlite::Error) -> bool {
     matches!(error, rusqlite::Error::SqliteFailure(e, _) if e.code == ErrorCode::DiskFull)
 }
 
-fn is_interrupt(error: &rusqlite::Error) -> bool {
+pub(crate) fn is_interrupt(error: &rusqlite::Error) -> bool {
     matches!(error, rusqlite::Error::SqliteFailure(e, _) if e.code == ErrorCode::OperationInterrupted)
 }
 
@@ -206,7 +212,7 @@ impl Interrupt {
         Self { deadline, cancel: None }
     }
 
-    fn fired(&self) -> bool {
+    pub(crate) fn fired(&self) -> bool {
         Instant::now() >= self.deadline
             || self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed))
     }
