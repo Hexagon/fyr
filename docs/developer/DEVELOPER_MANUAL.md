@@ -693,7 +693,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 - **Assistant:** "Ask your library" answers with cited sources (§1.1), context-window budgeting, prompt-injection hardening of library text, POST inference.
 - **Messages:** public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).
 - **Content:** resumable, checksum-verified downloads; graceful shutdown that keeps partial downloads.
-- **Platform:** installable web app manifest, lazy-loaded pages, `FYR_TRUSTED_PROXIES`, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.
+- **Platform:** English and Swedish UI (vue-i18n, § 14), installable web app manifest, lazy-loaded pages, `FYR_TRUSTED_PROXIES`, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.
 - **Backup and portability:** admin backup/restore of settings, POIs, catalog, download history and the messages database (§3.5); encrypted export/import of channel keys; export/import of reading progress and bookmarks (§12); upgrade guide from 0.5.x in the User Manual (§6b).
 
 ### Remaining before 1.0 (priority order)
@@ -701,7 +701,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 2. **Real-hardware validation.** Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.
 3. ~~**Full-text recall for ZIM.**~~ Delivered on `next`: background SQLite FTS5 index per archive, used by global search (`article_text`) and assistant retrieval (§ 13). Open: measure index size and build time for a full Wikipedia on a Pi.
 4. **Place search on maps** from vector-tile place labels or bundled gazetteers, not only POI files.
-5. **Internationalization** (at least Swedish): the UI is English-only today.
+5. ~~**Internationalization**~~ Delivered on `next`: English and Swedish UI with per-browser language choice (§ 14). Open: further locales, translated manuals.
 6. **PDF via pdf.js — delivered on `next`** (§ 12): pdf.js reader with page memory, bookmarks, `&page=` deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).
 7. **Backup and portability (remaining):** optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.
 8. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
@@ -819,3 +819,27 @@ Global search and retrieval can only afford title lookups in big archives at req
 **Frontend.** Content Manager → Books shows a Full-text column for `.zim` files (`modules/library/fulltextIndex.js`: status normalisation, labels, applicable actions, polling every 3 s while work is pending); Build/Delete buttons are hidden when `isAdminLocked()`. Search renders `article_text` hits with their snippet segments via text interpolation (`normalizeSnippet` in `modules/search/searchResults.js`).
 
 **Tests.** `fulltext/tests.rs`: end-to-end indexing of hand-built archives, accent-insensitive and prefix matching, hostile FTS syntax, interrupts, re-index after archive replacement, resume from the cursor and rollback, WAL readers during an open batch, disk guard, corrupt archives, the worker thread (auto cap, exclusion, admin build, shutdown), global-search merge and retrieval preferring FTS hits. Jobs run synchronously via `run_job` except in the worker tests, which wait explicitly for each state. `main.rs` router tests cover the access matrix and `FYR_FULLTEXT=off`; Vitest covers `fulltextIndex.test.js` and snippets in `searchResults.test.js`. The ignored `fulltext_throughput` test measures indexing speed: `cargo test -p server --release -- --ignored fulltext_throughput --nocapture`.
+
+## 14. Internationalisation (UI languages)
+
+The SPA uses **vue-i18n 11** (composition API, `legacy: false`, pinned in `package.json`). Locales: `en` (default and fallback) and `sv`. Manuals, API error texts and server data stay in English; content (book titles, filenames, map and POI names) is never translated.
+
+**Files.** `crates/ui/frontend/src/i18n/`:
+- `locales/<locale>/<namespace>.json`: one file per namespace. `core.json` holds keys every page may use (`app`, `nav`, `routes`, `common`, `time`, `category`, `alerts`, `api`, `files`, `home`, `language`, `headerSearch`); every other file (`maps`, `books`, `content`, `messages`, `tools`, `assistant`, `search`, `settings`, `login`) has exactly one top-level key equal to its file name.
+- `index.js`: the i18n instance and helpers for plain modules — `t`, `locale()`, `formatNumber`, `formatBytes`, `errorText`, `setLocale`, `initLocale`, `loadNamespace`, `withMessages`.
+- `detect.js`: pure detection/persistence (`detectLocale(navigator.languages)`: first `sv*`/`en*` entry wins, else English; `readStoredLocale`/`storeLocale` with try/catch around `localStorage` key `fyr.locale`).
+- `errors.js`: `localizedError(key, englishMessage, params)` for modules that must stay free of vue-i18n (crypto, GPX parsing, file helpers). The UI turns them into text with `errorText(err, fallbackKey)`; `apiService.handleError` does the same.
+
+**Loading.** Only English `core` is bundled into the entry chunk. Each other file is its own chunk: route loaders in `main.js` use `withMessages(import('./pages/X.vue'), 'x')`, so a page and its strings arrive together; Swedish is never downloaded by an English browser. `setLocale(code)` first loads core and every namespace requested so far for the new locale (plus English as fallback), then switches, sets `<html lang>` and `document.title`, and stores the choice. `initLocale()` runs before the router is installed so the first page loads its namespace in the final language. The choice is per browser (stored choice → `navigator.languages` → English) and never sent to the server, because guests cannot write settings in password mode. The header has a compact `LanguageSwitcher`; Settings has the full one.
+
+**Conventions.**
+- Components: `const { t, n, locale } = useI18n()`; templates use `t('ns.key')`. Plain modules import `t` from `src/i18n/index.js` and call it inside functions (never at module load), so text follows the active language.
+- Option tables store message keys, not text, in properties ending in `Key` (`labelKey: 'search.filter.all'`, route `meta.titleKey`); templates call `t(item.labelKey)`.
+- Counts use pluralisation: `'{count} file | {count} files'` with `t(key, { count }, count)`. Dates use `toLocaleString(locale.value)`/`Intl` with the active locale; sizes use `formatBytes`; large numbers `n()`/`formatNumber`.
+- Markup inside a sentence uses `<i18n-t keypath="…" scope="global">` with named slots (`{strong}`, `{link}`, …). Never put HTML in messages and never render messages with `v-html`; interpolated values are escaped by Vue.
+- vue-i18n syntax characters must be escaped in messages: `{'@'}` for `@`, `{'{'}` for `{`, and `|` only as a plural separator.
+- A page may use only `core` keys and its own namespace (keys used everywhere belong in `core`).
+
+**Adding a string.** Add the key to `locales/en/<ns>.json` and `locales/sv/<ns>.json` with the same `{placeholders}`, then use it. **Adding a locale:** create `locales/<code>/` with the same files, add the code to `SUPPORTED_LOCALES` in `detect.js` and its own-language name to `LOCALE_NAMES` in `index.js`.
+
+**Tests** (`npm test`): `i18n/locales.test.js` fails when locales have different keys or namespace files, when `{placeholders}` differ, when a message is empty or does not compile and render, when a literal key used in source (`t('…')`, `$t('…')`, `keypath="…"`, `…Key: '…'`) is missing from English, or when a page uses another page's namespace. `detect.test.js` and `index.test.js` cover detection, persistence (including blocked storage), lazy loading and `<html lang>`. `src/i18n/testSetup.js` loads every English namespace so module tests assert real English text.

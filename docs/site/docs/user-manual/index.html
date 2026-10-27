@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-26",
+      "dateModified": "2026-10-27",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-27">2026-10-27</time> · Fyr v0.5.2</p>
         </div>
     </header>
 
@@ -134,6 +134,7 @@
                             <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
                             <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
                             <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#language" class="text-gray-600 hover:text-brand-600">Language</a></li>
                             <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
                             <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
                             <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
@@ -279,7 +280,7 @@ curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
 <ul>
 <li><strong>Home:</strong> system status, location, sunrise/sunset, and storage overview.</li>
 <li><strong>Content Manager:</strong> add URL downloads, import local files, and inspect content inventory. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set.</li>
-<li><strong>Settings:</strong> configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
+<li><strong>Settings:</strong> choose the interface language (per browser), configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
 <li><strong>Maps:</strong> map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see <em>Navigating with maps off-grid</em>).</li>
 <li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
 <li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
@@ -328,9 +329,11 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <p>Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.</p>
 <h3 id="install-as-an-app-phones-tablets-desktops">Install as an app (phones, tablets, desktops)<a class="heading-anchor" href="#install-as-an-app-phones-tablets-desktops" aria-label="Link to this section">#</a></h3>
 <p>Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use <strong>Add to Home Screen</strong> (iOS Safari, Android Chrome) or <strong>Install app</strong> (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.</p>
+<h3 id="language">Language<a class="heading-anchor" href="#language" aria-label="Link to this section">#</a></h3>
+<p>Fyr&#39;s interface is available in <strong>English</strong> and <strong>Swedish (Svenska)</strong>. On first visit Fyr follows the browser&#39;s language (Swedish browsers get Swedish, everything else English). Switch any time with the <strong>EN/SV</strong> selector next to the header search box or under <strong>Settings → Language</strong> (Settings needs admin access in password mode; the header selector works for everyone). The choice is saved in that browser only, so every person and device on the network can pick their own language. Book titles, file names, map and POI names, messages and server error details are shown as they are. The manuals are in English.</p>
 <h3 id="header-behavior">Header behavior<a class="heading-anchor" href="#header-behavior" aria-label="Link to this section">#</a></h3>
 <ul>
-<li>The top header shows the current page context together with the clock, weekday, and date.</li>
+<li>The top header shows the current page context together with the clock, weekday, and date (formatted for the selected language).</li>
 <li>Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.</li>
 </ul>
 <h2 id="3b-using-the-ai-assistant">3b. Using the AI Assistant<a class="heading-anchor" href="#3b-using-the-ai-assistant" aria-label="Link to this section">#</a></h2>
@@ -971,6 +974,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
                             <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
                             <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#language" class="text-gray-600 hover:text-brand-600">Language</a></li>
                             <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
                             <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
                             <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>

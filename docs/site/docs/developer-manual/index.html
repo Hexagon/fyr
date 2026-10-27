@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-26",
+      "dateModified": "2026-10-27",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Developer Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Developer Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-27">2026-10-27</time> · Fyr v0.5.2</p>
         </div>
     </header>
 
@@ -166,6 +166,7 @@
                             <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
                             <li class=""><a href="#12-library-reading-state-progress-bookmarks-deep-links" class="text-gray-600 hover:text-brand-600">12. Library Reading State (progress, bookmarks, deep links)</a></li>
                             <li class=""><a href="#13-full-text-index-for-zim-archives-cratesserversrcfulltext" class="text-gray-600 hover:text-brand-600">13. Full-text Index for ZIM Archives (crates/server/src/fulltext/)</a></li>
+                            <li class=""><a href="#14-internationalisation-ui-languages" class="text-gray-600 hover:text-brand-600">14. Internationalisation (UI languages)</a></li>
                     </ol>
                 </details>
             <div class="lg:grid lg:grid-cols-12 lg:gap-10">
@@ -1031,7 +1032,7 @@ git push origin vX.Y.Z
 <li><strong>Assistant:</strong> &quot;Ask your library&quot; answers with cited sources (§1.1), context-window budgeting, prompt-injection hardening of library text, POST inference.</li>
 <li><strong>Messages:</strong> public Board channel plus end-to-end encrypted passphrase channels (§3.5, rule 8 in AGENTS.md).</li>
 <li><strong>Content:</strong> resumable, checksum-verified downloads; graceful shutdown that keeps partial downloads.</li>
-<li><strong>Platform:</strong> installable web app manifest, lazy-loaded pages, <code>FYR_TRUSTED_PROXIES</code>, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.</li>
+<li><strong>Platform:</strong> English and Swedish UI (vue-i18n, § 14), installable web app manifest, lazy-loaded pages, <code>FYR_TRUSTED_PROXIES</code>, Vitest frontend tests, faster fyr.guide with guides and rendered manuals.</li>
 <li><strong>Backup and portability:</strong> admin backup/restore of settings, POIs, catalog, download history and the messages database (§3.5); encrypted export/import of channel keys; export/import of reading progress and bookmarks (§12); upgrade guide from 0.5.x in the User Manual (§6b).</li>
 </ul>
 <h3 id="remaining-before-10-priority-order">Remaining before 1.0 (priority order)<a class="heading-anchor" href="#remaining-before-10-priority-order" aria-label="Link to this section">#</a></h3>
@@ -1040,7 +1041,7 @@ git push origin vX.Y.Z
 <li><strong>Real-hardware validation.</strong> Measure on a Pi 4/5 with real data: full Wikipedia ZIM search and retrieval latency, vector PMTiles/MBTiles styling, scrypt timing on low-end phones, memory use with a loaded model. The test suites run only on synthetic data.</li>
 <li><del><strong>Full-text recall for ZIM.</strong></del> Delivered on <code>next</code>: background SQLite FTS5 index per archive, used by global search (<code>article_text</code>) and assistant retrieval (§ 13). Open: measure index size and build time for a full Wikipedia on a Pi.</li>
 <li><strong>Place search on maps</strong> from vector-tile place labels or bundled gazetteers, not only POI files.</li>
-<li><strong>Internationalization</strong> (at least Swedish): the UI is English-only today.</li>
+<li><del><strong>Internationalization</strong></del> Delivered on <code>next</code>: English and Swedish UI with per-browser language choice (§ 14). Open: further locales, translated manuals.</li>
 <li><strong>PDF via pdf.js — delivered on <code>next</code></strong> (§ 12): pdf.js reader with page memory, bookmarks, <code>&amp;page=</code> deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).</li>
 <li><strong>Backup and portability (remaining):</strong> optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.</li>
 <li><strong>Curated catalog checksums:</strong> fill <code>sha256</code> for curated downloads so one-click downloads are verified.</li>
@@ -1159,6 +1160,27 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
 <p><strong>Queries</strong> (<code>mod.rs</code>): user text is folded with <code>search::fold</code>, split on non-alphanumerics (as <code>unicode61</code> does), and every term is emitted as a double-quoted FTS5 string (<code>&quot;a&quot; &quot;b&quot; *</code> for search, <code>&quot;a&quot; OR &quot;b&quot;</code> for retrieval), so operators, column filters, <code>NEAR</code> and quotes in input are inert; at most 12 terms of ≤ 64 characters. Readers also use partially built indexes (<code>open_reader</code> requires a matching stamp and ≥ 1 stored article). Every query installs a progress handler that interrupts it at the caller&#39;s deadline or cancel flag.</p>
 <p><strong>Frontend.</strong> Content Manager → Books shows a Full-text column for <code>.zim</code> files (<code>modules/library/fulltextIndex.js</code>: status normalisation, labels, applicable actions, polling every 3 s while work is pending); Build/Delete buttons are hidden when <code>isAdminLocked()</code>. Search renders <code>article_text</code> hits with their snippet segments via text interpolation (<code>normalizeSnippet</code> in <code>modules/search/searchResults.js</code>).</p>
 <p><strong>Tests.</strong> <code>fulltext/tests.rs</code>: end-to-end indexing of hand-built archives, accent-insensitive and prefix matching, hostile FTS syntax, interrupts, re-index after archive replacement, resume from the cursor and rollback, WAL readers during an open batch, disk guard, corrupt archives, the worker thread (auto cap, exclusion, admin build, shutdown), global-search merge and retrieval preferring FTS hits. Jobs run synchronously via <code>run_job</code> except in the worker tests, which wait explicitly for each state. <code>main.rs</code> router tests cover the access matrix and <code>FYR_FULLTEXT=off</code>; Vitest covers <code>fulltextIndex.test.js</code> and snippets in <code>searchResults.test.js</code>. The ignored <code>fulltext_throughput</code> test measures indexing speed: <code>cargo test -p server --release -- --ignored fulltext_throughput --nocapture</code>.</p>
+<h2 id="14-internationalisation-ui-languages">14. Internationalisation (UI languages)<a class="heading-anchor" href="#14-internationalisation-ui-languages" aria-label="Link to this section">#</a></h2>
+<p>The SPA uses <strong>vue-i18n 11</strong> (composition API, <code>legacy: false</code>, pinned in <code>package.json</code>). Locales: <code>en</code> (default and fallback) and <code>sv</code>. Manuals, API error texts and server data stay in English; content (book titles, filenames, map and POI names) is never translated.</p>
+<p><strong>Files.</strong> <code>crates/ui/frontend/src/i18n/</code>:</p>
+<ul>
+<li><code>locales/&lt;locale&gt;/&lt;namespace&gt;.json</code>: one file per namespace. <code>core.json</code> holds keys every page may use (<code>app</code>, <code>nav</code>, <code>routes</code>, <code>common</code>, <code>time</code>, <code>category</code>, <code>alerts</code>, <code>api</code>, <code>files</code>, <code>home</code>, <code>language</code>, <code>headerSearch</code>); every other file (<code>maps</code>, <code>books</code>, <code>content</code>, <code>messages</code>, <code>tools</code>, <code>assistant</code>, <code>search</code>, <code>settings</code>, <code>login</code>) has exactly one top-level key equal to its file name.</li>
+<li><code>index.js</code>: the i18n instance and helpers for plain modules — <code>t</code>, <code>locale()</code>, <code>formatNumber</code>, <code>formatBytes</code>, <code>errorText</code>, <code>setLocale</code>, <code>initLocale</code>, <code>loadNamespace</code>, <code>withMessages</code>.</li>
+<li><code>detect.js</code>: pure detection/persistence (<code>detectLocale(navigator.languages)</code>: first <code>sv*</code>/<code>en*</code> entry wins, else English; <code>readStoredLocale</code>/<code>storeLocale</code> with try/catch around <code>localStorage</code> key <code>fyr.locale</code>).</li>
+<li><code>errors.js</code>: <code>localizedError(key, englishMessage, params)</code> for modules that must stay free of vue-i18n (crypto, GPX parsing, file helpers). The UI turns them into text with <code>errorText(err, fallbackKey)</code>; <code>apiService.handleError</code> does the same.</li>
+</ul>
+<p><strong>Loading.</strong> Only English <code>core</code> is bundled into the entry chunk. Each other file is its own chunk: route loaders in <code>main.js</code> use <code>withMessages(import(&#39;./pages/X.vue&#39;), &#39;x&#39;)</code>, so a page and its strings arrive together; Swedish is never downloaded by an English browser. <code>setLocale(code)</code> first loads core and every namespace requested so far for the new locale (plus English as fallback), then switches, sets <code>&lt;html lang&gt;</code> and <code>document.title</code>, and stores the choice. <code>initLocale()</code> runs before the router is installed so the first page loads its namespace in the final language. The choice is per browser (stored choice → <code>navigator.languages</code> → English) and never sent to the server, because guests cannot write settings in password mode. The header has a compact <code>LanguageSwitcher</code>; Settings has the full one.</p>
+<p><strong>Conventions.</strong></p>
+<ul>
+<li>Components: <code>const { t, n, locale } = useI18n()</code>; templates use <code>t(&#39;ns.key&#39;)</code>. Plain modules import <code>t</code> from <code>src/i18n/index.js</code> and call it inside functions (never at module load), so text follows the active language.</li>
+<li>Option tables store message keys, not text, in properties ending in <code>Key</code> (<code>labelKey: &#39;search.filter.all&#39;</code>, route <code>meta.titleKey</code>); templates call <code>t(item.labelKey)</code>.</li>
+<li>Counts use pluralisation: <code>&#39;{count} file | {count} files&#39;</code> with <code>t(key, { count }, count)</code>. Dates use <code>toLocaleString(locale.value)</code>/<code>Intl</code> with the active locale; sizes use <code>formatBytes</code>; large numbers <code>n()</code>/<code>formatNumber</code>.</li>
+<li>Markup inside a sentence uses <code>&lt;i18n-t keypath=&quot;…&quot; scope=&quot;global&quot;&gt;</code> with named slots (<code>{strong}</code>, <code>{link}</code>, …). Never put HTML in messages and never render messages with <code>v-html</code>; interpolated values are escaped by Vue.</li>
+<li>vue-i18n syntax characters must be escaped in messages: <code>{&#39;@&#39;}</code> for <code>@</code>, <code>{&#39;{&#39;}</code> for <code>{</code>, and <code>|</code> only as a plural separator.</li>
+<li>A page may use only <code>core</code> keys and its own namespace (keys used everywhere belong in <code>core</code>).</li>
+</ul>
+<p><strong>Adding a string.</strong> Add the key to <code>locales/en/&lt;ns&gt;.json</code> and <code>locales/sv/&lt;ns&gt;.json</code> with the same <code>{placeholders}</code>, then use it. <strong>Adding a locale:</strong> create <code>locales/&lt;code&gt;/</code> with the same files, add the code to <code>SUPPORTED_LOCALES</code> in <code>detect.js</code> and its own-language name to <code>LOCALE_NAMES</code> in <code>index.js</code>.</p>
+<p><strong>Tests</strong> (<code>npm test</code>): <code>i18n/locales.test.js</code> fails when locales have different keys or namespace files, when <code>{placeholders}</code> differ, when a message is empty or does not compile and render, when a literal key used in source (<code>t(&#39;…&#39;)</code>, <code>$t(&#39;…&#39;)</code>, <code>keypath=&quot;…&quot;</code>, <code>…Key: &#39;…&#39;</code>) is missing from English, or when a page uses another page&#39;s namespace. <code>detect.test.js</code> and <code>index.test.js</code> cover detection, persistence (including blocked storage), lazy loading and <code>&lt;html lang&gt;</code>. <code>src/i18n/testSetup.js</code> loads every English namespace so module tests assert real English text.</p>
 
                 </article>
                 <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
@@ -1209,6 +1231,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                             <li class=""><a href="#11-global-search-apisearch" class="text-gray-600 hover:text-brand-600">11. Global Search (/api/search)</a></li>
                             <li class=""><a href="#12-library-reading-state-progress-bookmarks-deep-links" class="text-gray-600 hover:text-brand-600">12. Library Reading State (progress, bookmarks, deep links)</a></li>
                             <li class=""><a href="#13-full-text-index-for-zim-archives-cratesserversrcfulltext" class="text-gray-600 hover:text-brand-600">13. Full-text Index for ZIM Archives (crates/server/src/fulltext/)</a></li>
+                            <li class=""><a href="#14-internationalisation-ui-languages" class="text-gray-600 hover:text-brand-600">14. Internationalisation (UI languages)</a></li>
                         </ol>
                     </div>
                 </aside>
