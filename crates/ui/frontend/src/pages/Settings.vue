@@ -1,46 +1,54 @@
 <template>
   <div class="settings-page">
+    <section class="panel" aria-labelledby="language-heading">
+      <div class="panel-header">
+        <h3 id="language-heading">{{ t('settings.language.title') }}</h3>
+      </div>
+      <p class="body-copy">{{ t('settings.language.hint') }}</p>
+      <LanguageSwitcher class="settings-language" />
+    </section>
+
     <section class="panel">
       <div class="panel-header">
-        <h3>Location</h3>
+        <h3>{{ t('settings.location.title') }}</h3>
         <span class="badge" :class="settingsState.settings.location ? 'active' : 'inactive'">
-          {{ settingsState.settings.location ? 'Saved' : 'System time' }}
+          {{ settingsState.settings.location ? t('settings.location.saved') : t('home.systemTime') }}
         </span>
       </div>
 
       <div class="location-summary" v-if="settingsState.settings.location">
-        <p><strong>Latitude:</strong> {{ settingsState.settings.location.latitude.toFixed(6) }}</p>
-        <p><strong>Longitude:</strong> {{ settingsState.settings.location.longitude.toFixed(6) }}</p>
-        <p v-if="settingsState.settings.location.label"><strong>Label:</strong> {{ settingsState.settings.location.label }}</p>
+        <p><strong>{{ t('settings.location.latitudeLabel') }}</strong> {{ settingsState.settings.location.latitude.toFixed(6) }}</p>
+        <p><strong>{{ t('settings.location.longitudeLabel') }}</strong> {{ settingsState.settings.location.longitude.toFixed(6) }}</p>
+        <p v-if="settingsState.settings.location.label"><strong>{{ t('settings.location.labelLabel') }}</strong> {{ settingsState.settings.location.label }}</p>
       </div>
 
       <form class="settings-form" @submit.prevent="handleSave">
         <label>
-          Label
-          <input v-model="form.label" type="text" placeholder="Home, cabin, camp, ..." />
+          {{ t('settings.location.label') }}
+          <input v-model="form.label" type="text" :placeholder="t('settings.location.labelPlaceholder')" />
         </label>
 
         <div class="grid-2">
           <label>
-            Latitude
+            {{ t('settings.location.latitude') }}
             <input v-model="form.latitude" type="number" step="0.000001" placeholder="59.3293" required />
           </label>
 
           <label>
-            Longitude
+            {{ t('settings.location.longitude') }}
             <input v-model="form.longitude" type="number" step="0.000001" placeholder="18.0686" required />
           </label>
         </div>
 
         <div class="actions">
           <button type="submit" class="btn btn-primary" :disabled="saving">
-            {{ saving ? 'Saving...' : 'Save location' }}
+            {{ saving ? t('common.saving') : t('settings.location.save') }}
           </button>
           <button type="button" class="btn btn-secondary" @click="handleBrowserLocation" :disabled="saving || !browserLocationAvailable">
-            Use browser geolocation
+            {{ t('settings.location.useBrowser') }}
           </button>
           <button type="button" class="btn btn-secondary" @click="handleClear" :disabled="saving || !settingsState.settings.location">
-            Clear location
+            {{ t('settings.location.clear') }}
           </button>
         </div>
         <p v-if="browserGeoNote" class="geo-note">{{ browserGeoNote }}</p>
@@ -51,24 +59,22 @@
     </section>
 
     <section class="panel">
-      <h3>Shared module bus</h3>
-      <p class="body-copy">
-        The settings page writes to the shared location module and backend settings store. Other modules can later emit location changes through the same bus.
-      </p>
+      <h3>{{ t('settings.bus.title') }}</h3>
+      <p class="body-copy">{{ t('settings.bus.body') }}</p>
     </section>
 
     <section class="panel">
       <div class="panel-header">
-        <h3>Module state</h3>
-        <span class="badge inactive">{{ moduleCount }} modules</span>
+        <h3>{{ t('settings.modules.title') }}</h3>
+        <span class="badge inactive">{{ t('settings.modules.count', { count: moduleCount }, moduleCount) }}</span>
       </div>
 
       <div class="module-editor">
-        <h4>Downloads</h4>
-        <p class="body-copy">Set the HTTP request timeout used for large URL downloads in Content Manager.</p>
+        <h4>{{ t('settings.downloads.title') }}</h4>
+        <p class="body-copy">{{ t('settings.downloads.body') }}</p>
         <div class="grid-2">
           <label>
-            Request timeout (seconds)
+            {{ t('settings.downloads.timeout') }}
             <input
               v-model="downloadTimeoutSeconds"
               type="number"
@@ -81,7 +87,7 @@
         </div>
         <div class="actions">
           <button type="button" class="btn btn-primary" @click="handleSaveDownloadTimeout" :disabled="saving">
-            Save download timeout
+            {{ t('settings.downloads.save') }}
           </button>
         </div>
       </div>
@@ -90,29 +96,29 @@
         <article v-for="entry in moduleEntries" :key="entry.name" class="module-item">
           <div class="module-item-header">
             <strong>{{ entry.name }}</strong>
-            <button type="button" class="link-button" @click="removeModule(entry.name)">Remove</button>
+            <button type="button" class="link-button" @click="removeModule(entry.name)">{{ t('common.remove') }}</button>
           </div>
           <pre>{{ entry.value }}</pre>
         </article>
       </div>
-      <p v-else class="body-copy">No module state is stored yet. Future modules can write their own state here.</p>
+      <p v-else class="body-copy">{{ t('settings.modules.empty') }}</p>
 
       <div class="module-editor">
-        <h4>Add or update module state</h4>
+        <h4>{{ t('settings.modules.addTitle') }}</h4>
         <div class="grid-2">
           <label>
-            Module name
+            {{ t('settings.modules.name') }}
             <input v-model="moduleForm.name" type="text" placeholder="location" />
           </label>
 
           <label>
-            Module payload
+            {{ t('settings.modules.payload') }}
             <input v-model="moduleForm.payload" type="text" placeholder='{"enabled": true}' />
           </label>
         </div>
         <div class="actions">
           <button type="button" class="btn btn-primary" @click="handleSaveModuleState" :disabled="saving || !moduleForm.name">
-            Save module state
+            {{ t('settings.modules.save') }}
           </button>
         </div>
       </div>
@@ -120,33 +126,26 @@
 
     <section v-if="!adminLocked" class="panel" aria-labelledby="backup-heading">
       <div class="panel-header">
-        <h3 id="backup-heading">Backup &amp; restore</h3>
-        <span class="badge inactive">Admin</span>
+        <h3 id="backup-heading">{{ t('settings.backup.title') }}</h3>
+        <span class="badge inactive">{{ t('app.admin') }}</span>
       </div>
-      <p class="body-copy">
-        A backup contains settings, POI files, the curated catalog, download history and all messages
-        (the Board and encrypted channels, which stay encrypted). Maps, books, models and other large
-        content are not included; copy the data folder for those. Keep backups private.
-      </p>
+      <p class="body-copy">{{ t('settings.backup.body') }}</p>
       <div class="actions">
         <button type="button" class="btn btn-primary" :disabled="backup.busy" @click="handleDownloadBackup">
-          {{ backup.busy === 'download' ? 'Preparing backup…' : 'Download backup' }}
+          {{ backup.busy === 'download' ? t('settings.backup.preparing') : t('settings.backup.download') }}
         </button>
       </div>
 
       <div class="module-editor">
-        <h4>Restore from a backup</h4>
-        <p class="body-copy">
-          Restoring replaces settings, the curated catalog and POI files with the same names right away
-          (other POI files are kept). Messages and download history are replaced when Fyr restarts.
-        </p>
+        <h4>{{ t('settings.backup.restoreTitle') }}</h4>
+        <p class="body-copy">{{ t('settings.backup.restoreBody') }}</p>
         <label>
-          Backup file (.zip)
+          {{ t('settings.backup.file') }}
           <input ref="restoreInput" type="file" accept=".zip,application/zip" :disabled="Boolean(backup.busy)" @change="onRestoreFile" />
         </label>
         <div class="actions">
           <button type="button" class="btn btn-secondary" :disabled="!backup.file || Boolean(backup.busy)" @click="handleRestore">
-            {{ backup.busy === 'restore' ? `Restoring… ${backup.progress}%` : 'Restore backup' }}
+            {{ backup.busy === 'restore' ? t('settings.backup.restoring', { pct: backup.progress }) : t('settings.backup.restore') }}
           </button>
         </div>
       </div>
@@ -154,12 +153,14 @@
       <div v-if="backup.result" class="restore-result" role="status">
         <p class="status-message">{{ backup.result.message }}</p>
         <p class="body-copy">
-          Backup from {{ backup.result.backup_created_at || 'unknown date' }} (Fyr {{ backup.result.backup_fyr_version || '?' }}).
+          {{ t('settings.backup.from', { date: backup.result.backup_created_at || t('settings.backup.unknownDate'), version: backup.result.backup_fyr_version || '?' }) }}
         </p>
-        <p v-if="backup.result.restored?.length" class="body-copy">Restored now: {{ backup.result.restored.join(', ') }}</p>
+        <p v-if="backup.result.restored?.length" class="body-copy">{{ t('settings.backup.restoredNow', { items: backup.result.restored.join(', ') }) }}</p>
         <p v-if="backup.result.restart_required" class="restart-note">
-          Restart Fyr (for Docker: <code>docker restart fyr</code>) to finish restoring
-          {{ backup.result.pending_restart.join(' and ') }}. Until then the old messages stay in use.
+          <i18n-t keypath="settings.backup.restart" scope="global">
+            <template #command><code>docker restart fyr</code></template>
+            <template #items>{{ backup.result.pending_restart.join(t('settings.backup.and')) }}</template>
+          </i18n-t>
         </p>
       </div>
       <p v-if="backup.error" class="error-message" role="alert">{{ backup.error }}</p>
@@ -169,11 +170,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import { apiService } from '../services/api'
 import { clearModuleState, clearSavedLocation, loadAppSettings, saveLocation, updateModuleState, useSettingsState } from '../services/settings'
 import { isAdminLocked } from '../services/auth'
 import { saveBlob } from '../services/fileTransfer'
 
+const { t } = useI18n()
 const settingsState = useSettingsState()
 const saving = ref(false)
 const message = ref('')
@@ -219,8 +223,7 @@ const handleRestore = async () => {
   const file = backup.file
   if (!file) return
   const confirmed = window.confirm(
-    `Restore "${file.name}"?\n\nThis replaces the current settings, curated catalog and matching POI files now, ` +
-      'and all messages and download history after the next restart. Take a backup first if you may want them back.'
+    t('settings.backup.confirm', { name: file.name })
   )
   if (!confirmed) return
   backup.error = ''
@@ -246,10 +249,10 @@ const handleRestore = async () => {
 
 const browserGeoNote = computed(() => {
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-    return 'Browser geolocation is not supported in this environment.'
+    return t('settings.geo.unsupported')
   }
   if (typeof window !== 'undefined' && !window.isSecureContext) {
-    return 'Browser geolocation requires a secure context (HTTPS or localhost).'
+    return t('settings.geo.insecure')
   }
   return ''
 })
@@ -292,7 +295,7 @@ const handleSave = async () => {
   const longitude = Number.parseFloat(form.longitude)
 
   if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    error.value = 'Latitude and longitude must be valid numbers.'
+    error.value = t('settings.location.invalid')
     saving.value = false
     return
   }
@@ -303,7 +306,7 @@ const handleSave = async () => {
       longitude,
       label: form.label.trim() || null
     })
-    message.value = 'Location saved.'
+    message.value = t('settings.location.savedMessage')
   } catch (saveError) {
     error.value = apiService.handleError(saveError)
   } finally {
@@ -319,7 +322,7 @@ const handleClear = async () => {
   try {
     await clearSavedLocation()
     hydrateForm()
-    message.value = 'Location cleared.'
+    message.value = t('settings.location.cleared')
   } catch (clearError) {
     error.value = apiService.handleError(clearError)
   } finally {
@@ -333,7 +336,7 @@ const handleBrowserLocation = async () => {
   saving.value = true
 
   if (!browserLocationAvailable.value) {
-    error.value = 'Browser geolocation is not available in this environment.'
+    error.value = t('settings.geo.unavailable')
     saving.value = false
     return
   }
@@ -344,10 +347,10 @@ const handleBrowserLocation = async () => {
         await saveLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          label: form.label.trim() || 'Browser location'
+          label: form.label.trim() || t('settings.location.browserLabel')
         })
         hydrateForm()
-        message.value = 'Location captured from browser geolocation.'
+        message.value = t('settings.location.captured')
       } catch (saveError) {
         error.value = apiService.handleError(saveError)
       } finally {
@@ -355,7 +358,7 @@ const handleBrowserLocation = async () => {
       }
     },
     (geoError) => {
-      error.value = geoError.message || 'Unable to read browser location.'
+      error.value = geoError.message || t('settings.geo.readFailed')
       saving.value = false
     },
     {
@@ -373,7 +376,7 @@ const removeModule = async (moduleName) => {
 
   try {
     await clearModuleState(moduleName)
-    message.value = `Removed module state for ${moduleName}.`
+    message.value = t('settings.modules.removed', { name: moduleName })
   } catch (moduleError) {
     error.value = apiService.handleError(moduleError)
   } finally {
@@ -389,10 +392,10 @@ const handleSaveModuleState = async () => {
   try {
     const parsedPayload = moduleForm.payload.trim() ? JSON.parse(moduleForm.payload) : {}
     await updateModuleState(moduleForm.name.trim(), parsedPayload)
-    message.value = `Updated module state for ${moduleForm.name}.`
+    message.value = t('settings.modules.updated', { name: moduleForm.name })
   } catch (moduleError) {
     error.value = moduleError instanceof SyntaxError
-      ? 'Module payload must be valid JSON.'
+      ? t('settings.modules.invalidJson')
       : apiService.handleError(moduleError)
   } finally {
     saving.value = false
@@ -407,7 +410,7 @@ const handleSaveDownloadTimeout = async () => {
   try {
     const parsed = Number.parseInt(String(downloadTimeoutSeconds.value || '').trim(), 10)
     if (!Number.isFinite(parsed)) {
-      throw new Error('Download timeout must be a valid integer number of seconds.')
+      throw new Error(t('settings.downloads.invalid'))
     }
 
     const bounded = Math.min(86400, Math.max(30, parsed))
@@ -416,7 +419,7 @@ const handleSaveDownloadTimeout = async () => {
       request_timeout_seconds: bounded
     })
     downloadTimeoutSeconds.value = String(bounded)
-    message.value = `Download timeout saved: ${bounded}s.`
+    message.value = t('settings.downloads.saved', { seconds: bounded })
   } catch (downloadSettingsError) {
     error.value = apiService.handleError(downloadSettingsError)
   } finally {

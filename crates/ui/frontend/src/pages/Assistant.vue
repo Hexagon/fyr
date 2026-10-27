@@ -3,11 +3,11 @@
     <div class="assistant-layout">
       <aside class="model-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-header">
-          <h3>Model Library</h3>
+          <h3>{{ t('assistant.library') }}</h3>
           <button
             class="icon-btn"
-            :aria-label="sidebarCollapsed ? 'Expand model library panel' : 'Collapse model library panel'"
-            :title="sidebarCollapsed ? 'Expand panel' : 'Collapse panel'"
+            :aria-label="sidebarCollapsed ? t('assistant.expandLibrary') : t('assistant.collapseLibrary')"
+            :title="sidebarCollapsed ? t('assistant.expandPanel') : t('assistant.collapsePanel')"
             :aria-expanded="String(!sidebarCollapsed)"
             @click="toggleSidebar"
           >
@@ -21,16 +21,16 @@
             class="btn btn-primary import-link"
             :to="{ name: 'ContentManager', query: { category: 'models' } }"
           >
-            Open Content Manager
+            {{ t('assistant.openContentManager') }}
           </router-link>
           <router-link
             v-else-if="authState.requiresAuth && !authState.readonly"
             class="btn btn-secondary import-link"
             to="/login"
           >
-            Log in to manage models
+            {{ t('assistant.loginToManage') }}
           </router-link>
-          <p class="hint-text">Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.</p>
+          <p class="hint-text">{{ t('assistant.uploadHint') }}</p>
 
           <div class="model-list">
             <button
@@ -43,7 +43,7 @@
               <span class="model-name">{{ model.filename }}</span>
               <span class="model-meta">{{ formatBytes(model.size_bytes || model.size || 0) }}</span>
             </button>
-            <p v-if="!models.length" class="empty-state">No GGUF models found in /data/models.</p>
+            <p v-if="!models.length" class="empty-state">{{ t('assistant.noModels') }}</p>
           </div>
         </div>
       </aside>
@@ -63,13 +63,13 @@
                 class="bubble-content markdown-content"
               >
                 <details v-if="shouldShowThinkingBlock(message)" class="think-block" :open="message.isThinking || message.waitingForFirstToken">
-                  <summary class="think-summary">{{ message.isThinking || message.waitingForFirstToken ? 'Thinking…' : 'Thinking' }}</summary>
-                  <div class="think-content">{{ message.thinkText || 'Preparing response…' }}<span v-if="message.isThinking || message.waitingForFirstToken" class="think-cursor">▌</span></div>
+                  <summary class="think-summary">{{ message.isThinking || message.waitingForFirstToken ? t('assistant.thinkingActive') : t('assistant.thinking') }}</summary>
+                  <div class="think-content">{{ message.thinkText || t('assistant.preparing') }}<span v-if="message.isThinking || message.waitingForFirstToken" class="think-cursor">▌</span></div>
                 </details>
                 <div v-html="renderAssistantMarkdown(message)" @click="onMarkdownClick"></div>
                 <p v-if="message.error" class="bubble-error">{{ message.error }}</p>
                 <div v-if="Array.isArray(message.sources)" class="sources-row">
-                  <span class="sources-label">Sources</span>
+                  <span class="sources-label">{{ t('assistant.sources') }}</span>
                   <template v-if="message.sources.length">
                     <template v-for="source in message.sources" :key="source.n">
                       <router-link
@@ -87,12 +87,12 @@
                       </span>
                     </template>
                   </template>
-                  <span v-else class="sources-empty">No matching passages found in your library.</span>
+                  <span v-else class="sources-empty">{{ t('assistant.noSources') }}</span>
                 </div>
               </div>
               <div v-else class="bubble-content plain-content">{{ message.text }}</div>
             </div>
-            <p v-if="!messages.length" class="empty-state">Start the conversation with a prompt below.</p>
+            <p v-if="!messages.length" class="empty-state">{{ t('assistant.startHint') }}</p>
           </div>
 
           <div class="controls">
@@ -100,40 +100,40 @@
               v-model="prompt"
               class="prompt-input"
               rows="4"
-              placeholder="Write your prompt..."
+              :placeholder="t('assistant.promptPlaceholder')"
               @keydown.enter.ctrl.prevent="sendPrompt"
             ></textarea>
 
             <div class="preset-row">
-              <span class="preset-label">Mode:</span>
+              <span class="preset-label">{{ t('assistant.mode') }}</span>
               <div class="preset-group">
                 <button
                   v-for="p in presets"
                   :key="p.id"
                   class="preset-btn"
                   :class="{ active: selectedPreset === p.id }"
-                  :title="p.description"
+                  :title="t(`assistant.presets.${p.id}.description`)"
                   @click="selectedPreset = p.id"
-                >{{ p.label }}</button>
+                >{{ t(`assistant.presets.${p.id}.label`) }}</button>
               </div>
               <label
                 class="library-toggle"
-                title="Search your offline books (ZIM, EPUB, Markdown) and answer with numbered sources"
+                :title="t('assistant.useLibraryHint')"
               >
                 <input v-model="useLibrary" type="checkbox" :disabled="streaming" />
-                Use library
+                {{ t('assistant.useLibrary') }}
               </label>
             </div>
 
             <div class="action-row">
               <template v-if="!streaming">
-                <button class="btn btn-primary" @click="sendPrompt" :disabled="!canSend">Send</button>
+                <button class="btn btn-primary" @click="sendPrompt" :disabled="!canSend">{{ t('assistant.send') }}</button>
               </template>
               <template v-else>
-                <button class="btn btn-danger" @click="stopGeneration">Stop</button>
+                <button class="btn btn-danger" @click="stopGeneration">{{ t('assistant.stop') }}</button>
               </template>
-              <button class="btn btn-secondary" @click="restartConversation" :disabled="!messages.length && !prompt.trim()">Restart Conversation</button>
-              <button class="btn btn-secondary" @click="regenerate" :disabled="!messages.length">Regenerate</button>
+              <button class="btn btn-secondary" @click="restartConversation" :disabled="!messages.length && !prompt.trim()">{{ t('assistant.restart') }}</button>
+              <button class="btn btn-secondary" @click="regenerate" :disabled="!messages.length">{{ t('assistant.regenerate') }}</button>
             </div>
           </div>
         </template>
@@ -153,12 +153,15 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { formatBytes } from '../i18n/index.js'
 import { apiService } from '../services/api'
 import { useAuthState, isAdminLocked } from '../services/auth'
 import { linkCitations, normalizeSources } from '../services/citations'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
+const { t } = useI18n()
 const authState = useAuthState()
 const adminLocked = computed(() => isAdminLocked())
 const router = useRouter()
@@ -179,9 +182,10 @@ const writePref = (key, value) => {
 }
 
 const presets = [
-  { id: 'precise', label: 'Precise', description: 'Focused, factual answers', temperature: 0.1, maxTokens: 512 },
-  { id: 'balanced', label: 'Balanced', description: 'Default: concise and reliable', temperature: 0.2, maxTokens: 512 },
-  { id: 'creative', label: 'Creative', description: 'More elaborate, varied responses', temperature: 0.7, maxTokens: 1024 }
+  // Labels and descriptions: assistant.presets.<id>.label / .description
+  { id: 'precise', temperature: 0.1, maxTokens: 512 },
+  { id: 'balanced', temperature: 0.2, maxTokens: 512 },
+  { id: 'creative', temperature: 0.7, maxTokens: 1024 }
 ]
 
 const sidebarCollapsed = ref(false)
@@ -208,33 +212,33 @@ const canSend = computed(() => {
 const hasLoadedModel = computed(() => !!selectedModel.value && !!modelHealth.value?.loaded && !loadingModel.value)
 
 const modelStatusText = computed(() => {
-  if (!selectedModel.value) return 'No model selected'
-  if (loadingModel.value) return `Loading model: ${selectedModel.value.filename}…`
-  if (!modelHealth.value) return `Model selected: ${selectedModel.value.filename}`
-  if (modelHealth.value.error) return `Health check: ${modelHealth.value.error}`
-  if (modelHealth.value.loaded) return `Model loaded: ${selectedModel.value.filename}`
-  return `Model selected: ${selectedModel.value.filename}`
+  if (!selectedModel.value) return t('assistant.status.none')
+  if (loadingModel.value) return t('assistant.status.loading', { name: selectedModel.value.filename })
+  if (!modelHealth.value) return t('assistant.status.selected', { name: selectedModel.value.filename })
+  if (modelHealth.value.error) return t('assistant.status.health', { error: modelHealth.value.error })
+  if (modelHealth.value.loaded) return t('assistant.status.loaded', { name: selectedModel.value.filename })
+  return t('assistant.status.selected', { name: selectedModel.value.filename })
 })
 
 const assistantEmptyTitle = computed(() => {
-  if (loadingModel.value) return 'Loading model'
-  if (!selectedModel.value) return 'Select a model'
-  if (modelHealth.value?.error) return 'Model unavailable'
-  return 'Model not loaded'
+  if (loadingModel.value) return t('assistant.gate.loadingTitle')
+  if (!selectedModel.value) return t('assistant.gate.selectTitle')
+  if (modelHealth.value?.error) return t('assistant.gate.unavailableTitle')
+  return t('assistant.gate.notLoadedTitle')
 })
 
 const assistantEmptyBody = computed(() => {
   if (loadingModel.value) return modelStatusText.value
-  if (!selectedModel.value) return 'Choose a model from the library to begin a conversation.'
+  if (!selectedModel.value) return t('assistant.gate.selectBody')
   if (modelHealth.value?.error) return modelStatusText.value
   return modelStatusText.value
 })
 
 const assistantGateNote = computed(() => {
-  if (loadingModel.value) return 'Please wait while the model loads…'
-  if (!selectedModel.value) return 'Select a model from the library on the left to continue.'
-  if (modelHealth.value?.error) return 'Try selecting the model again, or choose a different one.'
-  return 'The model needs to be loaded before you can chat.'
+  if (loadingModel.value) return t('assistant.gate.loadingNote')
+  if (!selectedModel.value) return t('assistant.gate.selectNote')
+  if (modelHealth.value?.error) return t('assistant.gate.unavailableNote')
+  return t('assistant.gate.notLoadedNote')
 })
 
 const generateId = () => {
@@ -246,14 +250,6 @@ const generateId = () => {
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
   })
-}
-
-const formatBytes = (bytes) => {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
 const toggleSidebar = () => {
@@ -470,9 +466,9 @@ const sendPrompt = () => {
 const describeStreamError = (error) => {
   const status = error?.response?.status
   if (status === 409) {
-    return 'The model is no longer loaded. Select it in the model library to load it again.'
+    return t('assistant.errors.unloaded')
   }
-  return `Generation failed: ${apiService.handleError(error)}`
+  return t('assistant.errors.generation', { error: apiService.handleError(error) })
 }
 
 // Replace the last exchange instead of appending a duplicate prompt (which

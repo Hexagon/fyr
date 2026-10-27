@@ -1,14 +1,14 @@
 <template>
   <div class="search-page">
     <form class="search-bar" role="search" @submit.prevent="submitNow">
-      <label for="global-search-input" class="visually-hidden">Search everything offline</label>
+      <label for="global-search-input" class="visually-hidden">{{ t('headerSearch.label') }}</label>
       <input
         id="global-search-input"
         ref="inputEl"
         v-model="query"
         type="search"
         class="search-input"
-        placeholder="Search books, articles, maps and places…"
+        :placeholder="t('search.placeholder')"
         autocomplete="off"
         spellcheck="false"
         role="combobox"
@@ -20,10 +20,10 @@
         @input="onInput"
         @keydown="onKeydown"
       />
-      <button type="submit" class="search-submit" :disabled="!normalizedQuery">Search</button>
+      <button type="submit" class="search-submit" :disabled="!normalizedQuery">{{ t('search.submit') }}</button>
     </form>
 
-    <div class="search-filters" role="group" aria-label="Filter results by kind">
+    <div class="search-filters" role="group" :aria-label="t('search.filterLabel')">
       <button
         v-for="filter in KIND_FILTERS"
         :key="filter.id"
@@ -33,12 +33,12 @@
         :aria-pressed="String(activeFilter === filter.id)"
         @click="setFilter(filter.id)"
       >
-        {{ filter.label }}
+        {{ t(filter.labelKey) }}
       </button>
     </div>
 
     <p class="search-status" aria-live="polite">
-      <template v-if="loading">Searching…</template>
+      <template v-if="loading">{{ t('search.searching') }}</template>
       <template v-else-if="response && groups.length">
         {{ statusText }}
       </template>
@@ -46,26 +46,25 @@
 
     <div v-if="error" class="search-message search-error" role="alert">
       <p>{{ error }}</p>
-      <button type="button" class="retry-btn" @click="retry">Try again</button>
+      <button type="button" class="retry-btn" @click="retry">{{ t('common.tryAgain') }}</button>
     </div>
 
     <div v-else-if="!activeQuery" class="search-message search-idle">
-      <h3>Find anything in your offline library</h3>
-      <p>
-        One search covers book titles, article titles in every ZIM archive (and article text
-        once an archive has a full-text index), the text of Markdown and EPUB books, map files
-        and named places in your POI files.
-      </p>
-      <p class="hint">
-        Tip: press <kbd>/</kbd> anywhere to jump to search, <kbd>↑</kbd> <kbd>↓</kbd> to pick a
-        result and <kbd>Enter</kbd> to open it.
-      </p>
+      <h3>{{ t('search.idle.title') }}</h3>
+      <p>{{ t('search.idle.body') }}</p>
+      <i18n-t keypath="search.idle.tip" tag="p" class="hint" scope="global">
+        <template #slash><kbd>/</kbd></template>
+        <template #arrows><kbd>↑</kbd> <kbd>↓</kbd></template>
+        <template #enter><kbd>Enter</kbd></template>
+      </i18n-t>
     </div>
 
     <div v-else-if="!loading && response && !groups.length" class="search-message search-empty">
-      <h3>No matches for “{{ activeQuery }}”</h3>
-      <p>Try fewer or different words, check the spelling, or switch the filter back to <em>All</em>.</p>
-      <p v-if="response.partial" class="hint">The search time limit was reached before every archive was checked.</p>
+      <h3>{{ t('search.empty.title', { query: activeQuery }) }}</h3>
+      <i18n-t keypath="search.empty.body" tag="p" scope="global">
+        <template #all><em>{{ t('search.filter.all') }}</em></template>
+      </i18n-t>
+      <p v-if="response.partial" class="hint">{{ t('search.empty.partial') }}</p>
     </div>
 
     <div
@@ -74,7 +73,7 @@
       class="search-results"
       :class="{ stale: loading }"
       role="listbox"
-      aria-label="Search results"
+      :aria-label="t('search.resultsLabel')"
     >
       <section
         v-for="group in groups"
@@ -85,7 +84,7 @@
       >
         <h3 :id="`search-group-${group.kind}`" class="group-title">
           <span aria-hidden="true">{{ group.icon }}</span>
-          {{ group.label }}
+          {{ kindLabel(group.kind) }}
           <span class="group-count">{{ group.items.length }}</span>
         </h3>
         <ul class="result-list" role="presentation">
@@ -128,8 +127,7 @@
     </div>
 
     <p v-if="response?.partial && groups.length" class="search-partial">
-      The search time limit was reached; some archives may not have been fully searched. A more
-      specific query is faster.
+      {{ t('search.partial') }}
     </p>
   </div>
 </template>
@@ -137,6 +135,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { apiService } from '../services/api'
 import {
   KIND_FILTERS,
@@ -149,6 +148,7 @@ import {
   highlightSegments,
   isSafeLink,
   itemAtIndex,
+  kindLabel,
   moveSelection,
   normalizeQuery,
   normalizeResults
@@ -156,6 +156,7 @@ import {
 
 const RESULT_LIMIT = 60
 
+const { t, n } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -182,10 +183,10 @@ const statusText = computed(() => {
   const data = response.value
   if (!data) return ''
   const shown = resultCount.value
-  const noun = shown === 1 ? 'result' : 'results'
-  const more = data.truncated ? ` (best ${shown} of ${data.total})` : ''
-  const time = Number.isFinite(data.elapsed_ms) ? ` in ${data.elapsed_ms} ms` : ''
-  return `${shown} ${noun}${more}${time}`
+  const parts = [t('search.status.results', { count: shown }, shown)]
+  if (data.truncated) parts.push(t('search.status.best', { shown, total: n(Number(data.total) || 0) }))
+  if (Number.isFinite(data.elapsed_ms)) parts.push(t('search.status.time', { ms: data.elapsed_ms }))
+  return parts.join(' ')
 })
 
 const setItemRef = (index, el) => {

@@ -85,7 +85,12 @@
     "fileCount": "{count} fil | {count} filer",
     "copy": "Kopiera",
     "copied": "Kopierat",
-    "delete": "Ta bort"
+    "delete": "Ta bort",
+    "saving": "Sparar …",
+    "remove": "Ta bort",
+    "tryAgain": "Försök igen",
+    "cancel": "Avbryt",
+    "na": "saknas"
   },
   "time": {
     "justNow": "nyss",
@@ -262,5 +267,331 @@
     },
     "confirmDeleteMessage": "Ta bort meddelandet för alla?",
     "confirmDeleteChannel": "Ta bort kanalen ”{name}” och alla dess meddelanden från servern?"
+  },
+  "login": {
+    "title": "Admininloggning",
+    "hint": "Den här servern kräver ett lösenord för Innehållshanteraren och andra adminfunktioner.",
+    "password": "Adminlösenord",
+    "placeholder": "Ange adminlösenord",
+    "checking": "Kontrollerar uppgifterna …",
+    "loggingIn": "Loggar in …",
+    "submit": "Logga in",
+    "back": "Tillbaka till Översikt",
+    "tooMany": "För många misslyckade försök. Vänta några minuter och försök igen.",
+    "incorrect": "Fel lösenord. Försök igen.",
+    "failed": "Inloggningen misslyckades. Försök igen."
+  },
+  "settings": {
+    "language": {
+      "title": "Språk",
+      "hint": "Välj språk för Fyrs gränssnitt. Valet sparas bara i den här webbläsaren, så alla i nätverket kan välja sitt eget."
+    },
+    "location": {
+      "title": "Plats",
+      "saved": "Sparad",
+      "latitudeLabel": "Latitud:",
+      "longitudeLabel": "Longitud:",
+      "labelLabel": "Namn:",
+      "label": "Namn",
+      "labelPlaceholder": "Hemma, stugan, lägret …",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "save": "Spara plats",
+      "useBrowser": "Använd webbläsarens platstjänst",
+      "clear": "Rensa plats",
+      "invalid": "Latitud och longitud måste vara giltiga tal.",
+      "savedMessage": "Platsen har sparats.",
+      "cleared": "Platsen har rensats.",
+      "browserLabel": "Webbläsarens plats",
+      "captured": "Platsen hämtades från webbläsarens platstjänst."
+    },
+    "geo": {
+      "unsupported": "Webbläsarens platstjänst stöds inte här.",
+      "insecure": "Webbläsarens platstjänst kräver en säker anslutning (HTTPS eller localhost).",
+      "unavailable": "Webbläsarens platstjänst är inte tillgänglig här.",
+      "readFailed": "Det gick inte att läsa webbläsarens plats."
+    },
+    "bus": {
+      "title": "Delad modulbuss",
+      "body": "Inställningssidan skriver till den delade platsmodulen och serverns inställningslager. Andra moduler kan sedan skicka platsändringar via samma buss."
+    },
+    "modules": {
+      "title": "Modultillstånd",
+      "count": "{count} modul | {count} moduler",
+      "empty": "Inget modultillstånd är sparat än. Framtida moduler kan spara sitt tillstånd här.",
+      "addTitle": "Lägg till eller uppdatera modultillstånd",
+      "name": "Modulnamn",
+      "payload": "Moduldata",
+      "save": "Spara modultillstånd",
+      "removed": "Modultillståndet för {name} har tagits bort.",
+      "updated": "Modultillståndet för {name} har uppdaterats.",
+      "invalidJson": "Moduldata måste vara giltig JSON."
+    },
+    "downloads": {
+      "title": "Nedladdningar",
+      "body": "Ange tidsgränsen för HTTP-förfrågningar vid stora URL-nedladdningar i Innehållshanteraren.",
+      "timeout": "Tidsgräns för förfrågan (sekunder)",
+      "save": "Spara tidsgräns för nedladdning",
+      "invalid": "Tidsgränsen måste vara ett heltal sekunder.",
+      "saved": "Tidsgränsen för nedladdning har sparats: {seconds} s."
+    },
+    "backup": {
+      "title": "Säkerhetskopiering och återställning",
+      "body": "En säkerhetskopia innehåller inställningar, POI-filer, den kurerade katalogen, nedladdningshistorik och alla meddelanden (anslagstavlan och krypterade kanaler, som förblir krypterade). Kartor, böcker, modeller och annat stort innehåll ingår inte; kopiera datamappen för dem. Håll säkerhetskopior privata.",
+      "preparing": "Förbereder säkerhetskopia …",
+      "download": "Ladda ned säkerhetskopia",
+      "restoreTitle": "Återställ från en säkerhetskopia",
+      "restoreBody": "Återställning ersätter direkt inställningar, den kurerade katalogen och POI-filer med samma namn (andra POI-filer behålls). Meddelanden och nedladdningshistorik ersätts när Fyr startas om.",
+      "file": "Säkerhetskopia (.zip)",
+      "restoring": "Återställer … {pct} %",
+      "restore": "Återställ säkerhetskopia",
+      "from": "Säkerhetskopia från {date} (Fyr {version}).",
+      "unknownDate": "okänt datum",
+      "restoredNow": "Återställt nu: {items}",
+      "restart": "Starta om Fyr (för Docker: {command}) för att slutföra återställningen av {items}. Fram till dess används de gamla meddelandena.",
+      "and": " och ",
+      "confirm": "Återställa ”{name}”?\n\nDetta ersätter nu de aktuella inställningarna, den kurerade katalogen och matchande POI-filer, och alla meddelanden och all nedladdningshistorik efter nästa omstart. Gör en säkerhetskopia först om du kan vilja ha tillbaka dem."
+    }
+  },
+  "search": {
+    "kind": {
+      "book": "Böcker",
+      "article": "Artiklar",
+      "articleText": "I artikeltext",
+      "content": "I boktext",
+      "map": "Kartor",
+      "poi": "Platser",
+      "other": "Övrigt"
+    },
+    "filter": {
+      "all": "Alla",
+      "book": "Böcker",
+      "article": "Artiklar",
+      "articleText": "Artikeltext",
+      "content": "Boktext",
+      "map": "Kartor",
+      "poi": "Platser"
+    },
+    "untitled": "Namnlös",
+    "errors": {
+      "busy": "Sökningen är upptagen just nu. Försök igen om en stund.",
+      "server": "Sökningen misslyckades på servern. Försök igen.",
+      "rejected": "Sökförfrågan avvisades.",
+      "timeout": "Sökningen tog för lång tid. Prova en mer specifik sökning.",
+      "unreachable": "Det gick inte att nå Fyr-servern."
+    },
+    "placeholder": "Sök efter böcker, artiklar, kartor och platser …",
+    "submit": "Sök",
+    "filterLabel": "Filtrera resultat efter typ",
+    "searching": "Söker …",
+    "idle": {
+      "title": "Hitta vad som helst i ditt offlinebibliotek",
+      "body": "En sökning täcker boktitlar, artikeltitlar i alla ZIM-arkiv (och artikeltext när ett arkiv har ett fulltextindex), texten i Markdown- och EPUB-böcker, kartfiler och namngivna platser i dina POI-filer.",
+      "tip": "Tips: tryck {slash} var som helst för att gå till sökningen, {arrows} för att välja ett resultat och {enter} för att öppna det."
+    },
+    "empty": {
+      "title": "Inga träffar för ”{query}”",
+      "body": "Prova färre eller andra ord, kontrollera stavningen eller byt tillbaka filtret till {all}.",
+      "partial": "Tidsgränsen för sökningen nåddes innan alla arkiv hade genomsökts."
+    },
+    "resultsLabel": "Sökresultat",
+    "partial": "Tidsgränsen för sökningen nåddes; vissa arkiv kanske inte genomsöktes helt. En mer specifik sökning går snabbare.",
+    "status": {
+      "results": "{count} träff | {count} träffar",
+      "best": "(bästa {shown} av {total})",
+      "time": "på {ms} ms"
+    }
+  },
+  "assistant": {
+    "library": "Modellbibliotek",
+    "expandLibrary": "Visa panelen Modellbibliotek",
+    "collapseLibrary": "Dölj panelen Modellbibliotek",
+    "expandPanel": "Visa panelen",
+    "collapsePanel": "Dölj panelen",
+    "openContentManager": "Öppna Innehållshanteraren",
+    "loginToManage": "Logga in för att hantera modeller",
+    "uploadHint": "Ladda upp `.gguf`-modeller från Innehållshanteraren. Fyr lägger dem i /data/inbox och flyttar dem till /data/models.",
+    "noModels": "Inga GGUF-modeller hittades i /data/models.",
+    "thinkingActive": "Tänker …",
+    "thinking": "Tankegång",
+    "preparing": "Förbereder svar …",
+    "sources": "Källor",
+    "noSources": "Inga matchande avsnitt hittades i ditt bibliotek.",
+    "startHint": "Starta samtalet med en fråga nedan.",
+    "promptPlaceholder": "Skriv din fråga …",
+    "mode": "Läge:",
+    "presets": {
+      "precise": {
+        "label": "Exakt",
+        "description": "Fokuserade, sakliga svar"
+      },
+      "balanced": {
+        "label": "Balanserat",
+        "description": "Standard: kortfattat och pålitligt"
+      },
+      "creative": {
+        "label": "Kreativt",
+        "description": "Utförligare och mer varierade svar"
+      }
+    },
+    "useLibraryHint": "Sök i dina offlineböcker (ZIM, EPUB, Markdown) och svara med numrerade källor",
+    "useLibrary": "Använd biblioteket",
+    "send": "Skicka",
+    "stop": "Stoppa",
+    "restart": "Starta om samtalet",
+    "regenerate": "Generera igen",
+    "status": {
+      "none": "Ingen modell vald",
+      "loading": "Läser in modell: {name} …",
+      "selected": "Vald modell: {name}",
+      "health": "Hälsokontroll: {error}",
+      "loaded": "Inläst modell: {name}"
+    },
+    "gate": {
+      "loadingTitle": "Läser in modell",
+      "selectTitle": "Välj en modell",
+      "unavailableTitle": "Modellen är inte tillgänglig",
+      "notLoadedTitle": "Modellen är inte inläst",
+      "selectBody": "Välj en modell i biblioteket för att börja ett samtal.",
+      "loadingNote": "Vänta medan modellen läses in …",
+      "selectNote": "Välj en modell i biblioteket till vänster för att fortsätta.",
+      "unavailableNote": "Försök välja modellen igen, eller välj en annan.",
+      "notLoadedNote": "Modellen måste läsas in innan du kan chatta."
+    },
+    "errors": {
+      "unloaded": "Modellen är inte längre inläst. Välj den i modellbiblioteket för att läsa in den igen.",
+      "generation": "Genereringen misslyckades: {error}"
+    }
+  },
+  "content": {
+    "folders": "Mappar",
+    "expandFolders": "Visa mapplistan",
+    "collapseFolders": "Dölj mapplistan",
+    "loading": "Läser in innehåll …",
+    "searchPlaceholder": "Sök filer …",
+    "sortLabel": "Sortera filer",
+    "sortName": "Sortera: Namn",
+    "sortSize": "Sortera: Storlek",
+    "sortModified": "Sortera: Ändrad",
+    "asc": "Stigande",
+    "desc": "Fallande",
+    "lowDisk": "Fulltextindexeringen är pausad eftersom det finns lite ledigt diskutrymme.",
+    "columns": {
+      "name": "Namn",
+      "size": "Storlek",
+      "modified": "Ändrad",
+      "fulltext": "Fulltext",
+      "actions": "Åtgärder"
+    },
+    "download": "Ladda ned",
+    "noFiles": "Inga filer i {folder}.",
+    "getStarted": "Importera filer eller lägg till en URL-nedladdning för att komma igång.",
+    "downloading": "Laddar ned …",
+    "downloadNow": "Ladda ned nu",
+    "openSource": "Öppna källan",
+    "imports": {
+      "title": "Lokala importer",
+      "importing": "Importerar …",
+      "button": "Importera filer",
+      "drop": "Släpp filer här för att importera dem till {folder}",
+      "supported": "Stöds i den här mappen: {hint}"
+    },
+    "downloads": {
+      "title": "Nedladdningshanterare",
+      "upload": "Uppladdning: {name}",
+      "progressOf": "{pct} % ({done} / {total})",
+      "progressBytes": "{pct} % ({done})",
+      "progress": "{pct} %",
+      "retrying": "Försöker igen …",
+      "dismiss": "Ta bort från listan",
+      "empty": "Inga nedladdningar",
+      "refreshing": "Uppdaterar nedladdningar …",
+      "routing": "URL-nedladdningar sorteras automatiskt efter filändelse: kartor (.pmtiles, .mbtiles), böcker (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), modeller (.gguf), övrigt (.txt, .csv, .zip, .7z, .log, installationsprogram).",
+      "urlPlaceholder": "Ange URL (https://example.com/fil.pmtiles)",
+      "urlLabel": "URL att ladda ned",
+      "shaPlaceholder": "SHA-256-kontrollsumma (valfri)",
+      "button": "Ladda ned URL",
+      "starting": "Startar nedladdning …",
+      "queuedSha": "Nedladdningen har köats. SHA-256-kontrollsumman verifieras när den är klar.",
+      "queued": "Nedladdningen har köats. Följer förloppet …",
+      "unknownSource": "Okänd källa",
+      "resume": "Återuppta",
+      "retry": "Försök igen",
+      "keptOf": "{kept} av {total} sparat – återupptagning fortsätter därifrån",
+      "kept": "{kept} sparat – återupptagning fortsätter därifrån",
+      "resumedFrom": "Återupptogs från {bytes}"
+    },
+    "status": {
+      "queued": "i kö",
+      "downloading": "laddar ned",
+      "validating": "validerar",
+      "verifying": "verifierar",
+      "routing": "sorterar",
+      "completed": "klar",
+      "failed": "misslyckades",
+      "cancelled": "avbruten",
+      "uploading": "laddar upp"
+    },
+    "confirmDelete": {
+      "title": "Permanent borttagning",
+      "message": "Vill du verkligen ta bort {name} permanent? Det går inte att ångra.",
+      "deleting": "Tar bort …",
+      "confirm": "Ta bort permanent"
+    },
+    "folder": {
+      "maps": "Kartor",
+      "mapsHint": "Kartor tar emot .pmtiles- och .mbtiles-filer.",
+      "books": "Böcker",
+      "booksHint": "Böcker tar emot .epub-, .pdf-, .mobi-, .md- och .zim-filer.",
+      "poi": "POI",
+      "poiHint": "POI tar emot .geojson-, .json- och .fgb-filer.",
+      "models": "Modeller",
+      "modelsHint": "Modeller tar emot .gguf-filer (via import).",
+      "misc": "Övrigt",
+      "miscHint": "Övrigt lagrar allmänna filer som .txt, .csv, .zip, .7z, .log och installationspaket.",
+      "noHint": "Ingen beskrivning av mappen finns."
+    },
+    "curated": {
+      "family": "Familj: {family}",
+      "tier": "Nivå: {tier}",
+      "license": "Licens: {license}",
+      "profile": "Profil: {profile}",
+      "validated": "Validerad i Fyr",
+      "notValidated": "Körmiljön finns i Fyr; lokal validering av modellen rekommenderas ändå",
+      "formats": "Format: {formats}",
+      "recommendedModel": "Rekommenderad modell",
+      "recommendedSource": "Rekommenderad källa",
+      "recommendedTitle": "Rekommenderat: {folder}",
+      "moreTitle": "Mer: {folder}",
+      "primaryHint": "Börja med den kurerade katalogen för pålitliga källor ({folder}) och direktnedladdningar där de finns.",
+      "secondaryHint": "Behöver du mer ({folder})? Den kurerade katalogen har rekommenderade källor till hands bredvid dina nuvarande filer."
+    },
+    "errors": {
+      "urlScheme": "URL:en måste börja med http:// eller https://",
+      "noFilename": "Uppladdningen returnerade inget filnamn.",
+      "noTask": "Importen kunde inte skapas.",
+      "importStatus": "Importen avslutades med status: {status}",
+      "importTimeout": "Importen tog för lång tid att slutföra.",
+      "sha256": "SHA-256 måste bestå av 64 hexadecimala tecken."
+    },
+    "index": {
+      "build": "Bygg index",
+      "delete": "Ta bort index",
+      "off": "Fulltext av",
+      "offHint": "Fulltextindexering är avstängd på den här servern.",
+      "notIndexed": "Inte indexerad",
+      "ready": "Fulltext klar",
+      "articlesIndexed": "{count} artikel indexerad | {count} artiklar indexerade",
+      "indexing": "Indexerar {pct} %",
+      "articlesSoFar": "{count} artikel hittills | {count} artiklar hittills",
+      "queued": "I kö",
+      "paused": "Pausad {pct} %",
+      "resumes": "Fortsätter automatiskt",
+      "failed": "Indexeringen misslyckades",
+      "excludedHint": "Indexet har tagits bort; bygg det igen för att slå på fulltextsökning",
+      "waiting": "Väntar på indexering",
+      "autoHint": "Indexeras automatiskt i bakgrunden",
+      "manualHint": "Stort arkiv: starta indexeringen manuellt (använder diskutrymme och processortid)"
+    }
   }
 }

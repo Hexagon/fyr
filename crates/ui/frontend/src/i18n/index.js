@@ -58,6 +58,17 @@ export const formatNumber = (value, options = {}) => {
   }
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
+/** Human-readable byte count with a locale decimal separator ("1.5 GB" / "1,5 GB"). */
+export const formatBytes = (bytes) => {
+  const value = Number(bytes)
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  const i = Math.min(BYTE_UNITS.length - 1, Math.floor(Math.log(value) / Math.log(1024)))
+  const amount = Math.round((value / Math.pow(1024, i)) * 100) / 100
+  return `${formatNumber(amount, { maximumFractionDigits: 2, useGrouping: false })} ${BYTE_UNITS[i]}`
+}
+
 const applyDocumentLang = (code) => {
   try {
     if (typeof document !== 'undefined' && document.documentElement) {

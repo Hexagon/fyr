@@ -85,7 +85,12 @@
     "fileCount": "{count} file | {count} files",
     "copy": "Copy",
     "copied": "Copied",
-    "delete": "Delete"
+    "delete": "Delete",
+    "saving": "Saving...",
+    "remove": "Remove",
+    "tryAgain": "Try again",
+    "cancel": "Cancel",
+    "na": "n/a"
   },
   "time": {
     "justNow": "just now",
@@ -262,5 +267,331 @@
     },
     "confirmDeleteMessage": "Delete this message for everyone?",
     "confirmDeleteChannel": "Delete channel “{name}” and all its messages from the server?"
+  },
+  "login": {
+    "title": "Admin Login",
+    "hint": "This server requires a password to access the Content Manager and other admin features.",
+    "password": "Admin Password",
+    "placeholder": "Enter admin password",
+    "checking": "Checking credentials...",
+    "loggingIn": "Logging in…",
+    "submit": "Log In",
+    "back": "Back to Overview",
+    "tooMany": "Too many failed attempts. Please wait a few minutes and try again.",
+    "incorrect": "Incorrect password. Please try again.",
+    "failed": "Login failed. Please try again."
+  },
+  "settings": {
+    "language": {
+      "title": "Language",
+      "hint": "Choose the language of the Fyr interface. The choice is saved in this browser only, so everyone on the network can pick their own."
+    },
+    "location": {
+      "title": "Location",
+      "saved": "Saved",
+      "latitudeLabel": "Latitude:",
+      "longitudeLabel": "Longitude:",
+      "labelLabel": "Label:",
+      "label": "Label",
+      "labelPlaceholder": "Home, cabin, camp, ...",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "save": "Save location",
+      "useBrowser": "Use browser geolocation",
+      "clear": "Clear location",
+      "invalid": "Latitude and longitude must be valid numbers.",
+      "savedMessage": "Location saved.",
+      "cleared": "Location cleared.",
+      "browserLabel": "Browser location",
+      "captured": "Location captured from browser geolocation."
+    },
+    "geo": {
+      "unsupported": "Browser geolocation is not supported in this environment.",
+      "insecure": "Browser geolocation requires a secure context (HTTPS or localhost).",
+      "unavailable": "Browser geolocation is not available in this environment.",
+      "readFailed": "Unable to read browser location."
+    },
+    "bus": {
+      "title": "Shared module bus",
+      "body": "The settings page writes to the shared location module and backend settings store. Other modules can later emit location changes through the same bus."
+    },
+    "modules": {
+      "title": "Module state",
+      "count": "{count} module | {count} modules",
+      "empty": "No module state is stored yet. Future modules can write their own state here.",
+      "addTitle": "Add or update module state",
+      "name": "Module name",
+      "payload": "Module payload",
+      "save": "Save module state",
+      "removed": "Removed module state for {name}.",
+      "updated": "Updated module state for {name}.",
+      "invalidJson": "Module payload must be valid JSON."
+    },
+    "downloads": {
+      "title": "Downloads",
+      "body": "Set the HTTP request timeout used for large URL downloads in Content Manager.",
+      "timeout": "Request timeout (seconds)",
+      "save": "Save download timeout",
+      "invalid": "Download timeout must be a valid integer number of seconds.",
+      "saved": "Download timeout saved: {seconds}s."
+    },
+    "backup": {
+      "title": "Backup & restore",
+      "body": "A backup contains settings, POI files, the curated catalog, download history and all messages (the Board and encrypted channels, which stay encrypted). Maps, books, models and other large content are not included; copy the data folder for those. Keep backups private.",
+      "preparing": "Preparing backup…",
+      "download": "Download backup",
+      "restoreTitle": "Restore from a backup",
+      "restoreBody": "Restoring replaces settings, the curated catalog and POI files with the same names right away (other POI files are kept). Messages and download history are replaced when Fyr restarts.",
+      "file": "Backup file (.zip)",
+      "restoring": "Restoring… {pct}%",
+      "restore": "Restore backup",
+      "from": "Backup from {date} (Fyr {version}).",
+      "unknownDate": "unknown date",
+      "restoredNow": "Restored now: {items}",
+      "restart": "Restart Fyr (for Docker: {command}) to finish restoring {items}. Until then the old messages stay in use.",
+      "and": " and ",
+      "confirm": "Restore \"{name}\"?\n\nThis replaces the current settings, curated catalog and matching POI files now, and all messages and download history after the next restart. Take a backup first if you may want them back."
+    }
+  },
+  "search": {
+    "kind": {
+      "book": "Books",
+      "article": "Articles",
+      "articleText": "In article text",
+      "content": "In book text",
+      "map": "Maps",
+      "poi": "Places",
+      "other": "Other"
+    },
+    "filter": {
+      "all": "All",
+      "book": "Books",
+      "article": "Articles",
+      "articleText": "Article text",
+      "content": "Book text",
+      "map": "Maps",
+      "poi": "Places"
+    },
+    "untitled": "Untitled",
+    "errors": {
+      "busy": "Search is busy right now. Try again in a moment.",
+      "server": "Search failed on the server. Try again.",
+      "rejected": "The search request was rejected.",
+      "timeout": "Search timed out. Try a more specific query.",
+      "unreachable": "Could not reach the Fyr server."
+    },
+    "placeholder": "Search books, articles, maps and places…",
+    "submit": "Search",
+    "filterLabel": "Filter results by kind",
+    "searching": "Searching…",
+    "idle": {
+      "title": "Find anything in your offline library",
+      "body": "One search covers book titles, article titles in every ZIM archive (and article text once an archive has a full-text index), the text of Markdown and EPUB books, map files and named places in your POI files.",
+      "tip": "Tip: press {slash} anywhere to jump to search, {arrows} to pick a result and {enter} to open it."
+    },
+    "empty": {
+      "title": "No matches for “{query}”",
+      "body": "Try fewer or different words, check the spelling, or switch the filter back to {all}.",
+      "partial": "The search time limit was reached before every archive was checked."
+    },
+    "resultsLabel": "Search results",
+    "partial": "The search time limit was reached; some archives may not have been fully searched. A more specific query is faster.",
+    "status": {
+      "results": "{count} result | {count} results",
+      "best": "(best {shown} of {total})",
+      "time": "in {ms} ms"
+    }
+  },
+  "assistant": {
+    "library": "Model Library",
+    "expandLibrary": "Expand model library panel",
+    "collapseLibrary": "Collapse model library panel",
+    "expandPanel": "Expand panel",
+    "collapsePanel": "Collapse panel",
+    "openContentManager": "Open Content Manager",
+    "loginToManage": "Log in to manage models",
+    "uploadHint": "Upload `.gguf` models from Content Manager. Fyr stages them in /data/inbox and routes them into /data/models.",
+    "noModels": "No GGUF models found in /data/models.",
+    "thinkingActive": "Thinking…",
+    "thinking": "Thinking",
+    "preparing": "Preparing response…",
+    "sources": "Sources",
+    "noSources": "No matching passages found in your library.",
+    "startHint": "Start the conversation with a prompt below.",
+    "promptPlaceholder": "Write your prompt...",
+    "mode": "Mode:",
+    "presets": {
+      "precise": {
+        "label": "Precise",
+        "description": "Focused, factual answers"
+      },
+      "balanced": {
+        "label": "Balanced",
+        "description": "Default: concise and reliable"
+      },
+      "creative": {
+        "label": "Creative",
+        "description": "More elaborate, varied responses"
+      }
+    },
+    "useLibraryHint": "Search your offline books (ZIM, EPUB, Markdown) and answer with numbered sources",
+    "useLibrary": "Use library",
+    "send": "Send",
+    "stop": "Stop",
+    "restart": "Restart Conversation",
+    "regenerate": "Regenerate",
+    "status": {
+      "none": "No model selected",
+      "loading": "Loading model: {name}…",
+      "selected": "Model selected: {name}",
+      "health": "Health check: {error}",
+      "loaded": "Model loaded: {name}"
+    },
+    "gate": {
+      "loadingTitle": "Loading model",
+      "selectTitle": "Select a model",
+      "unavailableTitle": "Model unavailable",
+      "notLoadedTitle": "Model not loaded",
+      "selectBody": "Choose a model from the library to begin a conversation.",
+      "loadingNote": "Please wait while the model loads…",
+      "selectNote": "Select a model from the library on the left to continue.",
+      "unavailableNote": "Try selecting the model again, or choose a different one.",
+      "notLoadedNote": "The model needs to be loaded before you can chat."
+    },
+    "errors": {
+      "unloaded": "The model is no longer loaded. Select it in the model library to load it again.",
+      "generation": "Generation failed: {error}"
+    }
+  },
+  "content": {
+    "folders": "Folders",
+    "expandFolders": "Expand folder list",
+    "collapseFolders": "Collapse folder list",
+    "loading": "Loading content...",
+    "searchPlaceholder": "Search files...",
+    "sortLabel": "Sort files",
+    "sortName": "Sort: Name",
+    "sortSize": "Sort: Size",
+    "sortModified": "Sort: Modified",
+    "asc": "Asc",
+    "desc": "Desc",
+    "lowDisk": "Full-text indexing is paused because free disk space is low.",
+    "columns": {
+      "name": "Name",
+      "size": "Size",
+      "modified": "Modified",
+      "fulltext": "Full-text",
+      "actions": "Actions"
+    },
+    "download": "Download",
+    "noFiles": "No files in {folder}.",
+    "getStarted": "Import files or queue a URL download to get started.",
+    "downloading": "Downloading...",
+    "downloadNow": "Download now",
+    "openSource": "Open source",
+    "imports": {
+      "title": "Local Imports",
+      "importing": "Importing...",
+      "button": "Import Files",
+      "drop": "Drop files here to import into {folder}",
+      "supported": "Supported in this folder: {hint}"
+    },
+    "downloads": {
+      "title": "Download Manager",
+      "upload": "Upload: {name}",
+      "progressOf": "{pct}% ({done} / {total})",
+      "progressBytes": "{pct}% ({done})",
+      "progress": "{pct}%",
+      "retrying": "Retrying...",
+      "dismiss": "Dismiss",
+      "empty": "No download tasks",
+      "refreshing": "Refreshing downloads...",
+      "routing": "URL downloads auto-route by extension: maps (.pmtiles, .mbtiles), books (.epub, .pdf, .mobi, .md, .zim), POI (.geojson, .json, .fgb), models (.gguf), misc (.txt, .csv, .zip, .7z, .log, installers).",
+      "urlPlaceholder": "Enter URL (https://example.com/file.pmtiles)",
+      "urlLabel": "Download URL",
+      "shaPlaceholder": "SHA-256 checksum (optional)",
+      "button": "Download URL",
+      "starting": "Starting download...",
+      "queuedSha": "Download queued. The SHA-256 checksum is verified when it finishes.",
+      "queued": "Download queued. Monitoring progress...",
+      "unknownSource": "Unknown source",
+      "resume": "Resume",
+      "retry": "Retry",
+      "keptOf": "{kept} of {total} kept – resume continues from there",
+      "kept": "{kept} kept – resume continues from there",
+      "resumedFrom": "Resumed from {bytes}"
+    },
+    "status": {
+      "queued": "queued",
+      "downloading": "downloading",
+      "validating": "validating",
+      "verifying": "verifying",
+      "routing": "routing",
+      "completed": "completed",
+      "failed": "failed",
+      "cancelled": "cancelled",
+      "uploading": "uploading"
+    },
+    "confirmDelete": {
+      "title": "Permanent deletion",
+      "message": "Are you sure you want to permanently delete {name}? This action cannot be undone.",
+      "deleting": "Deleting...",
+      "confirm": "Delete permanently"
+    },
+    "folder": {
+      "maps": "Maps",
+      "mapsHint": "Maps accepts .pmtiles and .mbtiles files.",
+      "books": "Books",
+      "booksHint": "Books accepts .epub, .pdf, .mobi, .md, and .zim files.",
+      "poi": "POI",
+      "poiHint": "POI accepts .geojson, .json, and .fgb files.",
+      "models": "Models",
+      "modelsHint": "Models accepts .gguf files (import flow).",
+      "misc": "Misc",
+      "miscHint": "Misc stores general files such as .txt, .csv, .zip, .7z, .log, and installer packages.",
+      "noHint": "No folder hint available."
+    },
+    "curated": {
+      "family": "Family: {family}",
+      "tier": "Tier: {tier}",
+      "license": "License: {license}",
+      "profile": "Profile: {profile}",
+      "validated": "Validated in Fyr",
+      "notValidated": "Runtime added in Fyr; local model validation still recommended",
+      "formats": "Formats: {formats}",
+      "recommendedModel": "Recommended model",
+      "recommendedSource": "Recommended source",
+      "recommendedTitle": "Recommended {folder}",
+      "moreTitle": "More {folder}",
+      "primaryHint": "Start with the curated catalog for trusted {folder} sources and direct downloads where available.",
+      "secondaryHint": "Need more {folder}? The curated catalog keeps recommended sources handy alongside your current files."
+    },
+    "errors": {
+      "urlScheme": "URL must start with http:// or https://",
+      "noFilename": "Upload did not return a filename.",
+      "noTask": "Import task could not be created.",
+      "importStatus": "Import ended with status: {status}",
+      "importTimeout": "Import timed out while waiting for task completion.",
+      "sha256": "SHA-256 must be 64 hexadecimal characters."
+    },
+    "index": {
+      "build": "Build index",
+      "delete": "Delete index",
+      "off": "Full-text off",
+      "offHint": "Full-text indexing is disabled on this server.",
+      "notIndexed": "Not indexed",
+      "ready": "Full-text ready",
+      "articlesIndexed": "{count} article indexed | {count} articles indexed",
+      "indexing": "Indexing {pct}%",
+      "articlesSoFar": "{count} article so far | {count} articles so far",
+      "queued": "Queued",
+      "paused": "Paused {pct}%",
+      "resumes": "Resumes automatically",
+      "failed": "Index failed",
+      "excludedHint": "Index deleted; build it again to re-enable full-text search",
+      "waiting": "Waiting to index",
+      "autoHint": "Will be indexed automatically in the background",
+      "manualHint": "Large archive: start indexing manually (uses disk space and CPU time)"
+    }
   }
 }

@@ -4,20 +4,25 @@
 // query normalisation, request params, result validation, grouping by kind,
 // keyboard selection and match highlighting.
 
+import { t } from '../../i18n/index.js'
+
 export const MAX_QUERY_LENGTH = 200
 export const SEARCH_DEBOUNCE_MS = 250
 
-// Display order of groups when scores tie, and their labels.
+// Display order of groups when scores tie, and their label message keys.
 export const KIND_ORDER = ['book', 'article', 'article_text', 'content', 'map', 'poi']
 
-export const KIND_LABELS = {
-  book: 'Books',
-  article: 'Articles',
-  article_text: 'In article text',
-  content: 'In book text',
-  map: 'Maps',
-  poi: 'Places'
+export const KIND_LABEL_KEYS = {
+  book: 'search.kind.book',
+  article: 'search.kind.article',
+  article_text: 'search.kind.articleText',
+  content: 'search.kind.content',
+  map: 'search.kind.map',
+  poi: 'search.kind.poi'
 }
+
+/** Translated group heading for a result kind. */
+export const kindLabel = (kind) => t(KIND_LABEL_KEYS[kind] || 'search.kind.other')
 
 export const KIND_ICONS = {
   book: '📚',
@@ -30,13 +35,13 @@ export const KIND_ICONS = {
 
 // Filter chips on the search page; `kinds` is sent to the API.
 export const KIND_FILTERS = [
-  { id: 'all', label: 'All', kinds: '' },
-  { id: 'book', label: 'Books', kinds: 'book' },
-  { id: 'article', label: 'Articles', kinds: 'article' },
-  { id: 'article_text', label: 'Article text', kinds: 'article_text' },
-  { id: 'content', label: 'Book text', kinds: 'content' },
-  { id: 'map', label: 'Maps', kinds: 'map' },
-  { id: 'poi', label: 'Places', kinds: 'poi' }
+  { id: 'all', labelKey: 'search.filter.all', kinds: '' },
+  { id: 'book', labelKey: 'search.filter.book', kinds: 'book' },
+  { id: 'article', labelKey: 'search.filter.article', kinds: 'article' },
+  { id: 'article_text', labelKey: 'search.filter.articleText', kinds: 'article_text' },
+  { id: 'content', labelKey: 'search.filter.content', kinds: 'content' },
+  { id: 'map', labelKey: 'search.filter.map', kinds: 'map' },
+  { id: 'poi', labelKey: 'search.filter.poi', kinds: 'poi' }
 ]
 
 /** Trim, collapse whitespace and cap the length of a raw query. */
@@ -77,7 +82,7 @@ export function normalizeResults(raw) {
     .filter((item) => item && typeof item === 'object' && isSafeLink(item.link))
     .map((item) => ({
       kind: KIND_ORDER.includes(item.kind) ? item.kind : 'other',
-      title: String(item.title || item.source || 'Untitled'),
+      title: String(item.title || item.source || t('search.untitled')),
       subtitle: item.subtitle ? String(item.subtitle) : '',
       source: String(item.source || ''),
       score: Number.isFinite(Number(item.score)) ? Number(item.score) : 0,
@@ -129,7 +134,7 @@ export function groupResults(results) {
     if (!groups.has(kind)) {
       groups.set(kind, {
         kind,
-        label: KIND_LABELS[kind] || 'Other',
+        label: kindLabel(kind),
         icon: KIND_ICONS[kind] || '•',
         best: -Infinity,
         items: []
@@ -264,9 +269,9 @@ export function debounce(fn, waitMs = SEARCH_DEBOUNCE_MS) {
 /** Human-readable error for a failed search request. */
 export function describeSearchError(error) {
   const status = error?.response?.status
-  if (status === 503) return 'Search is busy right now. Try again in a moment.'
-  if (status >= 500) return 'Search failed on the server. Try again.'
-  if (status >= 400) return 'The search request was rejected.'
-  if (error?.code === 'ECONNABORTED') return 'Search timed out. Try a more specific query.'
-  return 'Could not reach the Fyr server.'
+  if (status === 503) return t('search.errors.busy')
+  if (status >= 500) return t('search.errors.server')
+  if (status >= 400) return t('search.errors.rejected')
+  if (error?.code === 'ECONNABORTED') return t('search.errors.timeout')
+  return t('search.errors.unreachable')
 }

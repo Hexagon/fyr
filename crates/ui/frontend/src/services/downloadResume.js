@@ -4,6 +4,8 @@
 // file; `POST /api/download/:task_id/retry` then continues from
 // `bytes_downloaded` using an HTTP Range request.
 
+import { formatBytes, t } from '../i18n/index.js'
+
 const RETRIABLE_STATUSES = ['failed', 'cancelled']
 const ACTIVE_STATUSES = ['queued', 'downloading', 'validating', 'verifying', 'routing']
 const SHA256_PATTERN = /^[0-9a-f]{64}$/i
@@ -13,15 +15,8 @@ const toBytes = (value) => {
   return Number.isFinite(number) && number > 0 ? number : 0
 }
 
-/** Human-readable byte count, e.g. `1.5 GB`. */
-export const formatByteCount = (bytes) => {
-  const value = toBytes(bytes)
-  if (value <= 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(sizes.length - 1, Math.floor(Math.log(value) / Math.log(k)))
-  return Math.round((value / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
+/** Human-readable byte count in the UI locale, e.g. `1.5 GB` / `1,5 GB`. */
+export const formatByteCount = (bytes) => formatBytes(toBytes(bytes))
 
 /** True for statuses where a worker is (or is about to be) running. */
 export const isActiveDownloadStatus = (status) => ACTIVE_STATUSES.includes(String(status || '').toLowerCase())
@@ -36,13 +31,13 @@ export const canRetryDownload = (task) => {
 export const resumableBytes = (task) => (task?.resumable ? toBytes(task.bytes_downloaded) : 0)
 
 /** Button label: "Resume" when kept bytes exist, otherwise "Retry". */
-export const retryActionLabel = (task) => (resumableBytes(task) > 0 ? 'Resume' : 'Retry')
+export const retryActionLabel = (task) => (resumableBytes(task) > 0 ? t('content.downloads.resume') : t('content.downloads.retry'))
 
 /**
  * Short status line about kept / resumed bytes, or `null` when there is
  * nothing to say.
  */
-export const describeResumeState = (task, formatBytes = formatByteCount) => {
+export const describeResumeState = (task, formatBytesFn = formatByteCount) => {
   if (!task) return null
   const kept = resumableBytes(task)
   const total = toBytes(task.total_bytes)
@@ -50,13 +45,13 @@ export const describeResumeState = (task, formatBytes = formatByteCount) => {
 
   if (canRetryDownload(task) && kept > 0) {
     return total > 0
-      ? `${formatBytes(kept)} of ${formatBytes(total)} kept – resume continues from there`
-      : `${formatBytes(kept)} kept – resume continues from there`
+      ? t('content.downloads.keptOf', { kept: formatBytesFn(kept), total: formatBytesFn(total) })
+      : t('content.downloads.kept', { kept: formatBytesFn(kept) })
   }
 
   const resumedFrom = toBytes(task.resumed_from)
   if (resumedFrom > 0 && (isActiveDownloadStatus(status) || status === 'completed')) {
-    return `Resumed from ${formatBytes(resumedFrom)}`
+    return t('content.downloads.resumedFrom', { bytes: formatBytesFn(resumedFrom) })
   }
 
   return null
@@ -71,7 +66,7 @@ export const normalizeSha256Input = (input) => {
   const trimmed = String(input ?? '').trim()
   if (!trimmed) return { value: null }
   if (!SHA256_PATTERN.test(trimmed)) {
-    return { error: 'SHA-256 must be 64 hexadecimal characters.' }
+    return { error: t('content.errors.sha256') }
   }
   return { value: trimmed.toLowerCase() }
 }
