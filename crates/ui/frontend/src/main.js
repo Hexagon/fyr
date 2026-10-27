@@ -155,8 +155,12 @@ router.beforeEach(async (to) => {
 
 const app = createApp(App)
 app.use(i18n)
-app.use(router)
-// Load the stored/detected language before the first render so a Swedish
-// browser never flashes English; a failed chunk load falls back to English.
-initLocale().finally(() => app.mount('#app'))
+// Load the stored/detected language before the router starts its first
+// navigation (which loads the page's message namespace) and before the
+// first render, so a Swedish browser never flashes English. A failed chunk
+// load falls back to English.
+initLocale().finally(() => {
+  app.use(router)
+  app.mount('#app')
+})
 

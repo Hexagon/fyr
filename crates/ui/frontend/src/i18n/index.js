@@ -48,6 +48,7 @@ const global = i18n.global
 // the "<locale>/<namespace>" pairs already merged into vue-i18n.
 const wantedNamespaces = new Set(['core'])
 const loaded = new Set(['en/core'])
+let pendingLocale = null
 
 /** Translate outside components (modules, services). */
 export const t = (...args) => global.t(...args)
@@ -116,7 +117,9 @@ const loadNamespacesFor = (code, namespaces) => Promise.all(
 export const loadNamespace = async (namespace) => {
   wantedNamespaces.add(namespace)
   try {
-    await loadNamespacesFor(global.locale.value, [namespace])
+    // Also load for a language that is being switched to right now.
+    await Promise.all([...new Set([global.locale.value, pendingLocale || global.locale.value])]
+      .map((code) => loadNamespacesFor(code, [namespace])))
   } catch {
     // Offline chunk failure: keys fall back to whatever is loaded.
   }
@@ -133,13 +136,21 @@ export const withMessages = (componentPromise, namespace) =>
  */
 export const setLocale = async (code, { persist = true, storage = getDefaultStorage() } = {}) => {
   const next = matchLocale(code) || DEFAULT_LOCALE
+  pendingLocale = next
   try {
-    await loadNamespacesFor(next, [...wantedNamespaces])
+    // Namespaces requested while loading are picked up by the next round.
+    let count = -1
+    while (count !== wantedNamespaces.size) {
+      count = wantedNamespaces.size
+      await loadNamespacesFor(next, [...wantedNamespaces])
+    }
   } catch {
     // The chunk could not be loaded (server gone, flaky link): keep the
     // current language rather than showing raw keys.
+    pendingLocale = null
     return global.locale.value
   }
+  pendingLocale = null
   global.locale.value = next
   applyDocumentLang(next)
   try {
