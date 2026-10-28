@@ -85,7 +85,7 @@ With your own certificate (`FYR_TLS_CERT`), Fyr also sends `Strict-Transport-Sec
 - **Home:** system status, location, sunrise/sunset, and storage overview.
 - **Content Manager:** add URL downloads, import local files, and inspect content inventory. Requires admin access when `FYR_ADMIN_PASSWORD` is set.
 - **Settings:** choose the interface language (per browser), configure location and other application-wide preferences. Requires admin access when `FYR_ADMIN_PASSWORD` is set; hidden in read-only mode.
-- **Maps:** map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see *Navigating with maps off-grid*).
+- **Maps:** map selection, place search by name, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see *Navigating with maps off-grid*).
 - **Books:** browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.
 - **Assistant:** browse local `.gguf` models and chat offline.
 - **Search:** one search box for the whole offline library (see [3c. Searching Everything](#3c-searching-everything)).
@@ -226,10 +226,11 @@ Use the **Search…** box in the header (or press <kbd>/</kbd> anywhere outside 
 | **In article text** | Words in ZIM article bodies, for archives with a full-text index (queries of 3+ characters); shows a highlighted excerpt | Opens that article in the ZIM reader with the search term |
 | **In book text** | Text inside Markdown and EPUB books (queries of 3+ characters) | Opens the book with the search term |
 | **Maps** | Map filenames in `maps/` | Opens that map |
-| **Places** | `name` / `title` / `description` of features in GeoJSON files in `poi/` | Opens Maps centred on the place |
+| **Places on maps** | Names of towns, villages, lakes, peaks, parks and other labelled places inside indexed vector maps (see [Place search on maps](#place-search-on-maps)) | Opens that map centred on the place, with a labelled marker |
+| **Points of interest** | `name` / `title` / `description` of features in GeoJSON files in `poi/` | Opens Maps centred on the point |
 
 - Results are grouped by kind with the most relevant group first; exact and "starts with" matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (`zurich` finds `Zürich`, `malmo` finds `Malmö`).
-- Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Places) to narrow the search.
+- Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Map places, POIs) to narrow the search.
 - Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.
 - Search is read-only and available in every access mode, including `FYR_READONLY`.
 - Each search has a time limit so very large archives cannot freeze Fyr. Without a full-text index, very large ZIM archives (for example a full Wikipedia) are searched by **title prefix** ("albert ein" finds "Albert Einstein"); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.
@@ -244,6 +245,18 @@ Without an index, Fyr can only match ZIM article **titles**. To find words insid
 - Search and the assistant already use a partly built index. Indexing resumes where it stopped after a restart, and starts over automatically when an archive file is replaced. Deleting an index stops automatic indexing of that archive until **Build index** is clicked again; deleting the archive deletes its index.
 - Indexing pauses while free disk space is below 1 GB (`FYR_FULLTEXT_MIN_FREE_MB`) and resumes when space is available. The index stores the articles' plain text plus a word index, so it can be larger than the compressed `.zim` file itself (plan for 1–3× the archive size for text-only archives; much less for archives with many pictures).
 - Set `FYR_FULLTEXT=off` to disable indexing and full-text search entirely.
+
+### Place search on maps
+
+Vector maps contain the names of the places they draw. Fyr reads those names into a small search index per map, so you can ask "where is Åre / Vänern / Kebnekaise?" without a network:
+
+- **On the Maps page:** open **Tools** (⚙️, bottom right) and type in **Find a place** (at least 2 characters). Results come from every indexed vector map and from your POI files; click one (or use <kbd>↓</kbd>/<kbd>↑</kbd> and <kbd>Enter</kbd>) and the map flies there and shows a red marker with the name. If the place is in another map, Fyr switches to that map. On phones the Tools panel closes so you can see the result. <kbd>Esc</kbd> clears the box.
+- **In global search:** places appear in the **Places on maps** group (see above).
+- Matching ignores case and accents (`are` finds *Åre*, `vanern` finds *Vänern*), also finds English/Swedish name variants stored in the map (`gothenburg` finds *Göteborg*) and matches the last word as a prefix (`kebne` finds *Kebnekaise*). Exact names rank first; among equally good matches, bigger and more important places (capitals, cities, then towns and villages) come first.
+- Which maps work: vector maps (`.pmtiles` or `.mbtiles` with vector tiles) in the common OpenMapTiles, Protomaps, Shortbread and Mapbox Streets layouts. **Raster maps** (PNG/JPEG/WebP tiles) contain only pictures and are listed as *Raster map* — use a POI file for named places there.
+- **Content Manager → Maps** shows a **Place search** column: *Waiting to index*, *Indexing 42%*, *Paused*, *Places ready* (hover for the number of places), *Index failed*, *Raster map* or *Not indexed*. Admins see **Index places** and **Delete index**; deleting stops automatic indexing for that map until you index it again.
+- Vector maps up to 4096 MB (`FYR_PLACES_MAX_MAP_MB`) are indexed automatically in the background, one at a time and at low priority; larger maps (for example a whole continent) only when an admin clicks **Index places**. Indexing reads a few zoom levels (cities first, villages and peaks last), so big places become searchable early. It shares the full-text index's free-space guard (`FYR_FULLTEXT_MIN_FREE_MB`) and continues where it stopped after a restart. A replaced map is re-indexed automatically.
+- The index is small (typically a few MB per country) and lives in `index/` in the data folder. Set `FYR_PLACES=off` to turn place indexing and place search off.
 
 ## 3d. Messages
 
@@ -329,6 +342,7 @@ The **Maps** page is built to be usable for navigation without network access.
 - **Opening a map:** pick a map in *Available Maps*. When nothing else positions the view, the map opens on its own coverage area (or on your saved location if that lies inside it). The selected map is written to the address bar (`/maps?map=<file>`), so the view can be bookmarked or shared.
 - **Coordinates:** the bottom status bar shows the coordinate under the mouse pointer (🖱) or, on touch screens, the map centre (⊕). Click it to copy it. The **DEC/DMS** button switches between decimal degrees (`59.32930, 18.06860`) and degrees-minutes-seconds (`59°19'45.5"N 18°04'07.0"E`); the choice is remembered in the browser. A scale bar is shown in the lower-right corner.
 - **Click any point** on the map (with no tool active) to see its coordinate in both formats with **Copy** and **Copy link** buttons. Clicking a POI or track shows its name (and length for tracks).
+- **Find a place:** in *Tools*, type a town, lake or peak name; see [Place search on maps](#place-search-on-maps).
 - **Go to coordinate:** in *Tools*, type a coordinate and press **Go**. Accepted forms include `59.33, 18.07`, `59.33 18.07`, `-33.86, 151.21`, `59,33 18,07`, `59.33N 18.07E`, `59°19'48"N 18°4'12"E`, `N 59° 19.8' E 18° 4.2'` and `59 19 48, 18 4 12`. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.
 - **Links to a place:** other pages (and people) can link to `/maps?lat=59.33&lng=18.07&zoom=14&label=Camp`. All parameters are optional; `map=<file>` selects a specific map. Without `map`, Fyr picks the most detailed installed map whose coverage contains the point.
 - **My Location / Record Track** need the browser's location permission **and a secure connection**: open Fyr through `https://…` or `http://localhost`. Browsers block GPS on plain `http://` LAN addresses (for example `http://192.168.1.10:8080`); Fyr then shows an explanation instead of failing silently. To fix this on a LAN, enable HTTPS (§2a).
@@ -431,7 +445,7 @@ Messages are stored in `messages.sqlite` directly in the data directory (owner-r
 
 Two more folders may appear briefly: `.backup-tmp/` (temporary files while a backup or restore runs; removed automatically) and `restore-pending/` (files from a restore that are applied at the next start, see §6a).
 
-Full-text indexes of ZIM archives are stored in `index/` in the data directory (one `.fts.sqlite` file per archive, never published). They can be deleted at any time; Fyr rebuilds them as described in [Full-text index for ZIM archives](#full-text-index-for-zim-archives).
+Full-text indexes of ZIM archives are stored in `index/` in the data directory (one `.fts.sqlite` file per archive, never published), next to the place indexes of vector maps (`places-*.sqlite`, see [Place search on maps](#place-search-on-maps)). They can be deleted at any time; Fyr rebuilds them as described in [Full-text index for ZIM archives](#full-text-index-for-zim-archives).
 
 Only `maps/`, `books/`, `poi/` and `curated-content.json` are published by the web server under `/data/...` (used for map, reader and POI loading). `settings.json`, `download_tasks.json`, `inbox/`, `models/` and `misc/` are never served directly; models and misc files are downloaded through Content Manager's **Download** button instead.
 
@@ -463,7 +477,9 @@ Other files under `DATA_DIR` are preserved as user-managed content.
 - `FYR_HTTP_REDIRECT_PORT` — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from `FYR_PORT`)
 - `FYR_FULLTEXT` — set to `off` to disable the ZIM full-text index and full-text search (default on)
 - `FYR_FULLTEXT_MAX_ARTICLES` — archives with at most this many articles are indexed automatically (default 200000; `0` = only when an admin clicks **Build index**)
-- `FYR_FULLTEXT_MIN_FREE_MB` — indexing pauses while free disk space is below this many MB (default 1024)
+- `FYR_FULLTEXT_MIN_FREE_MB` — indexing pauses while free disk space is below this many MB (default 1024; also applies to the place index)
+- `FYR_PLACES` — set to `off` to disable the place index for vector maps and place search (default on)
+- `FYR_PLACES_MAX_MAP_MB` — vector maps up to this many MB are indexed for place search automatically (default 4096; `0` = only when an admin clicks **Index places**)
 - `FYR_AI_THREADS` — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)
 
 `FYR_HOST` changes where the server listens. Keep `127.0.0.1` for local-only access, or use `0.0.0.0` when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine's name or IP address together with `FYR_PORT`.
@@ -498,7 +514,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 2. **Replace the program or image.** Docker: `docker pull hexagon/fyr:latest`, then remove and re-create the container with the **same** volume (`-v fyr-data:/data -e DATA_DIR=/data`). The image is multi-arch: the same tag works on Intel/AMD (`x86_64`) and ARM64 (`aarch64`, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same `DATA_DIR`.
 3. **Start it.** Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.
 
-**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only) and, only with `FYR_TLS=self-signed`, `tls/` (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). `index/` holds the full-text indexes of ZIM archives (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.
+**New in the data folder:** `messages.sqlite` (Messages, created on first start, owner-readable only) and, only with `FYR_TLS=self-signed`, `tls/` (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). `index/` holds the full-text indexes of ZIM archives and the place indexes of vector maps (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.
 
 **New environment variables** (all optional; defaults keep 0.5.x behaviour except that Messages is on):
 
@@ -509,6 +525,7 @@ Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart 
 - `FYR_TRUSTED_PROXIES` — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.
 - `FYR_TLS`, `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (§2a), off by default. Turning it on changes the address to `https://`.
 - `FYR_FULLTEXT`, `FYR_FULLTEXT_MAX_ARTICLES`, `FYR_FULLTEXT_MIN_FREE_MB` — ZIM full-text index (§3c). On by default: after the upgrade, ZIM archives with up to 200 000 articles are indexed once in the background, which uses some CPU and disk space for a while.
+- `FYR_PLACES`, `FYR_PLACES_MAX_MAP_MB` — place search on vector maps (§3c). On by default: after the upgrade, vector maps up to 4 GB are indexed once in the background.
 
 If you expose Fyr to people you do not fully trust, review `FYR_ADMIN_PASSWORD`/`FYR_READONLY` (§3a) and the Messages posting rules (§3d) after upgrading.
 
