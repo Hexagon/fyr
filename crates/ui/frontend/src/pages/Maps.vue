@@ -119,7 +119,8 @@
               <input
                 ref="placeInput"
                 v-model="placeQuery"
-                type="search"
+                type="text"
+                inputmode="search"
                 class="poi-input"
                 :placeholder="t('maps.search.placeholder')"
                 :aria-label="t('maps.search.label')"
@@ -151,7 +152,7 @@
                     class="place-result"
                     :class="{ active: index === placeActive }"
                     @click="choosePlace(result)"
-                    @mouseenter="placeActive = index"
+                    @mousemove="placeActive = index"
                   >
                     <span class="place-result-icon" aria-hidden="true">{{ result.icon }}</span>
                     <span class="place-result-text">

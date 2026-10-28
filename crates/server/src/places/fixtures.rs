@@ -199,8 +199,28 @@ pub fn write_pmtiles(path: &Path, tiles: &BTreeMap<(u8, u32, u32), Vec<u8>>, opt
     header[97] = 2;
     header[98] = if options.tile_type == 1 { 2 } else { 1 };
     header[99] = options.tile_type;
-    header[100] = tiles.keys().map(|k| k.0).min().unwrap_or(0);
-    header[101] = tiles.keys().map(|k| k.0).max().unwrap_or(0);
+    let min_zoom = tiles.keys().map(|k| k.0).min().unwrap_or(0);
+    let max_zoom = tiles.keys().map(|k| k.0).max().unwrap_or(0);
+    header[100] = min_zoom;
+    header[101] = max_zoom;
+    // Bounds and centre (E7 degrees) from the tiles of the lowest zoom.
+    let (mut west, mut south, mut east, mut north) = (180.0f64, 90.0f64, -180.0f64, -90.0f64);
+    for &(z, x, y) in tiles.keys().filter(|k| k.0 == min_zoom) {
+        let (w, n) = super::tiles::tile_to_lon_lat(z, x, y, 0.0, 0.0, 1).unwrap();
+        let (e, s) = super::tiles::tile_to_lon_lat(z, x, y, 1.0, 1.0, 1).unwrap();
+        west = west.min(w);
+        east = east.max(e);
+        south = south.min(s);
+        north = north.max(n);
+    }
+    let e7 = |v: f64| ((v * 1e7).round() as i32).to_le_bytes();
+    header[102..106].copy_from_slice(&e7(west));
+    header[106..110].copy_from_slice(&e7(south));
+    header[110..114].copy_from_slice(&e7(east));
+    header[114..118].copy_from_slice(&e7(north));
+    header[118] = min_zoom;
+    header[119..123].copy_from_slice(&e7((west + east) / 2.0));
+    header[123..127].copy_from_slice(&e7((south + north) / 2.0));
     let mut file = Vec::new();
     file.extend_from_slice(&header);
     file.extend_from_slice(&root);

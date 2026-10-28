@@ -1282,6 +1282,9 @@ onUnmounted(() => {
 }
 
 .file-table-wrap {
+  /* Containing block for the absolutely positioned visually-hidden header
+     text, so it scrolls with the table instead of widening the page. */
+  position: relative;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   overflow: auto;

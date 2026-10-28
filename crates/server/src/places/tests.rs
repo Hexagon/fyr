@@ -592,46 +592,80 @@ fn shutdown_leaves_a_running_job_resumable() {
 // Throughput (ignored): cargo test -p server --release -- --ignored places_throughput --nocapture
 // ---------------------------------------------------------------------------
 
-#[test]
-#[ignore]
-fn places_throughput() {
+/// Index a z14 grid of 96 × 96 tiles (plus the z9/z12 passes) with
+/// `per_tile` named places and `filler` road lines per tile; print speed.
+fn measure_throughput(label: &str, per_tile: usize, filler: i32) {
     let fx = Fixture::new("throughput");
-    // A z14 grid of 96 × 96 tiles, each with 12 named places and road-like
-    // filler, plus the lower zoom passes.
     let mut features = Vec::new();
-    for i in 0..(96 * 12) {
+    for i in 0..(96 * per_tile) {
         for j in 0..96 {
-            let lon = 11.0 + (i as f64) * (96.0 * 360.0 / 16384.0) / (96.0 * 12.0) + 0.0001;
+            let lon = 11.0 + (i as f64) * (96.0 * 360.0 / 16384.0) / (96.0 * per_tile as f64) + 0.0001;
             let lat = 58.0 + (j as f64) * 0.0139;
             features.push(feature("place", lon, lat, &[9, 12, 14], &[("name", format!("Ort {i}-{j}").as_str().into()), ("class", "hamlet".into())]));
         }
     }
     let mut tiles = build_tiles(&features);
-    let filler = encode::layer("transportation", 4096, &(0..200).map(|k| TestFeature::line(&[(k, 0), (k * 2, 4000), (4000, k)], &[("class", "minor".into())])).collect::<Vec<_>>());
+    let roads: Vec<TestFeature> = (0..filler)
+        .map(|k| TestFeature::line(&[(k, 0), (k * 2 % 4096, 4000), (4000, k), (k, k)], &[("class", "minor".into()), ("name", format!("Väg {k}").as_str().into())]))
+        .collect();
+    let filler_layer = encode::layer("transportation", 4096, &roads);
     for value in tiles.values_mut() {
-        let mut with_filler = value.clone();
-        encode::bytes_field(3, &filler, &mut with_filler);
-        *value = with_filler;
+        encode::bytes_field(3, &filler_layer, value);
     }
     write_pmtiles(&fx.map("grid.pmtiles"), &tiles, PmtilesOptions { leaf_size: 512, ..Default::default() });
     let size = std::fs::metadata(fx.map("grid.pmtiles")).unwrap().len();
+    let raw: usize = tiles.values().map(Vec::len).sum();
     let started = Instant::now();
     let outcome = fx.run("grid.pmtiles");
     let elapsed = started.elapsed();
     let JobOutcome::Completed { places } = outcome else { panic!("{outcome:?}") };
     let meta = store::inspect(&fx.index("grid.pmtiles")).unwrap();
     println!(
-        "places_throughput: {} tiles, {:.1} MB map, {} places in {:.2?} → {:.0} tiles/s, {:.0} places/s, index {:.1} MB",
+        "places_throughput[{label}]: {} tiles, {:.1} MB map ({:.1} MB decoded), {} places in {:.2?} → {:.0} tiles/s, {:.1} MB/s of map, {:.0} places/s, index {:.1} MB",
         meta.total,
         size as f64 / 1e6,
+        raw as f64 / 1e6,
         places,
         elapsed,
         meta.total as f64 / elapsed.as_secs_f64(),
+        size as f64 / 1e6 / elapsed.as_secs_f64(),
         places as f64 / elapsed.as_secs_f64(),
         crate::fulltext::index_size(&fx.index("grid.pmtiles")) as f64 / 1e6
     );
     let reader = fx.reader("grid.pmtiles").unwrap();
     let started = Instant::now();
-    let hits = find(&reader, "ort 500");
-    println!("places_throughput: query took {:.2?} ({} rows)", started.elapsed(), hits.len());
+    let hits = find(&reader, "ort 50");
+    println!("places_throughput[{label}]: prefix query took {:.2?} ({} rows)", started.elapsed(), hits.len());
+}
+
+#[test]
+#[ignore]
+fn places_throughput() {
+    // Dense names, light tiles (worst case for the database side).
+    measure_throughput("dense", 12, 200);
+    // Few names in heavy tiles (typical basemap: decoding dominates).
+    measure_throughput("heavy", 1, 2500);
+}
+
+// ---------------------------------------------------------------------------
+// Demo maps for manual and browser testing (ignored): set
+// FYR_PLACES_DEMO_DIR to a maps folder and run
+// `cargo test -p server -- --ignored write_demo_place_maps`.
+// ---------------------------------------------------------------------------
+
+#[test]
+#[ignore]
+fn write_demo_place_maps() {
+    let Ok(dir) = std::env::var("FYR_PLACES_DEMO_DIR") else {
+        eprintln!("set FYR_PLACES_DEMO_DIR");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    write_mbtiles(&dir.join("sweden-places.mbtiles"), &build_tiles(&fixtures::omt_features()), "pbf");
+    write_pmtiles(
+        &dir.join("nordic-places.pmtiles"),
+        &build_tiles(&fixtures::protomaps_features()),
+        PmtilesOptions { leaf_size: 4, ..Default::default() },
+    );
 }
