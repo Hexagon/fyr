@@ -50,13 +50,18 @@
           <p v-if="indexStatus.lowDisk && activeCategory === 'books'" class="status-text">
             {{ t('content.lowDisk') }}
           </p>
-          <table class="file-table" v-else-if="visibleFiles.length">
+          <p v-if="placesError && activeCategory === 'maps'" class="error-text" role="alert">{{ placesError }}</p>
+          <p v-if="placesStatus.lowDisk && activeCategory === 'maps'" class="status-text">
+            {{ t('content.placesLowDisk') }}
+          </p>
+          <table class="file-table" v-if="visibleFiles.length">
             <thead>
               <tr>
                 <th>{{ t('content.columns.name') }}</th>
                 <th>{{ t('content.columns.size') }}</th>
                 <th>{{ t('content.columns.modified') }}</th>
                 <th v-if="showIndexColumn">{{ t('content.columns.fulltext') }}</th>
+                <th v-if="showPlacesColumn">{{ t('content.columns.places') }}</th>
                 <th><span class="visually-hidden">{{ t('content.columns.actions') }}</span></th>
               </tr>
             </thead>
@@ -91,6 +96,35 @@
                         :disabled="indexBusy.has(file.filename)"
                         @click="deleteFulltextIndex(file.filename)"
                       >{{ t('content.index.delete') }}</button>
+                    </span>
+                  </template>
+                </td>
+                <td v-if="showPlacesColumn" class="index-cell">
+                  <template v-if="isMapFilename(file.filename)">
+                    <span
+                      class="index-pill"
+                      :class="`index-${placesInfo(file.filename).tone}`"
+                      :title="placesInfo(file.filename).title"
+                    >{{ placesInfo(file.filename).label }}</span>
+                    <progress
+                      v-if="placesInfo(file.filename).showProgress"
+                      class="index-progress"
+                      max="100"
+                      :value="placesInfo(file.filename).percent"
+                    ></progress>
+                    <span v-if="!adminLocked" class="index-actions">
+                      <button
+                        v-if="placesInfo(file.filename).canBuild"
+                        class="btn btn-secondary btn-inline"
+                        :disabled="placesBusy.has(file.filename)"
+                        @click="buildPlaceIndex(file.filename)"
+                      >{{ t('content.places.build') }}</button>
+                      <button
+                        v-if="placesInfo(file.filename).canDelete"
+                        class="btn btn-secondary btn-inline"
+                        :disabled="placesBusy.has(file.filename)"
+                        @click="deletePlaceIndex(file.filename)"
+                      >{{ t('content.places.delete') }}</button>
                     </span>
                   </template>
                 </td>
@@ -321,6 +355,13 @@ import {
   shouldPollIndex
 } from '../modules/library/fulltextIndex.js'
 import {
+  PLACES_POLL_MS,
+  describePlaceEntry,
+  isMapFilename,
+  normalizePlaceStatus,
+  shouldPollPlaces
+} from '../modules/maps/placeIndex.js'
+import {
   canRetryDownload,
   describeResumeState,
   isActiveDownloadStatus,
@@ -411,6 +452,51 @@ const runIndexAction = async (filename, action) => {
 
 const buildFulltextIndex = (filename) => runIndexAction(filename, apiService.buildIndex)
 const deleteFulltextIndex = (filename) => runIndexAction(filename, apiService.deleteIndex)
+
+// Place index for vector maps (same pattern as the full-text index above).
+let placesRefreshTimer = null
+const placesStatus = ref(normalizePlaceStatus(null))
+const placesError = ref(null)
+const placesBusy = ref(new Set())
+const showPlacesColumn = computed(() => activeCategory.value === 'maps' && maps.value.some((m) => isMapFilename(m.filename)))
+const placesInfo = (filename) =>
+  describePlaceEntry(placesStatus.value.byFile.get(filename), { enabled: placesStatus.value.enabled })
+
+const schedulePlacesRefresh = () => {
+  if (placesRefreshTimer) clearTimeout(placesRefreshTimer)
+  placesRefreshTimer = null
+  if (activeCategory.value === 'maps' && shouldPollPlaces(placesStatus.value)) {
+    placesRefreshTimer = setTimeout(loadPlacesStatus, PLACES_POLL_MS)
+  }
+}
+
+const loadPlacesStatus = async () => {
+  try {
+    placesStatus.value = normalizePlaceStatus(await apiService.getPlacesStatus())
+  } catch (err) {
+    // Older servers have no place index API: show nothing rather than an error.
+    placesStatus.value = normalizePlaceStatus(null)
+  }
+  schedulePlacesRefresh()
+}
+
+const runPlacesAction = async (filename, action) => {
+  placesError.value = null
+  placesBusy.value = new Set([...placesBusy.value, filename])
+  try {
+    await action(filename)
+  } catch (err) {
+    placesError.value = apiService.handleError(err)
+  } finally {
+    const next = new Set(placesBusy.value)
+    next.delete(filename)
+    placesBusy.value = next
+    await loadPlacesStatus()
+  }
+}
+
+const buildPlaceIndex = (filename) => runPlacesAction(filename, apiService.buildPlaces)
+const deletePlaceIndex = (filename) => runPlacesAction(filename, apiService.deletePlaces)
 let pendingUploadCounter = 0
 let hasLoadedDownloads = false
 let lastDownloadStateSnapshot = new Map()
@@ -953,7 +1039,7 @@ watch(
 
 onMounted(async () => {
   loading.value = true
-  await Promise.all([loadContent(), loadDownloads(), loadCuratedContent(), loadIndexStatus()])
+  await Promise.all([loadContent(), loadDownloads(), loadCuratedContent(), loadIndexStatus(), loadPlacesStatus()])
   loading.value = false
   scheduleDownloadRefresh()
 })
@@ -961,12 +1047,18 @@ onMounted(async () => {
 watch(activeCategory, (category) => {
   if (category === 'books') loadIndexStatus()
   else scheduleIndexRefresh()
+  if (category === 'maps') loadPlacesStatus()
+  else schedulePlacesRefresh()
 })
 
 onUnmounted(() => {
   if (indexRefreshTimer) {
     clearTimeout(indexRefreshTimer)
     indexRefreshTimer = null
+  }
+  if (placesRefreshTimer) {
+    clearTimeout(placesRefreshTimer)
+    placesRefreshTimer = null
   }
   if (downloadRefreshTimer) {
     clearTimeout(downloadRefreshTimer)
@@ -1190,6 +1282,9 @@ onUnmounted(() => {
 }
 
 .file-table-wrap {
+  /* Containing block for the absolutely positioned visually-hidden header
+     text, so it scrolls with the table instead of widening the page. */
+  position: relative;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   overflow: auto;

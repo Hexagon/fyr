@@ -29,6 +29,7 @@ fn state_with(mode: &str) -> AppState {
         mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
         messaging: Arc::new(messaging::Messaging::open(&config).expect("open messages db")),
         fulltext: Arc::new(crate::fulltext::FulltextIndexer::from_config(&config)),
+        places: Arc::new(crate::places::PlaceIndexer::from_config(&config)),
     }
 }
 

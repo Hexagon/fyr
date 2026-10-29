@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-27",
+      "dateModified": "2026-10-28",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-27">2026-10-27</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-28">2026-10-28</time> · Fyr v0.5.2</p>
         </div>
     </header>
 
@@ -143,6 +143,7 @@
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
                             <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
+                            <li class="pl-4"><a href="#place-search-on-maps" class="text-gray-600 hover:text-brand-600">Place search on maps</a></li>
                             <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
                             <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
                             <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
@@ -281,7 +282,7 @@ curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
 <li><strong>Home:</strong> system status, location, sunrise/sunset, and storage overview.</li>
 <li><strong>Content Manager:</strong> add URL downloads, import local files, and inspect content inventory. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set.</li>
 <li><strong>Settings:</strong> choose the interface language (per browser), configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
-<li><strong>Maps:</strong> map selection, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see <em>Navigating with maps off-grid</em>).</li>
+<li><strong>Maps:</strong> map selection, place search by name, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see <em>Navigating with maps off-grid</em>).</li>
 <li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
 <li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
 <li><strong>Search:</strong> one search box for the whole offline library (see <a href="#3c-searching-everything">3c. Searching Everything</a>).</li>
@@ -452,15 +453,20 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <td>Opens that map</td>
 </tr>
 <tr>
-<td><strong>Places</strong></td>
+<td><strong>Places on maps</strong></td>
+<td>Names of towns, villages, lakes, peaks, parks and other labelled places inside indexed vector maps (see <a href="#place-search-on-maps">Place search on maps</a>)</td>
+<td>Opens that map centred on the place, with a labelled marker</td>
+</tr>
+<tr>
+<td><strong>Points of interest</strong></td>
 <td><code>name</code> / <code>title</code> / <code>description</code> of features in GeoJSON files in <code>poi/</code></td>
-<td>Opens Maps centred on the place</td>
+<td>Opens Maps centred on the point</td>
 </tr>
 </tbody></table>
 </div>
 <ul>
 <li>Results are grouped by kind with the most relevant group first; exact and &quot;starts with&quot; matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (<code>zurich</code> finds <code>Zürich</code>, <code>malmo</code> finds <code>Malmö</code>).</li>
-<li>Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Places) to narrow the search.</li>
+<li>Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Map places, POIs) to narrow the search.</li>
 <li>Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.</li>
 <li>Search is read-only and available in every access mode, including <code>FYR_READONLY</code>.</li>
 <li>Each search has a time limit so very large archives cannot freeze Fyr. Without a full-text index, very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
@@ -474,6 +480,17 @@ Click <strong>Log out</strong> in the navbar. Your session is cleared immediatel
 <li>Search and the assistant already use a partly built index. Indexing resumes where it stopped after a restart, and starts over automatically when an archive file is replaced. Deleting an index stops automatic indexing of that archive until <strong>Build index</strong> is clicked again; deleting the archive deletes its index.</li>
 <li>Indexing pauses while free disk space is below 1 GB (<code>FYR_FULLTEXT_MIN_FREE_MB</code>) and resumes when space is available. The index stores the articles&#39; plain text plus a word index, so it can be larger than the compressed <code>.zim</code> file itself (plan for 1–3× the archive size for text-only archives; much less for archives with many pictures).</li>
 <li>Set <code>FYR_FULLTEXT=off</code> to disable indexing and full-text search entirely.</li>
+</ul>
+<h3 id="place-search-on-maps">Place search on maps<a class="heading-anchor" href="#place-search-on-maps" aria-label="Link to this section">#</a></h3>
+<p>Vector maps contain the names of the places they draw. Fyr reads those names into a small search index per map, so you can ask &quot;where is Åre / Vänern / Kebnekaise?&quot; without a network:</p>
+<ul>
+<li><strong>On the Maps page:</strong> open <strong>Tools</strong> (⚙️, bottom right) and type in <strong>Find a place</strong> (at least 2 characters). Results come from every indexed vector map and from your POI files; click one (or use <kbd>↓</kbd>/<kbd>↑</kbd> and <kbd>Enter</kbd>) and the map flies there and shows a red marker with the name. If the place is in another map, Fyr switches to that map. On phones the Tools panel closes so you can see the result. <kbd>Esc</kbd> clears the box.</li>
+<li><strong>In global search:</strong> places appear in the <strong>Places on maps</strong> group (see above).</li>
+<li>Matching ignores case and accents (<code>are</code> finds <em>Åre</em>, <code>vanern</code> finds <em>Vänern</em>), also finds English/Swedish name variants stored in the map (<code>gothenburg</code> finds <em>Göteborg</em>) and matches the last word as a prefix (<code>kebne</code> finds <em>Kebnekaise</em>). Exact names rank first; among equally good matches, bigger and more important places (capitals, cities, then towns and villages) come first.</li>
+<li>Which maps work: vector maps (<code>.pmtiles</code> or <code>.mbtiles</code> with vector tiles) in the common OpenMapTiles, Protomaps, Shortbread and Mapbox Streets layouts. <strong>Raster maps</strong> (PNG/JPEG/WebP tiles) contain only pictures and are listed as <em>Raster map</em> — use a POI file for named places there.</li>
+<li><strong>Content Manager → Maps</strong> shows a <strong>Place search</strong> column: <em>Waiting to index</em>, <em>Indexing 42%</em>, <em>Paused</em>, <em>Places ready</em> (hover for the number of places), <em>Index failed</em>, <em>Raster map</em> or <em>Not indexed</em>. Admins see <strong>Index places</strong> and <strong>Delete index</strong>; deleting stops automatic indexing for that map until you index it again.</li>
+<li>Vector maps up to 4096 MB (<code>FYR_PLACES_MAX_MAP_MB</code>) are indexed automatically in the background, one at a time and at low priority; larger maps (for example a whole continent) only when an admin clicks <strong>Index places</strong>. Indexing reads a few zoom levels (cities first, villages and peaks last), so big places become searchable early. It shares the full-text index&#39;s free-space guard (<code>FYR_FULLTEXT_MIN_FREE_MB</code>) and continues where it stopped after a restart. A replaced map is re-indexed automatically.</li>
+<li>The index is small (typically a few MB per country) and lives in <code>index/</code> in the data folder. Set <code>FYR_PLACES=off</code> to turn place indexing and place search off.</li>
 </ul>
 <h2 id="3d-messages">3d. Messages<a class="heading-anchor" href="#3d-messages" aria-label="Link to this section">#</a></h2>
 <p>Messages has no user accounts. Everyone picks a nickname once per device (stored in the browser, editable at any time). Each device also gets a random <strong>device tag</strong> — a short code shown as a coloured dot next to its messages so you can tell people with the same nickname apart. Nicknames and tags are <strong>not verified</strong>: anyone can type any nickname.</p>
@@ -615,6 +632,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><strong>Opening a map:</strong> pick a map in <em>Available Maps</em>. When nothing else positions the view, the map opens on its own coverage area (or on your saved location if that lies inside it). The selected map is written to the address bar (<code>/maps?map=&lt;file&gt;</code>), so the view can be bookmarked or shared.</li>
 <li><strong>Coordinates:</strong> the bottom status bar shows the coordinate under the mouse pointer (🖱) or, on touch screens, the map centre (⊕). Click it to copy it. The <strong>DEC/DMS</strong> button switches between decimal degrees (<code>59.32930, 18.06860</code>) and degrees-minutes-seconds (<code>59°19&#39;45.5&quot;N 18°04&#39;07.0&quot;E</code>); the choice is remembered in the browser. A scale bar is shown in the lower-right corner.</li>
 <li><strong>Click any point</strong> on the map (with no tool active) to see its coordinate in both formats with <strong>Copy</strong> and <strong>Copy link</strong> buttons. Clicking a POI or track shows its name (and length for tracks).</li>
+<li><strong>Find a place:</strong> in <em>Tools</em>, type a town, lake or peak name; see <a href="#place-search-on-maps">Place search on maps</a>.</li>
 <li><strong>Go to coordinate:</strong> in <em>Tools</em>, type a coordinate and press <strong>Go</strong>. Accepted forms include <code>59.33, 18.07</code>, <code>59.33 18.07</code>, <code>-33.86, 151.21</code>, <code>59,33 18,07</code>, <code>59.33N 18.07E</code>, <code>59°19&#39;48&quot;N 18°4&#39;12&quot;E</code>, <code>N 59° 19.8&#39; E 18° 4.2&#39;</code> and <code>59 19 48, 18 4 12</code>. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.</li>
 <li><strong>Links to a place:</strong> other pages (and people) can link to <code>/maps?lat=59.33&amp;lng=18.07&amp;zoom=14&amp;label=Camp</code>. All parameters are optional; <code>map=&lt;file&gt;</code> selects a specific map. Without <code>map</code>, Fyr picks the most detailed installed map whose coverage contains the point.</li>
 <li><strong>My Location / Record Track</strong> need the browser&#39;s location permission <strong>and a secure connection</strong>: open Fyr through <code>https://…</code> or <code>http://localhost</code>. Browsers block GPS on plain <code>http://</code> LAN addresses (for example <code>http://192.168.1.10:8080</code>); Fyr then shows an explanation instead of failing silently. To fix this on a LAN, enable HTTPS (§2a).</li>
@@ -726,7 +744,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </ul>
 <p>Messages are stored in <code>messages.sqlite</code> directly in the data directory (owner-readable only, never published).</p>
 <p>Two more folders may appear briefly: <code>.backup-tmp/</code> (temporary files while a backup or restore runs; removed automatically) and <code>restore-pending/</code> (files from a restore that are applied at the next start, see §6a).</p>
-<p>Full-text indexes of ZIM archives are stored in <code>index/</code> in the data directory (one <code>.fts.sqlite</code> file per archive, never published). They can be deleted at any time; Fyr rebuilds them as described in <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>.</p>
+<p>Full-text indexes of ZIM archives are stored in <code>index/</code> in the data directory (one <code>.fts.sqlite</code> file per archive, never published), next to the place indexes of vector maps (<code>places-*.sqlite</code>, see <a href="#place-search-on-maps">Place search on maps</a>). They can be deleted at any time; Fyr rebuilds them as described in <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>.</p>
 <p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
 <h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
 <p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
@@ -753,7 +771,9 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 <li><code>FYR_HTTP_REDIRECT_PORT</code> — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from <code>FYR_PORT</code>)</li>
 <li><code>FYR_FULLTEXT</code> — set to <code>off</code> to disable the ZIM full-text index and full-text search (default on)</li>
 <li><code>FYR_FULLTEXT_MAX_ARTICLES</code> — archives with at most this many articles are indexed automatically (default 200000; <code>0</code> = only when an admin clicks <strong>Build index</strong>)</li>
-<li><code>FYR_FULLTEXT_MIN_FREE_MB</code> — indexing pauses while free disk space is below this many MB (default 1024)</li>
+<li><code>FYR_FULLTEXT_MIN_FREE_MB</code> — indexing pauses while free disk space is below this many MB (default 1024; also applies to the place index)</li>
+<li><code>FYR_PLACES</code> — set to <code>off</code> to disable the place index for vector maps and place search (default on)</li>
+<li><code>FYR_PLACES_MAX_MAP_MB</code> — vector maps up to this many MB are indexed for place search automatically (default 4096; <code>0</code> = only when an admin clicks <strong>Index places</strong>)</li>
 <li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
 </ul>
 <p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
@@ -778,7 +798,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><strong>Replace the program or image.</strong> Docker: <code>docker pull hexagon/fyr:latest</code>, then remove and re-create the container with the <strong>same</strong> volume (<code>-v fyr-data:/data -e DATA_DIR=/data</code>). The image is multi-arch: the same tag works on Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same <code>DATA_DIR</code>.</li>
 <li><strong>Start it.</strong> Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.</li>
 </ol>
-<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). <code>index/</code> holds the full-text indexes of ZIM archives (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.</p>
+<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). <code>index/</code> holds the full-text indexes of ZIM archives and the place indexes of vector maps (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.</p>
 <p><strong>New environment variables</strong> (all optional; defaults keep 0.5.x behaviour except that Messages is on):</p>
 <ul>
 <li><code>FYR_MESSAGING</code> — <code>false</code> turns Messages off.</li>
@@ -788,6 +808,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
 <li><code>FYR_TRUSTED_PROXIES</code> — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.</li>
 <li><code>FYR_TLS</code>, <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code>, <code>FYR_TLS_SANS</code>, <code>FYR_HTTP_REDIRECT_PORT</code> — built-in HTTPS (§2a), off by default. Turning it on changes the address to <code>https://</code>.</li>
 <li><code>FYR_FULLTEXT</code>, <code>FYR_FULLTEXT_MAX_ARTICLES</code>, <code>FYR_FULLTEXT_MIN_FREE_MB</code> — ZIM full-text index (§3c). On by default: after the upgrade, ZIM archives with up to 200 000 articles are indexed once in the background, which uses some CPU and disk space for a while.</li>
+<li><code>FYR_PLACES</code>, <code>FYR_PLACES_MAX_MAP_MB</code> — place search on vector maps (§3c). On by default: after the upgrade, vector maps up to 4 GB are indexed once in the background.</li>
 </ul>
 <p>If you expose Fyr to people you do not fully trust, review <code>FYR_ADMIN_PASSWORD</code>/<code>FYR_READONLY</code> (§3a) and the Messages posting rules (§3d) after upgrading.</p>
 <p><strong>Going back to 0.5.x:</strong> stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores <code>messages.sqlite</code>.</p>
@@ -983,6 +1004,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
                             <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
                             <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
+                            <li class="pl-4"><a href="#place-search-on-maps" class="text-gray-600 hover:text-brand-600">Place search on maps</a></li>
                             <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
                             <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
                             <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>

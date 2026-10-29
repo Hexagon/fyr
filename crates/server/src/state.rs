@@ -24,4 +24,6 @@ pub struct AppState {
     pub messaging: Arc<Messaging>,
     /// Background full-text indexer for ZIM archives (`DATA_DIR/index`).
     pub fulltext: Arc<crate::fulltext::FulltextIndexer>,
+    /// Background place indexer for vector maps (`DATA_DIR/index`).
+    pub places: Arc<crate::places::PlaceIndexer>,
 }

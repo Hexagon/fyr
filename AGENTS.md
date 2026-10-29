@@ -42,6 +42,7 @@ Config overrides:
 - `FYR_MESSAGING`, `FYR_MESSAGES_MAX_PER_CHANNEL`, `FYR_MESSAGES_MAX_AGE_DAYS` — Messages on/off and retention
 - `FYR_TLS` (`self-signed`), `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (rustls, `crates/server/src/tls.rs`); invalid combinations fail startup. The session cookie gets `Secure` and `/api/status` shows the certificate fingerprint only via `auth::can_view_system_details`. See `docs/developer/DEVELOPER_MANUAL.md § 3.6`.
 - `FYR_FULLTEXT` (`off` disables), `FYR_FULLTEXT_MAX_ARTICLES`, `FYR_FULLTEXT_MIN_FREE_MB` — background SQLite FTS5 index per ZIM archive in `DATA_DIR/index/` (never served). Build/delete endpoints are in the `protected` router; the indexer is one throttled `std::thread`, never work on the async runtime. See `docs/developer/DEVELOPER_MANUAL.md § 13`.
+- `FYR_PLACES` (`off` disables), `FYR_PLACES_MAX_MAP_MB` — background place index per vector map (`DATA_DIR/index/places-*.sqlite`, never served) feeding the `place` search kind and the Maps page search. Build/delete endpoints are in the `protected` router; one throttled `fyr-places` `std::thread`. See `docs/developer/DEVELOPER_MANUAL.md § 15`.
 
 ## Core Security Function: Access Control
 
@@ -84,6 +85,7 @@ Responsibilities:
 - Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` and `require_messaging_write` middleware
 - Messages (`messaging/`): SQLite store (`DATA_DIR/messages.sqlite`), public board channel, encrypted-channel ciphertext storage, SSE streams, retention
 - Full-text index (`fulltext/`): per-archive FTS5 databases, background indexer, `/api/index/*`; consumed by `search.rs` (`article_text`) and `ai/retrieval.rs`
+- Place index (`places/`): MVT/PMTiles/MBTiles readers, per-map FTS5 place databases, background indexer, `/api/places/*`; consumed by `search.rs` (`place`)
 
 ### Downloader Module: downloader
 Path: [crates/downloader/src](crates/downloader/src)

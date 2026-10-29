@@ -464,6 +464,11 @@ export const apiService = {
   buildIndex: (filename) => api.post(`/index/${encodeURIComponent(filename)}/build`),
   deleteIndex: (filename) => api.delete(`/index/${encodeURIComponent(filename)}`),
 
+  // Place index for vector maps (status is public; build/delete are admin-only)
+  getPlacesStatus: async () => (await api.get('/places/status')).data,
+  buildPlaces: (filename) => api.post(`/places/${encodeURIComponent(filename)}/build`),
+  deletePlaces: (filename) => api.delete(`/places/${encodeURIComponent(filename)}`),
+
   // Unified Library API
   getLibraryBookMetadata: async (filename) => {
     const response = await api.get(`/library/books/${encodeURIComponent(filename)}`)

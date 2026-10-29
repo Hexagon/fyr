@@ -31,6 +31,7 @@ mod handlers;
 mod library;
 mod mbtiles;
 mod messaging;
+mod places;
 mod search;
 mod state;
 mod settings;
@@ -119,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
         messaging: Arc::new(messaging::Messaging::open(&config)?),
         fulltext: Arc::new(fulltext::FulltextIndexer::from_config(&config)),
+        places: Arc::new(places::PlaceIndexer::from_config(&config)),
     };
     if config.fulltext.enabled {
         app_state.fulltext.start();
@@ -126,6 +128,12 @@ async fn main() -> anyhow::Result<()> {
         info!("Full-text indexing is disabled (FYR_FULLTEXT=off)");
     }
     let shutdown_fulltext = Arc::clone(&app_state.fulltext);
+    if config.places.enabled {
+        app_state.places.start();
+    } else {
+        info!("Place indexing is disabled (FYR_PLACES=off)");
+    }
+    let shutdown_places = Arc::clone(&app_state.places);
     if app_state.messaging.enabled() {
         app_state.messaging.spawn_pruner();
     } else {
@@ -160,8 +168,13 @@ async fn main() -> anyhow::Result<()> {
         redirect,
         async move {
             shutdown_signal().await;
-            // Roll back the indexer's open batch so it resumes cleanly.
-            let _ = tokio::task::spawn_blocking(move || shutdown_fulltext.shutdown(FULLTEXT_SHUTDOWN_GRACE)).await;
+            // Roll back the indexers' open batches so they resume cleanly.
+            let _ = tokio::task::spawn_blocking(move || {
+                let places = std::thread::spawn(move || shutdown_places.shutdown(FULLTEXT_SHUTDOWN_GRACE));
+                shutdown_fulltext.shutdown(FULLTEXT_SHUTDOWN_GRACE);
+                let _ = places.join();
+            })
+            .await;
         },
         shutdown_downloads,
     )
@@ -255,7 +268,7 @@ async fn serve(
 
 /// How long download workers get to stop and record their partial files.
 const DOWNLOAD_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
-/// How long the full-text indexer gets to roll back its current batch.
+/// How long the full-text and place indexers get to roll back their current batch.
 const FULLTEXT_SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 /// How long open HTTP connections may drain after shutdown starts.
 const CONNECTION_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -353,7 +366,9 @@ fn create_router(state: AppState) -> Router {
                 .layer(DefaultBodyLimit::max(backup::MAX_UPLOAD_BYTES as usize + 64 * 1024)),
         )
         .route("/api/index/:filename/build", post(fulltext::routes::build_index))
-        .route("/api/index/:filename", delete(fulltext::routes::delete_index));
+        .route("/api/index/:filename", delete(fulltext::routes::delete_index))
+        .route("/api/places/:filename/build", post(places::routes::build_places))
+        .route("/api/places/:filename", delete(places::routes::delete_places));
     // Messaging moderation (delete/pin message, delete channel) is admin-only.
     let protected = if state_arc.messaging.enabled() {
         protected.merge(messaging::routes::moderation_routes())
@@ -422,6 +437,8 @@ fn create_router(state: AppState) -> Router {
         .route("/api/search", get(search::global_search))
         // Full-text index progress (filenames and counters only, no paths)
         .route("/api/index/status", get(fulltext::routes::index_status))
+        // Place index progress for vector maps (filenames and counters only)
+        .route("/api/places/status", get(places::routes::places_status))
         // Tools endpoints (read-only computation, no state mutation)
         .route("/api/tools/aes", post(handlers::tools_aes))
         .route("/api/tools/hash", post(handlers::tools_hash))
@@ -706,6 +723,7 @@ mod tests {
             mbtiles_pool: Arc::new(mbtiles::MbtilesPool::new()),
             messaging: Arc::new(messaging::Messaging::open(&config).expect("open messages db")),
             fulltext: Arc::new(fulltext::FulltextIndexer::from_config(&config)),
+            places: Arc::new(places::PlaceIndexer::from_config(&config)),
         }
     }
 
@@ -1174,6 +1192,138 @@ mod tests {
         let status: serde_json::Value = serde_json::from_slice(&body_bytes(get(&app, "/api/index/status", None).await).await).unwrap();
         assert_eq!(status["enabled"], false);
         assert_eq!(status["archives"][0]["state"], "disabled");
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    // --- Place index endpoints ---------------------------------------------
+
+    fn write_place_maps(state: &AppState) {
+        use places::fixtures::{build_tiles, omt_features, write_mbtiles};
+        write_mbtiles(&state.config.maps_dir().join("sweden.mbtiles"), &build_tiles(&omt_features()), "pbf");
+        let mut png = std::collections::BTreeMap::new();
+        png.insert((0u8, 0u32, 0u32), b"\x89PNG\r\n\x1a\nfake".to_vec());
+        write_mbtiles(&state.config.maps_dir().join("aerial.mbtiles"), &png, "png");
+    }
+
+    #[tokio::test]
+    async fn place_index_endpoints_follow_the_access_matrix() {
+        for (mode, readonly, password) in [("open", false, false), ("password", false, true), ("readonly", true, false)] {
+            let mut state = test_state();
+            let data_dir = state.config.data_dir.clone();
+            write_place_maps(&state);
+            let mut config = (*state.config).clone();
+            config.auth.readonly = readonly;
+            config.auth.admin_password = password.then(|| "secret".to_string());
+            state.config = Arc::new(config);
+            let token = state.auth_manager.create_session();
+            let app = create_router(state);
+            let data_dir_str = data_dir.display().to_string();
+
+            // Status is public in every mode and never shows host paths.
+            let status = get(&app, "/api/places/status", None).await;
+            assert_eq!(status.status(), StatusCode::OK, "{mode}");
+            let text = String::from_utf8(body_bytes(status).await).unwrap();
+            assert!(!text.contains(&data_dir_str), "{mode}: status leaked a path: {text}");
+            assert!(!text.contains("places-"), "{mode}: status leaked an index file name: {text}");
+            let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let maps = body["maps"].as_array().unwrap();
+            let entry = |name: &str| maps.iter().find(|m| m["filename"] == name).cloned().unwrap();
+            assert_eq!(entry("sweden.mbtiles")["content"], "vector");
+            assert_eq!(entry("aerial.mbtiles")["state"], "unsupported");
+            assert_eq!(entry("aerial.mbtiles")["content"], "raster");
+
+            let anonymous = [
+                send(&app, Method::POST, "/api/places/sweden.mbtiles/build", None).await.status(),
+                send(&app, Method::DELETE, "/api/places/sweden.mbtiles", None).await.status(),
+            ];
+            let admin = [
+                send(&app, Method::POST, "/api/places/sweden.mbtiles/build", Some(&token)).await.status(),
+                send(&app, Method::DELETE, "/api/places/sweden.mbtiles", Some(&token)).await.status(),
+            ];
+            match mode {
+                "open" => {
+                    assert_eq!(anonymous, [StatusCode::ACCEPTED, StatusCode::NO_CONTENT]);
+                    let missing = send(&app, Method::POST, "/api/places/missing.pmtiles/build", None).await;
+                    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+                    let bad = send(&app, Method::POST, "/api/places/notes.md/build", None).await;
+                    assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
+                    let traversal = send(&app, Method::POST, "/api/places/..%2Fsettings.mbtiles/build", None).await;
+                    assert_eq!(traversal.status(), StatusCode::BAD_REQUEST);
+                    let raster = send(&app, Method::POST, "/api/places/aerial.mbtiles/build", None).await;
+                    assert_eq!(raster.status(), StatusCode::UNPROCESSABLE_ENTITY);
+                    let text = String::from_utf8(body_bytes(raster).await).unwrap();
+                    assert!(!text.contains(&data_dir_str), "{text}");
+                }
+                "password" => {
+                    assert_eq!(anonymous, [StatusCode::UNAUTHORIZED, StatusCode::UNAUTHORIZED]);
+                    assert_eq!(admin, [StatusCode::ACCEPTED, StatusCode::NO_CONTENT]);
+                }
+                _ => {
+                    assert_eq!(anonymous, [StatusCode::FORBIDDEN, StatusCode::FORBIDDEN]);
+                    assert_eq!(admin, [StatusCode::FORBIDDEN, StatusCode::FORBIDDEN]);
+                }
+            }
+            let _ = fs::remove_dir_all(data_dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn place_build_is_a_conflict_when_disabled() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        write_place_maps(&state);
+        let mut config = (*state.config).clone();
+        config.places.enabled = false;
+        state.places = Arc::new(places::PlaceIndexer::from_config(&config));
+        state.config = Arc::new(config);
+        let app = create_router(state);
+        let response = send(&app, Method::POST, "/api/places/sweden.mbtiles/build", None).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let status: serde_json::Value =
+            serde_json::from_slice(&body_bytes(get(&app, "/api/places/status", None).await).await).unwrap();
+        assert_eq!(status["enabled"], false);
+        let sweden = status["maps"].as_array().unwrap().iter().find(|m| m["filename"] == "sweden.mbtiles").unwrap();
+        assert_eq!(sweden["state"], "disabled");
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
+    async fn global_search_returns_places_for_guests_without_leaking_paths() {
+        let mut state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        write_place_maps(&state);
+        let settings = state.places.settings().clone();
+        let job = Arc::new(places::worker::PlaceJob::new(true));
+        assert!(matches!(
+            places::worker::run_job(&settings, "sweden.mbtiles", &job),
+            places::worker::JobOutcome::Completed { .. }
+        ));
+        // Guests in password mode and FYR_READONLY both search places.
+        for (readonly, password) in [(false, true), (true, false)] {
+            let mut config = (*state.config).clone();
+            config.auth.readonly = readonly;
+            config.auth.admin_password = password.then(|| "secret".to_string());
+            state.config = Arc::new(config);
+            let app = create_router(state.clone());
+            let response = get(&app, "/api/search?q=malmo&kinds=place", None).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            let text = String::from_utf8(body_bytes(response).await).unwrap();
+            assert!(!text.contains(&data_dir.display().to_string()), "{text}");
+            assert!(!text.contains("places-"), "{text}");
+            let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let first = &body["results"][0];
+            assert_eq!(first["kind"], "place");
+            assert_eq!(first["title"], "Malmö");
+            assert_eq!(first["place_kind"], "city");
+            assert_eq!(first["source"], "sweden.mbtiles");
+            let link = first["link"].as_str().unwrap();
+            assert!(link.starts_with("/maps?map=sweden.mbtiles&lat=55.6") && link.ends_with("&zoom=11&label=Malm%C3%B6"), "{link}");
+
+            // Unfiltered search includes places next to other kinds.
+            let all: serde_json::Value =
+                serde_json::from_slice(&body_bytes(get(&app, "/api/search?q=Kebnekaise", None).await).await).unwrap();
+            assert!(all["results"].as_array().unwrap().iter().any(|r| r["kind"] == "place"));
+        }
         let _ = fs::remove_dir_all(data_dir);
     }
 

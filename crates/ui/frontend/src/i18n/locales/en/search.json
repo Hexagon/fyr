@@ -6,8 +6,9 @@
       "articleText": "In article text",
       "content": "In book text",
       "map": "Maps",
-      "poi": "Places",
-      "other": "Other"
+      "poi": "Points of interest",
+      "other": "Other",
+      "place": "Places on maps"
     },
     "filter": {
       "all": "All",
@@ -16,7 +17,8 @@
       "articleText": "Article text",
       "content": "Book text",
       "map": "Maps",
-      "poi": "Places"
+      "poi": "POIs",
+      "place": "Map places"
     },
     "untitled": "Untitled",
     "errors": {
@@ -30,7 +32,7 @@
     "filterLabel": "Filter results by kind",
     "idle": {
       "title": "Find anything in your offline library",
-      "body": "One search covers book titles, article titles in every ZIM archive (and article text once an archive has a full-text index), the text of Markdown and EPUB books, map files and named places in your POI files.",
+      "body": "One search covers book titles, article titles in every ZIM archive (and article text once an archive has a full-text index), the text of Markdown and EPUB books, map files, place names in indexed vector maps and named points in your POI files.",
       "tip": "Tip: press {slash} anywhere to jump to search, {arrows} to pick a result and {enter} to open it."
     },
     "empty": {

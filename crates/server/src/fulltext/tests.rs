@@ -454,6 +454,7 @@ fn global_search_merges_article_text_hits() {
         maps: fx.root.join("maps"),
         poi: fx.root.join("poi"),
         index: Some(fx.settings.index_dir.clone()),
+        places: None,
     };
     let all: HashSet<SearchKind> = SearchKind::ALL.into_iter().collect();
     let run = |q: &str| search::run_search(&roots, &SearchQuery::new(q).unwrap(), &all, &Deadline::after(Duration::from_secs(10)));

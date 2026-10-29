@@ -164,6 +164,20 @@
       "noFix": "Could not determine location (no GPS fix). Move to open sky and try again.",
       "timeout": "Timed out waiting for a location fix.",
       "failed": "Could not determine location"
+    },
+    "search": {
+      "title": "Find a place",
+      "label": "Search places on the maps",
+      "placeholder": "Town, lake, peak…",
+      "go": "Search",
+      "clear": "Clear search",
+      "searching": "Searching…",
+      "results": "Places found",
+      "none": "No places found for “{query}”.",
+      "hint": "Searches place names in indexed vector maps and your POI files.",
+      "tooShort": "Type at least {count} characters.",
+      "error": "Place search failed. Try again.",
+      "onMap": "on {map}"
     }
   }
 }

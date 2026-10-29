@@ -6,8 +6,9 @@
       "articleText": "I artikeltext",
       "content": "I boktext",
       "map": "Kartor",
-      "poi": "Platser",
-      "other": "Övrigt"
+      "poi": "Intressepunkter",
+      "other": "Övrigt",
+      "place": "Platser på kartor"
     },
     "filter": {
       "all": "Alla",
@@ -16,7 +17,8 @@
       "articleText": "Artikeltext",
       "content": "Boktext",
       "map": "Kartor",
-      "poi": "Platser"
+      "poi": "POI",
+      "place": "Kartplatser"
     },
     "untitled": "Namnlös",
     "errors": {
@@ -30,7 +32,7 @@
     "filterLabel": "Filtrera resultat efter typ",
     "idle": {
       "title": "Hitta vad som helst i ditt offlinebibliotek",
-      "body": "En sökning täcker boktitlar, artikeltitlar i alla ZIM-arkiv (och artikeltext när ett arkiv har ett fulltextindex), texten i Markdown- och EPUB-böcker, kartfiler och namngivna platser i dina POI-filer.",
+      "body": "En sökning täcker boktitlar, artikeltitlar i alla ZIM-arkiv (och artikeltext när ett arkiv har ett fulltextindex), texten i Markdown- och EPUB-böcker, kartfiler, ortnamn i indexerade vektorkartor och namngivna punkter i dina POI-filer.",
       "tip": "Tips: tryck {slash} var som helst för att gå till sökningen, {arrows} för att välja ett resultat och {enter} för att öppna det."
     },
     "empty": {

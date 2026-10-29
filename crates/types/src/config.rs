@@ -17,6 +17,29 @@ pub struct Config {
     pub messaging: MessagingConfig,
     #[serde(default)]
     pub fulltext: FulltextConfig,
+    #[serde(default)]
+    pub places: PlacesConfig,
+}
+
+/// Place index for vector maps (`DATA_DIR/index/places-*.sqlite`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlacesConfig {
+    /// Master switch (`FYR_PLACES`, default on). When off, no place index is
+    /// built or queried and the build endpoint answers `409`.
+    pub enabled: bool,
+    /// Vector maps up to this many MiB are indexed automatically
+    /// (`FYR_PLACES_MAX_MAP_MB`, default 4096; `0` = manual only). Larger
+    /// maps are indexed only when an admin starts a build.
+    pub max_map_mb: u64,
+}
+
+impl Default for PlacesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_map_mb: 4096,
+        }
+    }
 }
 
 /// On-disk full-text index for ZIM archives (`DATA_DIR/index`).
@@ -144,6 +167,7 @@ impl Config {
             ai: AiConfig { threads: None },
             messaging: MessagingConfig::default(),
             fulltext: FulltextConfig::default(),
+            places: PlacesConfig::default(),
         }
     }
 
@@ -324,6 +348,12 @@ impl Default for Config {
             min_free_mb: env_u64("FYR_FULLTEXT_MIN_FREE_MB").unwrap_or(fulltext_defaults.min_free_mb),
         };
 
+        let places_defaults = PlacesConfig::default();
+        config.places = PlacesConfig {
+            enabled: env_flag("FYR_PLACES").unwrap_or(places_defaults.enabled),
+            max_map_mb: env_u64("FYR_PLACES_MAX_MAP_MB").unwrap_or(places_defaults.max_map_mb),
+        };
+
         config
     }
 }
@@ -392,6 +422,8 @@ mod tests {
         assert_eq!(config.fulltext.max_articles, 200_000);
         assert_eq!(config.fulltext.min_free_mb, 1024);
         assert!(config.index_dir().ends_with("index"));
+        assert!(config.places.enabled);
+        assert_eq!(config.places.max_map_mb, 4096);
         assert_ne!(config.index_dir(), config.books_dir());
     }
     use std::fs;

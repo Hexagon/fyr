@@ -17,7 +17,8 @@
       "size": "Storlek",
       "modified": "Ändrad",
       "fulltext": "Fulltext",
-      "actions": "Åtgärder"
+      "actions": "Åtgärder",
+      "places": "Platssökning"
     },
     "download": "Ladda ned",
     "noFiles": "Inga filer i {folder}.",
@@ -128,6 +129,29 @@
       "waiting": "Väntar på indexering",
       "autoHint": "Indexeras automatiskt i bakgrunden",
       "manualHint": "Stort arkiv: starta indexeringen manuellt (använder diskutrymme och processortid)"
-    }
+    },
+    "places": {
+      "build": "Indexera platser",
+      "delete": "Ta bort index",
+      "off": "Av",
+      "offHint": "Platsindexering är avstängd på den här servern.",
+      "notIndexed": "Inte indexerad",
+      "ready": "Platser klara",
+      "placesIndexed": "{count} plats indexerad | {count} platser indexerade",
+      "indexing": "Indexerar {pct} %",
+      "placesSoFar": "{count} plats hittills | {count} platser hittills",
+      "queued": "I kö",
+      "paused": "Pausad {pct} %",
+      "resumes": "Fortsätter automatiskt",
+      "failed": "Indexeringen misslyckades",
+      "excludedHint": "Indexet har tagits bort; indexera kartan igen för att söka bland dess platser",
+      "waiting": "Väntar på indexering",
+      "autoHint": "Ortnamnen indexeras automatiskt i bakgrunden",
+      "manualHint": "Stor karta: starta indexeringen manuellt (använder diskutrymme och processortid)",
+      "raster": "Rasterkarta",
+      "rasterHint": "Rasterkartor har inga ortnamn att söka bland",
+      "unsupported": "Ej sökbar"
+    },
+    "placesLowDisk": "Platsindexeringen är pausad eftersom det finns lite ledigt diskutrymme."
   }
 }

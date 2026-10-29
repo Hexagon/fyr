@@ -1311,6 +1311,16 @@ pub async fn delete_content_file(
         })
         .await?;
     }
+    if content_type == "maps" && crate::places::is_valid_map_name(&sanitized) {
+        // Same for the map's place index.
+        let indexer = Arc::clone(&state.places);
+        let name = sanitized.clone();
+        run_blocking(move || {
+            indexer.forget_map(&name, std::time::Duration::from_secs(10));
+            Ok(())
+        })
+        .await?;
+    }
 
     tokio::fs::remove_file(&file_path).await.map_err(|error| {
         error!(
