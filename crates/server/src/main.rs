@@ -1026,6 +1026,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cross_site_restore_is_rejected_in_open_mode() {
+        let state = test_state();
+        let data_dir = state.config.data_dir.clone();
+        let app = create_router(state);
+        let restore = |site: &'static str| {
+            Request::post("/api/restore")
+                .header(header::CONTENT_TYPE, "multipart/form-data; boundary=x")
+                .header("sec-fetch-site", site)
+                .body(Body::from("--x--\r\n"))
+                .expect("request")
+        };
+
+        let forged = app.clone().oneshot(restore("cross-site")).await.expect("response");
+        assert_eq!(forged.status(), StatusCode::FORBIDDEN);
+
+        // The same request from Fyr's own page reaches the handler.
+        let own = app.clone().oneshot(restore("same-origin")).await.expect("response");
+        assert_eq!(own.status(), StatusCode::BAD_REQUEST);
+
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[tokio::test]
     async fn download_retry_endpoint_requires_admin() {
         let mut state = test_state();
         let data_dir = state.config.data_dir.clone();

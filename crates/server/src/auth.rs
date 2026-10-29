@@ -7,7 +7,7 @@
 use crate::AppState;
 use axum::{
     extract::{ConnectInfo, State},
-    http::{header, HeaderValue, Request, StatusCode},
+    http::{header, HeaderValue, Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -209,12 +209,59 @@ pub fn can_view_system_details(state: &AppState, headers: &axum::http::HeaderMap
 // Middleware
 // ---------------------------------------------------------------------------
 
+/// Return `true` for a state-changing request that a browser sent on behalf
+/// of another site (cross-site request forgery).
+///
+/// In open mode there is no session cookie to protect mutating endpoints, so
+/// without this check any web page the user visits could, for example, post
+/// a `multipart/form-data` backup to `/api/restore` (simple requests are sent
+/// cross-origin without a CORS preflight). Safe methods are never rejected.
+///
+/// * `Sec-Fetch-Site` (sent by all current browsers) must be `same-origin`
+///   or `none` (typed URL / bookmark).
+/// * Older browsers: an `Origin` header, when present, must match the
+///   request's `Host` (or HTTP/2 `:authority`).
+/// * Requests without either header (curl, scripts) are not from a browser
+///   and pass.
+pub fn is_cross_site_request<B>(request: &Request<B>) -> bool {
+    if matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        return false;
+    }
+    let headers = request.headers();
+    if let Some(site) = headers.get("sec-fetch-site") {
+        return !matches!(site.to_str(), Ok("same-origin") | Ok("none"));
+    }
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return false;
+    };
+    let Some(origin_authority) = origin.to_str().ok().and_then(|o| o.split_once("://")).map(|(_, rest)| rest) else {
+        // "null" (sandboxed frames, file://) or malformed.
+        return true;
+    };
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .or_else(|| request.uri().authority().map(|a| a.as_str()));
+    !host.is_some_and(|host| host.eq_ignore_ascii_case(origin_authority))
+}
+
+fn cross_site_response() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(serde_json::json!({
+            "error": "Cross-site request rejected. Use Fyr's own pages to make changes."
+        })),
+    )
+        .into_response()
+}
+
 /// Axum middleware that enforces admin access on mutating endpoints.
 ///
 /// Passes requests through unchanged when the server is not in a restricted
 /// mode.  Otherwise it validates the session cookie, returning 403 when
 /// `FYR_READONLY` is set, or 401 when `FYR_ADMIN_PASSWORD` is set but the
-/// caller is not authenticated.
+/// caller is not authenticated. In every mode, cross-site browser requests
+/// with a non-safe method are rejected with 403 ([`is_cross_site_request`]).
 pub async fn require_admin(
     State(state): State<Arc<AppState>>,
     request: Request<axum::body::Body>,
@@ -230,6 +277,10 @@ pub async fn require_admin(
             })),
         )
             .into_response();
+    }
+
+    if is_cross_site_request(&request) {
+        return cross_site_response();
     }
 
     if auth_cfg.admin_password.is_none() {
@@ -310,6 +361,7 @@ pub async fn require_messaging_write(
     next: Next,
 ) -> Response {
     match messaging_write_access(&state, request.headers()) {
+        Ok(()) if is_cross_site_request(&request) => cross_site_response(),
         Ok(()) => next.run(request).await,
         Err((status, message)) => {
             (status, Json(serde_json::json!({ "error": message }))).into_response()
@@ -554,6 +606,37 @@ mod tests {
         assert!(secure.to_str().unwrap().ends_with("; Secure"));
         assert!(!clear_cookie_header(false).to_str().unwrap().contains("Secure"));
         assert!(clear_cookie_header(true).to_str().unwrap().contains("Max-Age=0; Secure"));
+    }
+
+    fn request(method: &str, headers: &[(&str, &str)]) -> Request<()> {
+        let mut builder = Request::builder().method(method).uri("/api/restore");
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+        builder.body(()).unwrap()
+    }
+
+    #[test]
+    fn cross_site_requests_are_detected() {
+        // Sec-Fetch-Site decides when present.
+        assert!(is_cross_site_request(&request("POST", &[("sec-fetch-site", "cross-site")])));
+        assert!(is_cross_site_request(&request("POST", &[("sec-fetch-site", "same-site")])));
+        assert!(!is_cross_site_request(&request("POST", &[("sec-fetch-site", "same-origin")])));
+        assert!(!is_cross_site_request(&request("DELETE", &[("sec-fetch-site", "none")])));
+        // Safe methods are never rejected.
+        assert!(!is_cross_site_request(&request("GET", &[("sec-fetch-site", "cross-site")])));
+        // Older browsers: Origin must match Host.
+        assert!(!is_cross_site_request(&request(
+            "POST",
+            &[("host", "192.168.1.5:8080"), ("origin", "http://192.168.1.5:8080")]
+        )));
+        assert!(is_cross_site_request(&request(
+            "POST",
+            &[("host", "192.168.1.5:8080"), ("origin", "https://evil.example")]
+        )));
+        assert!(is_cross_site_request(&request("PUT", &[("host", "fyr.local"), ("origin", "null")])));
+        // Non-browser clients send neither header.
+        assert!(!is_cross_site_request(&request("POST", &[("host", "fyr.local")])));
     }
 
     #[test]

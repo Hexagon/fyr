@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-28",
+      "dateModified": "2026-10-29",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Developer Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Developer Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-28">2026-10-28</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-29">2026-10-29</time> · Fyr v0.5.2</p>
         </div>
     </header>
 
@@ -550,10 +550,12 @@ Remove-Item Env:RUSTFLAGS
 </li>
 <li><strong><code>require_admin</code> middleware</strong> — Axum <code>from_fn_with_state</code> middleware applied via <code>route_layer</code> to a sub-router containing all mutating routes. It checks:<ol>
 <li>If <code>FYR_READONLY</code> → return <code>403</code>.</li>
+<li>If the request is a cross-site browser request with a non-safe method → return <code>403</code> (see below).</li>
 <li>If no password configured → pass through (open mode).</li>
 <li>Otherwise → validate the <code>fyr_session</code> cookie value against <code>AuthManager::tokens</code>.</li>
 </ol>
 </li>
+<li><strong>Cross-site request protection</strong> — <code>auth::is_cross_site_request</code>, used by <code>require_admin</code> and <code>require_messaging_write</code> for every method except GET/HEAD/OPTIONS. Open mode has no session cookie, and <code>multipart/form-data</code> or body-less POSTs are CORS &quot;simple requests&quot; that browsers send cross-origin without a preflight, so without this check any web page a LAN user visits could drive the admin API (for example post a forged backup to <code>/api/restore</code>). Rules: if <code>Sec-Fetch-Site</code> is present (all current browsers) it must be <code>same-origin</code> or <code>none</code>; otherwise, if <code>Origin</code> is present, its <code>host[:port]</code> must equal the <code>Host</code> header (or HTTP/2 <code>:authority</code>), and <code>Origin: null</code> is rejected; requests with neither header (curl, scripts) pass. A reverse proxy that rewrites <code>Host</code> only matters for old browsers without <code>Sec-Fetch-Site</code>. In password mode the <code>SameSite=Strict</code> cookie already blocks these requests; the check is defence in depth there.</li>
 <li><strong>Session cookie</strong> — <code>HttpOnly; Path=/; SameSite=Strict</code>, plus <code>Secure</code> when Fyr serves HTTPS itself (<code>config.server.tls.is_enabled()</code>; plain HTTP keeps the flag off or browsers would drop the cookie). Not accessible to JavaScript.</li>
 <li><strong>Rate limiting</strong> — 10 failed attempts per 5-minute window per client IP. The key comes from <code>auth::client_ip</code>: the real TCP peer address (<code>ConnectInfo&lt;SocketAddr&gt;</code>), unless that peer is listed in <code>FYR_TRUSTED_PROXIES</code> (IPs/CIDRs, parsed into <code>types::TrustedProxies</code>). Only then is <code>X-Forwarded-For</code> read, from the right, taking the first hop that is not itself a trusted proxy; client-supplied hops further left are never used, and unparsable values fall back to the peer. IPv4-mapped IPv6 peers are matched as IPv4. Messaging rate limits and stream caps (<code>messaging::routes::ClientIp</code>) use the same function.</li>
 <li><strong><code>AuthConfig</code></strong> lives in <code>crates/types/src/config.rs</code> and is populated from env vars in <code>Config::default()</code>.</li>
