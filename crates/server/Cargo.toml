@@ -28,7 +28,7 @@ candle-transformers.workspace = true
 tokenizers = "0.22"
 zim = "0.5"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
-rusqlite = { version = "=0.39.0", features = ["bundled"] }
+rusqlite = { version = "=0.39.0", features = ["bundled", "hooks"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 fs2 = "0.4"
@@ -39,7 +39,24 @@ md-5.workspace = true
 digest.workspace = true
 aes.workspace = true
 cbc.workspace = true
+base64 = "0.21"
+unicode-normalization = "0.1"
+# Place index: gzip/zstd vector tiles (both already in the dependency tree
+# via zip and zim).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+zstd = { version = "0.13", default-features = false }
+# Built-in HTTPS: rustls with the ring provider (no OpenSSL / aws-lc build),
+# axum-server for TLS accept + graceful shutdown, rcgen for self-signed certs.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rcgen = { version = "0.13", default-features = false, features = ["crypto", "pem", "ring"] }
+if-addrs = "0.13"
+time = "0.3"
+axum-server = { version = "0.7.2", default-features = false, features = ["tls-rustls-no-provider"] }
+libc = "0.2"
 
 [[bin]]
 name = "fyr"
 path = "src/main.rs"
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots", "json"] }

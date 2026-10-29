@@ -5,8 +5,8 @@
         v-if="libraryCollapsed"
         type="button"
         class="library-toggle library-expand"
-        aria-label="Expand Library panel"
-        title="Expand library panel"
+        :aria-label="t('books.expandLibrary')"
+        :title="t('books.expandLibrary')"
         @click="toggleLibrary"
       >
         »
@@ -14,14 +14,14 @@
       <aside v-if="!libraryCollapsed" class="books-library">
         <header class="library-header">
           <div class="library-header-copy">
-            <h2>Library</h2>
-            <p>{{ filteredBooks.length }} item(s)</p>
+            <h2>{{ t('nav.books') }}</h2>
+            <p>{{ t('books.items', { count: filteredBooks.length }, filteredBooks.length) }}</p>
           </div>
           <button
             type="button"
             class="library-toggle"
-            aria-label="Collapse Library panel"
-            title="Collapse library panel"
+            :aria-label="t('books.collapseLibrary')"
+            :title="t('books.collapseLibrary')"
             @click="toggleLibrary"
           >
             «
@@ -32,14 +32,28 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search by title or filename"
+            :placeholder="t('books.filterPlaceholder')"
+            :aria-label="t('books.filterLabel')"
             class="search-input"
           />
         </div>
 
-        <p class="library-hint">Supported formats: .epub, .pdf, .mobi, .md, .zim</p>
+        <p class="library-hint">{{ t('books.supported', { formats: '.epub, .pdf, .mobi, .md, .zim' }) }}</p>
 
-        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">Loading books...</p>
+        <details class="progress-transfer">
+          <summary>{{ t('books.progress.summary') }}</summary>
+          <p class="library-hint">{{ t('books.progress.intro') }}</p>
+          <div class="progress-transfer-actions">
+            <button type="button" class="progress-transfer-btn" @click="exportProgress">{{ t('books.progress.export') }}</button>
+            <label class="progress-transfer-btn">
+              {{ t('books.progress.import') }}
+              <input type="file" accept=".json,application/json" class="progress-file-input" @change="importProgress" />
+            </label>
+          </div>
+          <p v-if="progressTransferStatus" class="library-hint" role="status">{{ progressTransferStatus }}</p>
+        </details>
+
+        <p v-if="booksLoading" class="status-card status-loading" role="status" aria-live="polite" aria-busy="true">{{ t('books.loading') }}</p>
         <p v-else-if="booksError" class="status-card status-error" role="alert" aria-live="assertive">{{ booksError }}</p>
 
         <div v-else-if="filteredBooks.length" class="books-list">
@@ -49,6 +63,7 @@
             type="button"
             class="book-item"
             :class="{ active: selectedBook?.filename === book.filename }"
+            :aria-current="selectedBook?.filename === book.filename ? 'true' : undefined"
             @click="selectBook(book)"
           >
             <div class="book-title-row">
@@ -61,20 +76,22 @@
         </div>
 
         <p v-else class="library-empty">
-          No books found. <router-link to="/content">Add books</router-link>
+          {{ t('books.noBooks') }} <router-link to="/content">{{ t('books.addBooks') }}</router-link>
         </p>
       </aside>
 
       <section class="reader-stage" :class="{ 'reader-stage-focused': readerFocusMode }">
+        <p class="visually-hidden" aria-live="polite">{{ liveMessage }}</p>
+
         <div v-if="selectedBook" class="reader-shell" :class="{ 'reader-shell-focused': readerFocusMode }">
           <header class="reader-toolbar">
             <div class="reader-toolbar-main">
               <button
                 type="button"
                 class="reader-back"
-                aria-label="Back to library"
-                title="Back to library"
-                @click="returnToLibrary"
+                :aria-label="t('books.backToLibrary')"
+                :title="t('books.backToLibrary')"
+                @click="returnToLibrary()"
               >
                 ←
               </button>
@@ -85,86 +102,220 @@
               <div class="reader-toolbar-meta">
                 <span class="badge badge-format">{{ activeFormat.toUpperCase() }}</span>
                 <span v-if="showReaderStatusBadge" class="badge" :class="readerStatusClass">{{ compactReaderStatusLabel }}</span>
-                <span v-if="zimAdapter" class="badge">Adapter: {{ zimAdapter.mode }}</span>
-                <span v-if="zimMeta" class="badge">Archive: {{ formatBytes(zimMeta.size_bytes) }}</span>
+                <span v-if="zimAdapter" class="badge">{{ t('books.badges.adapter', { mode: zimAdapter.mode }) }}</span>
+                <span v-if="zimMeta" class="badge">{{ t('books.badges.archive', { size: formatBytes(zimMeta.size_bytes) }) }}</span>
                 <span v-if="shouldUseNativeZimAdapter && zimNativeArticle?.title" class="badge" :title="zimNativeArticle.title">
-                  Article: {{ zimNativeArticle.title }}
+                  {{ t('books.badges.article', { title: zimNativeArticle.title }) }}
                 </span>
                 <button
                   type="button"
                   class="reader-focus-toggle"
                   :aria-pressed="String(readerFocusMode)"
-                  :title="readerFocusMode ? 'Exit focused reader mode (Esc)' : 'Enter focused reader mode'"
+                  :title="readerFocusMode ? t('books.focus.exitHint') : t('books.focus.enterHint')"
                   @click="toggleReaderFocus"
                 >
-                  {{ readerFocusMode ? 'Exit focus' : 'Focus mode' }}
+                  {{ readerFocusMode ? t('books.focus.exit') : t('books.focus.enter') }}
                 </button>
               </div>
             </div>
 
-            <div v-if="hasExtension(selectedBook.filename, '.zim')" class="reader-toolbar-search">
+            <div class="reader-toolbar-tools" role="toolbar" :aria-label="t('books.toolbar.tools')">
+              <div v-if="isZimSelected" class="toolbar-group" role="group" :aria-label="t('books.toolbar.history')">
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-label="t('books.toolbar.previous')"
+                  :title="`${t('books.toolbar.previous')} ([)`"
+                  :disabled="!zimCanBack || zimLoading"
+                  @click="zimHistoryBack"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-label="t('books.toolbar.next')"
+                  :title="`${t('books.toolbar.next')} (])`"
+                  :disabled="!zimCanForward || zimLoading"
+                  @click="zimHistoryForward"
+                >
+                  ›
+                </button>
+              </div>
+
+              <div v-if="supportsDisplayPrefs" class="toolbar-group" role="group" :aria-label="t('books.toolbar.display')">
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-label="isPdfSelected ? t('common.zoomOut') : t('books.toolbar.smaller')"
+                  :title="`${isPdfSelected ? t('common.zoomOut') : t('books.toolbar.smaller')} (-)`"
+                  :disabled="readerPrefs.fontScale <= FONT_SCALE_MIN"
+                  @click="changeFontScale(-1)"
+                >
+                  {{ isPdfSelected ? '−' : 'A−' }}
+                </button>
+                <span class="toolbar-value" :aria-label="isPdfSelected ? t('books.toolbar.zoomLevel') : t('books.toolbar.textSize')">{{ readerPrefs.fontScale }}%</span>
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-label="isPdfSelected ? t('common.zoomIn') : t('books.toolbar.larger')"
+                  :title="`${isPdfSelected ? t('common.zoomIn') : t('books.toolbar.larger')} (+)`"
+                  :disabled="readerPrefs.fontScale >= FONT_SCALE_MAX"
+                  @click="changeFontScale(1)"
+                >
+                  {{ isPdfSelected ? '+' : 'A+' }}
+                </button>
+                <select v-model="themeModel" class="toolbar-select" :aria-label="t('books.toolbar.theme')">
+                  <option v-for="theme in READER_THEMES" :key="theme" :value="theme">{{ themeLabel(theme) }}</option>
+                </select>
+              </div>
+
+              <div class="toolbar-group" role="group" :aria-label="t('books.bookmarks.title')">
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-label="t('books.bookmarks.addHere')"
+                  :title="supportsBookmarks ? t('books.bookmarks.addHint') : t('books.bookmarks.unsupported')"
+                  :disabled="!canBookmarkNow"
+                  @click="addBookmarkHere"
+                >
+                  ＋ {{ t('books.bookmarks.add') }}
+                </button>
+                <button
+                  type="button"
+                  class="toolbar-button"
+                  :aria-expanded="bookmarksOpen ? 'true' : 'false'"
+                  aria-controls="reader-bookmarks"
+                  :aria-label="t('books.bookmarks.show', { count: bookmarks.length })"
+                  @click="bookmarksOpen = !bookmarksOpen"
+                >
+                  {{ t('books.bookmarks.count', { count: bookmarks.length }) }}
+                </button>
+              </div>
+            </div>
+
+            <form
+              v-if="hasExtension(selectedBook.filename, '.zim') || supportsBookSearch"
+              class="reader-toolbar-search"
+              role="search"
+              @submit.prevent="runBookSearch"
+            >
               <input
-                v-model="zimSearchQuery"
+                ref="bookSearchInputRef"
+                v-model="bookSearchQuery"
                 type="text"
                 class="zim-search-input"
-                :placeholder="shouldUseNativeZimAdapter ? 'Search article title or path' : 'Native ZIM mode is required for search'"
-                :disabled="!shouldUseNativeZimAdapter"
-                @keydown.enter.prevent="runZimSearch"
+                :placeholder="bookSearchPlaceholder"
+                :disabled="!supportsBookSearch"
+                :aria-label="t('books.search.inBook')"
               />
               <button
-                type="button"
+                type="submit"
                 class="zim-search-button"
-                :disabled="!shouldUseNativeZimAdapter"
-                @click="runZimSearch"
+                :disabled="!supportsBookSearch"
               >
-                Search
+                {{ t('common.search') }}
               </button>
-            </div>
+            </form>
           </header>
 
+          <div v-if="bookmarksOpen" id="reader-bookmarks" class="bookmarks-panel">
+            <p v-if="!bookmarks.length" class="reader-subtle">
+              {{ t('books.bookmarks.empty', { button: `＋ ${t('books.bookmarks.add')}` }) }}
+            </p>
+            <ul v-else class="bookmark-list">
+              <li v-for="bookmark in bookmarks" :key="bookmark.id" class="bookmark-item">
+                <button
+                  type="button"
+                  class="bookmark-jump"
+                  :aria-label="t('books.bookmarks.goTo', { title: bookmark.title })"
+                  @click="jumpToPosition(bookmark.position)"
+                >
+                  <span class="bookmark-title">{{ bookmark.title }}</span>
+                  <span class="bookmark-date">{{ formatBookmarkDate(bookmark.createdAt) }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="bookmark-remove"
+                  :aria-label="t('books.bookmarks.removeNamed', { title: bookmark.title })"
+                  :title="t('books.bookmarks.remove')"
+                  @click="removeBookmark(bookmark)"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="readerNotice" class="status-card status-warning" role="status">{{ readerNotice }}</div>
           <div v-if="readerError" class="status-card status-error" role="alert" aria-live="assertive">{{ readerError }}</div>
 
-          <div class="reader-canvas">
-            <div v-if="isEpubSelected && epubBook" id="book-viewer" class="reader-surface epub-viewer"></div>
+          <div v-if="bookSearchLoading || bookSearchResults.length || bookSearchRan" class="zim-search-feedback">
+            <p v-if="bookSearchLoading" class="reader-subtle" role="status">{{ bookSearchProgress || t('common.searching') }}</p>
 
-            <div v-else-if="isMarkdownSelected" class="reader-surface markdown-reader">
-              <article class="markdown-content" v-html="markdownHtml"></article>
+            <div v-else-if="bookSearchResults.length" class="zim-search-results">
+              <button
+                v-for="(result, index) in bookSearchResults"
+                :key="`${index}:${result.path}`"
+                type="button"
+                class="zim-search-result"
+                :class="{ current: isCurrentSearchResult(result.path), detailed: !isZimSelected && result.snippet }"
+                :disabled="isCurrentSearchResult(result.path)"
+                :title="result.snippet || result.path"
+                @click="openSearchResult(result)"
+              >
+                <span class="result-title">{{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ` (${t('books.search.current')})` : '' }}</span>
+                <span v-if="!isZimSelected && result.snippet" class="result-snippet">{{ result.snippet }}</span>
+              </button>
+            </div>
+            <p v-else-if="bookSearchRan" class="reader-subtle">{{ t('books.search.noMatches') }}</p>
+            <p v-if="bookSearchTruncated && !bookSearchLoading" class="reader-subtle">
+              {{ t('books.search.truncated', { count: bookSearchResults.length }) }}
+            </p>
+          </div>
+
+          <div class="reader-canvas">
+            <div
+              v-if="isEpubSelected && epubBook"
+              id="book-viewer"
+              class="reader-surface epub-viewer"
+              :style="{ background: themeColors.background }"
+            ></div>
+
+            <div
+              v-else-if="isMarkdownSelected"
+              ref="markdownSurfaceRef"
+              class="reader-surface markdown-reader"
+              :style="markdownStyle"
+              @scroll.passive="onMarkdownScroll"
+            >
+              <article ref="markdownContentRef" class="markdown-content" v-html="markdownHtml"></article>
             </div>
 
-            <div v-else-if="isPdfSelected" class="reader-surface pdf-reader">
-              <iframe
-                class="pdf-frame"
-                :src="pdfUrl || selectedPdfUrl"
-                title="PDF reader"
-                loading="lazy"
-              ></iframe>
-              <p class="reader-subtle">
-                If inline PDF rendering is unavailable,
-                <a :href="pdfUrl || selectedPdfUrl" target="_blank" rel="noopener noreferrer">open it in a new tab</a>.
+            <div v-else-if="isPdfSelected" class="reader-surface pdf-reader" :style="{ background: pdfBackdrop }">
+              <PdfViewer
+                v-if="pdfDoc"
+                ref="pdfViewerRef"
+                class="pdf-viewer-surface"
+                :doc="pdfDoc"
+                :theme="readerPrefs.theme"
+                :zoom="readerPrefs.fontScale / 100"
+                :highlight-query="pdfHighlightQuery"
+                :initial-position="pdfInitialPosition"
+                :label="selectedBook.title || getDisplayName(selectedBook.filename)"
+                @position="onPdfPosition"
+                @ready="onPdfReady"
+                @error="onPdfViewerError"
+              />
+              <p v-else-if="readerError" class="pdf-message">
+                <i18n-t keypath="books.pdf.fallback" scope="global">
+                  <template #link><a :href="selectedPdfUrl" target="_blank" rel="noopener noreferrer" download>{{ t('books.pdf.downloadLink') }}</a></template>
+                </i18n-t>
               </p>
+              <p v-else class="pdf-message" role="status">{{ t('books.pdf.loading') }}</p>
             </div>
 
             <div v-else-if="hasExtension(selectedBook.filename, '.zim')" class="zim-reader">
-              <div class="zim-search-feedback">
-                <p v-if="zimSearchLoading" class="reader-subtle">Searching archive...</p>
-
-                <div v-else-if="zimSearchResults.length" class="zim-search-results">
-                  <button
-                    v-for="result in zimSearchResults"
-                    :key="result.path"
-                    type="button"
-                    class="zim-search-result"
-                    :class="{ current: isCurrentSearchResult(result.path) }"
-                    :disabled="isCurrentSearchResult(result.path)"
-                    :title="result.path"
-                    @click="openZimSearchResult(result.path)"
-                  >
-                    {{ result.title || result.path }}{{ isCurrentSearchResult(result.path) ? ' (current)' : '' }}
-                  </button>
-                </div>
-                <p v-else-if="zimSearchRan" class="reader-subtle">No matching articles found.</p>
-              </div>
-
               <div class="reader-surface zim-content">
                 <iframe
                   v-if="shouldUseNativeZimAdapter && zimNativeArticle?.content"
@@ -174,22 +325,23 @@
                   @load="onZimFrameLoad"
                   scrolling="auto"
                   sandbox="allow-scripts allow-same-origin"
-                  title="ZIM article"
+                  :title="t('books.zim.frameTitle')"
                 ></iframe>
-                <p v-else-if="shouldUseNativeZimAdapter" class="reader-subtle">No native article content was returned for this archive.</p>
-                <p v-else class="status-card status-error">{{ nativeZimUnavailableMessage }}</p>
+                <p v-else-if="shouldUseNativeZimAdapter" class="reader-subtle">{{ t('books.zim.noContent') }}</p>
+                <p v-else-if="zimAdapter" class="status-card status-error">{{ nativeZimUnavailableMessage }}</p>
               </div>
 
             </div>
 
-            <div v-else class="status-card status-warning">
-              Select an EPUB, Markdown file, PDF, or ZIM in the library.
+            <div v-else-if="unifiedReaderStatus !== 'idle' && !unifiedReaderStatus.startsWith('loading')" class="status-card status-warning">
+              {{ t('books.selectFormat') }}
             </div>
           </div>
         </div>
 
         <div v-else class="reader-empty">
-          <p>Pick a book from the library to open the reader.</p>
+          <p v-if="readerNotice" class="status-card status-warning" role="status">{{ readerNotice }}</p>
+          <p>{{ t('books.pickBook') }}</p>
         </div>
       </section>
     </div>
@@ -197,34 +349,111 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { errorText, formatBytes } from '../i18n/index.js'
 import { useUnifiedReader } from '../modules/reader/useUnifiedReader'
+import PdfViewer from '../modules/reader/PdfViewer.vue'
+import { searchPdfText } from '../modules/reader/pdfSearch'
+import { describePdfError } from '../modules/reader/usePdfReader'
+import { createArticleHistory } from '../modules/reader/articleHistory'
+import { findBlockForLine, headingLabelFor, topVisibleLine } from '../modules/reader/markdownPosition'
+import { shortcutForEvent } from '../modules/reader/shortcuts'
+import { progressStore } from '../modules/library/progress'
+import { datedFilename, readFileText, saveText } from '../services/fileTransfer'
+import { BOOKS_ROUTE_PATH, buildReaderQuery, parseReaderQuery, readerStateEquals } from '../modules/library/deepLink'
+import {
+  FONT_SCALE_MAX,
+  FONT_SCALE_MIN,
+  FONT_SCALE_STEP,
+  READER_THEME_COLORS,
+  READER_THEMES,
+  loadReaderPrefs,
+  saveReaderPrefs
+} from '../modules/library/readerPrefs'
 import { apiService } from '../services/api'
+
+const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const books = ref([])
 const booksLoading = ref(false)
+const booksLoaded = ref(false)
 const booksError = ref(null)
 const selectedBook = ref(null)
 const libraryCollapsed = ref(false)
 const readerFocusMode = ref(false)
 const searchQuery = ref('')
-const zimSearchQuery = ref('')
-const zimSearchLoading = ref(false)
-const zimSearchResults = ref([])
-const zimSearchRan = ref(false)
+
+const bookSearchQuery = ref('')
+const bookSearchLoading = ref(false)
+const bookSearchResults = ref([])
+const bookSearchRan = ref(false)
+/** Query of the last search actually run (mirrored to `?q=`). */
+const lastSearchRun = ref('')
+const bookSearchInputRef = ref(null)
+const bookSearchProgress = ref('')
+const bookSearchTruncated = ref(false)
+
+const pdfViewerRef = ref(null)
+/** Where the PDF viewer starts: { page, offset } from a deep link or saved progress. */
+const pdfInitialPosition = ref(null)
+/** Page shown in the PDF viewer (mirrored to `?page=`); 0 until it is ready. */
+const currentPdfPage = ref(0)
+/** Query whose matches are highlighted on the PDF pages. */
+const pdfHighlightQuery = ref('')
+// Filename of the book the mounted PDF viewer belongs to (set when it is
+// ready). Position events from a viewer of another book are ignored.
+let pdfOwner = null
+
 const zimNativeFrameRef = ref(null)
+const zimLoading = ref(false)
+const zimCanBack = ref(false)
+const zimCanForward = ref(false)
+/** Path (+ #hash) of the ZIM article currently shown (mirrored to `?path=`). */
+const currentZimEntry = ref('')
+
+const markdownSurfaceRef = ref(null)
+const markdownContentRef = ref(null)
+const readerNotice = ref('')
+const liveMessage = ref('')
+const readerPrefs = ref(loadReaderPrefs())
+const bookmarks = ref([])
+const bookmarksOpen = ref(false)
+
+const zimHistory = createArticleHistory(100)
+
+let zimLoadSeq = 0
+let bookSearchSeq = 0
+let pendingSave = null
+let pendingSaveTimer = null
+let markdownRestoring = false
+let markdownScrollTimer = null
+let liveMessageTimer = null
+// Signatures of queries we pushed with router.replace, so the route watcher
+// can tell our own URL syncs apart from external navigation.
+const ownQuerySignatures = new Set()
 
 const {
   activeFormat,
   status: unifiedReaderStatus,
   error: readerError,
   epubBook,
+  epubPosition,
+  epubGoTo,
+  epubApplyPrefs,
   markdownHtml,
   zimMeta,
   zimAdapter,
   zimNativeArticle,
   zimPendingHash,
+  zimStartPathFailed,
   pdfUrl,
+  pdfDoc,
+  pdfPageCount,
+  pdfGetPageText,
   hasExtension,
   decodePathDeep,
   selectBook: selectWithUnifiedReader,
@@ -235,6 +464,7 @@ const {
 const isEpubSelected = computed(() => activeFormat.value === 'epub' && epubBook.value)
 const isMarkdownSelected = computed(() => activeFormat.value === 'md')
 const isPdfSelected = computed(() => activeFormat.value === 'pdf')
+const isZimSelected = computed(() => activeFormat.value === 'zim')
 
 const filteredBooks = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
@@ -248,13 +478,66 @@ const filteredBooks = computed(() => {
 })
 
 const selectedPdfUrl = computed(() => {
+  if (pdfUrl.value) return pdfUrl.value
   if (!hasExtension(selectedBook.value?.filename, '.pdf')) return ''
-  return `/data/books/${encodeURIComponent(selectedBook.value.filename)}`
+  return `/docs/books/${encodeURIComponent(selectedBook.value.filename)}`
 })
+
+const isPdfReady = computed(() => isPdfSelected.value && Boolean(pdfDoc.value))
 
 const shouldUseNativeZimAdapter = computed(() => {
   return activeFormat.value === 'zim' && zimAdapter.value?.supports_native_render === true
 })
+
+const supportsBookSearch = computed(() => {
+  if (isZimSelected.value) return shouldUseNativeZimAdapter.value
+  return Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfReady.value
+})
+
+const bookSearchPlaceholder = computed(() => {
+  if (isZimSelected.value) {
+    return shouldUseNativeZimAdapter.value ? t('books.search.zimPlaceholder') : t('books.search.zimUnavailable')
+  }
+  return t('books.search.inBook')
+})
+
+const supportsDisplayPrefs = computed(
+  () => Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfSelected.value
+)
+
+const supportsBookmarks = computed(() => {
+  if (isZimSelected.value) return shouldUseNativeZimAdapter.value
+  return Boolean(isEpubSelected.value) || isMarkdownSelected.value || isPdfSelected.value
+})
+
+const canBookmarkNow = computed(() => {
+  if (!supportsBookmarks.value) return false
+  if (isEpubSelected.value) return Boolean(epubPosition.value?.cfi)
+  if (isZimSelected.value) return Boolean(currentZimEntry.value)
+  if (isPdfSelected.value) return isPdfReady.value && currentPdfPage.value > 0
+  return Boolean(markdownHtml.value)
+})
+
+const themeColors = computed(() => READER_THEME_COLORS[readerPrefs.value.theme] || READER_THEME_COLORS.light)
+
+// Backdrop between PDF pages, a shade darker than the page itself.
+const pdfBackdrop = computed(() => ({ light: '#dfe3e7', sepia: '#e2d6b9', dark: '#0d1013' })[readerPrefs.value.theme] || '#dfe3e7')
+
+const markdownStyle = computed(() => ({
+  '--reader-bg': themeColors.value.background,
+  '--reader-text': themeColors.value.text,
+  '--reader-link': themeColors.value.link,
+  '--reader-code': themeColors.value.code,
+  '--reader-border': themeColors.value.border,
+  fontSize: `${readerPrefs.value.fontScale}%`
+}))
+
+const themeModel = computed({
+  get: () => readerPrefs.value.theme,
+  set: (theme) => updatePrefs({ theme })
+})
+
+const themeLabel = (theme) => (['light', 'sepia', 'dark'].includes(theme) ? t(`books.theme.${theme}`) : theme)
 
 const readerStatusClass = computed(() => {
   if (readerError.value) return 'badge-error'
@@ -273,7 +556,9 @@ const compactReaderStatusLabel = computed(() => {
   const label = readerStatusLabel.value
   if (!label || label === 'idle') return ''
   if (label.startsWith('opened ')) return ''
-  if (label.startsWith('loading ')) return 'loading'
+  if (label.startsWith('loading ')) return t('books.status.loading')
+  if (label === 'unsupported format') return t('books.status.unsupported')
+  if (label === 'failed') return t('books.status.failed')
   return label
 })
 
@@ -281,21 +566,11 @@ const showReaderStatusBadge = computed(() => compactReaderStatusLabel.value.leng
 
 const nativeZimUnavailableMessage = computed(() => {
   if (activeFormat.value !== 'zim') return ''
-  return 'Native ZIM parsing is unavailable for this archive with the current parser implementation.'
+  return t('books.zim.unavailable')
 })
 
 const toggleLibrary = () => {
   libraryCollapsed.value = !libraryCollapsed.value
-}
-
-const returnToLibrary = () => {
-  disposeUnifiedReader()
-  readerFocusMode.value = false
-  libraryCollapsed.value = false
-  selectedBook.value = null
-  zimSearchQuery.value = ''
-  zimSearchResults.value = []
-  zimSearchRan.value = false
 }
 
 const setReaderFocus = (enabled) => {
@@ -308,6 +583,382 @@ const setReaderFocus = (enabled) => {
 const toggleReaderFocus = () => {
   setReaderFocus(!readerFocusMode.value)
 }
+
+// ---------------------------------------------------------------------------
+// Announcements (screen readers) and small helpers
+// ---------------------------------------------------------------------------
+
+const announce = (message) => {
+  liveMessage.value = message
+  if (liveMessageTimer) clearTimeout(liveMessageTimer)
+  liveMessageTimer = setTimeout(() => {
+    liveMessage.value = ''
+    liveMessageTimer = null
+  }, 4000)
+}
+
+const formatBookmarkDate = (timestamp) => {
+  if (!timestamp) return ''
+  try {
+    return new Date(timestamp).toLocaleString(locale.value)
+  } catch {
+    return ''
+  }
+}
+
+// ---------------------------------------------------------------------------
+// URL <-> reader state
+// ---------------------------------------------------------------------------
+
+const querySignature = (query) => JSON.stringify(buildReaderQuery(query))
+
+const currentReaderState = () => ({
+  file: selectedBook.value?.filename || null,
+  path: isZimSelected.value ? currentZimEntry.value || null : null,
+  page: isPdfSelected.value ? currentPdfPage.value || pdfInitialPosition.value?.page || null : null,
+  q: lastSearchRun.value || null
+})
+
+const replaceQuery = (state) => {
+  if (route.path !== BOOKS_ROUTE_PATH) return
+  if (readerStateEquals(route.query, state)) return
+  const query = buildReaderQuery(state)
+  if (ownQuerySignatures.size > 20) ownQuerySignatures.clear()
+  ownQuerySignatures.add(querySignature(query))
+  router.replace({ path: BOOKS_ROUTE_PATH, query }).catch(() => {})
+}
+
+const syncUrl = () => replaceQuery(currentReaderState())
+
+const applyRouteQuery = async (query) => {
+  const parsed = parseReaderQuery(query)
+
+  if (!parsed.file) {
+    if (selectedBook.value) returnToLibrary({ updateUrl: false })
+    return
+  }
+
+  const book = books.value.find((item) => item.filename === parsed.file)
+  if (!book) {
+    if (selectedBook.value) returnToLibrary({ updateUrl: false })
+    readerNotice.value = t('books.notices.notInLibrary', { file: parsed.file })
+    replaceQuery({})
+    return
+  }
+
+  if (selectedBook.value?.filename === book.filename) {
+    if (parsed.path && isZimSelected.value && parsed.path !== currentZimEntry.value) {
+      await loadZimArticle(parsed.path)
+    }
+    if (parsed.page && isPdfReady.value && parsed.page !== currentPdfPage.value) {
+      pdfViewerRef.value?.goTo(parsed.page, 0)
+    }
+    if (parsed.q && parsed.q !== lastSearchRun.value) {
+      bookSearchQuery.value = parsed.q
+      await runBookSearch()
+    } else if (!parsed.q && lastSearchRun.value) {
+      clearBookSearch()
+    }
+    return
+  }
+
+  await selectBook(book, { path: parsed.path, page: parsed.page, q: parsed.q })
+}
+
+watch(
+  () => route.query,
+  (query) => {
+    if (route.path !== BOOKS_ROUTE_PATH || !booksLoaded.value) return
+    const signature = querySignature(query)
+    if (ownQuerySignatures.has(signature)) {
+      // Our own sync landed; older pending signatures are obsolete.
+      ownQuerySignatures.clear()
+      return
+    }
+    if (readerStateEquals(query, currentReaderState())) return
+    applyRouteQuery(query)
+  }
+)
+
+// ---------------------------------------------------------------------------
+// Reading position persistence
+// ---------------------------------------------------------------------------
+
+const flushPendingSave = () => {
+  if (pendingSaveTimer) {
+    clearTimeout(pendingSaveTimer)
+    pendingSaveTimer = null
+  }
+  if (pendingSave) {
+    progressStore.savePosition(pendingSave.filename, pendingSave.position)
+    pendingSave = null
+  }
+}
+
+const schedulePositionSave = (filename, position, delay = 800) => {
+  if (!filename || !position) return
+  if (pendingSave && pendingSave.filename !== filename) flushPendingSave()
+  pendingSave = { filename, position }
+  if (pendingSaveTimer) clearTimeout(pendingSaveTimer)
+  pendingSaveTimer = setTimeout(flushPendingSave, delay)
+}
+
+// The Markdown pane scrolls inside its .reader-surface, so positions are
+// measured relative to that element rather than the window.
+const currentMarkdownPosition = () => {
+  const container = markdownContentRef.value
+  const surface = markdownSurfaceRef.value
+  if (!container || !surface) return null
+  const line = topVisibleLine(container, surface.getBoundingClientRect().top) || 1
+  const block = findBlockForLine(container, line)
+  const heading = headingLabelFor(container, block)
+  return { type: 'md', line, label: heading || t('books.position.line', { line }) }
+}
+
+const pdfPositionOf = (position) =>
+  position ? { type: 'pdf', page: position.page, offset: position.offset, label: t('books.position.page', { page: position.page }) } : null
+
+const currentPdfPosition = () => {
+  if (!isPdfReady.value || !pdfOwner || pdfOwner !== selectedBook.value?.filename) return null
+  return pdfPositionOf(pdfViewerRef.value?.currentPosition())
+}
+
+/** Queue the PDF viewer's exact position (it reports scrolls with a delay). */
+const capturePdfPosition = () => {
+  const position = currentPdfPosition()
+  if (position) schedulePositionSave(pdfOwner, position)
+}
+
+const onPdfPosition = (position) => {
+  const book = selectedBook.value
+  if (!book || !isPdfSelected.value || pdfOwner !== book.filename) return
+  const saved = pdfPositionOf(position)
+  if (!saved) return
+  schedulePositionSave(book.filename, saved)
+  if (currentPdfPage.value !== saved.page) {
+    currentPdfPage.value = saved.page
+    syncUrl()
+  }
+}
+
+const onPdfReady = () => {
+  const book = selectedBook.value
+  if (!book || !isPdfSelected.value) return
+  pdfOwner = book.filename
+  currentPdfPage.value = pdfViewerRef.value?.currentPosition()?.page || 1
+  if (!lastSearchRun.value) pdfViewerRef.value?.focus()
+  syncUrl()
+}
+
+const onPdfViewerError = (error) => {
+  readerError.value = describePdfError(error)
+}
+
+const currentPosition = () => {
+  if (isEpubSelected.value) return epubPosition.value
+  if (isPdfSelected.value) return currentPdfPosition()
+  if (isZimSelected.value && currentZimEntry.value) {
+    return { type: 'zim', path: currentZimEntry.value, label: zimNativeArticle.value?.title || currentZimEntry.value }
+  }
+  if (isMarkdownSelected.value) return currentMarkdownPosition()
+  return null
+}
+
+const scrollToMarkdownLine = (line, { highlight = false } = {}) => {
+  const surface = markdownSurfaceRef.value
+  const block = findBlockForLine(markdownContentRef.value, line)
+  if (!surface || !block) return false
+  const offset = block.getBoundingClientRect().top - surface.getBoundingClientRect().top
+  surface.scrollTop = Math.max(0, surface.scrollTop + offset - 12)
+  if (highlight) {
+    block.classList.add('md-block-target')
+    setTimeout(() => block.classList.remove('md-block-target'), 1600)
+  }
+  return true
+}
+
+const onMarkdownScroll = () => {
+  if (!isMarkdownSelected.value || markdownRestoring || !selectedBook.value) return
+  if (markdownScrollTimer) return
+  markdownScrollTimer = setTimeout(() => {
+    markdownScrollTimer = null
+    if (!isMarkdownSelected.value || markdownRestoring || !selectedBook.value) return
+    const position = currentMarkdownPosition()
+    if (position) schedulePositionSave(selectedBook.value.filename, position)
+  }, 300)
+}
+
+const onPageHide = () => {
+  capturePdfPosition()
+  flushPendingSave()
+}
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    capturePdfPosition()
+    flushPendingSave()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Display preferences
+// ---------------------------------------------------------------------------
+
+const updatePrefs = async (patch) => {
+  // Keep the Markdown reading position stable across font-size changes.
+  const anchor = isMarkdownSelected.value ? currentMarkdownPosition() : null
+  readerPrefs.value = saveReaderPrefs({ ...readerPrefs.value, ...patch })
+  epubApplyPrefs(readerPrefs.value)
+  if (anchor && anchor.line > 1) {
+    await nextTick()
+    scrollToMarkdownLine(anchor.line)
+  }
+}
+
+const changeFontScale = (direction) => {
+  updatePrefs({ fontScale: readerPrefs.value.fontScale + direction * FONT_SCALE_STEP })
+}
+
+// ---------------------------------------------------------------------------
+// Bookmarks
+// ---------------------------------------------------------------------------
+
+const refreshBookmarks = () => {
+  bookmarks.value = selectedBook.value ? progressStore.getBookmarks(selectedBook.value.filename) : []
+}
+
+// Export/import of reading progress + bookmarks (client-side only).
+const progressTransferStatus = ref('')
+
+const exportProgress = () => {
+  const data = progressStore.exportData()
+  saveText(JSON.stringify(data, null, 2), datedFilename('reading-progress'))
+  progressTransferStatus.value = t('books.progress.exported', { count: data.books.length }, data.books.length)
+}
+
+const importProgress = async (event) => {
+  const input = event.target
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const raw = JSON.parse(await readFileText(file))
+    const result = progressStore.importData(raw)
+    refreshBookmarks()
+    progressTransferStatus.value =
+      t('books.progress.imported', { added: result.booksAdded, updated: result.booksUpdated, bookmarks: result.bookmarksAdded })
+  } catch (err) {
+    progressTransferStatus.value = err instanceof SyntaxError
+      ? t('books.progress.invalidJson')
+      : t('books.progress.importFailed', { error: errorText(err, 'books.progress.unknownError') })
+  } finally {
+    input.value = ''
+  }
+}
+
+const addBookmarkHere = () => {
+  if (!selectedBook.value || !canBookmarkNow.value) return
+  const position = currentPosition()
+  if (!position) return
+  const before = bookmarks.value.length
+  const title = position.label || (position.type === 'epub' ? t('books.position.epub') : t('books.bookmark'))
+  const saved = progressStore.addBookmark(selectedBook.value.filename, { title, position })
+  refreshBookmarks()
+  if (!saved) {
+    announce(t('books.bookmarks.saveFailed'))
+  } else if (bookmarks.value.length === before) {
+    announce(t('books.bookmarks.already', { title: saved.title }))
+  } else {
+    announce(t('books.bookmarks.added', { title: saved.title }))
+  }
+}
+
+const removeBookmark = (bookmark) => {
+  if (!selectedBook.value) return
+  progressStore.removeBookmark(selectedBook.value.filename, bookmark.id)
+  refreshBookmarks()
+  announce(t('books.bookmarks.removed', { title: bookmark.title }))
+}
+
+const jumpToPosition = async (position) => {
+  if (!position || !selectedBook.value) return
+  try {
+    if (position.type === 'epub' && isEpubSelected.value) {
+      await epubGoTo(position.cfi)
+    } else if (position.type === 'zim' && isZimSelected.value) {
+      await loadZimArticle(position.path)
+    } else if (position.type === 'md' && isMarkdownSelected.value) {
+      scrollToMarkdownLine(position.line || 1, { highlight: true })
+    } else if (position.type === 'pdf' && isPdfReady.value) {
+      pdfViewerRef.value?.goTo(position.page, position.offset || 0)
+    }
+  } catch (error) {
+    readerError.value = apiService.handleError(error)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ZIM article loading + in-reader history
+// ---------------------------------------------------------------------------
+
+const zimEntryOf = (article) => {
+  const path = String(article?.path || '').replace(/^\/+/, '')
+  if (!path) return ''
+  return `${path}${article?.requested_hash || ''}`
+}
+
+const updateZimHistoryFlags = () => {
+  zimCanBack.value = zimHistory.canBack()
+  zimCanForward.value = zimHistory.canForward()
+}
+
+const onZimArticleShown = (article, { viaHistory = false } = {}) => {
+  const entry = zimEntryOf(article)
+  if (!entry || !selectedBook.value) return
+  currentZimEntry.value = entry
+  if (!viaHistory) zimHistory.visit(entry)
+  updateZimHistoryFlags()
+  progressStore.savePosition(selectedBook.value.filename, {
+    type: 'zim',
+    path: entry,
+    label: article?.title || entry
+  })
+  syncUrl()
+}
+
+/** Load a ZIM article for the open book. Resolves to the article or null. */
+const loadZimArticle = async (path, { viaHistory = false } = {}) => {
+  const book = selectedBook.value
+  if (!book || !path) return null
+  const seq = ++zimLoadSeq
+  zimLoading.value = true
+  try {
+    const article = await loadNativeZimArticle(book.filename, path, apiService)
+    if (!article || selectedBook.value !== book) return null
+    readerError.value = null
+    onZimArticleShown(article, { viaHistory })
+    return article
+  } catch (error) {
+    if (selectedBook.value === book) readerError.value = apiService.handleError(error)
+    return null
+  } finally {
+    if (seq === zimLoadSeq) zimLoading.value = false
+  }
+}
+
+const zimHistoryStep = async (direction) => {
+  if (zimLoading.value) return
+  const previousIndex = zimHistory.index
+  const target = direction < 0 ? zimHistory.back() : zimHistory.forward()
+  if (!target) return
+  updateZimHistoryFlags()
+  const article = await loadZimArticle(target, { viaHistory: true })
+  if (!article) {
+    zimHistory.restore(previousIndex)
+    updateZimHistoryFlags()
+  }
+}
+
+const zimHistoryBack = () => zimHistoryStep(-1)
+const zimHistoryForward = () => zimHistoryStep(1)
 
 const normalizePathKey = (value) => {
   return decodePathDeep(String(value || ''))
@@ -382,7 +1033,7 @@ const onZimFrameLoad = () => {
   if (hash) {
     try {
       const targetId = decodeURIComponent(hash.slice(1))
-      const target = doc.getElementById(targetId) || doc.querySelector(`[name="${targetId}"]`)
+      const target = doc.getElementById(targetId) || doc.querySelector(`[name="${CSS.escape(targetId)}"]`)
       if (target) {
         target.scrollIntoView()
       }
@@ -393,82 +1044,186 @@ const onZimFrameLoad = () => {
   }
 }
 
-const isCurrentSearchResult = (path) => {
-  const current = normalizePathKey(zimNativeArticle.value?.path)
-  if (!current) return false
-  return normalizePathKey(path) === current
-}
-
 const handleZimMessage = async (event) => {
   if (event.origin !== window.location.origin) return
 
   if (event.data?.type !== 'zim-navigate') return
+
+  // Only the currently mounted article frame may navigate (not a frame of a
+  // book the user just switched away from).
+  const frameWindow = zimNativeFrameRef.value?.contentWindow
+  if (!frameWindow || event.source !== frameWindow) return
 
   if (!selectedBook.value?.filename) return
 
   const articlePath = resolveNativeArticlePath(event.data.href)
   if (!articlePath) return
 
-  try {
-    await loadNativeZimArticle(selectedBook.value.filename, articlePath, apiService)
-  } catch (error) {
-    readerError.value = apiService.handleError(error)
-  }
+  await loadZimArticle(articlePath)
 }
 
-const runZimSearch = async () => {
-  if (!selectedBook.value?.filename || !shouldUseNativeZimAdapter.value) {
-    return
-  }
+// ---------------------------------------------------------------------------
+// In-book search (native ZIM search, unified library search for EPUB/MD)
+// ---------------------------------------------------------------------------
 
-  readerError.value = null
-  const q = String(zimSearchQuery.value || '').trim()
-  if (!q) {
-    zimSearchRan.value = false
-    zimSearchResults.value = []
-    return
-  }
+const isCurrentSearchResult = (path) => {
+  if (!isZimSelected.value) return false
+  const current = normalizePathKey(zimNativeArticle.value?.path)
+  if (!current) return false
+  return normalizePathKey(path) === current
+}
 
-  zimSearchLoading.value = true
-  zimSearchRan.value = false
-  try {
-    const response = await apiService.getZimNativeSearch(selectedBook.value.filename, q, 24)
-    if (typeof response === 'string') {
-      throw new Error('Native search endpoint returned HTML. Restart the server to load the latest backend routes.')
+const clearBookSearch = () => {
+  bookSearchSeq += 1
+  bookSearchResults.value = []
+  bookSearchRan.value = false
+  bookSearchLoading.value = false
+  bookSearchProgress.value = ''
+  bookSearchTruncated.value = false
+  lastSearchRun.value = ''
+  pdfHighlightQuery.value = ''
+}
+
+/** Client-side search over the PDF's text (the server does not read PDFs). */
+const searchOpenPdf = async (book, q, seq) => {
+  const isCancelled = () => seq !== bookSearchSeq || selectedBook.value !== book
+  const outcome = await searchPdfText({
+    pageCount: pdfPageCount.value,
+    getPageText: pdfGetPageText,
+    query: q,
+    isCancelled,
+    onProgress: (page, total) => {
+      if (!isCancelled() && total > 20) bookSearchProgress.value = t('books.search.progress', { page, total })
     }
-    zimSearchResults.value = Array.isArray(response?.results) ? response.results : []
-    zimSearchRan.value = true
-  } catch (error) {
-    readerError.value = apiService.handleError(error)
-    zimSearchResults.value = []
-    zimSearchRan.value = true
-  } finally {
-    zimSearchLoading.value = false
-  }
+  })
+  if (!outcome || isCancelled()) return null
+  return outcome
 }
 
-const openZimSearchResult = async (resultPath) => {
-  if (!selectedBook.value?.filename || !resultPath) {
+const runBookSearch = async () => {
+  const book = selectedBook.value
+  if (!book || !supportsBookSearch.value) {
     return
   }
 
-  if (isCurrentSearchResult(resultPath)) {
+  const q = String(bookSearchQuery.value || '').trim()
+  if (!q) {
+    clearBookSearch()
+    syncUrl()
     return
   }
+
+  const seq = ++bookSearchSeq
+  readerError.value = null
+  bookSearchLoading.value = true
+  bookSearchRan.value = false
+  bookSearchProgress.value = ''
+  bookSearchTruncated.value = false
+  lastSearchRun.value = q
+  syncUrl()
 
   try {
-    await loadNativeZimArticle(selectedBook.value.filename, resultPath, apiService)
+    if (isPdfSelected.value) {
+      const outcome = await searchOpenPdf(book, q, seq)
+      if (!outcome) return
+      bookSearchResults.value = outcome.results
+      bookSearchTruncated.value = outcome.truncated
+      bookSearchRan.value = true
+      pdfHighlightQuery.value = q
+      return
+    }
+    const response = isZimSelected.value
+      ? await apiService.getZimNativeSearch(book.filename, q, 24)
+      : await apiService.getLibraryBookSearch(book.filename, q, 24)
+    if (seq !== bookSearchSeq || selectedBook.value !== book) return
+    if (typeof response === 'string') {
+      throw new Error(t('books.search.htmlResponse'))
+    }
+    bookSearchResults.value = Array.isArray(response?.results) ? response.results : []
+    bookSearchRan.value = true
   } catch (error) {
+    if (seq !== bookSearchSeq || selectedBook.value !== book) return
     readerError.value = apiService.handleError(error)
+    bookSearchResults.value = []
+    bookSearchRan.value = true
+  } finally {
+    if (seq === bookSearchSeq) bookSearchLoading.value = false
   }
 }
 
-const formatBytes = (bytes) => {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${units[i]}`
+const openSearchResult = async (result) => {
+  const resultPath = result?.path
+  if (!selectedBook.value || !resultPath) return
+
+  if (isZimSelected.value) {
+    if (isCurrentSearchResult(resultPath)) return
+    await loadZimArticle(resultPath)
+    return
+  }
+
+  if (isPdfSelected.value) {
+    if (Number.isFinite(result.page)) pdfViewerRef.value?.showMatch(result.page, result.occurrence || 0)
+    return
+  }
+
+  if (isMarkdownSelected.value) {
+    // Markdown hits are reported as "#<line>".
+    const line = Number.parseInt(String(resultPath).replace(/^#/, ''), 10)
+    if (Number.isFinite(line)) scrollToMarkdownLine(line, { highlight: true })
+    return
+  }
+
+  if (isEpubSelected.value) {
+    try {
+      await epubGoTo(resultPath)
+    } catch (error) {
+      readerError.value = apiService.handleError(error)
+    }
+  }
 }
+
+// ---------------------------------------------------------------------------
+// Keyboard: Esc leaves focus mode; reader shortcuts never fire while typing
+// (see modules/reader/shortcuts.js)
+// ---------------------------------------------------------------------------
+
+const handleReaderKeyboard = (event) => {
+  if (event.key === 'Escape' && readerFocusMode.value) {
+    setReaderFocus(false)
+    return
+  }
+
+  if (!selectedBook.value) return
+  const action = shortcutForEvent(event)
+  if (!action) return
+
+  let handled = false
+  if (action === 'history-back' && isZimSelected.value) {
+    zimHistoryBack()
+    handled = true
+  } else if (action === 'history-forward' && isZimSelected.value) {
+    zimHistoryForward()
+    handled = true
+  } else if (action === 'bookmark' && canBookmarkNow.value) {
+    addBookmarkHere()
+    handled = true
+  } else if (action === 'focus-search' && supportsBookSearch.value && bookSearchInputRef.value) {
+    bookSearchInputRef.value.focus()
+    handled = true
+  } else if (action === 'font-larger' && supportsDisplayPrefs.value) {
+    changeFontScale(1)
+    handled = true
+  } else if (action === 'font-smaller' && supportsDisplayPrefs.value) {
+    changeFontScale(-1)
+    handled = true
+  }
+
+  if (handled) event.preventDefault()
+}
+
+// ---------------------------------------------------------------------------
+// Book selection
+// ---------------------------------------------------------------------------
 
 const fileExt = (filename) => {
   const clean = String(filename || '')
@@ -478,20 +1233,101 @@ const fileExt = (filename) => {
 
 const getDisplayName = (filename) => String(filename || '').replace(/\.[^/.]+$/, '')
 
-const selectBook = async (book) => {
-  libraryCollapsed.value = true
-  selectedBook.value = book
-  zimSearchQuery.value = ''
-  zimSearchResults.value = []
-  zimSearchRan.value = false
-  await nextTick()
-  await selectWithUnifiedReader(book, apiService)
+const resetReaderUi = () => {
+  zimHistory.reset()
+  updateZimHistoryFlags()
+  currentZimEntry.value = ''
+  zimLoadSeq += 1
+  zimLoading.value = false
+  bookSearchQuery.value = ''
+  clearBookSearch()
+  bookmarksOpen.value = false
+  pdfOwner = null
+  currentPdfPage.value = 0
+  pdfInitialPosition.value = null
+  if (markdownScrollTimer) {
+    clearTimeout(markdownScrollTimer)
+    markdownScrollTimer = null
+  }
 }
 
-const handleReaderKeyboard = (event) => {
-  if (event.key === 'Escape' && readerFocusMode.value) {
-    setReaderFocus(false)
+/**
+ * Open `book`. `options.path` (ZIM article) and `options.q` (in-book search)
+ * come from deep links; otherwise the remembered position is restored.
+ */
+const selectBook = async (book, options = {}) => {
+  capturePdfPosition()
+  flushPendingSave()
+  resetReaderUi()
+  readerNotice.value = ''
+  libraryCollapsed.value = true
+  selectedBook.value = book
+  refreshBookmarks()
+  progressStore.touchBook(book.filename, {
+    title: book.title || getDisplayName(book.filename),
+    format: fileExt(book.filename).toLowerCase()
+  })
+  bookSearchQuery.value = options.q || ''
+  // Deep-link opens already have the right URL; plain clicks record the file now
+  // so a reload during loading reopens the same book.
+  const saved = progressStore.getPosition(book.filename)
+  const deepLinkPath = options.path || null
+  const deepLinkPage = options.page || null
+  if (deepLinkPage) {
+    // Keep the saved spot within the page when the link points at that page.
+    const offset = saved?.type === 'pdf' && saved.page === deepLinkPage ? saved.offset || 0 : 0
+    pdfInitialPosition.value = { page: deepLinkPage, offset }
+  } else if (saved?.type === 'pdf') {
+    pdfInitialPosition.value = { page: saved.page, offset: saved.offset || 0 }
   }
+  if (!options.path && !options.q && !deepLinkPage) syncUrl()
+  markdownRestoring = true
+
+  await nextTick()
+  if (selectedBook.value !== book) return
+
+  const isCurrent = await selectWithUnifiedReader(book, apiService, {
+    zimPath: deepLinkPath || (saved?.type === 'zim' ? saved.path : null),
+    epubCfi: saved?.type === 'epub' ? saved.cfi : null,
+    prefs: readerPrefs.value,
+    onEpubRelocated: (position) => schedulePositionSave(book.filename, position)
+  })
+  if (!isCurrent || selectedBook.value !== book) return
+
+  if (isZimSelected.value) {
+    if (zimNativeArticle.value) onZimArticleShown(zimNativeArticle.value)
+    if (zimStartPathFailed.value) {
+      readerNotice.value = deepLinkPath
+        ? t('books.notices.articleMissing', { path: deepLinkPath })
+        : t('books.notices.lastArticleMissing')
+    }
+  }
+
+  if (isMarkdownSelected.value) {
+    await nextTick()
+    if (selectedBook.value !== book) return
+    if (saved?.type === 'md' && saved.line > 1) scrollToMarkdownLine(saved.line)
+  }
+  markdownRestoring = false
+
+  if (options.q && supportsBookSearch.value) {
+    await runBookSearch()
+    if (selectedBook.value !== book) return
+  }
+  syncUrl()
+}
+
+const returnToLibrary = ({ updateUrl = true } = {}) => {
+  capturePdfPosition()
+  flushPendingSave()
+  resetReaderUi()
+  disposeUnifiedReader()
+  readerFocusMode.value = false
+  libraryCollapsed.value = false
+  selectedBook.value = null
+  bookmarks.value = []
+  markdownRestoring = false
+  if (updateUrl) replaceQuery({})
 }
 
 const loadBooks = async () => {
@@ -510,12 +1346,22 @@ const loadBooks = async () => {
 onMounted(async () => {
   window.addEventListener('message', handleZimMessage)
   window.addEventListener('keydown', handleReaderKeyboard)
+  window.addEventListener('pagehide', onPageHide)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   await loadBooks()
+  booksLoaded.value = true
+  if (route.path === BOOKS_ROUTE_PATH) await applyRouteQuery(route.query)
 })
 
 onBeforeUnmount(() => {
+  capturePdfPosition()
+  flushPendingSave()
   window.removeEventListener('message', handleZimMessage)
   window.removeEventListener('keydown', handleReaderKeyboard)
+  window.removeEventListener('pagehide', onPageHide)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  if (markdownScrollTimer) clearTimeout(markdownScrollTimer)
+  if (liveMessageTimer) clearTimeout(liveMessageTimer)
   disposeUnifiedReader()
 })
 </script>
@@ -593,6 +1439,12 @@ onBeforeUnmount(() => {
 
 .books-layout.library-collapsed .reader-stage {
   min-height: 0;
+}
+
+/* The floating "expand library" button sits at the stage's top-left corner;
+   keep the reader toolbar (Back button) out from under it. */
+.books-layout.library-collapsed .reader-toolbar-main {
+  padding-left: 2.6rem;
 }
 
 .library-header {
@@ -677,6 +1529,42 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.progress-transfer {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.progress-transfer summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.progress-transfer-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+}
+
+.progress-transfer-btn {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.progress-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .books-list {
@@ -928,39 +1816,66 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.markdown-reader {
+  background: var(--reader-bg, #ffffff);
+}
+
 .markdown-content {
   max-width: 920px;
   margin: 0 auto;
   padding: 1.5rem;
-  color: #111111;
+  color: var(--reader-text, #111111);
   line-height: 1.6;
 }
 
+.markdown-content :deep(a) {
+  color: var(--reader-link, #1a5fb4);
+}
+
 .markdown-content :deep(pre) {
-  background: #f4f6f8;
-  border: 1px solid #dbe1e6;
+  background: var(--reader-code, #f4f6f8);
+  border: 1px solid var(--reader-border, #dbe1e6);
   border-radius: 6px;
   padding: 0.85rem;
   overflow-x: auto;
 }
 
 .markdown-content :deep(code) {
-  background: #eef1f4;
+  background: var(--reader-code, #eef1f4);
   border-radius: 4px;
   padding: 0.1rem 0.25rem;
+}
+
+.markdown-content :deep(.md-block) {
+  transition: background-color 0.4s ease;
+  border-radius: 4px;
+}
+
+.markdown-content :deep(.md-block-target) {
+  background-color: rgba(64, 192, 181, 0.22);
 }
 
 .pdf-reader {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  overflow: hidden;
 }
 
-.pdf-frame {
-  width: 100%;
+.pdf-viewer-surface {
   flex: 1;
   min-height: 0;
-  border: none;
+  width: 100%;
+}
+
+.pdf-message {
+  margin: auto;
+  padding: 1.5rem;
+  text-align: center;
+  color: #4b5563;
+}
+
+.pdf-message a {
+  color: #1a5fb4;
 }
 
 .zim-reader {
@@ -1039,6 +1954,158 @@ onBeforeUnmount(() => {
 }
 
 
+.reader-toolbar-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  align-items: center;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.toolbar-button,
+.toolbar-select {
+  border: 1px solid #4f5d68;
+  background: #141a1f;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.toolbar-button:hover:not(:disabled) {
+  border-color: #40c0b5;
+  background: #173a40;
+}
+
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-button:focus-visible,
+.toolbar-select:focus-visible,
+.bookmark-jump:focus-visible,
+.bookmark-remove:focus-visible,
+.zim-search-result:focus-visible,
+.book-item:focus-visible {
+  outline: 2px solid #40c0b5;
+  outline-offset: 2px;
+}
+
+.toolbar-value {
+  color: var(--muted);
+  font-size: 0.74rem;
+  min-width: 2.8rem;
+  text-align: center;
+}
+
+.bookmarks-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  background: #151b20;
+  flex-shrink: 0;
+}
+
+.bookmark-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.bookmark-item {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.bookmark-jump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.bookmark-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-date {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.bookmark-remove {
+  border: 1px solid var(--line);
+  background: #2a1d1d;
+  color: #ffd6d4;
+  border-radius: 8px;
+  padding: 0 0.6rem;
+  cursor: pointer;
+}
+
+.zim-search-feedback {
+  flex-shrink: 0;
+  max-height: 30%;
+  overflow-y: auto;
+}
+
+.zim-search-result .result-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zim-search-result.detailed {
+  border-radius: 8px;
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  width: 100%;
+}
+
+.result-snippet {
+  color: #b9c4dc;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .reader-empty {
   height: 100%;
   width: 100%;
@@ -1088,6 +2155,10 @@ onBeforeUnmount(() => {
   .library-toggle {
     width: 2.4rem;
     height: 2.4rem;
+  }
+
+  .books-layout.library-collapsed .reader-toolbar-main {
+    padding-left: 2.8rem;
   }
 
   .reader-toolbar-main {

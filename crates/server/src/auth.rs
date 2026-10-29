@@ -7,7 +7,7 @@
 use crate::AppState;
 use axum::{
     extract::{ConnectInfo, State},
-    http::{header, HeaderValue, Request, StatusCode},
+    http::{header, HeaderValue, Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -117,7 +117,7 @@ impl AuthManager {
 /// Returns `true` only when `a` and `b` have equal length and identical
 /// contents.  The fold loop runs for all bytes regardless of where a
 /// mismatch occurs, so the runtime does not leak positional information.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -132,24 +132,26 @@ const SESSION_COOKIE_NAME: &str = "fyr_session";
 
 /// Build a `Set-Cookie` header value for the session token.
 ///
-/// NOTE: The `Secure` flag is intentionally omitted because Fyr is designed
-/// for local and LAN deployments where HTTPS is typically not available.
-/// For public HTTPS deployments, a TLS-terminating reverse proxy (nginx,
-/// Caddy, etc.) should be placed in front of Fyr and should be configured
-/// to set the `Secure` flag via response-header manipulation if required.
-fn set_cookie_header(token: &str) -> HeaderValue {
+/// `secure` is true when Fyr serves HTTPS itself (`FYR_TLS` /
+/// `FYR_TLS_CERT`): the cookie then gets the `Secure` flag. Over plain HTTP
+/// (the LAN default) the flag must be omitted or browsers drop the cookie.
+/// Behind a TLS-terminating reverse proxy, the proxy may add `Secure`.
+fn set_cookie_header(token: &str, secure: bool) -> HeaderValue {
     HeaderValue::from_str(&format!(
-        "{}={}; HttpOnly; Path=/; SameSite=Strict",
-        SESSION_COOKIE_NAME, token
+        "{}={}; HttpOnly; Path=/; SameSite=Strict{}",
+        SESSION_COOKIE_NAME,
+        token,
+        if secure { "; Secure" } else { "" }
     ))
     .unwrap()
 }
 
 /// Build a `Set-Cookie` header that clears the session cookie.
-fn clear_cookie_header() -> HeaderValue {
+fn clear_cookie_header(secure: bool) -> HeaderValue {
     HeaderValue::from_str(&format!(
-        "{}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0",
-        SESSION_COOKIE_NAME
+        "{}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0{}",
+        SESSION_COOKIE_NAME,
+        if secure { "; Secure" } else { "" }
     ))
     .unwrap()
 }
@@ -166,6 +168,23 @@ pub fn extract_session_token(headers: &axum::http::HeaderMap) -> Option<String> 
         }
     }
     None
+}
+
+/// The client address for rate limiting: the TCP peer, or — only when the
+/// peer is a trusted reverse proxy (`FYR_TRUSTED_PROXIES`) — the rightmost
+/// untrusted hop in `X-Forwarded-For`.
+pub fn client_ip(
+    state: &AppState,
+    peer: std::net::IpAddr,
+    headers: &axum::http::HeaderMap,
+) -> std::net::IpAddr {
+    state.config.server.trusted_proxies.client_ip(
+        peer,
+        headers
+            .get_all("x-forwarded-for")
+            .iter()
+            .filter_map(|value| value.to_str().ok()),
+    )
 }
 
 /// Return `true` when the caller may see host-level details such as
@@ -190,12 +209,59 @@ pub fn can_view_system_details(state: &AppState, headers: &axum::http::HeaderMap
 // Middleware
 // ---------------------------------------------------------------------------
 
+/// Return `true` for a state-changing request that a browser sent on behalf
+/// of another site (cross-site request forgery).
+///
+/// In open mode there is no session cookie to protect mutating endpoints, so
+/// without this check any web page the user visits could, for example, post
+/// a `multipart/form-data` backup to `/api/restore` (simple requests are sent
+/// cross-origin without a CORS preflight). Safe methods are never rejected.
+///
+/// * `Sec-Fetch-Site` (sent by all current browsers) must be `same-origin`
+///   or `none` (typed URL / bookmark).
+/// * Older browsers: an `Origin` header, when present, must match the
+///   request's `Host` (or HTTP/2 `:authority`).
+/// * Requests without either header (curl, scripts) are not from a browser
+///   and pass.
+pub fn is_cross_site_request<B>(request: &Request<B>) -> bool {
+    if matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        return false;
+    }
+    let headers = request.headers();
+    if let Some(site) = headers.get("sec-fetch-site") {
+        return !matches!(site.to_str(), Ok("same-origin") | Ok("none"));
+    }
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return false;
+    };
+    let Some(origin_authority) = origin.to_str().ok().and_then(|o| o.split_once("://")).map(|(_, rest)| rest) else {
+        // "null" (sandboxed frames, file://) or malformed.
+        return true;
+    };
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .or_else(|| request.uri().authority().map(|a| a.as_str()));
+    !host.is_some_and(|host| host.eq_ignore_ascii_case(origin_authority))
+}
+
+fn cross_site_response() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(serde_json::json!({
+            "error": "Cross-site request rejected. Use Fyr's own pages to make changes."
+        })),
+    )
+        .into_response()
+}
+
 /// Axum middleware that enforces admin access on mutating endpoints.
 ///
 /// Passes requests through unchanged when the server is not in a restricted
 /// mode.  Otherwise it validates the session cookie, returning 403 when
 /// `FYR_READONLY` is set, or 401 when `FYR_ADMIN_PASSWORD` is set but the
-/// caller is not authenticated.
+/// caller is not authenticated. In every mode, cross-site browser requests
+/// with a non-safe method are rejected with 403 ([`is_cross_site_request`]).
 pub async fn require_admin(
     State(state): State<Arc<AppState>>,
     request: Request<axum::body::Body>,
@@ -211,6 +277,10 @@ pub async fn require_admin(
             })),
         )
             .into_response();
+    }
+
+    if is_cross_site_request(&request) {
+        return cross_site_response();
     }
 
     if auth_cfg.admin_password.is_none() {
@@ -235,6 +305,67 @@ pub async fn require_admin(
             })),
         )
             .into_response()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Messaging write access (explicit exception to "mutations are admin-only")
+// ---------------------------------------------------------------------------
+
+/// Return `true` when the caller is an administrator: open mode (no
+/// password, not read-only) or a valid admin session. Same rule as
+/// [`can_view_system_details`]; used for messaging moderation UI hints.
+pub fn has_admin_access(state: &AppState, headers: &axum::http::HeaderMap) -> bool {
+    can_view_system_details(state, headers)
+}
+
+/// Decide whether the caller may post messages / create channels.
+///
+/// * `FYR_READONLY` → 403, always (rule 4 stays absolute).
+/// * Open mode (no admin password) → allowed.
+/// * Password mode → allowed for valid admin sessions; for guests only
+///   when `FYR_GUEST_MESSAGING=true`, otherwise 401.
+pub fn messaging_write_access(
+    state: &AppState,
+    headers: &axum::http::HeaderMap,
+) -> Result<(), (StatusCode, &'static str)> {
+    let auth_cfg = &state.config.auth;
+    if auth_cfg.readonly {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "This server is in read-only mode. Posting messages is disabled.",
+        ));
+    }
+    if auth_cfg.admin_password.is_none() || auth_cfg.guest_messaging {
+        return Ok(());
+    }
+    let authenticated = extract_session_token(headers)
+        .map(|token| state.auth_manager.is_valid_session(&token))
+        .unwrap_or(false);
+    if authenticated {
+        Ok(())
+    } else {
+        Err((
+            StatusCode::UNAUTHORIZED,
+            "Posting messages requires an admin login on this server.",
+        ))
+    }
+}
+
+/// Middleware for the messaging write sub-router (`POST /api/channels`,
+/// `POST /api/channels/:id/messages`). Moderation endpoints do NOT use this;
+/// they live in the admin `protected` router behind [`require_admin`].
+pub async fn require_messaging_write(
+    State(state): State<Arc<AppState>>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    match messaging_write_access(&state, request.headers()) {
+        Ok(()) if is_cross_site_request(&request) => cross_site_response(),
+        Ok(()) => next.run(request).await,
+        Err((status, message)) => {
+            (status, Json(serde_json::json!({ "error": message }))).into_response()
+        }
     }
 }
 
@@ -284,6 +415,7 @@ pub async fn auth_status_handler(
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Response {
     let auth_cfg = &state.config.auth;
@@ -309,12 +441,10 @@ pub async fn login_handler(
             .into_response();
     };
 
-    // Always rate-limit by the real TCP peer address to prevent clients from
-    // spoofing X-Forwarded-For headers to bypass limits.  When running behind
-    // a reverse proxy the proxy's address will be used; in that scenario the
-    // proxy itself should handle rate limiting or strip/validate
-    // X-Forwarded-For before forwarding.
-    let client_ip = addr.ip().to_string();
+    // Rate-limit by the real TCP peer address. X-Forwarded-For is only
+    // honoured when the peer is a configured trusted proxy
+    // (FYR_TRUSTED_PROXIES), so clients cannot spoof it to bypass limits.
+    let client_ip = client_ip(&state, addr.ip(), &headers).to_string();
 
     if state.auth_manager.is_rate_limited(&client_ip) {
         return (
@@ -347,7 +477,10 @@ pub async fn login_handler(
 
     response
         .headers_mut()
-        .insert(header::SET_COOKIE, set_cookie_header(&token));
+        .insert(
+            header::SET_COOKIE,
+            set_cookie_header(&token, state.config.server.tls.is_enabled()),
+        );
 
     response
 }
@@ -369,7 +502,10 @@ pub async fn logout_handler(
 
     response
         .headers_mut()
-        .insert(header::SET_COOKIE, clear_cookie_header());
+        .insert(
+            header::SET_COOKIE,
+            clear_cookie_header(state.config.server.tls.is_enabled()),
+        );
 
     response
 }
@@ -415,10 +551,15 @@ mod tests {
             config: Arc::clone(&config),
             static_dir: PathBuf::from("."),
             download_manager: Arc::new(DownloadManager::new(&data_dir)),
-            model_manager: Arc::new(ModelManager::new(config)),
+            model_manager: Arc::new(ModelManager::new(Arc::clone(&config))),
             settings_manager: Arc::new(SettingsManager::new(&data_dir)),
             auth_manager: Arc::new(AuthManager::new()),
             mbtiles_pool: Arc::new(crate::mbtiles::MbtilesPool::new()),
+            messaging: Arc::new(
+                crate::messaging::Messaging::open(&config).expect("open messages db"),
+            ),
+            fulltext: Arc::new(crate::fulltext::FulltextIndexer::from_config(&config)),
+            places: Arc::new(crate::places::PlaceIndexer::from_config(&config)),
         })
     }
 
@@ -455,6 +596,47 @@ mod tests {
             HeaderValue::from_str(&format!("{SESSION_COOKIE_NAME}={token}")).expect("cookie"),
         );
         assert!(!can_view_system_details(&readonly, &headers));
+    }
+
+    #[test]
+    fn session_cookie_is_secure_only_over_https() {
+        let plain = set_cookie_header("t", false);
+        assert_eq!(plain, "fyr_session=t; HttpOnly; Path=/; SameSite=Strict");
+        let secure = set_cookie_header("t", true);
+        assert!(secure.to_str().unwrap().ends_with("; Secure"));
+        assert!(!clear_cookie_header(false).to_str().unwrap().contains("Secure"));
+        assert!(clear_cookie_header(true).to_str().unwrap().contains("Max-Age=0; Secure"));
+    }
+
+    fn request(method: &str, headers: &[(&str, &str)]) -> Request<()> {
+        let mut builder = Request::builder().method(method).uri("/api/restore");
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+        builder.body(()).unwrap()
+    }
+
+    #[test]
+    fn cross_site_requests_are_detected() {
+        // Sec-Fetch-Site decides when present.
+        assert!(is_cross_site_request(&request("POST", &[("sec-fetch-site", "cross-site")])));
+        assert!(is_cross_site_request(&request("POST", &[("sec-fetch-site", "same-site")])));
+        assert!(!is_cross_site_request(&request("POST", &[("sec-fetch-site", "same-origin")])));
+        assert!(!is_cross_site_request(&request("DELETE", &[("sec-fetch-site", "none")])));
+        // Safe methods are never rejected.
+        assert!(!is_cross_site_request(&request("GET", &[("sec-fetch-site", "cross-site")])));
+        // Older browsers: Origin must match Host.
+        assert!(!is_cross_site_request(&request(
+            "POST",
+            &[("host", "192.168.1.5:8080"), ("origin", "http://192.168.1.5:8080")]
+        )));
+        assert!(is_cross_site_request(&request(
+            "POST",
+            &[("host", "192.168.1.5:8080"), ("origin", "https://evil.example")]
+        )));
+        assert!(is_cross_site_request(&request("PUT", &[("host", "fyr.local"), ("origin", "null")])));
+        // Non-browser clients send neither header.
+        assert!(!is_cross_site_request(&request("POST", &[("host", "fyr.local")])));
     }
 
     #[test]

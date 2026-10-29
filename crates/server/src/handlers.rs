@@ -1,7 +1,7 @@
 //! API request/response handlers
 
 use crate::ai::types::{
-    ChatMessage, ImportModelRequest, ImportModelResponse, InferStreamQuery, LoadModelResponse,
+    ImportModelRequest, ImportModelResponse, InferStreamBody, InferStreamQuery, LoadModelResponse,
     ModelHealthResponse, UploadModelResponse,
 };
 use crate::AppState;
@@ -45,6 +45,19 @@ pub struct StatusResponse {
     pub status: String,
     pub data_dir: String,
     pub content_count: ContentCountResponse,
+    pub tls: TlsStatusResponse,
+}
+
+/// Built-in HTTPS state, part of `GET /api/status`.
+#[derive(Serialize)]
+pub struct TlsStatusResponse {
+    pub enabled: bool,
+    /// `off`, `self-signed` or `provided`.
+    pub mode: &'static str,
+    /// SHA-256 certificate fingerprint (`AB:CD:...`). Only for callers who
+    /// may view system details (`auth::can_view_system_details`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fingerprint_sha256: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -104,6 +117,9 @@ pub struct DirectoriesResponse {
 #[derive(Deserialize)]
 pub struct CreateDownloadRequest {
     pub url: String,
+    /// Optional expected SHA-256 (64 hex characters) verified before routing.
+    #[serde(default)]
+    pub sha256: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -226,6 +242,15 @@ pub async fn status(
         status: "running".to_string(),
         data_dir: visible_path(show_paths, &state.config.data_dir),
         content_count,
+        tls: TlsStatusResponse {
+            enabled: state.config.server.tls.is_enabled(),
+            mode: state.config.server.tls.mode_label(),
+            fingerprint_sha256: if show_paths {
+                state.config.server.tls.fingerprint_sha256.clone()
+            } else {
+                None
+            },
+        },
     }))
 }
 
@@ -933,6 +958,30 @@ pub async fn ai_infer_stream(
     Path(filename): Path<String>,
     Query(query): Query<InferStreamQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    run_inference_stream(state, filename, query.into()).await
+}
+
+/// POST /api/models/:filename/infer/stream — Same as the GET variant, with
+/// the request (including conversation history) in a JSON body. Inference
+/// reads the loaded model only and changes no server state, so it is public
+/// like the GET form.
+pub async fn ai_infer_stream_post(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+    Json(body): Json<InferStreamBody>,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    run_inference_stream(state, filename, body).await
+}
+
+/// Conversation turns beyond this are dropped before prompt fitting; the
+/// context window keeps far fewer anyway.
+const MAX_HISTORY_MESSAGES: usize = 200;
+
+async fn run_inference_stream(
+    state: Arc<AppState>,
+    filename: String,
+    query: InferStreamBody,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     let temperature = query.temperature.unwrap_or(DEFAULT_ASSISTANT_TEMPERATURE);
     let max_tokens = query
         .max_tokens
@@ -943,47 +992,160 @@ pub async fn ai_infer_stream(
         .unwrap_or_else(|| resolve_assistant_num_ctx(&state.settings_manager.current()))
         .clamp(256, 32768);
 
+    let skip = query.history.len().saturating_sub(MAX_HISTORY_MESSAGES);
     let history: Vec<(String, String)> = query
         .history
-        .as_deref()
-        .and_then(|h| serde_json::from_str::<Vec<ChatMessage>>(h).ok())
-        .unwrap_or_default()
         .into_iter()
+        .skip(skip)
         .map(|m| (m.role, m.text))
         .collect();
+
+    // "Ask your library": check the model first so an unloaded model fails
+    // fast (409) without paying for retrieval.
+    let library = if query.use_library.unwrap_or(false) {
+        state
+            .model_manager
+            .ensure_inference_ready(&filename)
+            .await
+            .map_err(|error| map_model_error_to_status(&error))?;
+        let limit = query
+            .sources_limit
+            .unwrap_or(crate::ai::retrieval::DEFAULT_SOURCES_LIMIT)
+            .clamp(1, crate::ai::retrieval::MAX_SOURCES_LIMIT);
+        Some(retrieve_library_passages(state.config.books_dir(), state.fulltext.reader_dir(), query.prompt.clone(), limit).await)
+    } else {
+        None
+    };
 
     let config = Arc::clone(&state.config);
     let app_context = run_blocking(move || Ok(build_content_catalog_summary(&config))).await?;
 
-    let rx = state
+    let started = state
         .model_manager
-        .infer_stream(&filename, query.prompt, temperature, max_tokens, num_ctx, history, app_context)
+        .infer_stream(
+            &filename,
+            crate::ai::manager::InferRequest {
+                prompt: query.prompt,
+                temperature,
+                max_tokens,
+                num_ctx,
+                history,
+                app_context,
+                library,
+            },
+        )
         .await
         .map_err(|error| map_model_error_to_status(&error))?;
 
-    let token_stream = ReceiverStream::new(rx)
+    // The `sources` event (only when the library was requested) precedes
+    // every token so the UI can link citations while text streams in.
+    let sources_stream = tokio_stream::iter(started.sources.map(|sources| {
+        Ok::<Event, Infallible>(
+            Event::default()
+                .event("sources")
+                .json_data(&sources)
+                .unwrap_or_else(|_| Event::default().event("sources").data("[]")),
+        )
+    }));
+    let token_stream = ReceiverStream::new(started.tokens)
         .map(|token| Ok::<Event, Infallible>(Event::default().event("token").data(token)));
     let done_stream = tokio_stream::iter(vec![Ok::<Event, Infallible>(
         Event::default().event("done"),
     )]);
-    let stream = token_stream.chain(done_stream);
+    let stream = sources_stream.chain(token_stream).chain(done_stream);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
+/// Retrieve library passages for the assistant on the blocking pool, bounded
+/// by the retrieval time budget plus a small grace period. Failures and
+/// timeouts degrade to "no sources" rather than failing the request.
+async fn retrieve_library_passages(
+    books_dir: std::path::PathBuf,
+    index_dir: Option<std::path::PathBuf>,
+    prompt: String,
+    limit: usize,
+) -> Vec<crate::ai::retrieval::Passage> {
+    let limits = crate::ai::retrieval::RetrievalLimits::default();
+    let hard_limit = limits.time_budget + std::time::Duration::from_millis(1500);
+    let task = tokio::task::spawn_blocking(move || {
+        crate::ai::retrieval::retrieve_with_index(&books_dir, index_dir.as_deref(), &prompt, limit, &limits)
+    });
+    match tokio::time::timeout(hard_limit, task).await {
+        Ok(Ok(passages)) => passages,
+        Ok(Err(error)) => {
+            warn!("Library retrieval task failed: {}", error);
+            Vec::new()
+        }
+        Err(_) => {
+            warn!("Library retrieval exceeded its time budget; answering without sources");
+            Vec::new()
+        }
+    }
+}
+
 /// POST /api/download — Create a new download task
+///
+/// Body: `{ "url": "...", "sha256": "<64 hex chars>"? }`. An empty `sha256`
+/// is treated as absent; a malformed one is rejected with 400.
 pub async fn create_download(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateDownloadRequest>,
-) -> (StatusCode, Json<CreateDownloadResponse>) {
-    let source = DownloadSource::Url { url: req.url };
-    let task_id = state.download_manager.create_task(source).await;
+) -> Result<(StatusCode, Json<CreateDownloadResponse>), (StatusCode, Json<serde_json::Value>)> {
+    let sha256 = match req.sha256.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+        None => None,
+        Some(value) => Some(downloader::normalize_sha256(value).ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "message": "sha256 must be 64 hexadecimal characters" })),
+            )
+        })?),
+    };
 
-    (
+    let source = DownloadSource::Url { url: req.url };
+    let task_id = state
+        .download_manager
+        .create_task_with_options(source, downloader::DownloadOptions { sha256 })
+        .await;
+
+    Ok((
         StatusCode::CREATED,
         Json(CreateDownloadResponse { task_id }),
-    )
+    ))
 }
+
+// --- Download resume / retry -------------------------------------------------
+
+/// POST /api/download/:task_id/retry — Re-queue a failed or cancelled URL
+/// download, resuming from its kept partial file via HTTP `Range`.
+///
+/// Returns the re-queued task (200), 404 for an unknown task, and 409 when
+/// the task cannot be retried (local import, still active, or completed).
+pub async fn retry_download(
+    State(state): State<Arc<AppState>>,
+    Path(task_id): Path<String>,
+) -> Result<Json<types::DownloadTask>, (StatusCode, Json<serde_json::Value>)> {
+    match state.download_manager.retry_task(&task_id).await {
+        Ok(task) => Ok(Json(task)),
+        Err(downloader::RetryError::NotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "message": "download task not found" })),
+        )),
+        Err(downloader::RetryError::NotRetriable(reason)) => Err((
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "message": reason })),
+        )),
+        Err(downloader::RetryError::Persist(error)) => {
+            error!("Failed to retry download task {}: {}", task_id, error);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "failed to save download state" })),
+            ))
+        }
+    }
+}
+
+// --- End download resume / retry ---------------------------------------------
 
 /// POST /api/import/download/:filename — Create local import task from inbox
 pub async fn create_import_download(
@@ -1136,6 +1298,28 @@ pub async fn delete_content_file(
     })?;
     if !canonical_path.starts_with(&canonical_dir) {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if content_type == "books" && crate::fulltext::is_valid_archive_name(&sanitized) {
+        // Stop indexing the archive and drop its full-text index first, so
+        // the indexer releases the file (required on Windows).
+        let indexer = Arc::clone(&state.fulltext);
+        let name = sanitized.clone();
+        run_blocking(move || {
+            indexer.forget_archive(&name, std::time::Duration::from_secs(10));
+            Ok(())
+        })
+        .await?;
+    }
+    if content_type == "maps" && crate::places::is_valid_map_name(&sanitized) {
+        // Same for the map's place index.
+        let indexer = Arc::clone(&state.places);
+        let name = sanitized.clone();
+        run_blocking(move || {
+            indexer.forget_map(&name, std::time::Duration::from_secs(10));
+            Ok(())
+        })
+        .await?;
     }
 
     tokio::fs::remove_file(&file_path).await.map_err(|error| {
@@ -1672,7 +1856,7 @@ pub async fn serve_index(State(state): State<Arc<AppState>>, uri: axum::http::Ur
 /// large archives or slow storage (SD cards). Running them inline would stall
 /// an async worker thread and, on small boards with few cores, freeze map
 /// tiles and every other request until the scan finishes.
-async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
+pub(crate) async fn run_blocking<T, F>(work: F) -> Result<T, StatusCode>
 where
     F: FnOnce() -> Result<T, StatusCode> + Send + 'static,
     T: Send + 'static,
@@ -2101,7 +2285,7 @@ fn find_any_entry_by_basename(zim: &Zim, filename: &str) -> Option<DirectoryEntr
     resolve_redirect(zim, direct, 0).ok()
 }
 
-fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
+pub(crate) fn is_searchable_article_entry(entry: &DirectoryEntry) -> bool {
     if matches!(entry.namespace, Namespace::Articles) {
         return true;
     }

@@ -1,0 +1,17 @@
+{
+  "name": "Fyr – Off-Grid Companion",
+  "short_name": "Fyr",
+  "description": "Offline maps, books, knowledge archives and a local assistant.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "icons": [
+    { "src": "/static/assets/icons/fyr-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/assets/icons/fyr-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/assets/icons/fyr-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/assets/fyr-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,4 +1,7 @@
 import axios from 'axios'
+import { buildSearchParams } from '../modules/search/searchResults.js'
+import { parseSourcesEvent } from './citations.js'
+import { t } from '../i18n/index.js'
 
 const API_BASE = '/api'
 const REQUEST_TIMEOUT_MS = 120000
@@ -16,6 +19,10 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Deliberately aborted requests (AbortController) must not be retried.
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
     const config = error.config || {}
     const method = String(config.method || 'get').toLowerCase()
     const isRetryableMethod = RETRYABLE_METHODS.has(method)
@@ -108,6 +115,83 @@ const extractNextSseFrame = (buffer) => {
     frame: buffer.slice(0, boundaryIndex),
     remainder: buffer.slice(boundaryIndex + match[0].length)
   }
+}
+
+// Route one parsed SSE frame of the inference stream to its handler.
+// Returns true when the stream is complete (`done`).
+const dispatchInferenceEvent = (parsed, handlers = {}) => {
+  switch (parsed?.event) {
+    case 'token':
+      handlers.onToken?.(parsed.data)
+      return false
+    case 'sources':
+      // Library sources ("ask your library"); sent once, before any token.
+      handlers.onSources?.(parseSourcesEvent(parsed.data))
+      return false
+    case 'done':
+      handlers.onDone?.()
+      return true
+    default:
+      return false
+  }
+}
+
+// Exported for unit tests.
+export { mapContentItem, encodePathPreservingSlashes, parseSseFrame, extractNextSseFrame, dispatchInferenceEvent }
+
+// Multipart upload of one file (field "file") with progress and abort.
+const xhrUpload = (url, file, onProgress, abortHandle) => {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+
+    xhr.timeout = REQUEST_TIMEOUT_MS
+
+    if (abortHandle) {
+      abortHandle.abort = () => xhr.abort()
+    }
+
+    if (typeof onProgress === 'function') {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress(event.loaded, event.total)
+        }
+      })
+    }
+
+    xhr.addEventListener('load', () => {
+      let payload = null
+      const responseType = xhr.getResponseHeader('content-type') || ''
+      if (responseType.includes('application/json')) {
+        try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
+      } else if (xhr.responseText) {
+        payload = { message: xhr.responseText }
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ data: payload })
+      } else {
+        reject({ response: { status: xhr.status, data: payload } })
+      }
+    })
+
+    xhr.addEventListener('error', () => {
+      reject({ response: { status: 0, data: { message: t('api.uploadNetwork') } } })
+    })
+
+    xhr.addEventListener('timeout', () => {
+      reject({ response: { status: 0, data: { message: t('api.uploadTimeout', { seconds: REQUEST_TIMEOUT_MS / 1000 }) } } })
+    })
+
+    xhr.addEventListener('abort', () => {
+      reject({ response: { status: 0, data: { message: t('api.uploadAborted') } } })
+    })
+
+    xhr.open('POST', url)
+    xhr.send(formData)
+  })
 }
 
 export const apiService = {
@@ -242,78 +326,44 @@ export const apiService = {
 
     return { data: payload }
   },
-  uploadFile: (file, onProgress, abortHandle) => {
-    return new Promise((resolve, reject) => {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const xhr = new XMLHttpRequest()
-
-      xhr.timeout = REQUEST_TIMEOUT_MS
-
-      if (abortHandle) {
-        abortHandle.abort = () => xhr.abort()
+  uploadFile: (file, onProgress, abortHandle) => xhrUpload('/api/import/upload', file, onProgress, abortHandle),
+  // Server backup (admin): download the zip as a Blob, restore from a zip.
+  downloadBackup: async () => {
+    const response = await fetch('/api/backup', { credentials: 'same-origin' })
+    if (!response.ok) {
+      let message = t('api.backupFailed', { status: response.status })
+      try {
+        message = (await response.json()).message || message
+      } catch (_) {
+        // non-JSON error body
       }
-
-      if (typeof onProgress === 'function') {
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            onProgress(event.loaded, event.total)
-          }
-        })
-      }
-
-      xhr.addEventListener('load', () => {
-        let payload = null
-        const responseType = xhr.getResponseHeader('content-type') || ''
-        if (responseType.includes('application/json')) {
-          try { payload = JSON.parse(xhr.responseText) } catch (_) { payload = xhr.responseText ? { message: xhr.responseText } : null }
-        } else if (xhr.responseText) {
-          payload = { message: xhr.responseText }
-        }
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve({ data: payload })
-        } else {
-          reject({ response: { status: xhr.status, data: payload } })
-        }
-      })
-
-      xhr.addEventListener('error', () => {
-        reject({ response: { status: 0, data: { message: 'Network error during upload.' } } })
-      })
-
-      xhr.addEventListener('timeout', () => {
-        reject({ response: { status: 0, data: { message: `Upload timed out after ${REQUEST_TIMEOUT_MS / 1000}s.` } } })
-      })
-
-      xhr.addEventListener('abort', () => {
-        reject({ response: { status: 0, data: { message: 'Upload was aborted.' } } })
-      })
-
-      xhr.open('POST', '/api/import/upload')
-      xhr.send(formData)
-    })
+      throw new Error(message)
+    }
+    const disposition = response.headers.get('content-disposition') || ''
+    const match = /filename="([^"]+)"/.exec(disposition)
+    return { blob: await response.blob(), filename: match ? match[1] : 'fyr-backup.zip' }
   },
+  restoreBackup: (file, onProgress, abortHandle) => xhrUpload('/api/restore', file, onProgress, abortHandle),
   importModel: (filename, source = 'inbox') => api.post('/models/import', { filename, source }),
   createImportDownload: (filename) => api.post(`/import/download/${encodeURIComponent(filename)}`),
   loadModel: (filename) => api.post(`/models/${encodeURIComponent(filename)}/load`),
   getModelHealth: (filename) => api.get(`/models/${encodeURIComponent(filename)}/health`),
 
   // SSE token streaming helper
-  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [] }, handlers = {}) => {
-    const params = new URLSearchParams({
-      prompt,
-      temperature: String(temperature),
-      max_tokens: String(maxTokens)
-    })
+  streamInference: (filename, { prompt, temperature = 0.2, maxTokens = 512, numCtx, history = [], useLibrary = false, sourcesLimit }, handlers = {}) => {
+    // POST with a JSON body: conversation history can be far larger than a
+    // URL allows. The GET form of the endpoint remains for compatibility.
+    const body = { prompt, temperature, max_tokens: maxTokens, history }
     if (numCtx != null) {
-      params.set('num_ctx', String(numCtx))
+      body.num_ctx = numCtx
     }
-    if (history.length > 0) {
-      params.set('history', JSON.stringify(history))
+    if (useLibrary) {
+      body.use_library = true
+      if (sourcesLimit != null) {
+        body.sources_limit = sourcesLimit
+      }
     }
-    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream?${params.toString()}`
+    const url = `/api/models/${encodeURIComponent(filename)}/infer/stream`
     const controller = new AbortController()
     let closed = false
 
@@ -328,10 +378,12 @@ export const apiService = {
 
       try {
         const response = await fetch(url, {
-          method: 'GET',
+          method: 'POST',
           headers: {
-            Accept: 'text/event-stream'
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json'
           },
+          body: JSON.stringify(body),
           cache: 'no-store',
           signal: controller.signal
         })
@@ -346,7 +398,7 @@ export const apiService = {
         }
 
         if (!response.body) {
-          throw new Error('Streaming response body is unavailable.')
+          throw new Error(t('api.noStream'))
         }
 
         const reader = response.body.getReader()
@@ -366,12 +418,8 @@ export const apiService = {
             const { frame, remainder } = extracted
             buffer = remainder
 
-            const parsed = parseSseFrame(frame)
-            if (parsed.event === 'token') {
-              handlers.onToken?.(parsed.data)
-            } else if (parsed.event === 'done') {
+            if (dispatchInferenceEvent(parseSseFrame(frame), handlers)) {
               completed = true
-              handlers.onDone?.()
               close()
               return
             }
@@ -382,12 +430,8 @@ export const apiService = {
 
         const trailing = buffer + decoder.decode()
         if (!closed && trailing.trim()) {
-          const parsed = parseSseFrame(trailing)
-          if (parsed.event === 'token') {
-            handlers.onToken?.(parsed.data)
-          } else if (parsed.event === 'done') {
+          if (dispatchInferenceEvent(parseSseFrame(trailing), handlers)) {
             completed = true
-            handlers.onDone?.()
           }
         }
 
@@ -405,12 +449,25 @@ export const apiService = {
   },
 
   // Download Management
-  createDownload: (url) => api.post('/download', { url }),
+  // `sha256` is optional; when set the server verifies the finished file.
+  createDownload: (url, sha256 = null) => api.post('/download', sha256 ? { url, sha256 } : { url }),
+  // Re-queue a failed URL download; resumes from the kept partial file.
+  retryDownload: (taskId) => api.post(`/download/${encodeURIComponent(taskId)}/retry`),
   cancelDownload: (taskId) => api.delete(`/download/${taskId}`),
   dismissDownload: (taskId) => api.delete(`/download/${taskId}/dismiss`),
   getDownloadStatus: (taskId) => api.get(`/download/${taskId}/status`),
   listDownloads: () => api.get('/downloads'),
   deleteContentFile: (contentType, filename) => api.delete(`/content/${encodeURIComponent(contentType)}/${encodeURIComponent(filename)}`),
+
+  // Full-text index for ZIM archives (status is public; build/delete are admin-only)
+  getIndexStatus: async () => (await api.get('/index/status')).data,
+  buildIndex: (filename) => api.post(`/index/${encodeURIComponent(filename)}/build`),
+  deleteIndex: (filename) => api.delete(`/index/${encodeURIComponent(filename)}`),
+
+  // Place index for vector maps (status is public; build/delete are admin-only)
+  getPlacesStatus: async () => (await api.get('/places/status')).data,
+  buildPlaces: (filename) => api.post(`/places/${encodeURIComponent(filename)}/build`),
+  deletePlaces: (filename) => api.delete(`/places/${encodeURIComponent(filename)}`),
 
   // Unified Library API
   getLibraryBookMetadata: async (filename) => {
@@ -431,6 +488,15 @@ export const apiService = {
     return response.data
   },
 
+  // Global offline search across books, ZIM articles, maps and POIs.
+  // opts: { limit, kinds (array or comma list), signal (AbortSignal) }
+  search: async (q, opts = {}) => {
+    const response = await api.get(`/search?${buildSearchParams(q, opts)}`, {
+      signal: opts.signal
+    })
+    return response.data
+  },
+
   // Tools: AES-256-GCM encrypt/decrypt
   toolsAes: async (payload) => {
     const response = await api.post('/tools/aes', payload)
@@ -443,30 +509,52 @@ export const apiService = {
     return response.data
   },
 
+  // Messages (public board channel + encrypted channels). `channelKey` is
+  // the hex auth key for encrypted channels; it travels in a header so it
+  // never appears in URLs or server logs.
+  getMessagesConfig: async () => (await api.get('/messages/config')).data,
+  listChannelMessages: async (channelId, params = {}, channelKey = null) =>
+    (await api.get(`/channels/${encodeURIComponent(channelId)}/messages`, {
+      params,
+      headers: channelKey ? { 'X-Fyr-Channel-Key': channelKey } : {}
+    })).data,
+  postChannelMessage: async (channelId, body, channelKey = null) =>
+    (await api.post(`/channels/${encodeURIComponent(channelId)}/messages`, body, {
+      headers: channelKey ? { 'X-Fyr-Channel-Key': channelKey } : {}
+    })).data,
+  createChannel: async (channelId, verifier) => (await api.post('/channels', { channel_id: channelId, verifier })).data,
+  deleteChannelMessage: (channelId, messageId) => api.delete(`/channels/${encodeURIComponent(channelId)}/messages/${messageId}`),
+  pinChannelMessage: async (messageId, pinned) => (await api.post(`/channels/public/messages/${messageId}/pin`, { pinned })).data,
+  deleteChannel: (channelId) => api.delete(`/channels/${encodeURIComponent(channelId)}`),
+  channelStreamUrl: (channelId) => `${API_BASE}/channels/${encodeURIComponent(channelId)}/stream`,
+
   // Error handler
   handleError: (error) => {
     console.error('API Error:', error)
+    if (error?.i18nKey && !error?.response) {
+      return t(error.i18nKey, error.i18nParams || {})
+    }
     if (error?.message && !error?.response && !error?.code) {
       return error.message
     }
     if (error.code === 'ECONNABORTED') {
-      return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check server responsiveness.`
+      return t('api.timeout', { seconds: REQUEST_TIMEOUT_MS / 1000 })
     }
     if (!error.response) {
-      return 'Network error. Server may be offline or unreachable.'
+      return t('api.network')
     }
     if (error.response) {
       if (error.response.status >= 500) {
-        return `Server error (${error.response.status}). Please try again.`
+        return t('api.serverError', { status: error.response.status })
       }
       if (error.response.status === 404) {
-        return 'Requested resource was not found.'
+        return t('api.notFound')
       }
       if (error.response.status === 400) {
-        return error.response.data?.message || 'Invalid request.'
+        return error.response.data?.message || t('api.badRequest')
       }
-      return error.response.data?.message || `Request failed (${error.response.status}).`
+      return error.response.data?.message || t('api.requestFailed', { status: error.response.status })
     }
-    return error.message || 'Unknown error'
+    return error.message || t('api.unknown')
   }
 }

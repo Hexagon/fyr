@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Local AI Assistant on CPU (Raspberry Pi, No GPU) | Fyr</title>
+    <meta name="description" content="Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/guides/local-ai-assistant-offline/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=06137f43e4">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/guides/local-ai-assistant-offline/">
+    <meta property="og:title" content="Offline Local AI Assistant on CPU (Raspberry Pi, No GPU) | Fyr">
+    <meta property="og:description" content="Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Offline Local AI Assistant on CPU (Raspberry Pi, No GPU) | Fyr">
+    <meta name="twitter:description" content="Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "Run a local AI assistant offline — no GPU required",
+      "description": "Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.",
+      "url": "https://fyr.guide/guides/local-ai-assistant-offline/",
+      "mainEntityOfPage": "https://fyr.guide/guides/local-ai-assistant-offline/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-10-26",
+      "dateModified": "2026-10-26",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guides",
+          "item": "https://fyr.guide/guides/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Local AI assistant",
+          "item": "https://fyr.guide/guides/local-ai-assistant-offline/"
+        }
+      ]
+    },
+    {
+      "@type": "HowTo",
+      "name": "Run a local AI assistant offline — no GPU required",
+      "description": "Run a private, offline AI chat assistant on a Raspberry Pi or any PC without a GPU: which GGUF models to pick for 4, 8 and 16 GB of RAM, where to download them, and how to load them in Fyr.",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "name": "Step 1: Install Fyr",
+          "text": "Use the hosted installer on the machine that will run the model:",
+          "url": "https://fyr.guide/guides/local-ai-assistant-offline/#install"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 2: Download a GGUF model",
+          "text": "Open Content Manager → Models. When the folder is empty, Fyr shows the curated recommendations from its catalog, and entries with a direct download link can be queued with one click. You can also download GGUF files yourself from Hugging Face — for example from the official Qwen/Qwen2.5-3B-Instruct-GGUF repository — and upload the .gguf file in Content Manager. Fyr checks the GGUF header and moves the file into its models/ folder.",
+          "url": "https://fyr.guide/guides/local-ai-assistant-offline/#download"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 3: Load the model and chat",
+          "text": "Open Assistant, select the model in the Model Library, and send a prompt. Fyr loads the model automatically, shows a Thinking indicator right away, and streams the reply as it is generated. The last model you used is remembered and reloaded next time.",
+          "url": "https://fyr.guide/guides/local-ai-assistant-offline/#chat"
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Step 4: Choose a response mode",
+          "text": "Pick the mode under the prompt box. The assistant also sends the last six messages as context, so follow-up questions work.",
+          "url": "https://fyr.guide/guides/local-ai-assistant-offline/#tune"
+        }
+      ],
+      "totalTime": "PT30M"
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/guides/" class="hover:text-brand-200 transition-colors">Guides</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Local AI assistant</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Run a local AI assistant offline — no GPU required</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Chat with Qwen2.5, Llama 3.2, or Phi-3.5 language models entirely on your own CPU — on a Raspberry Pi 5, a mini PC, or a desktop — with prompts that never leave your network.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · 4 min read · Applies to Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#how-fast-is-cpu-inference" class="text-gray-600 hover:text-brand-600">How fast is CPU inference?</a></li>
+                            <li class=""><a href="#pick-a-model-for-your-ram" class="text-gray-600 hover:text-brand-600">Pick a model for your RAM</a></li>
+                            <li class=""><a href="#install" class="text-gray-600 hover:text-brand-600">Step 1: Install Fyr</a></li>
+                            <li class=""><a href="#download" class="text-gray-600 hover:text-brand-600">Step 2: Download a GGUF model</a></li>
+                            <li class=""><a href="#chat" class="text-gray-600 hover:text-brand-600">Step 3: Load the model and chat</a></li>
+                            <li class=""><a href="#tune" class="text-gray-600 hover:text-brand-600">Step 4: Choose a response mode</a></li>
+                            <li class=""><a href="#performance-tips-for-raspberry-pi-and-small-pcs" class="text-gray-600 hover:text-brand-600">Performance tips for Raspberry Pi and small PCs</a></li>
+                            <li class=""><a href="#troubleshooting" class="text-gray-600 hover:text-brand-600">Troubleshooting</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p>Fyr includes an <strong>Assistant</strong> page backed by a native Rust inference runtime (built on <a href="https://github.com/huggingface/candle" rel="noopener">Candle</a>) that runs quantized <strong>GGUF</strong> models on the CPU. There is no GPU requirement, no cloud API, and no separate model server to install: the model file sits in Fyr's data directory and replies stream into the browser token by token.</p>
+
+<h2 id="how-fast-is-cpu-inference">How fast is CPU inference?<a class="heading-anchor" href="#how-fast-is-cpu-inference" aria-label="Link to this section">#</a></h2>
+<p>Inference uses the CPU's SIMD instructions: <strong>NEON</strong> on ARM (aarch64, including Raspberry Pi 4 and 5) and <strong>AVX2/FMA</strong> on x86_64. Speed depends mostly on model size and memory bandwidth, so small quantized models are the sweet spot for single-board computers. Fyr logs the prompt-processing and generation speed (tokens per second) of every run in its server log, so you can measure your own hardware instead of guessing.</p>
+
+<h2 id="pick-a-model-for-your-ram">Pick a model for your RAM<a class="heading-anchor" href="#pick-a-model-for-your-ram" aria-label="Link to this section">#</a></h2>
+<p>These tiers come from Fyr's curated model catalog. All are instruct (chat) models in GGUF format with tokenizer metadata:</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Tier</th><th>Model</th><th>Quantization</th><th>Size</th><th>Suggested hardware</th></tr></thead>
+<tbody>
+<tr><td>Small</td><td>Qwen2.5-1.5B-Instruct</td><td>Q8_0</td><td>~1.7 GB</td><td>Raspberry Pi 5 with 4 GB RAM, or fast and simple answers</td></tr>
+<tr><td>Standard (recommended)</td><td>Qwen2.5-3B-Instruct</td><td>Q6_K</td><td>~2.6 GB</td><td>Best balance on Raspberry Pi 5</td></tr>
+<tr><td>Large</td><td>Qwen2.5-7B-Instruct</td><td>Q4_K_M</td><td>~4.5 GB</td><td>Raspberry Pi 5 with 8 GB RAM</td></tr>
+<tr><td>Extra large</td><td>Qwen2.5-14B-Instruct</td><td>Q4_K_M</td><td>~9.8 GB</td><td>Desktops with 16 GB+ RAM</td></tr>
+<tr><td>Extra large (alt)</td><td>Qwen2.5-7B-Instruct</td><td>Q8_0</td><td>~8.5 GB</td><td>Desktops with 16 GB+ RAM</td></tr>
+<tr><td>Llama alternative</td><td>Llama-3.2-3B-Instruct</td><td>Q4_K_M</td><td>~2.0 GB</td><td>Broadly compatible multilingual model</td></tr>
+<tr><td>Phi alternative</td><td>Phi-3.5-mini-instruct</td><td>Q4_K_M</td><td>~2.4 GB</td><td>Compact, reasoning-oriented</td></tr>
+</tbody>
+</table>
+</div>
+<p>Rule of thumb: larger models and higher-precision quantizations (Q8 vs. Q4) use more memory and run slower. If replies are slow, step down a tier or pick a smaller quantization.</p>
+<p>Fyr's runtime currently supports the <strong>Qwen2</strong>, <strong>Llama</strong>, and <strong>Phi-3/Phi-3.5</strong> GGUF architectures. Models with a reasoning mode that emit <code>&lt;think&gt;…&lt;/think&gt;</code> blocks are shown with a collapsible <em>Thinking</em> section.</p>
+
+<h2 id="install" data-step>Step 1: Install Fyr<a class="heading-anchor" href="#install" aria-label="Link to this section">#</a></h2>
+<p>Use the hosted installer on the machine that will run the model:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>Default Docker images are optimized for newer CPUs (AVX2 on x86_64, dotprod on ARM). On older hardware that fails with an <em>illegal instruction</em> error, use the legacy images via the installer's <code>--legacy</code> shortcut. All options are in the <a href="/#installation">installation guide</a>.</p>
+
+<h2 id="download" data-step>Step 2: Download a GGUF model<a class="heading-anchor" href="#download" aria-label="Link to this section">#</a></h2>
+<p>Open <strong>Content Manager → Models</strong>. When the folder is empty, Fyr shows the curated recommendations from its catalog, and entries with a direct download link can be queued with one click. You can also download GGUF files yourself from <a href="https://huggingface.co/models?library=gguf&amp;sort=trending" rel="noopener">Hugging Face</a> — for example from the official <code>Qwen/Qwen2.5-3B-Instruct-GGUF</code> repository — and upload the <code>.gguf</code> file in Content Manager. Fyr checks the GGUF header and moves the file into its <code>models/</code> folder.</p>
+<p>Some Llama downloads require accepting a license on Hugging Face first; in that case Content Manager links to the source page instead of downloading directly.</p>
+
+<h2 id="chat" data-step>Step 3: Load the model and chat<a class="heading-anchor" href="#chat" aria-label="Link to this section">#</a></h2>
+<p>Open <strong>Assistant</strong>, select the model in the Model Library, and send a prompt. Fyr loads the model automatically, shows a <em>Thinking</em> indicator right away, and streams the reply as it is generated. The last model you used is remembered and reloaded next time.</p>
+
+<h2 id="tune" data-step>Step 4: Choose a response mode<a class="heading-anchor" href="#tune" aria-label="Link to this section">#</a></h2>
+<p>Pick the mode under the prompt box. The assistant also sends the last six messages as context, so follow-up questions work.</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Mode</th><th>Settings</th><th>Use it for</th></tr></thead>
+<tbody>
+<tr><td>Precise</td><td>temperature 0.1, up to 512 tokens</td><td>Focused, factual answers</td></tr>
+<tr><td>Balanced (default)</td><td>temperature 0.2, up to 512 tokens</td><td>Concise, reliable answers</td></tr>
+<tr><td>Creative</td><td>temperature 0.7, up to 1024 tokens</td><td>Longer, more varied writing</td></tr>
+</tbody>
+</table>
+</div>
+<p>The context window defaults to 2,048 tokens and expands automatically to 8,192 on machines with more than 16 GB of RAM.</p>
+
+<h2 id="performance-tips-for-raspberry-pi-and-small-pcs">Performance tips for Raspberry Pi and small PCs<a class="heading-anchor" href="#performance-tips-for-raspberry-pi-and-small-pcs" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Start with the <strong>Standard</strong> tier on a Pi 5 and only move up if you have 8 GB of RAM and can accept slower replies.</li>
+<li>Fyr sizes its inference thread pool to the CPU cores available to the container; override it with <code>FYR_AI_THREADS=&lt;n&gt;</code> if the machine also has other work to do.</li>
+<li>Check the server startup log: it reports which CPU features the binary uses versus what the hardware supports. On ARM boards that support <code>dotprod</code> but run a build without it, a custom image built with <code>--build-arg RUST_TARGET_FEATURES=+dotprod</code> speeds up quantized inference.</li>
+<li>Building from source on the target machine with <code>RUSTFLAGS="-C target-cpu=native"</code> tunes the binary to that exact CPU (see <em>Advanced Setup</em> in the <a href="/#installation">installation guide</a>).</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting<a class="heading-anchor" href="#troubleshooting" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Upload rejected:</strong> the file must be a <code>.gguf</code> with GGUF magic bytes and a plain file name.</li>
+<li><strong>Loads but will not generate:</strong> confirm the architecture is Qwen2, Llama, or Phi-3, and that the GGUF includes tokenizer metadata. Phi-3/Phi-3.5 models also need the original <code>tokenizer.json</code> placed next to the model file.</li>
+<li><strong>Slow or out of memory:</strong> choose a smaller model or quantization.</li>
+</ul>
+<p>Full details are in the <a href="/docs/user-manual/#3b-using-the-ai-assistant">AI Assistant section of the User Manual</a> and the <a href="/docs/developer-manual/#11-ai-integration-with-candle">Candle integration notes in the Developer Manual</a>.</p>
+
+<h2 id="related">Related guides<a class="heading-anchor" href="#related" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><a href="/guides/offline-wikipedia-raspberry-pi/">Offline Wikipedia on a Raspberry Pi</a> — How to run a full offline copy of Wikipedia on a Raspberry Pi: pick the right Kiwix ZIM file, install Fyr, load the archive, and read and search it from any browser on your network.</li>
+<li><a href="/guides/offline-maps-server/">Build a self-hosted offline maps server</a> — Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.</li>
+<li><a href="/guides/off-grid-emergency-knowledge-server/">Build an off-grid emergency knowledge server</a> — Build an off-grid emergency knowledge server: a Raspberry Pi running Fyr as its own Wi-Fi hotspot, preloaded with offline maps, Wikipedia, medical and repair references, ebooks and a local AI assistant.</li>
+<li><a href="/compare/">Fyr compared with the alternatives</a> — An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.</li>
+</ul>
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#how-fast-is-cpu-inference" class="text-gray-600 hover:text-brand-600">How fast is CPU inference?</a></li>
+                            <li class=""><a href="#pick-a-model-for-your-ram" class="text-gray-600 hover:text-brand-600">Pick a model for your RAM</a></li>
+                            <li class=""><a href="#install" class="text-gray-600 hover:text-brand-600">Step 1: Install Fyr</a></li>
+                            <li class=""><a href="#download" class="text-gray-600 hover:text-brand-600">Step 2: Download a GGUF model</a></li>
+                            <li class=""><a href="#chat" class="text-gray-600 hover:text-brand-600">Step 3: Load the model and chat</a></li>
+                            <li class=""><a href="#tune" class="text-gray-600 hover:text-brand-600">Step 4: Choose a response mode</a></li>
+                            <li class=""><a href="#performance-tips-for-raspberry-pi-and-small-pcs" class="text-gray-600 hover:text-brand-600">Performance tips for Raspberry Pi and small PCs</a></li>
+                            <li class=""><a href="#troubleshooting" class="text-gray-600 hover:text-brand-600">Troubleshooting</a></li>
+                            <li class=""><a href="#related" class="text-gray-600 hover:text-brand-600">Related guides</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>

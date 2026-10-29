@@ -13,6 +13,8 @@ It runs as a local web server and works without internet once content is present
 - Native Fyr ZIM reader service with server-side archive access
 - Local AI assistant for GGUF models
 - Download queue and local content management for maps, books, models, POI, and misc files
+- Messages: a public board (with info/need/offer/alert posts, locations and pinned notices) plus end-to-end encrypted passphrase channels — no accounts, works on plain-HTTP hotspots
+- Backup & restore of settings, POIs and messages from Settings (admin), plus device-to-device export of encrypted channel keys and reading progress
 - Tools: unit converters and encryption/ciphering utilities (AES, Base64, ROT13, hashing) — fully offline on your local Fyr deployment
 
 ## Quick Install
@@ -43,6 +45,12 @@ curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy
 
 ```powershell
 irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Legacy
+```
+
+To serve HTTPS (needed for GPS / My Location on phones over the LAN) with a self-signed certificate, add `--https` (`-Https` on Windows), or set `FYR_TLS=self-signed` yourself; see the [User Manual §2a](/docs/user/USER_MANUAL.md#2a-https-and-trusting-this-server).
+
+```bash
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
 ```
 
 See [fyr.guide/#installation](https://fyr.guide/#installation) for the full installation guide, including manual Docker commands, building from source, and Raspberry Pi deployment.
@@ -90,7 +98,7 @@ Docker release tags are intentionally simple:
 
 ## Documentation Map
 
-- Website + installation playbooks: [fyr.guide](https://fyr.guide/)
+- Website + installation playbooks: [fyr.guide](https://fyr.guide/) (step-by-step [guides](https://fyr.guide/guides/); site sources and build in `docs/build/`, see Developer Manual §7)
 - End-user operations and troubleshooting: [/docs/user/USER_MANUAL.md](/docs/user/USER_MANUAL.md)
 - Architecture and implementation details: [/docs/developer/DEVELOPER_MANUAL.md](/docs/developer/DEVELOPER_MANUAL.md)
 - Contributor workflow and validation requirements: [/CONTRIBUTING.md](/CONTRIBUTING.md)
@@ -100,6 +108,7 @@ Docker release tags are intentionally simple:
 
 Fyr stores user content in a persistent data directory (`./public/data` by default, `/data` in Docker).
 See [fyr.guide/#installation](https://fyr.guide/#installation) for persistence setup and the [User Manual data layout section](/docs/user/USER_MANUAL.md#6-data-storage-layout) for folder-level details.
+Upgrading from 0.5.x? Take a backup first and follow the [upgrade guide](/docs/user/USER_MANUAL.md#6b-upgrading-from-05x-to-10); admins can back up and restore server data from **Settings → Backup & restore** ([§6a](/docs/user/USER_MANUAL.md#6a-backup-and-restore)).
 
 ## License
 

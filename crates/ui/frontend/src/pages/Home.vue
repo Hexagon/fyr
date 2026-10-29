@@ -1,117 +1,149 @@
 <template>
   <div class="home-page">
+    <AlertBanner />
+    <section v-if="continueReading.length" class="continue-section" aria-labelledby="continue-reading-heading">
+      <h3 id="continue-reading-heading">📖 {{ t('home.continueReading') }}</h3>
+      <ul class="continue-list">
+        <li v-for="item in continueReading" :key="item.filename">
+          <router-link
+            :to="item.href"
+            class="continue-card"
+            :aria-label="t('home.resumeBook', { title: item.title })"
+          >
+            <span class="continue-title-row">
+              <span class="continue-title">{{ item.title }}</span>
+              <span class="continue-format">{{ item.format }}</span>
+            </span>
+            <span v-if="item.positionLabel" class="continue-position">{{ item.positionLabel }}</span>
+            <span class="continue-meta">
+              {{ formatRelativeTime(item.lastOpened) }}<template v-if="item.bookmarkCount"> · {{ t('home.bookmarkCount', { count: item.bookmarkCount }, item.bookmarkCount) }}</template>
+            </span>
+          </router-link>
+        </li>
+      </ul>
+    </section>
+
     <div class="stats-grid" v-if="status">
       <div class="stat-card">
-        <h3>📊 System Status</h3>
+        <h3>📊 {{ t('home.systemStatus') }}</h3>
         <p class="status-badge" :class="status.status">{{ status.status }}</p>
-        <p class="small">Version: {{ status.version }}</p>
+        <p class="small">{{ t('home.version', { version: status.version }) }}</p>
         <dl class="status-details">
           <div>
-            <dt>Time source</dt>
+            <dt>{{ t('home.timeSource') }}</dt>
             <dd>{{ timeSourceText }}</dd>
           </div>
           <div>
-            <dt>Clock</dt>
+            <dt>{{ t('home.clock') }}</dt>
             <dd>{{ clock.timeText }}</dd>
           </div>
           <div>
-            <dt>Date</dt>
+            <dt>{{ t('home.date') }}</dt>
             <dd>{{ clock.dateText }}</dd>
           </div>
           <div>
-            <dt>Location</dt>
+            <dt>{{ t('home.location') }}</dt>
             <dd>{{ locationLabel }}</dd>
           </div>
           <div v-if="locationState.location">
-            <dt>Coordinates</dt>
+            <dt>{{ t('home.coordinates') }}</dt>
             <dd>{{ locationCoordinates }}</dd>
           </div>
           <div>
-            <dt>Sun</dt>
+            <dt>{{ t('home.sun') }}</dt>
             <dd>{{ sunSummary }}</dd>
           </div>
         </dl>
       </div>
 
       <div class="stat-card">
-        <h3>🗺️ Maps</h3>
+        <h3>🗺️ {{ t('home.maps') }}</h3>
         <p class="stat-number">{{ status.content_count?.maps || 0 }}</p>
         <p class="stat-meta">{{ categoryStorageSummary('maps') }}</p>
-        <p class="small">PMTiles files available</p>
+        <p class="small">{{ t('home.mapsHint') }}</p>
       </div>
 
       <div class="stat-card">
-        <h3>📚 Books</h3>
+        <h3>📚 {{ t('home.books') }}</h3>
         <p class="stat-number">{{ status.content_count?.books || 0 }}</p>
         <p class="stat-meta">{{ categoryStorageSummary('books') }}</p>
-        <p class="small">EPUB, PDF, MOBI, Markdown, and ZIM</p>
+        <p class="small">{{ t('home.booksHint') }}</p>
       </div>
 
       <div class="stat-card">
-        <h3>📍 POIs</h3>
+        <h3>📍 {{ t('home.poi') }}</h3>
         <p class="stat-number">{{ status.content_count?.poi || 0 }}</p>
         <p class="stat-meta">{{ categoryStorageSummary('poi') }}</p>
-        <p class="small">GeoJSON, JSON, and FlatGeoBuf</p>
+        <p class="small">{{ t('home.poiHint') }}</p>
       </div>
 
       <div class="stat-card">
-        <h3>🤖 Models</h3>
+        <h3>🤖 {{ t('home.models') }}</h3>
         <p class="stat-number">{{ status.content_count?.models || 0 }}</p>
         <p class="stat-meta">{{ categoryStorageSummary('models') }}</p>
-        <p class="small">GGUF files available</p>
+        <p class="small">{{ t('home.modelsHint') }}</p>
       </div>
 
       <div class="stat-card">
-        <h3>📦 Misc</h3>
+        <h3>📦 {{ t('home.misc') }}</h3>
         <p class="stat-number">{{ status.content_count?.misc || 0 }}</p>
         <p class="stat-meta">{{ categoryStorageSummary('misc') }}</p>
-        <p class="small">General files and installers (TXT, CSV, ZIP, 7Z, EXE, MSI)</p>
+        <p class="small">{{ t('home.miscHint') }}</p>
       </div>
     </div>
 
     <div v-if="storage && !adminLocked" class="storage-section">
-      <h3>📦 Storage Usage</h3>
+      <h3>📦 {{ t('home.storageUsage') }}</h3>
       <p class="storage-path">
-        Data Directory: <code>{{ storage.data_dir }}</code>
+        {{ t('home.dataDirectory') }} <code>{{ storage.data_dir }}</code>
+      </p>
+      <p v-if="status?.tls?.fingerprint_sha256" class="storage-path tls-fingerprint">
+        {{ t('home.tlsCertificate', { mode: status.tls.mode }) }}
+        <code>{{ status.tls.fingerprint_sha256 }}</code>
       </p>
       <div class="storage-info compact">
         <div class="total-storage compact-item">
-          <p class="storage-label">Used</p>
+          <p class="storage-label">{{ t('home.used') }}</p>
           <p class="storage-value">{{ storage.total_human }}</p>
-          <p class="storage-detail">{{ storage.total_bytes.toLocaleString() }} bytes</p>
+          <p class="storage-detail">{{ t('home.bytes', { n: n(storage.total_bytes) }) }}</p>
         </div>
         <div class="total-storage compact-item">
-          <p class="storage-label">Free</p>
+          <p class="storage-label">{{ t('home.free') }}</p>
           <p class="storage-value">{{ freeSpaceLabel }}</p>
-          <p class="storage-detail" v-if="storage.free_bytes !== null && storage.free_bytes !== undefined">{{ storage.free_bytes.toLocaleString() }} bytes</p>
+          <p class="storage-detail" v-if="storage.free_bytes !== null && storage.free_bytes !== undefined">{{ t('home.bytes', { n: n(storage.free_bytes) }) }}</p>
         </div>
         <div class="total-storage compact-item" v-if="storage.capacity_human">
-          <p class="storage-label">Capacity</p>
+          <p class="storage-label">{{ t('home.capacity') }}</p>
           <p class="storage-value">{{ storage.capacity_human }}</p>
-          <p class="storage-detail" v-if="storage.capacity_bytes !== null && storage.capacity_bytes !== undefined">{{ storage.capacity_bytes.toLocaleString() }} bytes</p>
+          <p class="storage-detail" v-if="storage.capacity_bytes !== null && storage.capacity_bytes !== undefined">{{ t('home.bytes', { n: n(storage.capacity_bytes) }) }}</p>
         </div>
       </div>
-      <router-link to="/content" class="storage-manage-link">Manage content &rarr;</router-link>
+      <router-link to="/content" class="storage-manage-link">{{ t('home.manageContent') }} &rarr;</router-link>
     </div>
 
     <div v-if="loading" class="loading" role="status" aria-live="polite" aria-busy="true">
       <span class="spinner" aria-hidden="true"></span>
-      <p>Loading server status...</p>
+      <p>{{ t('home.loading') }}</p>
     </div>
     <div v-if="error" class="error-message" role="alert" aria-live="assertive">
       <p>⚠️ {{ error }}</p>
-      <p class="small">Try refreshing this page or checking server connectivity.</p>
+      <p class="small">{{ t('home.errorHint') }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
 import { getLocationClock } from '../services/locationClock'
 import { isAdminLocked } from '../services/auth'
+import { progressStore } from '../modules/library/progress'
+import { formatRelativeTime, selectContinueReading } from '../modules/library/continueReading'
+import AlertBanner from '../modules/messaging/AlertBanner.vue'
 
+const { t, n, locale } = useI18n()
 const status = ref(null)
 const storage = ref(null)
 const loading = ref(true)
@@ -120,17 +152,17 @@ const locationState = useLocationState()
 
 const adminLocked = computed(() => isAdminLocked())
 
-const clock = computed(() => getLocationClock(new Date(), locationState.location))
-const timeSourceText = computed(() => clock.value.mode === 'location' ? 'Saved location' : 'System time')
-const locationLabel = computed(() => locationState.location?.label?.trim() || 'No saved location')
+const clock = computed(() => getLocationClock(new Date(), locationState.location, locale.value))
+const timeSourceText = computed(() => clock.value.mode === 'location' ? t('home.savedLocation') : t('home.systemTime'))
+const locationLabel = computed(() => locationState.location?.label?.trim() || t('home.noSavedLocation'))
 const locationCoordinates = computed(() => {
-  if (!locationState.location) return 'Unavailable'
+  if (!locationState.location) return t('common.unavailable')
 
   return `${locationState.location.latitude.toFixed(4)}, ${locationState.location.longitude.toFixed(4)}`
 })
 const sunSummary = computed(() => {
   if (!clock.value.sunriseText && !clock.value.sunsetText) {
-    return 'Unavailable'
+    return t('common.unavailable')
   }
 
   const parts = []
@@ -138,20 +170,35 @@ const sunSummary = computed(() => {
   if (clock.value.sunsetText) parts.push(`↓ ${clock.value.sunsetText}`)
   return parts.join(' · ')
 })
-const freeSpaceLabel = computed(() => storage.value?.free_human || 'Unavailable')
+const freeSpaceLabel = computed(() => storage.value?.free_human || t('common.unavailable'))
 
 const categoryStorageSummary = (category) => {
   const categoryInfo = storage.value?.by_category?.[category]
   if (!categoryInfo) {
-    return 'Storage pending'
+    return t('home.storagePending')
   }
 
   const fileCount = typeof categoryInfo.files === 'number' ? categoryInfo.files : 0
-  const fileLabel = fileCount === 1 ? 'file' : 'files'
-  return `${categoryInfo.human} • ${fileCount} ${fileLabel}`
+  return `${categoryInfo.human} • ${t('common.fileCount', { count: fileCount }, fileCount)}`
+}
+
+// Continue reading: recent books from this browser's progress store, limited
+// to files still present in the library listing.
+const continueReading = ref([])
+
+const loadContinueReading = async () => {
+  const recent = progressStore.listRecent(30)
+  if (!recent.length) return
+  try {
+    const response = await apiService.getBooks()
+    continueReading.value = selectContinueReading(recent, response.data || [], 6)
+  } catch {
+    continueReading.value = []
+  }
 }
 
 onMounted(async () => {
+  loadContinueReading()
   try {
     const response = await apiService.getStatus()
     status.value = response.data
@@ -171,6 +218,90 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+}
+
+.continue-section {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #40c0b5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.continue-section h3 {
+  color: #e0e0e0;
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.continue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.continue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  height: 100%;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 0.7rem 0.8rem;
+  color: #e0e0e0;
+  text-decoration: none;
+  transition: border-color 0.2s ease;
+}
+
+.continue-card:hover,
+.continue-card:focus-visible {
+  border-color: #40c0b5;
+}
+
+.continue-card:focus-visible {
+  outline: 2px solid #40c0b5;
+  outline-offset: 2px;
+}
+
+.continue-title-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.continue-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continue-format {
+  background: rgba(64, 192, 181, 0.2);
+  border: 1px solid rgba(64, 192, 181, 0.5);
+  color: #b9fff6;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.68rem;
+}
+
+.continue-position {
+  color: #b0b0b0;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continue-meta {
+  color: #808080;
+  font-size: 0.75rem;
 }
 
 .stats-grid {
@@ -364,5 +495,8 @@ onMounted(async () => {
 .storage-manage-link:hover {
   opacity: 1;
   text-decoration: underline;
+}
+.tls-fingerprint code {
+  word-break: break-all;
 }
 </style>

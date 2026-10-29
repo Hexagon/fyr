@@ -1,0 +1,81 @@
+<!--meta
+{
+  "order": 4,
+  "path": "/guides/off-grid-emergency-knowledge-server/",
+  "title": "Off-Grid Emergency Knowledge Server on a Raspberry Pi | Fyr",
+  "description": "Build an off-grid emergency knowledge server: a Raspberry Pi running Fyr as its own Wi-Fi hotspot, preloaded with offline maps, Wikipedia, medical and repair references, ebooks and a local AI assistant.",
+  "h1": "Build an off-grid emergency knowledge server",
+  "crumb": "Off-grid knowledge server",
+  "lead": "A low-power Raspberry Pi that broadcasts its own Wi-Fi network and serves maps, encyclopedias, manuals, and a local AI assistant to any phone — when the internet, the cell network, or the grid is down.",
+  "published": "2026-10-26",
+  "totalTime": "PT2H"
+}
+-->
+<p>Preparedness is mostly about having the right information when you cannot look it up. This guide combines Fyr's pieces into a single box: offline maps, a reference library, a local AI assistant, and offline utilities, served over a Wi-Fi hotspot so that any phone or laptop in range can use it from a browser. Prepare it while you still have internet; afterwards it needs only power.</p>
+
+<h2>Hardware checklist</h2>
+<ul>
+<li><strong>Raspberry Pi with built-in Wi-Fi</strong> (3B+ or newer) running a 64-bit, Debian-based OS with NetworkManager — the default on Raspberry Pi OS Bookworm. A Pi 5 with 8 GB RAM gives you room for a larger AI model.</li>
+<li><strong>Storage:</strong> a USB SSD or large microSD card. Budget space for each item on the preload list below.</li>
+<li><strong>Power:</strong> an official power supply for home use, plus a battery pack or a small solar setup sized for your Pi model for off-grid use.</li>
+<li>Optional: a spare SD card with a cloned image, stored separately, as a backup.</li>
+</ul>
+
+<h2 id="install" data-step>Step 1: Install Fyr</h2>
+<p>With the Pi online, run the hosted installer:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>The installer runs Fyr as a Docker container that restarts automatically on boot and listens on all interfaces. Pass <code>--admin-password</code> to protect management features and <code>--data-dir</code> to keep content on a USB drive; both are remembered for upgrades. See the <a href="/#installation">installation guide</a> for the manual <code>docker run</code> command and bind-mounting a USB drive. On older boards, use <code>--legacy</code> if the container fails with an <em>illegal instruction</em> error.</p>
+
+<h2 id="preload" data-step>Step 2: Preload the content</h2>
+<p>Use <strong>Content Manager</strong> to queue downloads or import files. A practical starting list:</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Content</th><th>Where to get it</th><th>Fyr folder</th></tr></thead>
+<tbody>
+<tr><td>Maps of your region (plus a low-zoom world map)</td><td>BBBike PMTiles extracts or the <code>pmtiles</code> CLI — see the <a href="/guides/offline-maps-server/">offline maps guide</a></td><td><code>maps/</code></td></tr>
+<tr><td>Wikipedia in your language</td><td>Kiwix ZIM archives — see the <a href="/guides/offline-wikipedia-raspberry-pi/">offline Wikipedia guide</a></td><td><code>books/</code></td></tr>
+<tr><td>Medical, travel, and dictionary references</td><td>Topic ZIMs from <a href="https://library.kiwix.org/" rel="noopener">library.kiwix.org</a>, such as medicine-focused Wikipedia selections, Wikivoyage, and Wiktionary</td><td><code>books/</code></td></tr>
+<tr><td>Repair, gardening, and how-to books</td><td>Public-domain EPUBs from <a href="https://standardebooks.org/ebooks" rel="noopener">Standard Ebooks</a> and <a href="https://www.gutenberg.org/ebooks/" rel="noopener">Project Gutenberg</a></td><td><code>books/</code></td></tr>
+<tr><td>Your own documents</td><td>Equipment manuals as PDF, family plans and checklists as Markdown</td><td><code>books/</code></td></tr>
+<tr><td>Local points of interest</td><td>GeoJSON or FlatGeobuf exports (shelters, water sources, meeting points)</td><td><code>poi/</code></td></tr>
+<tr><td>A local AI model</td><td>Qwen2.5-3B-Instruct (Q6_K) for a Pi 5 — see the <a href="/guides/local-ai-assistant-offline/">local AI guide</a></td><td><code>models/</code></td></tr>
+<tr><td>Offline installers, drivers, checksum lists</td><td>Whatever your devices need to be rebuilt</td><td><code>misc/</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Downloads are routed to the right folder by file extension. Fyr itself also ships offline <strong>Tools</strong>: unit converters (length, mass, temperature, volume, pressure, energy, and more) and text encryption, encoding, and checksum utilities.</p>
+
+<h2 id="hotspot" data-step>Step 3: Turn the Pi into a Wi-Fi hotspot</h2>
+<p>Create the hotspot with NetworkManager (replace <code>Fyr</code> and <code>offline-fyr</code> with your preferred SSID and password):</p>
+<pre data-sync="index"><code>sudo nmcli device wifi hotspot \
+  ifname wlan0 \
+  con-name fyr-hotspot \
+  ssid "Fyr" \
+  password "offline-fyr"</code></pre>
+<p>Enable the hotspot to start automatically on every boot:</p>
+<pre data-sync="index"><code>sudo nmcli connection modify fyr-hotspot connection.autoconnect yes
+sudo nmcli connection modify fyr-hotspot connection.autoconnect-priority 10</code></pre>
+<p>Bring it up immediately without rebooting:</p>
+<pre data-sync="index"><code>sudo nmcli connection up fyr-hotspot</code></pre>
+<p>Devices that join the <strong>Fyr</strong> network reach the server at <code>http://10.42.0.1:8080</code>, the default hotspot gateway address assigned by NetworkManager. If the Pi is also plugged into Ethernet, NetworkManager shares that connection through the hotspot when it is available. The same steps are on the <a href="/#installation">Platform Setup tab of the installation guide</a>.</p>
+
+<h2 id="lockdown" data-step>Step 4: Lock it down for shared use</h2>
+<p>If other people will use the box, set an admin password (installer <code>--admin-password</code>, or <code>FYR_ADMIN_PASSWORD</code>): guests can read, browse maps, and chat with the assistant, while downloads, imports, deletions, and settings need an admin login. For a public kiosk where nothing should ever change, reinstall with <code>--readonly</code> (<code>FYR_READONLY=true</code>), which blocks every change on the server and hides storage details.</p>
+
+<h2 id="test" data-step>Step 5: Test it offline — before you need it</h2>
+<p>Unplug Ethernet and disable any upstream Wi-Fi, reboot, then connect a phone to the hotspot and walk through the checklist:</p>
+<ul>
+<li>The hotspot appears after boot and <code>http://10.42.0.1:8080</code> opens.</li>
+<li>Maps render at street level for your area, and Wikipedia articles open and search.</li>
+<li>The AI assistant loads its model and answers within an acceptable time.</li>
+<li>On the phone, add Fyr to the home screen so it opens like an app.</li>
+</ul>
+<p>Repeat the test after each upgrade. To update Fyr while you have internet, re-run the installer with <code>update</code>; your settings and content are preserved.</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh -s -- update</code></pre>
+
+<h2>Keeping it useful</h2>
+<ul>
+<li>Refresh maps and ZIM archives every few months; Kiwix and the map sources publish new dated builds regularly.</li>
+<li>Keep a copy of your data directory on a second drive so a failed card does not take the library with it.</li>
+<li>Print a card with the network name, password, and address and keep it with the device.</li>
+</ul>

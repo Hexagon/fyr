@@ -6,18 +6,18 @@
       <div class="overlay overlay-selector" :class="{ collapsed: !showSelector }">
         <button
           class="overlay-toggle"
-          :aria-label="showSelector ? 'Hide available maps panel' : 'Show available maps panel'"
+          :aria-label="showSelector ? t('maps.panels.hideSelector') : t('maps.panels.showSelector')"
           :aria-expanded="String(showSelector)"
           aria-controls="maps-selector-panel"
           @click="showSelector = !showSelector"
-          :title="showSelector ? 'Hide maps' : 'Show maps'"
+          :title="showSelector ? t('maps.panels.hideMaps') : t('maps.panels.showMaps')"
         >
           {{ showSelector ? '🗺️' : '📂' }}
         </button>
         <div id="maps-selector-panel" v-show="showSelector" class="overlay-content">
-          <h3>Available Maps</h3>
+          <h3>{{ t('maps.available') }}</h3>
           <p v-if="mapsError" class="error-state">{{ mapsError }}</p>
-          <div v-else-if="mapsLoading" class="status-state">Loading maps...</div>
+          <div v-else-if="mapsLoading" class="status-state">{{ t('maps.loading') }}</div>
           <div v-else-if="maps.length" class="maps-list">
             <button
               v-for="map in maps"
@@ -31,7 +31,7 @@
             </button>
           </div>
           <p v-else class="empty-state">
-            No maps available. <router-link to="/content">Add maps</router-link>
+            {{ t('maps.noMaps') }} <router-link to="/content">{{ t('maps.addMaps') }}</router-link>
           </p>
         </div>
       </div>
@@ -39,91 +39,33 @@
       <div v-if="selectedMap" class="overlay overlay-layers" :class="{ collapsed: !showLayers }">
         <button
           class="overlay-toggle"
-          :aria-label="showLayers ? 'Hide layers panel' : 'Show layers panel'"
+          :aria-label="showLayers ? t('maps.panels.hideLayersPanel') : t('maps.panels.showLayersPanel')"
           :aria-expanded="String(showLayers)"
           aria-controls="maps-layers-panel"
           @click="showLayers = !showLayers"
-          :title="showLayers ? 'Hide layers' : 'Show layers'"
+          :title="showLayers ? t('maps.panels.hideLayers') : t('maps.panels.showLayers')"
         >
           {{ showLayers ? '🎨' : '🧩' }}
         </button>
         <div id="maps-layers-panel" v-show="showLayers" class="overlay-content">
-          <h3>Map Layers</h3>
+          <h3>{{ t('maps.layers.title') }}</h3>
           <p class="overlay-meta" v-if="renderMode === 'raster'">
-            Raster mode detected. Vector layer controls are disabled.
+            {{ t('maps.layers.rasterNotice') }}
           </p>
           <div class="layer-toggles">
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
+            <label
+              v-for="toggle in layerToggles"
+              :key="toggle.group"
+              class="layer-toggle"
+              :class="{ disabled: !isVectorMode }"
+            >
               <input
                 type="checkbox"
                 :disabled="!isVectorMode"
-                v-model="layerVisibility.water"
-                @change="toggleLayer('water')"
+                v-model="layerVisibility[toggle.group]"
+                @change="toggleLayer(toggle.group)"
               >
-              <span class="layer-name">💧 Water</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.landuse"
-                @change="toggleLayer('landuse')"
-              >
-              <span class="layer-name">🌳 Land Use</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.park"
-                @change="toggleLayer('park')"
-              >
-              <span class="layer-name">🌲 Parks</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.building"
-                @change="toggleLayer('building')"
-              >
-              <span class="layer-name">🏢 Buildings</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.road"
-                @change="toggleLayer('road')"
-              >
-              <span class="layer-name">🛣️ Roads</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.railway"
-                @change="toggleLayer('railway')"
-              >
-              <span class="layer-name">🚂 Railways</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.boundary"
-                @change="toggleLayer('boundary')"
-              >
-              <span class="layer-name">🗺️ Boundaries</span>
-            </label>
-            <label class="layer-toggle" :class="{ disabled: !isVectorMode }">
-              <input
-                type="checkbox"
-                :disabled="!isVectorMode"
-                v-model="layerVisibility.labels"
-                @change="toggleLayer('labels')"
-              >
-              <span class="layer-name">🔤 Labels</span>
+              <span class="layer-name">{{ toggle.icon }} {{ t(toggle.labelKey) }}</span>
             </label>
           </div>
         </div>
@@ -132,11 +74,11 @@
       <div v-if="selectedMap" class="overlay overlay-info" :class="{ collapsed: !showInfo }">
         <button
           class="overlay-toggle"
-          :aria-label="showInfo ? 'Hide map info panel' : 'Show map info panel'"
+          :aria-label="showInfo ? t('maps.panels.hideInfoPanel') : t('maps.panels.showInfoPanel')"
           :aria-expanded="String(showInfo)"
           aria-controls="maps-info-panel"
           @click="showInfo = !showInfo"
-          :title="showInfo ? 'Hide info' : 'Show info'"
+          :title="showInfo ? t('maps.panels.hideInfo') : t('maps.panels.showInfo')"
         >
           {{ showInfo ? 'ℹ️' : '📍' }}
         </button>
@@ -144,13 +86,16 @@
           <h3>{{ selectedMap.filename }}</h3>
           <p v-if="selectedMap.path && selectedMap.path !== selectedMap.filename" class="overlay-meta">📍 {{ selectedMap.path }}</p>
           <p class="overlay-meta">📊 {{ formatBytes(selectedMap.size) }}</p>
-          <p class="overlay-meta">⏰ {{ new Date(selectedMap.modified).toLocaleDateString() }}</p>
-          <p class="overlay-meta">Mode: {{ renderModeLabel }}</p>
+          <p class="overlay-meta">⏰ {{ new Date(selectedMap.modified).toLocaleDateString(locale) }}</p>
+          <p class="overlay-meta">{{ t('maps.info.mode', { mode: renderModeLabel }) }}</p>
+          <p v-if="selectedMapBounds" class="overlay-meta">
+            {{ t('maps.info.coverage', { bounds: formatBoundsText(selectedMapBounds) }) }}
+          </p>
         </div>
       </div>
 
       <div v-if="!selectedMap" class="empty-view">
-        <p>{{ mapsLoading ? 'Loading maps...' : '👈 Select a map to view' }}</p>
+        <p>{{ mapsLoading ? t('maps.loading') : `👈 ${t('maps.selectMap')}` }}</p>
       </div>
 
       <div v-if="mapError" class="map-error-banner">{{ mapError }}</div>
@@ -158,16 +103,71 @@
       <div v-if="selectedMap" class="overlay overlay-tools" :class="{ collapsed: !showTools }">
         <button
           class="overlay-toggle"
-          :aria-label="showTools ? 'Hide tools panel' : 'Show tools panel'"
+          :aria-label="showTools ? t('maps.panels.hideToolsPanel') : t('maps.panels.showToolsPanel')"
           :aria-expanded="String(showTools)"
           aria-controls="maps-tools-panel"
           @click="showTools = !showTools"
-          :title="showTools ? 'Hide tools' : 'Show tools'"
+          :title="showTools ? t('maps.panels.hideTools') : t('maps.panels.showTools')"
         >
           {{ showTools ? '🔧' : '⚙️' }}
         </button>
         <div id="maps-tools-panel" v-show="showTools" class="overlay-content">
-          <h3>Tools</h3>
+          <h3>{{ t('nav.tools') }}</h3>
+
+          <div class="tool-group place-search">
+            <form class="goto-row" role="search" @submit.prevent="submitPlaceSearch">
+              <input
+                ref="placeInput"
+                v-model="placeQuery"
+                type="text"
+                inputmode="search"
+                class="poi-input"
+                :placeholder="t('maps.search.placeholder')"
+                :aria-label="t('maps.search.label')"
+                :title="t('maps.search.title')"
+                autocomplete="off"
+                spellcheck="false"
+                enterkeyhint="search"
+                @input="onPlaceInput"
+                @keydown="onPlaceKeydown"
+              />
+              <button class="tool-btn-secondary" type="submit" :disabled="!placeQuery.trim()">{{ t('maps.search.go') }}</button>
+              <button
+                v-if="placeQuery"
+                class="tool-btn-icon"
+                type="button"
+                @click="clearPlaceSearch"
+                :title="t('maps.search.clear')"
+                :aria-label="t('maps.search.clear')"
+              >✕</button>
+            </form>
+            <p v-if="placeState.status === 'loading'" class="tool-hint" role="status">{{ t('maps.search.searching') }}</p>
+            <p v-else-if="placeState.status === 'short'" class="tool-hint">{{ t('maps.search.tooShort', { count: MIN_PLACE_QUERY_CHARS }) }}</p>
+            <p v-else-if="placeState.status === 'error'" class="tool-error" role="alert">{{ t('maps.search.error') }}</p>
+            <template v-else-if="placeState.status === 'done'">
+              <ul v-if="placeState.results.length" class="place-results" :aria-label="t('maps.search.results')">
+                <li v-for="(result, index) in placeState.results" :key="result.id">
+                  <button
+                    type="button"
+                    class="place-result"
+                    :class="{ active: index === placeActive }"
+                    @click="choosePlace(result)"
+                    @mousemove="placeActive = index"
+                  >
+                    <span class="place-result-icon" aria-hidden="true">{{ result.icon }}</span>
+                    <span class="place-result-text">
+                      <span class="place-result-title">{{ result.title }}</span>
+                      <span class="place-result-detail">{{ result.detail }}</span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+              <template v-else>
+                <p class="tool-hint" role="status">{{ t('maps.search.none', { query: placeState.query }) }}</p>
+                <p class="tool-hint">{{ t('maps.search.hint') }}</p>
+              </template>
+            </template>
+          </div>
 
           <div class="tool-group">
             <button
@@ -175,11 +175,30 @@
               :class="{ loading: locating }"
               :disabled="locating"
               @click="centerOnUserLocation"
-              title="Center map on your current browser location"
+              :title="t('maps.tools.myLocationHint')"
             >
-              📍 {{ locating ? 'Locating…' : 'My Location' }}
+              📍 {{ locating ? t('maps.tools.locating') : t('maps.tools.myLocation') }}
             </button>
             <p v-if="locationError" class="tool-error">{{ locationError }}</p>
+          </div>
+
+          <div class="tool-group">
+            <form class="goto-row" @submit.prevent="goToCoordinate">
+              <input
+                v-model="gotoInput"
+                class="poi-input"
+                :placeholder="t('maps.goto.placeholder')"
+                :aria-label="t('maps.goto.label')"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="tool-btn-secondary" type="submit" :disabled="!gotoInput.trim()">{{ t('maps.goto.go') }}</button>
+            </form>
+            <p v-if="gotoError" class="tool-error">{{ gotoError }}</p>
+            <div v-if="deepLinkTarget" class="marker-row">
+              <span class="tool-hint" :title="markerSummary">📌 {{ markerSummary }}</span>
+              <button class="tool-btn-icon" @click="clearDeepLinkMarker" :title="t('maps.goto.removeMarker')" :aria-label="t('maps.goto.removeMarker')">✕</button>
+            </div>
           </div>
 
           <div class="tool-group">
@@ -187,23 +206,72 @@
               class="tool-btn"
               :class="{ active: activeTool === 'measure' }"
               @click="toggleTool('measure')"
-              title="Measure distance by clicking points on the map"
+              :title="t('maps.measure.hint')"
             >
-              📏 {{ activeTool === 'measure' ? 'Stop Measuring' : 'Measure Distance' }}
+              📏 {{ activeTool === 'measure' ? t('maps.measure.stop') : t('maps.measure.start') }}
             </button>
             <div v-if="activeTool === 'measure'" class="tool-sub-panel">
-              <p class="tool-hint">Click the map to add waypoints.</p>
-              <div v-if="measurePoints.length === 0" class="tool-dim">No points yet</div>
+              <p class="tool-hint">{{ t('maps.measure.clickHint') }}</p>
+              <div v-if="measurePoints.length === 0" class="tool-dim">{{ t('maps.measure.noPoints') }}</div>
               <div v-else class="measure-info">
-                <span>{{ measurePoints.length }} point{{ measurePoints.length !== 1 ? 's' : '' }}</span>
+                <span>{{ t('maps.measure.points', { count: measurePoints.length }, measurePoints.length) }}</span>
                 <span class="measure-distance">{{ formatDistance(measureTotalDistance) }}</span>
               </div>
               <button
                 class="tool-btn-secondary"
                 :disabled="measurePoints.length === 0"
                 @click="clearMeasure"
-              >Clear</button>
+              >{{ t('maps.measure.clear') }}</button>
             </div>
+          </div>
+
+          <div class="tool-group">
+            <button
+              class="tool-btn"
+              :class="{ active: trackState.recording }"
+              @click="toggleRecording"
+              :title="trackState.recording ? t('maps.track.stopHint') : t('maps.track.recordHint')"
+            >
+              {{ trackState.recording ? `⏹ ${t('maps.track.stop')}` : `⏺ ${t('maps.track.record')}` }}
+            </button>
+            <div v-if="trackState.recording || finishedTrack" class="tool-sub-panel">
+              <div class="measure-info">
+                <span>{{ formatDuration(trackState.durationMs) }} · {{ t('maps.track.points', { count: trackState.points }, trackState.points) }}</span>
+                <span class="measure-distance">{{ formatDistance(trackState.distanceKm) }}</span>
+              </div>
+              <p v-if="trackState.recording" class="tool-hint">
+                {{ trackState.accuracy !== null ? t('maps.track.recordingAccuracy', { accuracy: Math.round(trackState.accuracy) }) : t('maps.track.recording') }}
+              </p>
+              <p v-if="trackState.recovered" class="tool-hint">{{ t('maps.track.recovered') }}</p>
+              <template v-if="finishedTrack && !trackState.recording">
+                <input v-model="trackName" class="poi-input" :placeholder="t('maps.track.name')" :aria-label="t('maps.track.name')" />
+                <template v-if="canEdit">
+                  <div class="poi-create-row">
+                    <input
+                      v-model="trackTargetFile"
+                      class="poi-input"
+                      list="maps-poi-file-options"
+                      placeholder="tracks.geojson"
+                      :aria-label="t('maps.track.saveTo')"
+                    />
+                    <button class="tool-btn-secondary" :disabled="trackSaving" @click="saveTrack">
+                      {{ trackSaving ? t('maps.saving') : t('maps.save') }}
+                    </button>
+                  </div>
+                  <datalist id="maps-poi-file-options">
+                    <option v-for="f in poiFileOptions" :key="f.filename" :value="f.filename" />
+                  </datalist>
+                </template>
+                <p v-else class="tool-hint">{{ t('maps.track.readOnly') }}</p>
+                <div class="tool-row">
+                  <button class="tool-btn-secondary" @click="downloadTrackGpx">⬇ GPX</button>
+                  <button class="tool-btn-secondary" @click="discardTrack">{{ t('maps.track.discard') }}</button>
+                </div>
+              </template>
+            </div>
+            <p v-if="trackState.error" class="tool-error">{{ trackState.error }}</p>
+            <p v-else-if="trackState.warning" class="tool-warning">{{ trackState.warning }}</p>
+            <p v-if="trackMessage" :class="trackMessage.type === 'error' ? 'tool-error' : 'tool-success'">{{ trackMessage.text }}</p>
           </div>
 
           <div class="tool-group">
@@ -211,60 +279,98 @@
               class="tool-btn"
               :class="{ active: activeTool === 'poi' }"
               @click="toggleTool('poi')"
-              title="Add and edit custom Points of Interest"
+              :title="canEdit ? t('maps.poi.editHint') : t('maps.poi.viewHint')"
             >
-              🏷️ {{ activeTool === 'poi' ? 'Close POI Editor' : 'Edit POIs' }}
+              🏷️ {{ activeTool === 'poi' ? t('maps.poi.close') : (canEdit ? t('maps.poi.edit') : t('maps.poi.view')) }}
             </button>
             <div v-if="activeTool === 'poi'" class="tool-sub-panel">
               <div class="poi-file-row">
-                <select v-model="selectedPoiFile" @change="onPoiFileChange" class="poi-select">
-                  <option value="">— select file —</option>
-                  <option v-for="f in poiFiles" :key="f.filename" :value="f.filename">{{ f.filename }}</option>
+                <select v-model="selectedPoiFile" @change="onPoiFileChange" class="poi-select" :aria-label="t('maps.poi.file')">
+                  <option value="">— {{ t('maps.poi.selectFile') }} —</option>
+                  <option v-for="f in poiFileOptions" :key="f.filename" :value="f.filename">
+                    {{ f.filename }}{{ f.unsaved ? ` (${t('maps.poi.notSaved')})` : '' }}
+                  </option>
                 </select>
-                <button class="tool-btn-icon" :class="{ active: showNewPoiFile }" @click="showNewPoiFile = !showNewPoiFile" title="Create new POI file">+</button>
+                <button
+                  v-if="canEdit"
+                  class="tool-btn-icon"
+                  :class="{ active: showNewPoiFile }"
+                  @click="showNewPoiFile = !showNewPoiFile"
+                  :title="t('maps.poi.newFile')"
+                  :aria-label="t('maps.poi.newFile')"
+                >+</button>
               </div>
-              <div v-if="showNewPoiFile" class="poi-create-row">
+              <div v-if="showNewPoiFile && canEdit" class="poi-create-row">
                 <input
                   v-model="newPoiFileName"
-                  placeholder="name.geojson"
+                  :placeholder="t('maps.poi.newFilePlaceholder')"
+                  :aria-label="t('maps.poi.newFile')"
                   class="poi-input"
                   @keydown.enter="createPoiFile"
                   @keydown.escape="showNewPoiFile = false"
                 />
-                <button class="tool-btn-secondary" :disabled="!newPoiFileName.trim()" @click="createPoiFile">Create</button>
+                <button class="tool-btn-secondary" :disabled="!newPoiFileName.trim()" @click="createPoiFile">{{ t('maps.poi.create') }}</button>
               </div>
+              <div class="tool-row">
+                <button class="tool-btn-secondary" @click="openGpxPicker" :title="t('maps.gpx.importHint')">⬆ {{ t('maps.gpx.import') }}</button>
+                <button
+                  class="tool-btn-secondary"
+                  :disabled="!poiData || poiData.features.length === 0"
+                  @click="exportPoiGpx"
+                  :title="t('maps.gpx.downloadAs', { format: 'GPX' })"
+                >⬇ GPX</button>
+                <button
+                  class="tool-btn-secondary"
+                  :disabled="!poiData || poiData.features.length === 0"
+                  @click="exportPoiGeoJson"
+                  :title="t('maps.gpx.downloadAs', { format: 'GeoJSON' })"
+                >⬇ GeoJSON</button>
+                <input
+                  ref="gpxInput"
+                  type="file"
+                  accept=".gpx,application/gpx+xml,application/xml,text/xml"
+                  class="visually-hidden"
+                  @change="onGpxFileSelected"
+                />
+              </div>
+              <p v-if="poiMessage" :class="poiMessage.type === 'error' ? 'tool-error' : 'tool-success'">{{ poiMessage.text }}</p>
               <template v-if="selectedPoiFile && poiData">
                 <p class="tool-hint">
-                  Click the map to place a POI. {{ poiData.features.length }} POI{{ poiData.features.length !== 1 ? 's' : '' }} loaded.
+                  <template v-if="canEdit">{{ t('maps.poi.clickToPlace') }} </template>
+                  {{ t('maps.poi.featuresLoaded', { count: poiData.features.length }, poiData.features.length) }}
                 </p>
                 <div v-if="pendingPoiCoords" class="poi-name-row">
                   <input
                     ref="poiNameInput"
                     v-model="pendingPoiName"
-                    placeholder="POI name"
+                    :placeholder="t('maps.poi.name')"
+                    :aria-label="t('maps.poi.name')"
                     class="poi-input"
                     @keydown.enter="confirmPoi"
                     @keydown.escape="cancelPoi"
                   />
-                  <button class="tool-btn-secondary" :disabled="!pendingPoiName.trim()" @click="confirmPoi">Add</button>
-                  <button class="tool-btn-icon" @click="cancelPoi" title="Cancel">✕</button>
+                  <button class="tool-btn-secondary" :disabled="!pendingPoiName.trim()" @click="confirmPoi">{{ t('maps.poi.add') }}</button>
+                  <button class="tool-btn-icon" @click="cancelPoi" :title="t('common.cancel')" :aria-label="t('common.cancel')">✕</button>
                 </div>
                 <div v-if="poiData.features.length > 0" class="poi-list">
                   <div v-for="(feat, idx) in poiData.features" :key="idx" class="poi-list-item">
-                    <span class="poi-list-name">{{ feat.properties?.name || '(unnamed)' }}</span>
-                    <button class="poi-remove-btn" @click="removePoi(idx)" title="Remove">✕</button>
+                    <button class="poi-list-name" @click="zoomToFeature(feat)" :title="t('maps.poi.show', { name: featureLabel(feat) })">
+                      {{ featureIcon(feat) }} {{ featureLabel(feat) }}
+                    </button>
+                    <button v-if="canEdit" class="poi-remove-btn" @click="removePoi(idx)" :title="t('common.remove')" :aria-label="t('common.remove')">✕</button>
                   </div>
                 </div>
-                <div class="poi-save-row">
+                <div v-if="canEdit" class="poi-save-row">
                   <button
                     class="tool-btn"
                     :class="{ saved: !poiDirty }"
                     :disabled="!poiDirty || poiSaving"
                     @click="savePoiFile"
                   >
-                    {{ poiSaving ? 'Saving…' : poiDirty ? 'Save Changes' : 'Saved ✓' }}
+                    {{ poiSaving ? t('maps.saving') : poiDirty ? t('maps.poi.saveChanges') : `${t('maps.poi.saved')} ✓` }}
                   </button>
                 </div>
+                <p v-else-if="poiDirty" class="tool-hint">{{ t('maps.poi.readOnly') }}</p>
               </template>
             </div>
           </div>
@@ -272,45 +378,121 @@
         </div>
       </div>
 
-      <p class="map-note" v-if="selectedMap">
-        {{ renderMode === 'vector'
-          ? 'Vector tile mode. Layers can be styled and toggled.'
-          : renderMode === 'raster'
-            ? 'Raster tile mode. Tiles are pre-rendered and styling controls are limited.'
-            : 'Detecting tile mode.' }}
-      </p>
+      <div class="map-note" v-if="selectedMap">
+        <button
+          v-if="displayCoord"
+          class="coord-readout"
+          @click="copyDisplayedCoordinate"
+          :title="t('maps.coord.copyHint', { source: displayCoord.source === 'cursor' ? t('maps.coord.cursor') : t('maps.coord.center') })"
+        >
+          <span class="coord-source">{{ displayCoord.source === 'cursor' ? '🖱' : '⊕' }}</span>
+          {{ displayCoordText }}
+          <span v-if="coordCopied" class="coord-copied">{{ t('common.copied') }}</span>
+        </button>
+        <button
+          class="coord-mode-btn"
+          @click="toggleCoordMode"
+          :title="coordMode === 'dms' ? t('maps.coord.showDecimal') : t('maps.coord.showDms')"
+        >{{ coordMode === 'dms' ? 'DMS' : 'DEC' }}</button>
+        <span class="map-note-mode">
+          {{ renderMode === 'vector'
+            ? t('maps.note.vector')
+            : renderMode === 'raster'
+              ? t('maps.note.raster')
+              : t('maps.note.detecting') }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { errorText, formatBytes } from '../i18n/index.js'
 import { apiService } from '../services/api'
 import { useLocationState } from '../services/location'
-import maplibregl from 'maplibre-gl'
+import { isAdminLocked } from '../services/auth'
+import * as maplibregl from 'maplibre-gl'
+// MapLibre 6 runs its renderer worker from a separate module file. Ship it
+// as a local asset (Fyr is offline) and point MapLibre at it explicitly.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { PMTiles, Protocol } from 'pmtiles'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import {
+  formatDistance,
+  formatDuration,
+  pathLength,
+  boundsContain
+} from '../modules/maps/geo'
+import { buildMapDataUrl as buildMapDataUrlFor, mbtilesMetadataUrl } from '../modules/maps/mapFiles'
+import { loadMapSource } from '../modules/maps/mapSources'
+import {
+  emptyGeoJSON,
+  normalizePoiData,
+  normalizePoiFilename,
+  uniquePoiFilename,
+  slugifyFilename,
+  makePointFeature,
+  buildMeasureGeoJSON
+} from '../modules/maps/poi'
+import {
+  MEASURE_SOURCE_ID,
+  POI_SOURCE_ID,
+  TRACK_SOURCE_ID,
+  POI_INTERACTIVE_LAYER_IDS,
+  layerGroups,
+  defaultLayerVisibility,
+  buildBaseStyle,
+  buildMeasureLayers,
+  buildPoiLayers,
+  poiLayerIds,
+  buildTrackLayers
+} from '../modules/maps/style'
+import { formatCoordinate, formatDecimal, formatDms, parseCoordinate } from '../modules/maps/coords'
+import { parseMapsQuery, buildMapsQuery, deepLinkKey, DEFAULT_POINT_ZOOM } from '../modules/maps/deepLink'
+import { createPlaceSearch, MIN_PLACE_QUERY_CHARS, PLACE_SEARCH_KINDS, PLACE_SEARCH_LIMIT } from '../modules/maps/placeSearch'
+import { moveSelection, normalizeQuery } from '../modules/search/searchResults'
+import { createBoundsResolver } from '../modules/maps/bounds'
+import { parseGpx, toGpx } from '../modules/maps/gpx'
+import { checkGeolocationSupport, geolocationErrorMessage, defaultTrackName, trackToFeature, trackToGeoJSON } from '../modules/maps/tracking'
+import { getTrackRecorder } from '../modules/maps/useTrackRecorder'
+import { copyText, downloadText, readFileText } from '../modules/maps/browser'
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl)
+
+const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const maps = ref([])
 const mapsLoading = ref(false)
 const mapsError = ref(null)
 const mapError = ref(null)
 const selectedMap = ref(null)
+const selectedMapBounds = ref(null)
 const showSelector = ref(true)
 const showLayers = ref(true)
 const showInfo = ref(false)
 const showTools = ref(false)
 const renderMode = ref('unknown')
-const layerVisibility = ref({
-  water: true,
-  landuse: true,
-  park: true,
-  building: true,
-  road: true,
-  railway: true,
-  boundary: true,
-  labels: true
-})
+const layerVisibility = ref(defaultLayerVisibility())
+
+const layerToggles = [
+  { group: 'water', icon: '💧', labelKey: 'maps.layers.water' },
+  { group: 'landuse', icon: '🌳', labelKey: 'maps.layers.landuse' },
+  { group: 'park', icon: '🌲', labelKey: 'maps.layers.park' },
+  { group: 'building', icon: '🏢', labelKey: 'maps.layers.building' },
+  { group: 'road', icon: '🛣️', labelKey: 'maps.layers.road' },
+  { group: 'railway', icon: '🚂', labelKey: 'maps.layers.railway' },
+  { group: 'boundary', icon: '🗺️', labelKey: 'maps.layers.boundary' },
+  { group: 'labels', icon: '🔤', labelKey: 'maps.layers.labels' }
+]
+
+// Saving POI files is admin-gated server-side (PUT /api/poi is protected);
+// hide the save/create/edit affordances for guests. Reactive on auth state.
+const canEdit = computed(() => !isAdminLocked())
 
 // Tools state
 const activeTool = ref('none') // 'none' | 'measure' | 'poi'
@@ -321,107 +503,443 @@ const locationError = ref(null)
 
 // Measure tool
 const measurePoints = ref([])
-const measureTotalDistance = computed(() => {
-  let total = 0
-  for (let i = 1; i < measurePoints.value.length; i++) {
-    total += haversineDistance(measurePoints.value[i - 1], measurePoints.value[i])
-  }
-  return total
-})
+const measureTotalDistance = computed(() => pathLength(measurePoints.value))
 
 // POI tool
 const poiFiles = ref([])
+const localPoiFiles = ref([]) // imported but not yet saved file names
 const selectedPoiFile = ref('')
 const poiData = ref(null)
 const poiDirty = ref(false)
 const poiSaving = ref(false)
+const poiMessage = ref(null)
 const showNewPoiFile = ref(false)
 const newPoiFileName = ref('')
 const pendingPoiCoords = ref(null)
 const pendingPoiName = ref('')
 const poiNameInput = ref(null)
+const gpxInput = ref(null)
+let loadedPoiFile = ''
 
-const layerGroups = {
-  water: ['water-layer', 'water-line-layer'],
-  landuse: ['landuse-layer'],
-  park: ['park-layer'],
-  building: ['building-layer'],
-  road: [
-    'road-major-casing-layer',
-    'road-major-layer',
-    'road-minor-casing-layer',
-    'road-minor-layer',
-    'road-any-layer',
-    'road-track-layer',
-    'road-walkway-layer',
-    'road-name-layer'
-  ],
-  railway: ['railway-layer'],
-  boundary: ['boundary-layer'],
-  labels: ['place-name-layer', 'poi-name-layer', 'road-name-layer']
+const poiFileOptions = computed(() => {
+  const saved = poiFiles.value.map((f) => ({ filename: f.filename, unsaved: false }))
+  const known = new Set(saved.map((f) => f.filename))
+  const local = localPoiFiles.value.filter((name) => !known.has(name)).map((filename) => ({ filename, unsaved: true }))
+  return [...saved, ...local]
+})
+
+// Coordinates
+const COORD_MODE_KEY = 'fyr.maps.coordMode'
+const readCoordMode = () => {
+  try { return localStorage.getItem(COORD_MODE_KEY) === 'dms' ? 'dms' : 'decimal' } catch { return 'decimal' }
 }
+const coordMode = ref(readCoordMode())
+const cursorLngLat = ref(null)
+const centerLngLat = ref(null)
+const coordCopied = ref(false)
+const gotoInput = ref('')
+const gotoError = ref(null)
+
+const displayCoord = computed(() => {
+  if (cursorLngLat.value) return { ...cursorLngLat.value, source: 'cursor' }
+  if (centerLngLat.value) return { ...centerLngLat.value, source: 'center' }
+  return null
+})
+const displayCoordText = computed(() => (displayCoord.value
+  ? formatCoordinate(displayCoord.value.lat, displayCoord.value.lng, coordMode.value)
+  : ''))
+
+// Deep link marker: { lat, lng, zoom, label }
+const deepLinkTarget = ref(null)
+const markerSummary = computed(() => {
+  const t = deepLinkTarget.value
+  if (!t) return ''
+  const coord = formatCoordinate(t.lat, t.lng, coordMode.value)
+  return t.label ? `${t.label} (${coord})` : coord
+})
+
+// Place search (names from indexed vector maps + POI files, via /api/search).
+const placeInput = ref(null)
+const placeQuery = ref('')
+const placeState = ref({ status: 'idle', query: '', results: [], error: null })
+const placeActive = ref(-1)
+// Set when a search result is picked, so the view flies there instead of
+// jumping.
+let flyToNextTarget = false
+const placeSearch = createPlaceSearch({
+  request: (q, { signal }) => apiService.search(q, { limit: PLACE_SEARCH_LIMIT, kinds: PLACE_SEARCH_KINDS, signal }),
+  onState: (state) => {
+    placeState.value = state
+    placeActive.value = state.results.length ? 0 : -1
+  }
+})
+
+// Track recording (app-wide recorder so SPA navigation does not stop it)
+const recorder = getTrackRecorder()
+const trackState = recorder.state
+const finishedTrack = recorder.finished
+const trackName = ref('')
+const trackTargetFile = ref('')
+const trackSaving = ref(false)
+const trackMessage = ref(null)
+let centerOnNextFix = false
 
 let mapInstance = null
 let pmtilesProtocol = null
 let locationMarker = null
+let deepLinkMarker = null
+let clickPopup = null
+let lastAppliedLinkKey = null
+let routeApplyToken = 0
+let pointerFrame = null
+let copiedTimer = null
+let userMovedMap = false
+// True once the current map instance fired 'load'; overlay sources can only be added after that.
+let mapReady = false
 
 const locationState = useLocationState()
 
-const isVectorMode = computed(() => renderMode.value === 'vector')
-const renderModeLabel = computed(() => {
-  if (renderMode.value === 'vector') return 'Vector tiles'
-  if (renderMode.value === 'raster') return 'Raster tiles'
-  return 'Unknown'
+// MapLibre's own control tooltips/aria-labels in the UI language.
+const mapControlLocale = () => ({
+  'NavigationControl.ZoomIn': t('common.zoomIn'),
+  'NavigationControl.ZoomOut': t('common.zoomOut'),
+  'NavigationControl.ResetBearing': t('maps.controls.resetBearing'),
+  'AttributionControl.ToggleAttribution': t('maps.controls.attribution'),
+  'ScaleControl.Meters': 'm',
+  'ScaleControl.Kilometers': 'km'
 })
 
-const getMapFormat = (filename) => {
-  const ext = String(filename || '').split('.').pop().toLowerCase()
-  return ext
+const isVectorMode = computed(() => renderMode.value === 'vector')
+const renderModeLabel = computed(() => {
+  if (renderMode.value === 'vector') return t('maps.info.vector')
+  if (renderMode.value === 'raster') return t('maps.info.raster')
+  return t('maps.info.unknown')
+})
+
+const buildMapDataUrl = (filename) => buildMapDataUrlFor(filename, window.location.origin)
+
+const boundsResolver = createBoundsResolver({
+  loadPmtilesHeader: (filename) => new PMTiles(buildMapDataUrl(filename)).getHeader(),
+  loadMbtilesMetadata: async (filename) => {
+    const res = await fetch(mbtilesMetadataUrl(filename))
+    if (!res.ok) throw new Error(`metadata ${res.status}`)
+    return res.json()
+  }
+})
+
+const formatBoundsText = (b) => `${formatDecimal(b[1], b[0], 2)} → ${formatDecimal(b[3], b[2], 2)}`
+
+// ── URL / deep links ────────────────────────────────────────────────
+
+const writeQuery = (query) => {
+  lastAppliedLinkKey = deepLinkKey(parseMapsQuery(query))
+  const current = route.query || {}
+  const same = Object.keys(query).length === Object.keys(current).length &&
+    Object.entries(query).every(([k, v]) => current[k] === v)
+  if (same) return
+  router.replace({ query }).catch(() => {})
 }
 
-const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+const currentLinkQuery = (map = selectedMap.value) => {
+  const t = deepLinkTarget.value
+  return buildMapsQuery({
+    map: map?.filename,
+    lat: t?.lat,
+    lng: t?.lng,
+    zoom: t ? t.zoom : undefined,
+    label: t?.label
+  })
 }
 
-// Haversine distance between two [lng, lat] points in km
-const haversineDistance = (a, b) => {
-  const R = 6371
-  const toRad = (x) => (x * Math.PI) / 180
-  const dLat = toRad(b[1] - a[1])
-  const dLon = toRad(b[0] - a[0])
-  const sinHalfLat = Math.sin(dLat / 2)
-  const sinHalfLon = Math.sin(dLon / 2)
-  const h = sinHalfLat * sinHalfLat + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * sinHalfLon * sinHalfLon
-  return 2 * R * Math.asin(Math.sqrt(h))
+/**
+ * Pick a map for a point: keep `preferred` when it covers the point (or its
+ * coverage is unknown), else the most specific map whose bounds contain it,
+ * else `preferred`/the first map.
+ */
+const chooseMapForPoint = async (lng, lat, preferred) => {
+  if (preferred) {
+    const b = await boundsResolver.getBounds(preferred)
+    if (!b || boundsContain(b, lng, lat)) return preferred
+  }
+  const picked = await boundsResolver.pickMap(maps.value, lng, lat)
+  return picked || preferred || maps.value[0] || null
 }
 
-const formatDistance = (km) => {
-  if (km < 1) return `${Math.round(km * 1000)} m`
-  return `${km.toFixed(2)} km`
+const viewDeepLinkTarget = () => {
+  const t = deepLinkTarget.value
+  if (!mapInstance || !t) return
+  if (flyToNextTarget) {
+    mapInstance.flyTo({ center: [t.lng, t.lat], zoom: t.zoom, essential: true })
+  } else {
+    mapInstance.jumpTo({ center: [t.lng, t.lat], zoom: t.zoom })
+  }
+  flyToNextTarget = false
+  updateDeepLinkMarker()
 }
 
-const emptyGeoJSON = () => ({ type: 'FeatureCollection', features: [] })
+const applyRouteQuery = async (query) => {
+  const parsed = parseMapsQuery(query)
+  const key = deepLinkKey(parsed)
+  if (key === lastAppliedLinkKey) return
+  lastAppliedLinkKey = key
+  const token = ++routeApplyToken
 
-const buildMapDataUrl = (filename) => {
-  const encodedFilename = encodeURIComponent(String(filename || ''))
-  return new URL(`/data/maps/${encodedFilename}`, window.location.origin).toString()
+  deepLinkTarget.value = parsed.hasPoint
+    ? { lat: parsed.lat, lng: parsed.lng, zoom: parsed.zoom ?? DEFAULT_POINT_ZOOM, label: parsed.label }
+    : null
+  if (!parsed.hasPoint) updateDeepLinkMarker()
+
+  let target = null
+  if (parsed.map) {
+    target = maps.value.find((m) => m.filename === parsed.map) || null
+    if (!target) mapError.value = t('maps.errors.notAvailable', { name: parsed.map })
+  }
+  if (!target && parsed.hasPoint) {
+    target = await chooseMapForPoint(parsed.lng, parsed.lat, selectedMap.value)
+    if (token !== routeApplyToken) return
+  }
+  if (!target) return
+
+  if (target !== selectedMap.value) {
+    flyToNextTarget = false
+    selectedMap.value = target // map re-initialises and centres on the deep-link target
+  } else {
+    viewDeepLinkTarget()
+  }
+  // Make the view shareable: record the chosen map in the URL.
+  writeQuery(currentLinkQuery(target))
 }
 
 const selectMap = (map) => {
   selectedMap.value = map
+  writeQuery(currentLinkQuery(map))
 }
 
-const getInitialCenter = () => {
-  const location = locationState.location
-  if (location) {
-    return [location.longitude, location.latitude]
+const updateDeepLinkMarker = () => {
+  if (deepLinkMarker) {
+    deepLinkMarker.remove()
+    deepLinkMarker = null
   }
+  const t = deepLinkTarget.value
+  if (!mapInstance || !t) return
+  deepLinkMarker = new maplibregl.Marker({ color: '#e63946' }).setLngLat([t.lng, t.lat])
+  if (t.label) {
+    // setText: labels come from URLs and must never be interpreted as HTML.
+    const popup = new maplibregl.Popup({ offset: 30, closeOnClick: false }).setText(t.label)
+    deepLinkMarker.setPopup(popup)
+  }
+  deepLinkMarker.addTo(mapInstance)
+  if (t.label) deepLinkMarker.togglePopup()
+}
 
-  return [13.4, 59.5]
+const clearDeepLinkMarker = () => {
+  deepLinkTarget.value = null
+  updateDeepLinkMarker()
+  writeQuery(currentLinkQuery())
+}
+
+// ── Place search ────────────────────────────────────────────────────
+
+const onPlaceInput = () => placeSearch.search(placeQuery.value)
+
+const clearPlaceSearch = () => {
+  placeQuery.value = ''
+  placeSearch.search('')
+  placeInput.value?.focus()
+}
+
+const choosePlace = (result) => {
+  if (!result?.query) return
+  const parsed = parseMapsQuery(result.query)
+  if (!parsed.hasPoint) return
+  flyToNextTarget = true
+  // On phones the expanded tools panel covers the map: get out of the way.
+  if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches) {
+    showTools.value = false
+  }
+  if (deepLinkKey(parsed) === lastAppliedLinkKey) {
+    // Same result again (the URL already says so): just fly back to it.
+    deepLinkTarget.value = { lat: parsed.lat, lng: parsed.lng, zoom: parsed.zoom ?? DEFAULT_POINT_ZOOM, label: parsed.label }
+    viewDeepLinkTarget()
+    return
+  }
+  router.push({ path: '/maps', query: result.query }).catch(() => {})
+}
+
+const submitPlaceSearch = () => {
+  const state = placeState.value
+  if (state.status === 'done' && state.query === normalizeQuery(placeQuery.value) && state.results.length) {
+    choosePlace(state.results[Math.max(0, placeActive.value)])
+    return
+  }
+  placeSearch.search(placeQuery.value, { immediate: true })
+}
+
+const onPlaceKeydown = (event) => {
+  const results = placeState.value.results || []
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (!results.length) return
+    event.preventDefault()
+    placeActive.value = moveSelection(placeActive.value, event.key === 'ArrowDown' ? 1 : -1, results.length)
+  } else if (event.key === 'Escape' && placeQuery.value) {
+    event.preventDefault()
+    placeQuery.value = ''
+    placeSearch.search('')
+  }
+}
+
+const goToCoordinate = async () => {
+  gotoError.value = null
+  const parsed = parseCoordinate(gotoInput.value)
+  if (!parsed) {
+    gotoError.value = t('maps.goto.invalid', { example1: '59.33, 18.07', example2: '59°19\'48"N 18°04\'12"E' })
+    return
+  }
+  const zoom = Math.max(mapInstance ? mapInstance.getZoom() : 0, 13)
+  deepLinkTarget.value = { lat: parsed.lat, lng: parsed.lng, zoom, label: null }
+  const map = await chooseMapForPoint(parsed.lng, parsed.lat, selectedMap.value)
+  if (map && map !== selectedMap.value) {
+    selectedMap.value = map
+  } else {
+    if (mapInstance) mapInstance.flyTo({ center: [parsed.lng, parsed.lat], zoom })
+    updateDeepLinkMarker()
+  }
+  writeQuery(currentLinkQuery(map || selectedMap.value))
+}
+
+// ── Coordinates readout and click popup ─────────────────────────────
+
+const toggleCoordMode = () => {
+  coordMode.value = coordMode.value === 'dms' ? 'decimal' : 'dms'
+  try { localStorage.setItem(COORD_MODE_KEY, coordMode.value) } catch { /* ignore */ }
+}
+
+const flashCopied = () => {
+  coordCopied.value = true
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { coordCopied.value = false }, 1500)
+}
+
+const copyDisplayedCoordinate = async () => {
+  if (!displayCoordText.value) return
+  if (await copyText(displayCoordText.value)) flashCopied()
+}
+
+const shareUrlFor = (lat, lng, label) => {
+  const query = buildMapsQuery({
+    map: selectedMap.value?.filename,
+    lat,
+    lng,
+    zoom: mapInstance ? mapInstance.getZoom() : undefined,
+    label
+  })
+  return new URL(router.resolve({ path: '/maps', query }).href, window.location.origin).toString()
+}
+
+const featureLabel = (feature) => {
+  const name = feature?.properties?.name
+  const type = feature?.geometry?.type
+  if (type === 'LineString' || type === 'MultiLineString') {
+    const lines = type === 'LineString' ? [feature.geometry.coordinates] : feature.geometry.coordinates
+    const km = (lines || []).reduce((sum, line) => sum + pathLength(line || []), 0)
+    return `${name || t('maps.poi.unnamed')} · ${formatDistance(km)}`
+  }
+  return name || t('maps.poi.unnamed')
+}
+
+const featureIcon = (feature) => {
+  const type = feature?.geometry?.type || ''
+  if (type.includes('LineString')) return '〰️'
+  if (type.includes('Polygon')) return '⬠'
+  return '📍'
+}
+
+const buildPopupContent = (lngLat, feature) => {
+  const root = document.createElement('div')
+  root.className = 'fyr-map-popup'
+  if (feature) {
+    const title = document.createElement('strong')
+    title.textContent = featureLabel(feature)
+    root.appendChild(title)
+    const desc = feature.properties?.desc || feature.properties?.description
+    if (desc) {
+      const p = document.createElement('div')
+      p.textContent = String(desc)
+      root.appendChild(p)
+    }
+  }
+  const dec = document.createElement('div')
+  dec.className = 'fyr-map-popup-coord'
+  dec.textContent = formatDecimal(lngLat.lat, lngLat.lng)
+  const dms = document.createElement('div')
+  dms.className = 'fyr-map-popup-coord'
+  dms.textContent = formatDms(lngLat.lat, lngLat.lng)
+  root.append(dec, dms)
+
+  const actions = document.createElement('div')
+  actions.className = 'fyr-map-popup-actions'
+  const mkButton = (text, onClick) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.textContent = text
+    b.addEventListener('click', async () => {
+      const ok = await onClick()
+      b.textContent = ok ? `${t('common.copied')} ✓` : t('maps.coord.copyFailed')
+      setTimeout(() => { b.textContent = text }, 1500)
+    })
+    return b
+  }
+  actions.append(
+    mkButton(t('common.copy'), () => copyText(formatCoordinate(lngLat.lat, lngLat.lng, coordMode.value))),
+    mkButton(t('maps.coord.copyLink'), () => copyText(shareUrlFor(lngLat.lat, lngLat.lng, feature?.properties?.name)))
+  )
+  root.appendChild(actions)
+  return root
+}
+
+const showPointPopup = (e) => {
+  if (!mapInstance) return
+  const layers = POI_INTERACTIVE_LAYER_IDS.filter((id) => mapInstance.getLayer(id))
+  const hits = layers.length ? mapInstance.queryRenderedFeatures(e.point, { layers }) : []
+  if (clickPopup) clickPopup.remove()
+  clickPopup = new maplibregl.Popup({ offset: 8, maxWidth: '260px' })
+    .setLngLat(e.lngLat)
+    .setDOMContent(buildPopupContent(e.lngLat, hits[0] || null))
+    .addTo(mapInstance)
+}
+
+const onPointerMove = (e) => {
+  if (pointerFrame) return
+  pointerFrame = requestAnimationFrame(() => {
+    pointerFrame = null
+    cursorLngLat.value = { lng: e.lngLat.lng, lat: e.lngLat.lat }
+  })
+}
+
+const onPointerOut = () => {
+  if (pointerFrame) cancelAnimationFrame(pointerFrame)
+  pointerFrame = null
+  cursorLngLat.value = null
+}
+
+const onMapMove = () => {
+  if (!mapInstance) return
+  const c = mapInstance.getCenter()
+  centerLngLat.value = { lng: c.lng, lat: c.lat }
+}
+
+const onMapMoveStart = (e) => {
+  if (e?.originalEvent) userMovedMap = true
+}
+
+// ── Map helpers ─────────────────────────────────────────────────────
+
+const getInitialView = () => {
+  const t = deepLinkTarget.value
+  if (t) return { center: [t.lng, t.lat], zoom: t.zoom }
+  const location = locationState.location
+  if (location) return { center: [location.longitude, location.latitude], zoom: 6 }
+  return { center: [13.4, 59.5], zoom: 6 }
 }
 
 const updateLocationMarker = (location) => {
@@ -450,11 +968,39 @@ const toggleLayer = (groupName) => {
   setGroupVisibility(groupName, layerVisibility.value[groupName])
 }
 
+const updateCursor = () => {
+  if (!mapInstance) return
+  const placing = activeTool.value === 'measure' ||
+    (activeTool.value === 'poi' && canEdit.value && Boolean(selectedPoiFile.value && poiData.value))
+  mapInstance.getCanvas().style.cursor = placing ? 'crosshair' : ''
+}
+
+const fitFeatures = (features) => {
+  if (!mapInstance) return
+  const bounds = new maplibregl.LngLatBounds()
+  let any = false
+  const visit = (c) => {
+    if (!Array.isArray(c)) return
+    if (typeof c[0] === 'number' && typeof c[1] === 'number') {
+      bounds.extend([c[0], c[1]])
+      any = true
+      return
+    }
+    c.forEach(visit)
+  }
+  for (const f of features || []) visit(f?.geometry?.coordinates)
+  if (!any) return
+  mapInstance.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 600 })
+}
+
+const zoomToFeature = (feature) => fitFeatures([feature])
+
 // ── Center on user location (issue #43) ────────────────────────────
 const centerOnUserLocation = () => {
   if (!mapInstance) return
-  if (!navigator.geolocation) {
-    locationError.value = 'Geolocation is not supported by this browser'
+  const support = checkGeolocationSupport({ isSecureContext: window.isSecureContext, geolocation: navigator.geolocation })
+  if (!support.ok) {
+    locationError.value = support.message
     return
   }
   locating.value = true
@@ -468,50 +1014,24 @@ const centerOnUserLocation = () => {
     },
     (err) => {
       locating.value = false
-      locationError.value = err.code === 1 ? 'Location access was denied' : 'Could not determine location'
+      locationError.value = geolocationErrorMessage(err, { isSecureContext: window.isSecureContext })
     },
     { timeout: 10000 }
   )
 }
 
 // ── Measure tool (issue #41) ────────────────────────────────────────
-const getMeasureGeoJSON = () => {
-  const features = []
-  if (measurePoints.value.length > 1) {
-    features.push({
-      type: 'Feature',
-      geometry: { type: 'LineString', coordinates: measurePoints.value },
-      properties: {}
-    })
-  }
-  for (const pt of measurePoints.value) {
-    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: pt }, properties: {} })
-  }
-  return { type: 'FeatureCollection', features }
-}
+const getMeasureGeoJSON = () => buildMeasureGeoJSON(measurePoints.value)
 
 const addMeasureLayers = () => {
-  if (!mapInstance || mapInstance.getSource('measure-source')) return
-  mapInstance.addSource('measure-source', { type: 'geojson', data: getMeasureGeoJSON() })
-  mapInstance.addLayer({
-    id: 'measure-line-layer',
-    type: 'line',
-    source: 'measure-source',
-    filter: ['==', '$type', 'LineString'],
-    paint: { 'line-color': '#f7c948', 'line-width': 2, 'line-dasharray': [3, 2] }
-  })
-  mapInstance.addLayer({
-    id: 'measure-points-layer',
-    type: 'circle',
-    source: 'measure-source',
-    filter: ['==', '$type', 'Point'],
-    paint: { 'circle-radius': 5, 'circle-color': '#f7c948', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-  })
+  if (!mapInstance || !mapReady || mapInstance.getSource(MEASURE_SOURCE_ID)) return
+  mapInstance.addSource(MEASURE_SOURCE_ID, { type: 'geojson', data: getMeasureGeoJSON() })
+  for (const layer of buildMeasureLayers()) mapInstance.addLayer(layer)
 }
 
 const updateMeasureSource = () => {
   if (!mapInstance) return
-  const src = mapInstance.getSource('measure-source')
+  const src = mapInstance.getSource(MEASURE_SOURCE_ID)
   if (src) src.setData(getMeasureGeoJSON())
 }
 
@@ -525,42 +1045,122 @@ const clearMeasure = () => {
   updateMeasureSource()
 }
 
+// ── Track recording ─────────────────────────────────────────────────
+const setTrackData = (track) => {
+  if (!mapInstance || !mapReady) return
+  const data = trackToGeoJSON(track)
+  const src = mapInstance.getSource(TRACK_SOURCE_ID)
+  if (src) {
+    src.setData(data)
+    return
+  }
+  if (!track) return
+  mapInstance.addSource(TRACK_SOURCE_ID, { type: 'geojson', data })
+  for (const layer of buildTrackLayers()) mapInstance.addLayer(layer)
+}
+
+const onTrackFix = (fix) => {
+  updateLocationMarker({ longitude: fix.lng, latitude: fix.lat })
+  if (centerOnNextFix && mapInstance) {
+    centerOnNextFix = false
+    mapInstance.easeTo({ center: [fix.lng, fix.lat], zoom: Math.max(mapInstance.getZoom(), 14) })
+  }
+}
+
+const toggleRecording = () => {
+  trackMessage.value = null
+  if (trackState.recording) {
+    recorder.stop()
+    return
+  }
+  if (finishedTrack.value && !window.confirm(t('maps.track.confirmNew'))) return
+  trackName.value = ''
+  centerOnNextFix = true
+  recorder.start()
+}
+
+const discardTrack = () => {
+  if (!window.confirm(t('maps.track.confirmDiscard'))) return
+  recorder.discard()
+  trackName.value = ''
+  trackMessage.value = null
+}
+
+const currentTrackFeature = () => trackToFeature(recorder.current(), trackName.value.trim())
+
+const downloadTrackGpx = () => {
+  const feature = currentTrackFeature()
+  if (!feature) return
+  const { xml } = toGpx({ type: 'FeatureCollection', features: [feature] }, { name: feature.properties.name })
+  downloadText(`${slugifyFilename(feature.properties.name, 'track')}.gpx`, xml, 'application/gpx+xml')
+}
+
+const isNotFound = (err) => err?.response?.status === 404
+
+const saveTrack = async () => {
+  const feature = currentTrackFeature()
+  if (!feature) return
+  const target = normalizePoiFilename(trackTargetFile.value || 'tracks.geojson')
+  trackSaving.value = true
+  trackMessage.value = null
+  try {
+    if (target === selectedPoiFile.value && poiData.value) {
+      poiData.value.features.push(feature)
+      poiDirty.value = true
+      addPoiLayersToMap()
+      if (!(await savePoiFile())) {
+        poiData.value.features.pop()
+        addPoiLayersToMap()
+        throw new Error(poiMessage.value?.text || t('maps.errors.savingFailed'))
+      }
+    } else {
+      let data = emptyGeoJSON()
+      try {
+        data = normalizePoiData(await apiService.readPoi(target))
+      } catch (err) {
+        if (!isNotFound(err)) throw err
+      }
+      data.features.push(feature)
+      await apiService.savePoi(target, data)
+      await loadPoiFiles()
+      if (!selectedPoiFile.value) {
+        selectedPoiFile.value = target
+        loadedPoiFile = target
+        poiData.value = data
+        poiDirty.value = false
+        addPoiLayersToMap()
+      }
+    }
+    recorder.discard()
+    trackName.value = ''
+    trackMessage.value = { type: 'success', text: t('maps.track.saved', { file: target }) }
+  } catch (err) {
+    console.error('Error saving track:', err)
+    trackMessage.value = { type: 'error', text: t('maps.track.saveFailed', { error: err?.response ? apiService.handleError(err) : errorText(err, 'maps.errors.savingFailed') }) }
+  } finally {
+    trackSaving.value = false
+  }
+}
+
 // ── POI tool (issue #42) ────────────────────────────────────────────
 const addPoiLayersToMap = () => {
-  if (!mapInstance) return
+  if (!mapInstance || !mapReady) return
   const data = poiData.value || emptyGeoJSON()
-  const existing = mapInstance.getSource('poi-source')
+  const existing = mapInstance.getSource(POI_SOURCE_ID)
   if (existing) {
     existing.setData(data)
     return
   }
-  mapInstance.addSource('poi-source', { type: 'geojson', data })
-  mapInstance.addLayer({
-    id: 'poi-circle-layer',
-    type: 'circle',
-    source: 'poi-source',
-    paint: { 'circle-radius': 7, 'circle-color': '#ff6b35', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-  })
-  mapInstance.addLayer({
-    id: 'poi-label-layer',
-    type: 'symbol',
-    source: 'poi-source',
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-offset': [0, 1.3],
-      'text-anchor': 'top',
-      'text-size': 12,
-      'text-allow-overlap': false
-    },
-    paint: { 'text-color': '#fff', 'text-halo-color': '#000', 'text-halo-width': 1.2 }
-  })
+  mapInstance.addSource(POI_SOURCE_ID, { type: 'geojson', data })
+  for (const layer of buildPoiLayers()) mapInstance.addLayer(layer)
 }
 
 const removePoiLayersFromMap = () => {
   if (!mapInstance) return
-  if (mapInstance.getLayer('poi-label-layer')) mapInstance.removeLayer('poi-label-layer')
-  if (mapInstance.getLayer('poi-circle-layer')) mapInstance.removeLayer('poi-circle-layer')
-  if (mapInstance.getSource('poi-source')) mapInstance.removeSource('poi-source')
+  for (const id of poiLayerIds()) {
+    if (mapInstance.getLayer(id)) mapInstance.removeLayer(id)
+  }
+  if (mapInstance.getSource(POI_SOURCE_ID)) mapInstance.removeSource(POI_SOURCE_ID)
 }
 
 const loadPoiFiles = async () => {
@@ -573,58 +1173,65 @@ const loadPoiFiles = async () => {
 }
 
 const onPoiFileChange = async () => {
+  if (poiDirty.value && loadedPoiFile && selectedPoiFile.value !== loadedPoiFile &&
+      !window.confirm(t('maps.poi.confirmDiscard', { file: loadedPoiFile }))) {
+    selectedPoiFile.value = loadedPoiFile
+    return
+  }
+  poiMessage.value = null
+  pendingPoiCoords.value = null
+  if (loadedPoiFile && localPoiFiles.value.includes(loadedPoiFile) && loadedPoiFile !== selectedPoiFile.value) {
+    // Unsaved imported data is dropped when switching away.
+    localPoiFiles.value = localPoiFiles.value.filter((n) => n !== loadedPoiFile)
+  }
   if (!selectedPoiFile.value) {
+    loadedPoiFile = ''
     poiData.value = null
+    poiDirty.value = false
     removePoiLayersFromMap()
-    if (mapInstance) {
-      mapInstance.off('click', onPoiClick)
-      mapInstance.getCanvas().style.cursor = ''
-    }
+    updateCursor()
     return
   }
   const requestedFile = selectedPoiFile.value
   try {
     const data = await apiService.readPoi(requestedFile)
     if (selectedPoiFile.value !== requestedFile) return
-    poiData.value = (data && data.features) ? data : emptyGeoJSON()
-    poiDirty.value = false
-    addPoiLayersToMap()
-    if (mapInstance) {
-      mapInstance.off('click', onPoiClick)
-      mapInstance.on('click', onPoiClick)
-      mapInstance.getCanvas().style.cursor = 'crosshair'
-    }
+    poiData.value = normalizePoiData(data)
   } catch (err) {
     if (selectedPoiFile.value !== requestedFile) return
     console.error('Error loading POI file:', err)
     poiData.value = emptyGeoJSON()
   }
+  loadedPoiFile = requestedFile
+  poiDirty.value = false
+  addPoiLayersToMap()
+  updateCursor()
 }
 
 const createPoiFile = async () => {
-  const raw = newPoiFileName.value.trim()
-  if (!raw) return
-  const filename = (raw.endsWith('.geojson') || raw.endsWith('.json')) ? raw : `${raw}.geojson`
+  const filename = normalizePoiFilename(newPoiFileName.value)
+  if (!filename) return
   const newData = emptyGeoJSON()
   try {
     await apiService.savePoi(filename, newData)
     await loadPoiFiles()
     selectedPoiFile.value = filename
+    loadedPoiFile = filename
     poiData.value = newData
     poiDirty.value = false
     showNewPoiFile.value = false
     newPoiFileName.value = ''
+    poiMessage.value = null
     addPoiLayersToMap()
-    if (mapInstance) {
-      mapInstance.on('click', onPoiClick)
-      mapInstance.getCanvas().style.cursor = 'crosshair'
-    }
+    updateCursor()
   } catch (err) {
     console.error('Error creating POI file:', err)
+    poiMessage.value = { type: 'error', text: t('maps.poi.createFailed', { error: apiService.handleError(err) }) }
   }
 }
 
 const onPoiClick = (e) => {
+  if (!canEdit.value || !selectedPoiFile.value || !poiData.value) return
   if (pendingPoiCoords.value) return
   pendingPoiCoords.value = [e.lngLat.lng, e.lngLat.lat]
   pendingPoiName.value = ''
@@ -634,11 +1241,7 @@ const onPoiClick = (e) => {
 const confirmPoi = () => {
   if (!pendingPoiCoords.value || !pendingPoiName.value.trim()) return
   if (!poiData.value) poiData.value = emptyGeoJSON()
-  poiData.value.features.push({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: pendingPoiCoords.value },
-    properties: { name: pendingPoiName.value.trim() }
-  })
+  poiData.value.features.push(makePointFeature(pendingPoiCoords.value, pendingPoiName.value.trim()))
   poiDirty.value = true
   addPoiLayersToMap()
   pendingPoiCoords.value = null
@@ -658,69 +1261,150 @@ const removePoi = (index) => {
 }
 
 const savePoiFile = async () => {
-  if (!selectedPoiFile.value || !poiData.value) return
+  if (!selectedPoiFile.value || !poiData.value) return false
   poiSaving.value = true
   try {
     await apiService.savePoi(selectedPoiFile.value, poiData.value)
     poiDirty.value = false
+    poiMessage.value = null
+    if (localPoiFiles.value.includes(selectedPoiFile.value)) {
+      localPoiFiles.value = localPoiFiles.value.filter((n) => n !== selectedPoiFile.value)
+      await loadPoiFiles()
+    }
+    return true
   } catch (err) {
     console.error('Error saving POI file:', err)
+    poiMessage.value = { type: 'error', text: t('maps.poi.saveFailed', { error: apiService.handleError(err) }) }
+    return false
   } finally {
     poiSaving.value = false
   }
 }
 
+// ── GPX import / export ─────────────────────────────────────────────
+const openGpxPicker = () => {
+  poiMessage.value = null
+  gpxInput.value?.click()
+}
+
+const describeImport = (counts) => {
+  const parts = []
+  if (counts.waypoints) parts.push(t('maps.gpx.waypoints', { count: counts.waypoints }, counts.waypoints))
+  if (counts.tracks) parts.push(t('maps.gpx.tracks', { count: counts.tracks }, counts.tracks))
+  if (counts.routes) parts.push(t('maps.gpx.routes', { count: counts.routes }, counts.routes))
+  let text = parts.length ? t('maps.gpx.imported', { items: parts.join(', ') }) : t('maps.gpx.empty')
+  if (counts.skippedPoints) text += ` ${t('maps.gpx.skipped', { count: counts.skippedPoints }, counts.skippedPoints)}`
+  return text
+}
+
+const onGpxFileSelected = async (event) => {
+  const input = event.target
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  let result
+  try {
+    result = parseGpx(await readFileText(file))
+  } catch (err) {
+    poiMessage.value = { type: 'error', text: t('maps.gpx.importFailed', { file: file.name, error: errorText(err, 'maps.gpx.invalid') }) }
+    return
+  }
+  if (result.features.length === 0) {
+    poiMessage.value = { type: 'error', text: describeImport(result.counts) }
+    return
+  }
+
+  if (!selectedPoiFile.value || !poiData.value) {
+    // Import into a new, not yet saved file named after the GPX.
+    const existing = poiFileOptions.value.map((f) => f.filename)
+    const filename = uniquePoiFilename(result.name || file.name, existing)
+    localPoiFiles.value = [...localPoiFiles.value, filename]
+    selectedPoiFile.value = filename
+    loadedPoiFile = filename
+    poiData.value = emptyGeoJSON()
+  }
+  poiData.value.features.push(...result.features)
+  poiDirty.value = true
+  pendingPoiCoords.value = null
+  addPoiLayersToMap()
+  updateCursor()
+  fitFeatures(result.features)
+  const saveHint = canEdit.value ? ` ${t('maps.gpx.saveHint', { button: t('maps.poi.saveChanges') })}` : ''
+  poiMessage.value = { type: 'success', text: describeImport(result.counts) + saveHint }
+}
+
+const exportBaseName = () => slugifyFilename(selectedPoiFile.value || 'pois', 'pois')
+
+const exportPoiGpx = () => {
+  if (!poiData.value) return
+  const { xml, exported, skipped } = toGpx(poiData.value, { name: selectedPoiFile.value || 'Fyr POIs' })
+  downloadText(`${exportBaseName()}.gpx`, xml, 'application/gpx+xml')
+  poiMessage.value = skipped
+    ? { type: 'success', text: t('maps.gpx.exportedPartial', { exported, skipped }) }
+    : null
+}
+
+const exportPoiGeoJson = () => {
+  if (!poiData.value) return
+  downloadText(`${exportBaseName()}.geojson`, JSON.stringify(poiData.value, null, 2), 'application/geo+json')
+}
+
 // ── Tool activation / deactivation ─────────────────────────────────
+const onMapClick = (e) => {
+  if (activeTool.value === 'measure') {
+    onMeasureClick(e)
+  } else if (activeTool.value === 'poi' && canEdit.value && selectedPoiFile.value && poiData.value) {
+    onPoiClick(e)
+  } else {
+    showPointPopup(e)
+  }
+}
+
 const activateTool = (tool) => {
-  if (!mapInstance) return
   if (tool === 'measure') {
-    mapInstance.getCanvas().style.cursor = 'crosshair'
     addMeasureLayers()
-    mapInstance.on('click', onMeasureClick)
   } else if (tool === 'poi') {
     loadPoiFiles()
-    if (selectedPoiFile.value && poiData.value) {
-      mapInstance.off('click', onPoiClick)
-      mapInstance.on('click', onPoiClick)
-      mapInstance.getCanvas().style.cursor = 'crosshair'
-    }
   }
+  updateCursor()
 }
 
 const deactivateTool = (tool) => {
-  if (!mapInstance) return
-  if (tool === 'measure') {
-    mapInstance.getCanvas().style.cursor = ''
-    mapInstance.off('click', onMeasureClick)
-  } else if (tool === 'poi') {
-    if (pendingPoiCoords.value) cancelPoi()
-    mapInstance.getCanvas().style.cursor = ''
-    mapInstance.off('click', onPoiClick)
-  }
+  if (tool === 'poi' && pendingPoiCoords.value) cancelPoi()
+  updateCursor()
 }
 
 const toggleTool = (tool) => {
+  if (clickPopup) clickPopup.remove()
   if (activeTool.value === tool) {
-    deactivateTool(tool)
     activeTool.value = 'none'
+    deactivateTool(tool)
   } else {
-    deactivateTool(activeTool.value)
+    const previous = activeTool.value
     activeTool.value = tool
+    deactivateTool(previous)
     activateTool(tool)
   }
 }
 
-// Re-attach tool layers/handlers after a map re-initialization
+// Re-attach overlay layers after a map re-initialization
 const afterMapLoaded = () => {
-  if (activeTool.value === 'measure') {
-    addMeasureLayers()
-    mapInstance.on('click', onMeasureClick)
-    mapInstance.getCanvas().style.cursor = 'crosshair'
-  } else if (activeTool.value === 'poi' && selectedPoiFile.value && poiData.value) {
-    addPoiLayersToMap()
-    mapInstance.on('click', onPoiClick)
-    mapInstance.getCanvas().style.cursor = 'crosshair'
-  }
+  if (activeTool.value === 'measure') addMeasureLayers()
+  if (poiData.value) addPoiLayersToMap()
+  if (recorder.current()) setTrackData(recorder.current())
+  updateCursor()
+}
+
+const fitToMapBoundsIfUseful = async (map) => {
+  const bounds = await boundsResolver.getBounds(map)
+  if (selectedMap.value !== map) return
+  selectedMapBounds.value = bounds
+  if (!bounds || !mapInstance || deepLinkTarget.value || userMovedMap) return
+  const loc = locationState.location
+  if (loc && boundsContain(bounds, loc.longitude, loc.latitude)) return
+  const [w, s, e, n] = bounds
+  // Antimeridian-crossing bounds: MapLibre expects east > west.
+  mapInstance.fitBounds([[w, s], [e < w ? e + 360 : e, n]], { padding: 20, duration: 0 })
 }
 
 const loadMaps = async () => {
@@ -737,745 +1421,103 @@ const loadMaps = async () => {
   }
 }
 
-const getMapDiagnostics = async (filename) => {
-  const rawUrl = buildMapDataUrl(filename)
-  const pmtilesArchive = new PMTiles(rawUrl)
-  const header = await pmtilesArchive.getHeader()
-  const metadata = await pmtilesArchive.getMetadata()
-  const vectorLayers = Array.isArray(metadata?.vector_layers)
-    ? metadata.vector_layers.map((layer) => layer.id)
-    : []
-
-  console.log('PMTiles diagnostics:', {
-    filename,
-    tileType: header.tileType,
-    minZoom: header.minZoom,
-    maxZoom: header.maxZoom,
-    vectorLayers
-  })
-
-  return { header, vectorLayers }
-}
-
-const tryLoadMbtilesSource = async (filename) => {
-  try {
-    const metaUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/metadata`
-    let tileFormat = 'png'
-    try {
-      const res = await fetch(metaUrl)
-      if (res.ok) {
-        const meta = await res.json()
-        tileFormat = meta.format || 'png'
-      }
-    } catch (_) { /* use default */ }
-
-    const tileUrl = `/api/maps/tiles/${encodeURIComponent(filename)}/{z}/{x}/{y}`
-    const isVector = tileFormat === 'pbf' || tileFormat === 'mvt'
-
-    if (isVector) {
-      let vectorLayers = []
-      try {
-        const vectorLayersRaw = meta?.vector_layers
-        if (typeof vectorLayersRaw === 'string' && vectorLayersRaw) {
-          const parsed = JSON.parse(vectorLayersRaw)
-          if (Array.isArray(parsed)) {
-            vectorLayers = parsed.map((l) => (typeof l === 'object' && l.id ? l.id : l)).filter(Boolean)
-          }
-        }
-      } catch (_) { /* use empty fallback */ }
-      mapInstance.addSource('pmtiles-source', {
-        type: 'vector',
-        tiles: [tileUrl],
-        minzoom: 0,
-        maxzoom: 14
-      })
-      addVectorLayers(vectorLayers)
-      renderMode.value = 'vector'
-    } else {
-      mapInstance.addSource('pmtiles-source', {
-        type: 'raster',
-        tiles: [tileUrl],
-        tileSize: 256,
-        minzoom: 0,
-        maxzoom: 19
-      })
-      mapInstance.addLayer({
-        id: 'raster-layer',
-        type: 'raster',
-        source: 'pmtiles-source',
-        paint: { 'raster-opacity': 1 }
-      })
-      renderMode.value = 'raster'
-    }
-    return true
-  } catch (error) {
-    console.warn(`MBTiles load failed: ${error.message}`)
-    return false
-  }
-}
-
-const tryLoadVectorSource = (pmtilesUrl, header, availableLayers) => {
-  try {
-    mapInstance.addSource('pmtiles-source', {
-      type: 'vector',
-      url: pmtilesUrl,
-      minzoom: header?.minZoom ?? 0,
-      maxzoom: header?.maxZoom ?? 28
-    })
-    addVectorLayers(availableLayers || [])
-    renderMode.value = 'vector'
-    return true
-  } catch (error) {
-    console.warn(`Vector load failed: ${error.message}`)
-    return false
-  }
-}
-
-const tryLoadRasterSource = (pmtilesUrl, header) => {
-  try {
-    mapInstance.addSource('pmtiles-source', {
-      type: 'raster',
-      url: pmtilesUrl,
-      tileSize: 256,
-      minzoom: header?.minZoom ?? 0,
-      maxzoom: header?.maxZoom ?? 22
-    })
-
-    mapInstance.addLayer({
-      id: 'raster-layer',
-      type: 'raster',
-      source: 'pmtiles-source',
-      paint: {
-        'raster-opacity': 1
-      }
-    })
-
-    renderMode.value = 'raster'
-    return true
-  } catch (error) {
-    console.warn(`Raster load failed: ${error.message}`)
-    return false
-  }
-}
-
-const addVectorLayers = (availableLayers) => {
-  const availableList = Array.isArray(availableLayers) ? availableLayers : []
-  const available = new Set(availableList)
-  const lowerMap = new Map(availableList.map((name) => [String(name).toLowerCase(), name]))
-
-  const pickLayer = (candidates, fallback, patternHints = []) => {
-    for (const candidate of candidates) {
-      const exact = lowerMap.get(String(candidate).toLowerCase())
-      if (exact) return exact
-    }
-
-    for (const hint of patternHints) {
-      const found = availableList.find((layerName) => hint.test(String(layerName)))
-      if (found) return found
-    }
-
-    if (availableList.length === 0) return fallback
-    return lowerMap.get(String(fallback).toLowerCase()) || fallback
-  }
-
-  const earthSource = pickLayer(['land', 'earth'], 'land', [/^land$/i, /^earth$/i])
-  const oceanSource = pickLayer(['ocean'], 'ocean', [/^ocean$/i])
-  const landcoverSource = pickLayer(['landcover', 'landuse', 'land'], 'land', [/landcover/i, /landuse/i, /^land$/i])
-  const landuseSource = pickLayer(['landuse', 'landcover', 'land'], 'land', [/landuse/i, /landcover/i, /^land$/i])
-  const waterSource = pickLayer(['water_polygons', 'water'], 'water_polygons', [/water_polygon/i, /^water$/i, /hydro/i])
-  const waterLineSource = pickLayer(['water_lines', 'waterway', 'physical_line', 'water'], 'water_lines', [/waterway/i, /river/i, /stream/i, /canal/i, /physical_line/i, /water_line/i])
-  const buildingSource = pickLayer(['buildings', 'building'], 'buildings', [/building/i])
-  const roadsSource = pickLayer(['streets', 'roads', 'transportation', 'road'], 'streets', [/transport/i, /road/i, /street/i, /highway/i])
-  const transitSource = pickLayer(['transit', 'transportation', 'roads', 'railway'], 'transit', [/rail/i, /transit/i, /transport/i])
-  const boundarySource = pickLayer(['boundaries', 'boundary', 'admin'], 'boundaries', [/boundar/i, /admin/i])
-  const placesSource = pickLayer(['places', 'place'], 'places', [/places?/i, /settlement/i])
-  const poisSource = pickLayer(['pois', 'poi'], 'pois', [/pois?/i, /point/i])
-  const sitesSource = pickLayer(['sites'], 'sites', [/^sites$/i])
-
-  const roadClassExpr = ['coalesce', ['get', 'class'], ['get', 'kind'], ['get', 'type'], ['get', 'highway']]
-  const roadDetailExpr = ['coalesce', ['get', 'kind_detail'], ['get', 'detail'], ['get', 'subclass']]
-
-  const majorRoadValues = ['motorway', 'trunk', 'primary', 'secondary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link']
-  const minorRoadValues = ['tertiary', 'minor', 'street', 'residential', 'living_street', 'service', 'unclassified']
-  const trackRoadValues = ['track', 'path', 'cycleway', 'bridleway']
-  const walkwayRoadValues = ['footway', 'pedestrian', 'steps', 'sidewalk', 'corridor']
-  const railValues = ['rail', 'railway', 'tram', 'light_rail', 'subway']
-
-  const parkFilter = ['any',
-    ['in', 'class', 'park', 'nature_reserve', 'garden'],
-    ['in', 'kind', 'park', 'nature_reserve', 'garden'],
-    ['in', 'type', 'park', 'nature_reserve', 'garden']
-  ]
-
-  const waterLineFilter = ['any',
-    ['in', 'class', 'river', 'stream', 'canal', 'drain'],
-    ['in', 'kind', 'river', 'stream', 'canal', 'drain'],
-    ['in', 'type', 'river', 'stream', 'canal', 'drain']
-  ]
-
-  const majorRoadFilter = ['any',
-    ['in', 'class', ...majorRoadValues],
-    ['in', 'kind', ...majorRoadValues],
-    ['in', 'type', ...majorRoadValues],
-    ['in', 'highway', ...majorRoadValues],
-    ['in', 'kind_detail', ...majorRoadValues],
-    ['in', 'detail', ...majorRoadValues],
-    ['in', 'subclass', ...majorRoadValues]
-  ]
-
-  const minorRoadFilter = ['any',
-    ['in', 'class', ...minorRoadValues],
-    ['in', 'kind', ...minorRoadValues],
-    ['in', 'type', ...minorRoadValues],
-    ['in', 'highway', ...minorRoadValues],
-    ['in', 'kind_detail', ...minorRoadValues],
-    ['in', 'detail', ...minorRoadValues],
-    ['in', 'subclass', ...minorRoadValues]
-  ]
-
-  const trackRoadFilter = ['any',
-    ['in', 'class', ...trackRoadValues],
-    ['in', 'kind', ...trackRoadValues],
-    ['in', 'type', ...trackRoadValues],
-    ['in', 'highway', ...trackRoadValues],
-    ['in', 'kind_detail', ...trackRoadValues],
-    ['in', 'detail', ...trackRoadValues],
-    ['in', 'subclass', ...trackRoadValues]
-  ]
-
-  const walkwayRoadFilter = ['any',
-    ['in', 'class', ...walkwayRoadValues],
-    ['in', 'kind', ...walkwayRoadValues],
-    ['in', 'type', ...walkwayRoadValues],
-    ['in', 'highway', ...walkwayRoadValues],
-    ['in', 'kind_detail', ...walkwayRoadValues],
-    ['in', 'detail', ...walkwayRoadValues],
-    ['in', 'subclass', ...walkwayRoadValues]
-  ]
-
-  const railFilter = ['any',
-    ['in', 'class', ...railValues],
-    ['in', 'kind', ...railValues],
-    ['in', 'type', ...railValues],
-    ['in', 'highway', ...railValues],
-    ['in', 'kind_detail', ...railValues],
-    ['in', 'detail', ...railValues],
-    ['in', 'subclass', ...railValues]
-  ]
-
-  console.log('Vector schema mapping:', {
-    availableLayers: availableList,
-    roadsSource,
-    transitSource,
-    landuseSource,
-    waterSource,
-    waterLineSource,
-    boundarySource,
-    placesSource,
-    poisSource
-  })
-
-  const vectorLayers = [
-    {
-      id: 'earth-layer',
-      layer: earthSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#f7f4ee',
-        'fill-opacity': 1
-      }
-    },
-    {
-      id: 'ocean-layer',
-      layer: oceanSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#b3d9ff',
-        'fill-opacity': 0.9
-      }
-    },
-    {
-      id: 'landcover-layer',
-      layer: landcoverSource,
-      type: 'fill',
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#dfe8c8',
-        'fill-opacity': 0.55
-      }
-    },
-    {
-      id: 'landuse-layer',
-      layer: landuseSource,
-      type: 'fill',
-      filter: ['all', ['==', '$type', 'Polygon']],
-      paint: {
-        'fill-color': '#d8e6b4',
-        'fill-opacity': 0.65
-      }
-    },
-    {
-      id: 'park-layer',
-      layer: landuseSource,
-      type: 'fill',
-      minzoom: 7,
-      filter: ['all',
-        ['==', '$type', 'Polygon'],
-        parkFilter
-      ],
-      paint: {
-        'fill-color': '#c6ddb0',
-        'fill-opacity': 0.75
-      }
-    },
-    {
-      id: 'sites-layer',
-      layer: sitesSource,
-      type: 'fill',
-      minzoom: 14,
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#e2ddd2',
-        'fill-opacity': 0.7
-      }
-    },
-    {
-      id: 'water-layer',
-      layer: waterSource,
-      type: 'fill',
-      filter: ['all',
-        ['==', '$type', 'Polygon']
-      ],
-      paint: {
-        'fill-color': '#99ccff',
-        'fill-opacity': 0.9
-      }
-    },
-    {
-      id: 'water-line-layer',
-      layer: waterLineSource,
-      type: 'line',
-      minzoom: 6,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        waterLineFilter
-      ],
-      paint: {
-        'line-color': '#5fa8e8',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.7, 10, 1.4, 14, 2.6],
-        'line-opacity': 0.9
-      }
-    },
-    {
-      id: 'building-layer',
-      layer: buildingSource,
-      type: 'fill',
-      minzoom: 11,
-      filter: ['==', '$type', 'Polygon'],
-      paint: {
-        'fill-color': '#e4d8d8',
-        'fill-opacity': 0.78
-      }
-    },
-    {
-      id: 'road-major-casing-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 4,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        majorRoadFilter
-      ],
-      paint: {
-        'line-color': '#efe9dc',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.6, 8, 3.4, 12, 8.4, 15, 12.5],
-        'line-opacity': 1
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-major-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 4,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        majorRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'motorway', '#d88c5a',
-          'trunk', '#d99c67',
-          'primary', '#ddb178',
-          '#e4c89a'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 2.0, 12, 5.8, 15, 9],
-        'line-opacity': 0.98
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-minor-casing-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 8,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        minorRoadFilter
-      ],
-      paint: {
-        'line-color': '#f2eee6',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.1, 12, 3.2, 15, 5.2],
-        'line-opacity': 0.95
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-minor-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 8,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        minorRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'tertiary', '#d9bf97',
-          'minor', '#d2b792',
-          'street', '#cdb28f',
-          'residential', '#c7ad88',
-          '#bea47f'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.6, 15, 3],
-        'line-opacity': 0.95
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-any-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 9,
-      filter: ['all',
-        ['==', '$type', 'LineString']
-      ],
-      paint: {
-        'line-color': '#ad9a79',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.5, 12, 1.2, 15, 2.4],
-        'line-opacity': 0.72
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-track-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 11,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        trackRoadFilter
-      ],
-      paint: {
-        'line-color': ['match', roadClassExpr,
-          'track', '#9b8b62',
-          'path', '#7fa06d',
-          'cycleway', '#6f9f78',
-          '#8ea474'
-        ],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.45, 14, 1.2, 16, 1.8],
-        'line-dasharray': ['match', roadClassExpr,
-          'track', ['literal', [3, 2]],
-          'path', ['literal', [1, 3]],
-          ['literal', [1.5, 1.6]]
-        ],
-        'line-opacity': 0.88
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-walkway-layer',
-      layer: roadsSource,
-      type: 'line',
-      minzoom: 12,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        walkwayRoadFilter
-      ],
-      paint: {
-        'line-color': '#b3a892',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.35, 15, 0.95, 17, 1.35],
-        'line-dasharray': [0.8, 1.2],
-        'line-opacity': 0.82
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'railway-layer',
-      layer: transitSource,
-      type: 'line',
-      minzoom: 5,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        railFilter
-      ],
-      paint: {
-        'line-color': '#8e8e8e',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.6, 10, 1.4, 15, 2.8],
-        'line-dasharray': [2, 2]
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'boundary-layer',
-      layer: boundarySource,
-      type: 'line',
-      filter: ['==', '$type', 'LineString'],
-      paint: {
-        'line-color': '#b8b8b8',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 8, 0.8, 12, 1.3],
-        'line-dasharray': [3, 2]
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round'
-      }
-    },
-    {
-      id: 'road-name-layer',
-      layer: roadsSource,
-      type: 'symbol',
-      minzoom: 11,
-      filter: ['all',
-        ['==', '$type', 'LineString'],
-        ['none', railFilter, trackRoadFilter, walkwayRoadFilter]
-      ],
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name'], ['get', 'ref']],
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 11, 15, 14],
-        'symbol-placement': 'line',
-        'text-rotation-alignment': 'map',
-        'text-allow-overlap': false
-      },
-      paint: {
-        'text-color': '#303030',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.6
-      }
-    },
-    {
-      id: 'place-name-layer',
-      layer: placesSource,
-      type: 'symbol',
-      minzoom: 5,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 5, 10, 10, 14, 14, 18],
-        'text-anchor': 'center',
-        'text-allow-overlap': false,
-        'text-ignore-placement': false
-      },
-      paint: {
-        'text-color': '#222222',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.6
-      }
-    },
-    {
-      id: 'poi-name-layer',
-      layer: poisSource,
-      type: 'symbol',
-      minzoom: 12,
-      layout: {
-        'text-field': ['coalesce', ['get', 'name:en'], ['get', 'name']],
-        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 13],
-        'text-anchor': 'top',
-        'text-offset': [0, 0.8],
-        'text-allow-overlap': false,
-        'icon-allow-overlap': false
-      },
-      paint: {
-        'text-color': '#2a2a2a',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4
-      }
-    }
-  ]
-
-  let layersAdded = 0
-
-  for (const layerDef of vectorLayers) {
-    if (availableLayers.length > 0 && !available.has(layerDef.layer)) {
-      console.warn(`Skipping layer '${layerDef.id}', missing source-layer '${layerDef.layer}'`)
-      continue
-    }
-
-    try {
-      const layer = {
-        id: layerDef.id,
-        type: layerDef.type,
-        source: 'pmtiles-source',
-        'source-layer': layerDef.layer,
-        layout: { visibility: 'visible' }
-      }
-
-      if (layerDef.minzoom !== undefined) layer.minzoom = layerDef.minzoom
-      if (layerDef.filter) layer.filter = layerDef.filter
-      if (layerDef.layout) layer.layout = { ...layer.layout, ...layerDef.layout }
-      if (layerDef.paint) layer.paint = layerDef.paint
-
-      mapInstance.addLayer(layer)
-      layersAdded++
-    } catch (error) {
-      console.warn(`Layer add failed for '${layerDef.id}': ${error.message}`)
-    }
-  }
-
-  console.log(`Vector layers added: ${layersAdded}`)
-
-  setGroupVisibility('water', layerVisibility.value.water)
-  setGroupVisibility('landuse', layerVisibility.value.landuse)
-  setGroupVisibility('park', layerVisibility.value.park)
-  setGroupVisibility('building', layerVisibility.value.building)
-  setGroupVisibility('road', layerVisibility.value.road)
-  setGroupVisibility('railway', layerVisibility.value.railway)
-  setGroupVisibility('boundary', layerVisibility.value.boundary)
-  setGroupVisibility('labels', layerVisibility.value.labels)
-}
-
 const initializeMap = async () => {
   mapError.value = null
   try {
-    if (mapInstance) {
-      mapInstance.remove()
-      mapInstance = null
-    }
+    cleanupMap()
 
     const mapContainer = document.getElementById('map')
     if (!mapContainer || !selectedMap.value) {
       return
     }
 
-    mapInstance = new maplibregl.Map({
+    const view = getInitialView()
+    userMovedMap = false
+    selectedMapBounds.value = null
+    const map = new maplibregl.Map({
       container: mapContainer,
-      style: {
-        version: 8,
-        sources: {},
-        layers: [{
-          id: 'background',
-          type: 'background',
-          paint: { 'background-color': '#f2efe9' }
-        }]
-      },
-      center: getInitialCenter(),
-      zoom: 6,
+      style: buildBaseStyle(),
+      center: view.center,
+      zoom: view.zoom,
       pitch: 0,
-      bearing: 0
+      bearing: 0,
+      locale: mapControlLocale()
     })
+    mapInstance = map
 
-    mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right')
-    mapInstance.addControl(new maplibregl.ScaleControl(), 'bottom-right')
+    map.addControl(new maplibregl.NavigationControl(), 'top-right')
+    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
 
-    mapInstance.on('load', async () => {
+    map.on('click', onMapClick)
+    map.on('mousemove', onPointerMove)
+    map.on('mouseout', onPointerOut)
+    map.on('move', onMapMove)
+    map.on('movestart', onMapMoveStart)
+    onMapMove()
+
+    map.on('load', async () => {
       try {
-        const filename = selectedMap.value.filename
-        const format = getMapFormat(filename)
+        const currentMap = selectedMap.value
+        const mode = await loadMapSource(map, currentMap.filename, { origin: window.location.origin })
+        // The user may have switched maps while the archive header was loading.
+        if (mapInstance !== map) return
 
-        let loaded = false
-
-        if (format === 'mbtiles') {
-          loaded = await tryLoadMbtilesSource(filename)
-        } else {
-          // PMTiles path
-          const pmtilesUrl = `pmtiles://${buildMapDataUrl(filename)}`
-
-          let header = null
-          let vectorLayers = []
-          let tileType = null
-
-          try {
-            const diagnostics = await getMapDiagnostics(filename)
-            header = diagnostics.header
-            vectorLayers = diagnostics.vectorLayers
-            tileType = diagnostics.header?.tileType
-          } catch (diagError) {
-            console.warn(`PMTiles diagnostics failed, using fallback loading: ${diagError.message}`)
-          }
-
-          if (tileType === 1 || tileType === 6) {
-            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
-          } else if (tileType >= 2 && tileType <= 5) {
-            loaded = tryLoadRasterSource(pmtilesUrl, header)
-            if (!loaded) loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-          } else {
-            loaded = tryLoadVectorSource(pmtilesUrl, header, vectorLayers)
-            if (!loaded) loaded = tryLoadRasterSource(pmtilesUrl, header)
+        if (mode) renderMode.value = mode
+        if (mode === 'vector') {
+          for (const groupName of Object.keys(layerGroups)) {
+            setGroupVisibility(groupName, layerVisibility.value[groupName])
           }
         }
 
-        if (!loaded) {
+        if (!mode) {
           renderMode.value = 'unknown'
-          mapError.value = 'Unable to render the selected map.'
-          console.warn(`Unable to load map source for ${filename}`)
+          mapError.value = t('maps.errors.render')
+          console.warn(`Unable to load map source for ${currentMap.filename}`)
         }
 
+        mapReady = true
         updateLocationMarker(locationState.location)
+        updateDeepLinkMarker()
         afterMapLoaded()
+        fitToMapBoundsIfUseful(currentMap)
       } catch (error) {
         renderMode.value = 'unknown'
-        mapError.value = 'Failed to load map data.'
+        mapError.value = t('maps.errors.load')
         console.error('Map load error:', error.message)
       }
     })
 
-    mapInstance.on('error', (event) => {
-      mapError.value = 'Map renderer reported an error.'
+    map.on('error', (event) => {
+      mapError.value = t('maps.errors.renderer')
       console.error('Map error:', event?.error || event)
     })
   } catch (error) {
     renderMode.value = 'unknown'
-    mapError.value = 'Map initialization failed.'
+    mapError.value = t('maps.errors.init')
     console.error('Error initializing map:', error)
   }
 }
 
 const cleanupMap = () => {
+  mapReady = false
+  if (clickPopup) {
+    clickPopup.remove()
+    clickPopup = null
+  }
+  if (deepLinkMarker) {
+    deepLinkMarker.remove()
+    deepLinkMarker = null
+  }
   if (mapInstance) {
-    mapInstance.off('click', onMeasureClick)
-    mapInstance.off('click', onPoiClick)
+    mapInstance.off('click', onMapClick)
+    mapInstance.off('mousemove', onPointerMove)
+    mapInstance.off('mouseout', onPointerOut)
+    mapInstance.off('move', onMapMove)
+    mapInstance.off('movestart', onMapMoveStart)
     mapInstance.remove()
     mapInstance = null
   }
+  cursorLngLat.value = null
 }
 
 watch(selectedMap, (newMap) => {
@@ -1501,16 +1543,39 @@ watch(() => locationState.location, (location) => {
   updateLocationMarker(location)
 }, { deep: true })
 
+watch(() => route.query, (query) => {
+  if (mapsLoading.value) return
+  applyRouteQuery(query)
+})
+
+watch(canEdit, (editable) => {
+  if (!editable && pendingPoiCoords.value) cancelPoi()
+  updateCursor()
+})
+
+watch(finishedTrack, (track) => {
+  if (track && !trackName.value) trackName.value = defaultTrackName(new Date(track.startedAt))
+  if (track && !trackTargetFile.value) trackTargetFile.value = selectedPoiFile.value || 'tracks.geojson'
+}, { immediate: true })
+
 onMounted(async () => {
   if (!pmtilesProtocol) {
     pmtilesProtocol = new Protocol()
     maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile)
   }
 
+  recorder.setListeners({ onChange: setTrackData, onFix: onTrackFix })
+  if (!trackState.recording && !finishedTrack.value) recorder.recover()
+
   await loadMaps()
+  await applyRouteQuery(route.query)
 })
 
 onBeforeUnmount(() => {
+  placeSearch.cancel()
+  recorder.setListeners({})
+  if (copiedTimer) clearTimeout(copiedTimer)
+  if (pointerFrame) cancelAnimationFrame(pointerFrame)
   if (locationMarker) {
     locationMarker.remove()
     locationMarker = null
@@ -1649,6 +1714,12 @@ onBeforeUnmount(() => {
 
 .overlay-tools .overlay-toggle {
   right: 0.6rem;
+}
+
+/* The tools panel is anchored to the bottom; keep it inside the map container
+   (container height is 100vh - 240px, panel sits 2.4rem above its bottom). */
+.overlay-tools .overlay-content {
+  max-height: max(12rem, calc(100vh - 240px - 3.4rem));
 }
 
 /* Tool button styles */
@@ -2024,6 +2095,174 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
+/* Coordinate readout in the bottom status bar */
+.map-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.coord-readout,
+.coord-mode-btn {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  color: #e8e8e8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  padding: 0 0.4rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.coord-readout:hover,
+.coord-mode-btn:hover {
+  border-color: #667eea;
+}
+
+.coord-source {
+  opacity: 0.7;
+  margin-right: 0.2rem;
+}
+
+.coord-copied {
+  color: #7ec98c;
+  margin-left: 0.35rem;
+  font-family: inherit;
+}
+
+.map-note-mode {
+  flex: 1;
+  min-width: 0;
+}
+
+.goto-row,
+.marker-row,
+.tool-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.goto-row .poi-input {
+  min-width: 0;
+}
+
+.place-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.place-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  background: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.place-result:hover,
+.place-result.active {
+  border-color: #667eea;
+  background: #2d3f5a;
+}
+
+.place-result-icon {
+  flex: none;
+  line-height: 1.3;
+}
+
+.place-result-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.place-result-title,
+.place-result-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-result-title {
+  font-size: 0.85rem;
+}
+
+.place-result-detail {
+  font-size: 0.74rem;
+  color: #a8a8a8;
+}
+
+.place-search .tool-hint {
+  margin-top: 0.35rem;
+}
+
+.marker-row {
+  margin-top: 0.35rem;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.marker-row .tool-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-warning {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: #f7c948;
+}
+
+.tool-success {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: #7ec98c;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+button.poi-list-name {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+button.poi-list-name:hover {
+  color: #8ea2ff;
+}
+
 @media (max-width: 1024px) {
   .maps-container {
     min-height: 560px;
@@ -2096,6 +2335,44 @@ onBeforeUnmount(() => {
 
   .map-note {
     font-size: 0.76rem;
+    padding: 0.2rem 0.45rem;
   }
+
+  /* Keep the status bar to one line so it never grows under the overlays. */
+  .map-note-mode {
+    display: none;
+  }
+}
+</style>
+
+<style>
+/* MapLibre popups are rendered outside this component, so these are global. */
+.fyr-map-popup {
+  font-size: 0.82rem;
+  color: #222;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fyr-map-popup-coord {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.fyr-map-popup-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.fyr-map-popup-actions button {
+  border: 1px solid #667eea;
+  background: #eef0ff;
+  color: #2d3f8a;
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.78rem;
+  cursor: pointer;
 }
 </style>

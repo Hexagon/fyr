@@ -1,0 +1,183 @@
+{
+  "maps": {
+    "panels": {
+      "hideSelector": "Dölj panelen med tillgängliga kartor",
+      "showSelector": "Visa panelen med tillgängliga kartor",
+      "hideMaps": "Dölj kartor",
+      "showMaps": "Visa kartor",
+      "hideLayersPanel": "Dölj lagerpanelen",
+      "showLayersPanel": "Visa lagerpanelen",
+      "hideLayers": "Dölj lager",
+      "showLayers": "Visa lager",
+      "hideInfoPanel": "Dölj panelen med kartinformation",
+      "showInfoPanel": "Visa panelen med kartinformation",
+      "hideInfo": "Dölj info",
+      "showInfo": "Visa info",
+      "hideToolsPanel": "Dölj verktygspanelen",
+      "showToolsPanel": "Visa verktygspanelen",
+      "hideTools": "Dölj verktyg",
+      "showTools": "Visa verktyg"
+    },
+    "available": "Tillgängliga kartor",
+    "loading": "Läser in kartor …",
+    "noMaps": "Inga kartor finns.",
+    "addMaps": "Lägg till kartor",
+    "selectMap": "Välj en karta att visa",
+    "layers": {
+      "title": "Kartlager",
+      "rasterNotice": "Rasterläge upptäckt. Inställningar för vektorlager är avstängda.",
+      "water": "Vatten",
+      "landuse": "Markanvändning",
+      "park": "Parker",
+      "building": "Byggnader",
+      "road": "Vägar",
+      "railway": "Järnvägar",
+      "boundary": "Gränser",
+      "labels": "Etiketter"
+    },
+    "info": {
+      "mode": "Läge: {mode}",
+      "coverage": "Täckning: {bounds}",
+      "vector": "Vektorplattor",
+      "raster": "Rasterplattor",
+      "unknown": "Okänt"
+    },
+    "tools": {
+      "myLocationHint": "Centrera kartan på webbläsarens nuvarande plats",
+      "locating": "Söker plats …",
+      "myLocation": "Min plats"
+    },
+    "goto": {
+      "placeholder": "Gå till: 59.33, 18.07 eller 59°19'N 18°4'E",
+      "label": "Gå till koordinat",
+      "go": "Gå",
+      "removeMarker": "Ta bort markör",
+      "invalid": "Koordinaten kunde inte tolkas. Prova ”{example1}” eller ”{example2}”."
+    },
+    "measure": {
+      "hint": "Mät avstånd genom att klicka på punkter på kartan",
+      "stop": "Sluta mäta",
+      "start": "Mät avstånd",
+      "clickHint": "Klicka på kartan för att lägga till vägpunkter.",
+      "noPoints": "Inga punkter än",
+      "points": "{count} punkt | {count} punkter",
+      "clear": "Rensa"
+    },
+    "track": {
+      "stopHint": "Sluta spela in och behåll spåret",
+      "recordHint": "Spela in ditt GPS-spår",
+      "stop": "Stoppa inspelning",
+      "record": "Spela in spår",
+      "points": "{count} pkt | {count} pkt",
+      "recording": "Spelar in. Håll fliken öppen och skärmen på.",
+      "recordingAccuracy": "Spelar in · ±{accuracy} m. Håll fliken öppen och skärmen på.",
+      "recovered": "Ett osparat spår från förra sessionen har återställts.",
+      "name": "Spårets namn",
+      "saveTo": "Spara spåret i POI-fil",
+      "readOnly": "Skrivskyddat läge: ladda ned spåret, eller logga in som admin för att spara det på servern.",
+      "discard": "Kasta",
+      "confirmNew": "Starta en ny inspelning? Det nuvarande osparade spåret kastas.",
+      "confirmDiscard": "Kasta det inspelade spåret?",
+      "saved": "Spåret har sparats i {file}.",
+      "saveFailed": "Det gick inte att spara spåret: {error}",
+      "defaultName": "Spår {date}",
+      "waitingFix": "Väntar på bättre GPS-position (±{accuracy} m)",
+      "tooShort": "Spåret kastades: färre än två GPS-punkter spelades in."
+    },
+    "saving": "Sparar …",
+    "save": "Spara",
+    "poi": {
+      "editHint": "Lägg till och redigera egna intressepunkter",
+      "viewHint": "Visa intressepunkter och spår",
+      "close": "Stäng POI-panelen",
+      "edit": "Redigera POI",
+      "view": "Visa POI",
+      "file": "POI-fil",
+      "selectFile": "välj fil",
+      "notSaved": "inte sparad",
+      "newFile": "Skapa ny POI-fil",
+      "newFilePlaceholder": "namn.geojson",
+      "create": "Skapa",
+      "clickToPlace": "Klicka på kartan för att placera en POI.",
+      "featuresLoaded": "{count} objekt inläst. | {count} objekt inlästa.",
+      "name": "POI-namn",
+      "add": "Lägg till",
+      "show": "Visa {name}",
+      "saveChanges": "Spara ändringar",
+      "saved": "Sparat",
+      "readOnly": "Skrivskyddat läge: importerade data visas men sparas inte.",
+      "unnamed": "(namnlös)",
+      "confirmDiscard": "Kasta osparade ändringar i {file}?",
+      "createFailed": "Det gick inte att skapa filen: {error}",
+      "saveFailed": "Det gick inte att spara: {error}"
+    },
+    "gpx": {
+      "importHint": "Importera vägpunkter, spår och rutter från en .gpx-fil",
+      "import": "Importera GPX",
+      "downloadAs": "Ladda ned som {format}",
+      "waypoints": "{count} vägpunkt | {count} vägpunkter",
+      "tracks": "{count} spår | {count} spår",
+      "routes": "{count} rutt | {count} rutter",
+      "imported": "Importerade {items}.",
+      "empty": "GPX-filen innehöll inga vägpunkter, spår eller rutter.",
+      "skipped": "Hoppade över {count} ogiltig punkt. | Hoppade över {count} ogiltiga punkter.",
+      "importFailed": "Det gick inte att importera {file}: {error}",
+      "invalid": "Ogiltig GPX-fil",
+      "saveHint": "Klicka på ”{button}” för att behålla det.",
+      "exportedPartial": "Exporterade {exported} objekt; {skipped} polygoner/andra objekt kan inte representeras i GPX.",
+      "notXml": "Filen är inte giltig XML",
+      "notGpx": "Filen är inte ett GPX-dokument",
+      "defaultWaypoint": "Vägpunkt {n}",
+      "defaultTrack": "Spår {n}",
+      "defaultRoute": "Rutt {n}"
+    },
+    "coord": {
+      "copyHint": "{source} – klicka för att kopiera",
+      "cursor": "Markör",
+      "center": "Kartans mitt",
+      "showDecimal": "Visa decimala grader",
+      "showDms": "Visa grader, minuter, sekunder",
+      "copyFailed": "Kopieringen misslyckades",
+      "copyLink": "Kopiera länk"
+    },
+    "note": {
+      "vector": "Vektorplattläge. Lager kan stylas och slås av och på.",
+      "raster": "Rasterplattläge. Plattorna är förrenderade och stilinställningarna är begränsade.",
+      "detecting": "Identifierar plattläge."
+    },
+    "errors": {
+      "notAvailable": "Kartan ”{name}” är inte tillgänglig.",
+      "savingFailed": "Det gick inte att spara",
+      "render": "Det gick inte att rita den valda kartan.",
+      "load": "Det gick inte att läsa in kartdata.",
+      "renderer": "Kartritaren rapporterade ett fel.",
+      "init": "Det gick inte att starta kartan."
+    },
+    "controls": {
+      "resetBearing": "Återställ riktningen mot norr",
+      "attribution": "Visa/dölj källhänvisning"
+    },
+    "geo": {
+      "insecure": "Platstjänsten kräver en säker anslutning: öppna Fyr via https:// eller http://localhost. Webbläsare blockerar GPS på vanliga http://-adresser i lokala nätverk; serverns ansvarige kan slå på HTTPS ({setting}).",
+      "unsupported": "Webbläsaren stöder inte platstjänster",
+      "denied": "Åtkomst till platsen nekades. Tillåt plats för den här webbplatsen i webbläsarens inställningar.",
+      "noFix": "Platsen kunde inte fastställas (ingen GPS-position). Gå ut under öppen himmel och försök igen.",
+      "timeout": "Tidsgränsen för att få en position överskreds.",
+      "failed": "Platsen kunde inte fastställas"
+    },
+    "search": {
+      "title": "Hitta en plats",
+      "label": "Sök platser på kartorna",
+      "placeholder": "Ort, sjö, topp …",
+      "go": "Sök",
+      "clear": "Rensa sökningen",
+      "searching": "Söker …",
+      "results": "Hittade platser",
+      "none": "Inga platser hittades för ”{query}”.",
+      "hint": "Söker bland ortnamn i indexerade vektorkartor och i dina POI-filer.",
+      "tooShort": "Skriv minst {count} tecken.",
+      "error": "Platssökningen misslyckades. Försök igen.",
+      "onMap": "på {map}"
+    }
+  }
+}
