@@ -225,7 +225,7 @@
         <div class="absolute inset-0 pointer-events-none bg-black/12" aria-hidden="true"></div>
         <div class="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/25 via-black/32 to-black/40" aria-hidden="true"></div>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-            <a href="https://github.com/Hexagon/fyr/releases/latest" class="inline-flex items-center px-3 py-1 rounded-full bg-white/15 border border-white/35 text-white text-sm font-semibold mb-6 hover:bg-white/25 transition-colors">Pre-release&nbsp;·&nbsp;<span data-gh-release>v0.9.0</span></a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="inline-flex items-center px-3 py-1 rounded-full bg-white/15 border border-white/35 text-white text-sm font-semibold mb-6 hover:bg-white/25 transition-colors">Pre-release&nbsp;·&nbsp;<span data-gh-release>v0.9.0</span></a>
             <h1 class="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-6 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
                 Knowledge, tools, maps, AI<br/><span class="block mt-3 text-brand-100/80">Off-grid. Offline.</span>
             </h1>
@@ -404,7 +404,7 @@
             <div class="text-center mb-12">
                 <h2 class="text-4xl font-bold text-white mb-4">Get Fyr Running</h2>
                 <p class="text-lg text-gray-400">Choose the setup path that fits your environment.</p>
-                <p class="mt-4 text-sm text-gray-500">Latest release <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a> · <a href="https://github.com/Hexagon/fyr/releases" class="text-brand-400 hover:text-brand-200 underline">release notes</a> · <a href="https://hub.docker.com/r/hexagon/fyr" class="text-brand-400 hover:text-brand-200 underline">Docker Hub</a></p>
+                <p class="mt-4 text-sm text-gray-500">Latest release <a href="https://github.com/Hexagon/fyr/releases" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a> · <a href="https://github.com/Hexagon/fyr/releases" class="text-brand-400 hover:text-brand-200 underline">release notes</a> · <a href="https://hub.docker.com/r/hexagon/fyr" class="text-brand-400 hover:text-brand-200 underline">Docker Hub</a></p>
             </div>
 
             <!-- Tab Controls -->
@@ -1033,7 +1033,7 @@ git checkout main   # or dev, or a specific tag</code></pre>
                     <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
                 </a>
             </div>
-            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a></p>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a></p>
         </div>
     </section>
     <!-- /build:cta -->
@@ -1143,8 +1143,8 @@ git checkout main   # or dev, or a specific tag</code></pre>
         var KEY = 'fyr-gh-meta';
         try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
         function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
-        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
-            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases?per_page=1')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1][0] && res[1][0].tag_name };
             apply(d);
             try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
         });

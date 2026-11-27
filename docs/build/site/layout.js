@@ -113,7 +113,8 @@ const FOOTER = `    <footer class="bg-gray-200 py-12">
 
 // Progressive enhancement for elements marked data-gh-stars / data-gh-release.
 // Static text (version from Cargo.toml, plain "Star on GitHub") is the offline
-// fallback; the GitHub API result is cached per session to stay under limits.
+// fallback; the newest release (pre-releases included, as /releases/latest
+// skips them) from the GitHub API is cached per session to stay under limits.
 const GH_SCRIPT = `    <script>
     (function () {
         var stars = document.querySelectorAll('[data-gh-stars]');
@@ -127,8 +128,8 @@ const GH_SCRIPT = `    <script>
         var KEY = 'fyr-gh-meta';
         try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
         function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
-        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
-            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases?per_page=1')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1][0] && res[1][0].tag_name };
             apply(d);
             try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
         });
@@ -156,7 +157,7 @@ function ctaBand() {
                     <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
                 </a>
             </div>
-            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="${REPO_URL}/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>__VERSION_TAG__</a></p>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="${REPO_URL}/releases" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>__VERSION_TAG__</a></p>
         </div>
     </section>`;
 }
