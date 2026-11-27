@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-28",
+      "dateModified": "2026-11-27",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-28">2026-10-28</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-11-27">2026-11-27</time> · Fyr v0.9.0</p>
         </div>
     </header>
 
@@ -167,7 +167,7 @@
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
                             <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
-                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x</a></li>
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
@@ -191,7 +191,7 @@
 It requires no external database, cache server, or other services to run.
 It runs as a local server and is accessed from a browser.</p>
 <blockquote>
-<p><strong>Project status:</strong> Fyr is currently in <strong>preview</strong>. UI details may evolve as features are refined.</p>
+<p><strong>Project status:</strong> Fyr 0.9 is a <strong>pre-release</strong> of 1.0. UI details may still change before 1.0.</p>
 </blockquote>
 <h3 id="related-documentation">Related documentation<a class="heading-anchor" href="#related-documentation" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -789,7 +789,7 @@ pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtil
 </ul>
 <p>Uploads are limited to 512 MB. Restoring a backup from a newer Fyr version into an older one is refused if the messages database format is newer.</p>
 <p>Via the API (for scripts): <code>GET /api/backup</code> and <code>POST /api/restore</code> (multipart field <code>file</code>) with an admin session cookie. Without <code>FYR_ADMIN_PASSWORD</code>, anyone who can reach the server can use them, like every other admin function.</p>
-<h2 id="6b-upgrading-from-05x-to-10">6b. Upgrading from 0.5.x to 1.0<a class="heading-anchor" href="#6b-upgrading-from-05x-to-10" aria-label="Link to this section">#</a></h2>
+<h2 id="6b-upgrading-from-05x">6b. Upgrading from 0.5.x<a class="heading-anchor" href="#6b-upgrading-from-05x" aria-label="Link to this section">#</a></h2>
 <ol>
 <li><strong>Take a backup first.</strong> On 0.5.x there is no backup button: stop Fyr and copy the data folder (<code>public/data/</code> or your <code>DATA_DIR</code>), or for Docker copy the volume, for example:<pre><code class="language-sh">docker stop fyr
 docker run --rm -v fyr-data:/data -v &quot;$PWD&quot;:/backup alpine tar czf /backup/fyr-data-0.5.tar.gz -C /data .
@@ -1028,7 +1028,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                             <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
                             <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
                             <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
-                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x</a></li>
                             <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
                             <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
                             <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
@@ -1060,7 +1060,7 @@ After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for fu
                     <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
                 </a>
             </div>
-            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a></p>
         </div>
     </section>
 

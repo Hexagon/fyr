@@ -3,7 +3,7 @@
 Fyr is an offline-first content platform for maps, books, and knowledge archives.
 It runs as a local web server and works without internet once content is present.
 
-> **Project status:** Fyr is currently in **preview**. Interfaces and workflows may continue to evolve.
+> **Project status:** Fyr 0.9 is a **pre-release** of 1.0. Interfaces and workflows may still change before 1.0.
 
 ## Features
 
@@ -108,7 +108,7 @@ Docker release tags are intentionally simple:
 
 Fyr stores user content in a persistent data directory (`./public/data` by default, `/data` in Docker).
 See [fyr.guide/#installation](https://fyr.guide/#installation) for persistence setup and the [User Manual data layout section](/docs/user/USER_MANUAL.md#6-data-storage-layout) for folder-level details.
-Upgrading from 0.5.x? Take a backup first and follow the [upgrade guide](/docs/user/USER_MANUAL.md#6b-upgrading-from-05x-to-10); admins can back up and restore server data from **Settings → Backup & restore** ([§6a](/docs/user/USER_MANUAL.md#6a-backup-and-restore)).
+Upgrading from 0.5.x? Take a backup first and follow the [upgrade guide](/docs/user/USER_MANUAL.md#6b-upgrading-from-05x); admins can back up and restore server data from **Settings → Backup & restore** ([§6a](/docs/user/USER_MANUAL.md#6a-backup-and-restore)).
 
 ## License
 

@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-01-01",
-      "dateModified": "2026-10-29",
+      "dateModified": "2026-11-27",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -113,7 +113,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Developer Manual</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Developer Manual</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Implementation and architecture notes for contributors — generated from the canonical <code class="text-brand-400">docs/developer/DEVELOPER_MANUAL.md</code>.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-29">2026-10-29</time> · Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-11-27">2026-11-27</time> · Fyr v0.9.0</p>
         </div>
     </header>
 
@@ -175,7 +175,7 @@
 <p class="not-prose text-sm text-gray-600 bg-gray-200/70 border border-gray-300 rounded-lg px-4 py-3 mb-8">This page is generated from <a class="text-brand-600 underline" href="https://github.com/Hexagon/fyr/blob/main/docs/developer/DEVELOPER_MANUAL.md">docs/developer/DEVELOPER_MANUAL.md</a> on GitHub, the canonical source. Installation steps live on the <a class="text-brand-600 underline" href="/#installation">installation section</a>.</p><h2 id="1-overview">1. Overview<a class="heading-anchor" href="#1-overview" aria-label="Link to this section">#</a></h2>
 <p>Fyr is a Rust workspace with a Vue frontend.</p>
 <blockquote>
-<p><strong>Project status:</strong> Fyr is currently in <strong>preview</strong>; prefer additive and backward-compatible changes where practical.</p>
+<p><strong>Project status:</strong> Fyr 0.9 is a <strong>pre-release</strong> of 1.0; prefer additive and backward-compatible changes where practical.</p>
 </blockquote>
 <p>Documentation map:</p>
 <ul>
@@ -1052,7 +1052,7 @@ git push origin vX.Y.Z
 <li><strong>PDF via pdf.js — delivered on <code>next</code></strong> (§ 12): pdf.js reader with page memory, bookmarks, <code>&amp;page=</code> deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).</li>
 <li><strong>Backup and portability (remaining):</strong> optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.</li>
 <li><strong>Curated catalog checksums:</strong> fill <code>sha256</code> for curated downloads so one-click downloads are verified.</li>
-<li><strong>Release engineering:</strong> verified multi-arch Docker builds of <code>next</code>, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).</li>
+<li><strong>Release engineering:</strong> 0.9.0 is the pre-release of 1.0 (the stable release workflow marks every <code>v0.*</code> tag as a GitHub pre-release). Remaining: verified multi-arch Docker builds, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).</li>
 </ol>
 <h3 id="known-gaps">Known gaps<a class="heading-anchor" href="#known-gaps" aria-label="Link to this section">#</a></h3>
 <ul>
@@ -1268,7 +1268,7 @@ Redirects resolve to their target; duplicates by resolved path are dropped; at m
                     <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
                 </a>
             </div>
-            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a></p>
         </div>
     </section>
 

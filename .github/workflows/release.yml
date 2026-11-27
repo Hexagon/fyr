@@ -193,3 +193,5 @@ jobs:
         with:
           tag_name: ${{ needs.preflight.outputs.tag }}
           generate_release_notes: true
+          # 0.x releases are pre-releases of 1.0.
+          prerelease: ${{ startsWith(needs.preflight.outputs.tag, 'v0.') }}

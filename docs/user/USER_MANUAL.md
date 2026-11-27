@@ -5,7 +5,7 @@ Fyr is an offline-first content platform for maps, books, and knowledge archives
 It requires no external database, cache server, or other services to run.
 It runs as a local server and is accessed from a browser.
 
-> **Project status:** Fyr is currently in **preview**. UI details may evolve as features are refined.
+> **Project status:** Fyr 0.9 is a **pre-release** of 1.0. UI details may still change before 1.0.
 
 ### Related documentation
 - Installation and deployment paths: [fyr.guide/#installation](https://fyr.guide/#installation)
@@ -503,7 +503,7 @@ Uploads are limited to 512 MB. Restoring a backup from a newer Fyr version into 
 
 Via the API (for scripts): `GET /api/backup` and `POST /api/restore` (multipart field `file`) with an admin session cookie. Without `FYR_ADMIN_PASSWORD`, anyone who can reach the server can use them, like every other admin function.
 
-## 6b. Upgrading from 0.5.x to 1.0
+## 6b. Upgrading from 0.5.x
 
 1. **Take a backup first.** On 0.5.x there is no backup button: stop Fyr and copy the data folder (`public/data/` or your `DATA_DIR`), or for Docker copy the volume, for example:
    ```sh
