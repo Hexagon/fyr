@@ -43,7 +43,7 @@
       "image": "https://fyr.guide/img/og-image.jpg",
       "inLanguage": "en",
       "datePublished": "2026-10-26",
-      "dateModified": "2026-10-26",
+      "dateModified": "2026-11-27",
       "author": {
         "@type": "Organization",
         "name": "Fyr Contributors",
@@ -107,7 +107,7 @@
             <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">Compare</li></ol></nav>
             <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">Fyr compared with the alternatives</h1>
             <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Fyr overlaps with several excellent open-source projects. Here is how they differ, and when you should pick something else.</p>
-            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-26">2026-10-26</time> · 4 min read · Applies to Fyr v0.5.2</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-11-27">2026-11-27</time> · 4 min read · Applies to Fyr v0.9.0</p>
         </div>
     </header>
 
@@ -212,7 +212,7 @@
                     <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
                 </a>
             </div>
-            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.9.0</a></p>
         </div>
     </section>
 
@@ -257,8 +257,8 @@
         var KEY = 'fyr-gh-meta';
         try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
         function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
-        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
-            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases?per_page=1')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1][0] && res[1][0].tag_name };
             apply(d);
             try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
         });

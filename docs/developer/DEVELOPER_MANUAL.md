@@ -3,7 +3,7 @@
 ## 1. Overview
 Fyr is a Rust workspace with a Vue frontend.
 
-> **Project status:** Fyr is currently in **preview**; prefer additive and backward-compatible changes where practical.
+> **Project status:** Fyr 0.9 is a **pre-release** of 1.0; prefer additive and backward-compatible changes where practical.
 
 Documentation map:
 - Product overview and quick navigation: [README.md](../../README.md)
@@ -711,7 +711,7 @@ Fyr's 1.0 goal: a household, camp or community can run one box (Pi or homelab) a
 6. **PDF via pdf.js — delivered on `next`** (§ 12): pdf.js reader with page memory, bookmarks, `&page=` deep links and client-side in-book search. Remaining: global search and assistant retrieval over PDF text (server-side extraction).
 7. **Backup and portability (remaining):** optional server-side reading progress for guests on shared devices; restoring the messages database without a restart.
 8. **Curated catalog checksums:** fill `sha256` for curated downloads so one-click downloads are verified.
-9. **Release engineering:** verified multi-arch Docker builds of `next`, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).
+9. **Release engineering:** 0.9.0 is the pre-release of 1.0 (the stable release workflow marks every `v0.*` tag as a GitHub pre-release). Remaining: verified multi-arch Docker builds, version bump to 1.0.0 (the 0.5.x upgrade guide is in the User Manual §6b; extend it with any new data folders or env vars).
 
 ### Known gaps
 - Interrupted URL downloads are not resumed automatically after a restart; the user clicks **Resume** (`POST /api/download/:task_id/retry`). Interrupted local imports are not resumable and must be re-imported.

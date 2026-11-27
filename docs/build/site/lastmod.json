@@ -1,46 +1,46 @@
 {
   "/": {
-    "hash": "779f9c196345d26f",
-    "lastmod": "2026-10-26"
+    "hash": "235f08dae859f709",
+    "lastmod": "2026-11-27"
   },
   "/guides/offline-wikipedia-raspberry-pi/": {
-    "hash": "d7a0dc5947b3cb44",
-    "lastmod": "2026-10-26"
+    "hash": "21328a3253ed5d32",
+    "lastmod": "2026-11-27"
   },
   "/guides/offline-maps-server/": {
-    "hash": "2e6afce4b074db93",
-    "lastmod": "2026-10-26"
+    "hash": "2c12eda31c4704ef",
+    "lastmod": "2026-11-27"
   },
   "/guides/local-ai-assistant-offline/": {
-    "hash": "8e8c223078344650",
-    "lastmod": "2026-10-26"
+    "hash": "8d4c7f68097d6b86",
+    "lastmod": "2026-11-27"
   },
   "/guides/off-grid-emergency-knowledge-server/": {
-    "hash": "c0c24cba232bb98a",
-    "lastmod": "2026-10-26"
+    "hash": "bcb97d9f33e021b7",
+    "lastmod": "2026-11-27"
   },
   "/compare/": {
-    "hash": "8f3916c91866b2cf",
-    "lastmod": "2026-10-26"
+    "hash": "d4c0ffeda0f2eedd",
+    "lastmod": "2026-11-27"
   },
   "/guides/": {
-    "hash": "cd2b6c39af849e25",
-    "lastmod": "2026-10-26"
+    "hash": "88da81997c4c3d45",
+    "lastmod": "2026-11-27"
   },
   "/docs/user-manual/": {
-    "hash": "8d90eb25c979db74",
-    "lastmod": "2026-10-28"
+    "hash": "ace0e2cb1eba394d",
+    "lastmod": "2026-11-27"
   },
   "/docs/developer-manual/": {
-    "hash": "51fcd5d21bb4e8b1",
-    "lastmod": "2026-10-29"
+    "hash": "b8c2004c9001e7fd",
+    "lastmod": "2026-11-27"
   },
   "/docs/": {
-    "hash": "9589675d0afdf4b8",
-    "lastmod": "2026-10-26"
+    "hash": "65ce63d05843fb45",
+    "lastmod": "2026-11-27"
   },
   "/404.html": {
-    "hash": "90fa942e42aec305",
-    "lastmod": "2026-10-26"
+    "hash": "2c0b71429cb03aa1",
+    "lastmod": "2026-11-27"
   }
 }

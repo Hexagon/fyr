@@ -15,7 +15,7 @@ Helpful references:
 - Full technical workflow and release process: [docs/developer/DEVELOPER_MANUAL.md](docs/developer/DEVELOPER_MANUAL.md)
 - End-user behavior reference (for UX-impacting changes): [docs/user/USER_MANUAL.md](docs/user/USER_MANUAL.md)
 
-> **Project status:** Fyr is currently in **preview**, so behavior and tooling may change between releases.
+> **Project status:** Fyr 0.9 is a **pre-release** of 1.0, so behavior and tooling may change between releases.
 
 ## 2. Branch and PR Flow
 

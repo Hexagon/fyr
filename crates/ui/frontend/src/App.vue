@@ -62,7 +62,7 @@
     </main>
 
     <footer class="app-footer">
-      <p>Fyr v0.5.2</p>
+      <p>Fyr v0.9.0</p>
     </footer>
   </div>
 </template>
