@@ -305,22 +305,43 @@ const rewriteNativeZimHtml = (filename, articlePath, html, apiService) => {
   }
 }
 
+/** Split "A/Foo#bar" into { path: "A/Foo", hash: "#bar" }. */
+export const splitArticleHash = (path) => {
+  const value = String(path || '')
+  const hashIdx = value.indexOf('#')
+  if (hashIdx < 0) return { path: value, hash: '' }
+  return { path: value.slice(0, hashIdx), hash: value.slice(hashIdx) }
+}
+
 export const useZimReader = () => {
   const meta = ref(null)
   const adapter = ref(null)
   const nativeArticle = ref(null)
   const pendingHash = ref(null)
+  // Monotonic counter: only the most recent article request may write state,
+  // so quick link clicks / history jumps never show an older article last.
+  let articleRequestSeq = 0
 
   const dispose = () => {
+    articleRequestSeq += 1
     meta.value = null
     adapter.value = null
     nativeArticle.value = null
     pendingHash.value = null
   }
 
-  const open = async (descriptor, apiService) => {
-    meta.value = await apiService.getZimArchiveMeta(descriptor.filename)
-    adapter.value = await apiService
+  /**
+   * Open an archive. `options.startPath` (deep link or remembered position) is
+   * tried first; if it fails the archive's main article is shown instead and
+   * the result reports `startPathFailed: true`.
+   */
+  const open = async (descriptor, apiService, token = null, options = {}) => {
+    const isStale = () => Boolean(token?.cancelled)
+    const nextMeta = await apiService.getZimArchiveMeta(descriptor.filename)
+    if (isStale()) return { startPathFailed: false }
+    meta.value = nextMeta
+
+    const nextAdapter = await apiService
       .getZimReaderCapabilities(descriptor.filename)
       .catch(() => ({
         filename: descriptor.filename,
@@ -329,26 +350,39 @@ export const useZimReader = () => {
         supports_search: true,
         archive_url: descriptor.content_url
       }))
+    if (isStale()) return { startPathFailed: false }
+    adapter.value = nextAdapter
 
-    if (adapter.value?.supports_native_render) {
+    if (!nextAdapter?.supports_native_render) return { startPathFailed: false }
+
+    const startPath = typeof options.startPath === 'string' ? options.startPath : ''
+    if (startPath) {
+      try {
+        await loadNativeArticle(descriptor.filename, startPath, apiService)
+        return { startPathFailed: false }
+      } catch {
+        if (isStale()) return { startPathFailed: false }
+      }
       await loadNativeArticle(descriptor.filename, null, apiService)
+      return { startPathFailed: true }
     }
+
+    await loadNativeArticle(descriptor.filename, null, apiService)
+    return { startPathFailed: false }
   }
 
+  /**
+   * Load an article (null = main page). Resolves to the article, or to null
+   * when a newer request superseded this one (nothing was changed then).
+   */
   const loadNativeArticle = async (filename, path, apiService) => {
-    // Extract hash fragment from the path before sending to the server
-    let hash = ''
-    let cleanPath = path
-    if (path) {
-      const hashIdx = path.indexOf('#')
-      if (hashIdx >= 0) {
-        hash = path.slice(hashIdx)
-        cleanPath = path.slice(0, hashIdx)
-      }
-    }
-    pendingHash.value = hash || null
+    const seq = ++articleRequestSeq
+    // Hash fragments are client-side only; keep them for scrolling after load.
+    const { path: cleanPath, hash } = path ? splitArticleHash(path) : { path: null, hash: '' }
 
-    const native = await apiService.getZimNativeArticle(filename, cleanPath)
+    const native = await apiService.getZimNativeArticle(filename, cleanPath || null)
+    if (seq !== articleRequestSeq) return null
+
     const rendered = rewriteNativeZimHtml(
       filename,
       native?.path,
@@ -356,8 +390,10 @@ export const useZimReader = () => {
       apiService
     )
 
+    pendingHash.value = hash || null
     nativeArticle.value = {
       ...native,
+      requested_hash: hash || '',
       content: buildZimSandboxDocument(rendered.headHtml, rendered.bodyHtml, rendered.rootAttrs)
     }
 

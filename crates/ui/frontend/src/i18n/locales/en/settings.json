@@ -1,0 +1,74 @@
+{
+  "settings": {
+    "language": {
+      "title": "Language",
+      "hint": "Choose the language of the Fyr interface. The choice is saved in this browser only, so everyone on the network can pick their own."
+    },
+    "location": {
+      "title": "Location",
+      "saved": "Saved",
+      "latitudeLabel": "Latitude:",
+      "longitudeLabel": "Longitude:",
+      "labelLabel": "Label:",
+      "label": "Label",
+      "labelPlaceholder": "Home, cabin, camp, ...",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "save": "Save location",
+      "useBrowser": "Use browser geolocation",
+      "clear": "Clear location",
+      "invalid": "Latitude and longitude must be valid numbers.",
+      "savedMessage": "Location saved.",
+      "cleared": "Location cleared.",
+      "browserLabel": "Browser location",
+      "captured": "Location captured from browser geolocation."
+    },
+    "geo": {
+      "unsupported": "Browser geolocation is not supported in this environment.",
+      "insecure": "Browser geolocation requires a secure context (HTTPS or localhost).",
+      "unavailable": "Browser geolocation is not available in this environment.",
+      "readFailed": "Unable to read browser location."
+    },
+    "bus": {
+      "title": "Shared module bus",
+      "body": "The settings page writes to the shared location module and backend settings store. Other modules can later emit location changes through the same bus."
+    },
+    "modules": {
+      "title": "Module state",
+      "count": "{count} module | {count} modules",
+      "empty": "No module state is stored yet. Future modules can write their own state here.",
+      "addTitle": "Add or update module state",
+      "name": "Module name",
+      "payload": "Module payload",
+      "save": "Save module state",
+      "removed": "Removed module state for {name}.",
+      "updated": "Updated module state for {name}.",
+      "invalidJson": "Module payload must be valid JSON."
+    },
+    "downloads": {
+      "title": "Downloads",
+      "body": "Set the HTTP request timeout used for large URL downloads in Content Manager.",
+      "timeout": "Request timeout (seconds)",
+      "save": "Save download timeout",
+      "invalid": "Download timeout must be a valid integer number of seconds.",
+      "saved": "Download timeout saved: {seconds}s."
+    },
+    "backup": {
+      "title": "Backup & restore",
+      "body": "A backup contains settings, POI files, the curated catalog, download history and all messages (the Board and encrypted channels, which stay encrypted). Maps, books, models and other large content are not included; copy the data folder for those. Keep backups private.",
+      "preparing": "Preparing backup…",
+      "download": "Download backup",
+      "restoreTitle": "Restore from a backup",
+      "restoreBody": "Restoring replaces settings, the curated catalog and POI files with the same names right away (other POI files are kept). Messages and download history are replaced when Fyr restarts.",
+      "file": "Backup file (.zip)",
+      "restoring": "Restoring… {pct}%",
+      "restore": "Restore backup",
+      "from": "Backup from {date} (Fyr {version}).",
+      "unknownDate": "unknown date",
+      "restoredNow": "Restored now: {items}",
+      "restart": "Restart Fyr (for Docker: {command}) to finish restoring {items}. Until then the old messages stay in use.",
+      "and": " and ",
+      "confirm": "Restore \"{name}\"?\n\nThis replaces the current settings, curated catalog and matching POI files now, and all messages and download history after the next restart. Take a backup first if you may want them back."
+    }
+  }
+}

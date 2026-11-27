@@ -1,5 +1,7 @@
 use super::error::ModelError;
 use super::loader::{LoadedModel, ModelLoader, ModelRuntime};
+use super::prompt::{fit_prompt, input_token_budget};
+use super::retrieval::{Passage, SourceRef};
 use super::types::{ModelHealthResponse, ModelLoadState, ModelRegistryEntry};
 use candle_core::Tensor;
 use candle_transformers::generation::LogitsProcessor;
@@ -19,6 +21,30 @@ enum PromptFormat {
     ChatMl,
     Llama3,
     Phi3,
+}
+
+/// Everything needed to start one streamed inference run.
+pub struct InferRequest {
+    pub prompt: String,
+    pub temperature: f64,
+    pub max_tokens: usize,
+    pub num_ctx: usize,
+    /// Prior turns as `(role, text)`, oldest first.
+    pub history: Vec<(String, String)>,
+    /// Content catalog summary appended to the system prompt.
+    pub app_context: String,
+    /// `Some` when library grounding was requested (possibly with no
+    /// passages found); `None` keeps the plain assistant behaviour.
+    pub library: Option<Vec<Passage>>,
+}
+
+/// A started inference run.
+pub struct InferStream {
+    /// Sources actually included in the prompt (after context budgeting),
+    /// numbered as the model was told to cite them. `None` when the library
+    /// was not requested.
+    pub sources: Option<Vec<SourceRef>>,
+    pub tokens: mpsc::Receiver<String>,
 }
 
 #[derive(Clone)]
@@ -223,16 +249,21 @@ impl ModelManager {
         }
     }
 
-    pub async fn infer_stream(
-        &self,
-        filename: &str,
-        prompt: String,
-        temperature: f64,
-        max_tokens: usize,
-        num_ctx: usize,
-        history: Vec<(String, String)>,
-        app_context: String,
-    ) -> Result<mpsc::Receiver<String>, ModelError> {
+    /// Fail fast with the same errors [`Self::infer_stream`] would return
+    /// (`NotLoaded`, or `InferenceFailed` for validation-only models), so
+    /// callers can skip expensive preparation such as library retrieval.
+    pub async fn ensure_inference_ready(&self, filename: &str) -> Result<(), ModelError> {
+        let loaded = self.loaded.read().await;
+        let Some(model) = loaded.get(filename) else {
+            return Err(ModelError::NotLoaded(filename.to_string()));
+        };
+        match &model.runtime {
+            ModelRuntime::ValidationOnly { reason } => Err(validation_only_error(reason.clone())),
+            _ => Ok(()),
+        }
+    }
+
+    pub async fn infer_stream(&self, filename: &str, request: InferRequest) -> Result<InferStream, ModelError> {
         let loaded = self.loaded.read().await;
         let Some(model) = loaded.get(filename) else {
             return Err(ModelError::NotLoaded(filename.to_string()));
@@ -240,6 +271,56 @@ impl ModelManager {
 
         let runtime = model.runtime.clone();
         drop(loaded);
+
+        let (tokenizer, prompt_format) = match &runtime {
+            ModelRuntime::QuantizedQwen2 { tokenizer, .. } => (Arc::clone(tokenizer), PromptFormat::ChatMl),
+            ModelRuntime::QuantizedLlama { tokenizer, .. } => (Arc::clone(tokenizer), PromptFormat::Llama3),
+            ModelRuntime::QuantizedPhi { tokenizer, .. } | ModelRuntime::QuantizedPhi3 { tokenizer, .. } => {
+                (Arc::clone(tokenizer), PromptFormat::Phi3)
+            }
+            ModelRuntime::ValidationOnly { reason } => return Err(validation_only_error(reason.clone())),
+        };
+
+        let InferRequest {
+            prompt,
+            temperature,
+            max_tokens,
+            num_ctx,
+            history,
+            app_context,
+            library,
+        } = request;
+        let input_budget = input_token_budget(num_ctx, max_tokens);
+
+        // Tokenizing the candidate prompts is CPU work; keep it off the async
+        // workers like the inference itself.
+        let fitted = tokio::task::spawn_blocking(move || {
+            let count = |text: &str| {
+                tokenizer
+                    .encode(text, true)
+                    .map(|encoding| encoding.len())
+                    .unwrap_or_else(|_| text.len() / 3 + 1)
+            };
+            fit_prompt(
+                |hist, system_context| format_prompt(hist, &prompt, system_context, prompt_format),
+                count,
+                &app_context,
+                &history,
+                library.as_deref(),
+                input_budget,
+            )
+        })
+        .await
+        .map_err(|e| ModelError::Internal(format!("prompt preparation task failed: {}", e)))?;
+
+        let sources = fitted.sources.map(|passages| {
+            passages
+                .iter()
+                .enumerate()
+                .map(|(index, passage)| passage.source_ref(index + 1))
+                .collect::<Vec<_>>()
+        });
+        let formatted_prompt = fitted.text;
 
         let (tx, rx) = mpsc::channel::<String>(32);
 
@@ -254,10 +335,10 @@ impl ModelManager {
                     tokenizer,
                     eos_token_ids,
                     tx,
-                    format_chat_prompt(&history, &prompt, &app_context),
+                    formatted_prompt,
                     temperature,
                     max_tokens,
-                    num_ctx,
+                    input_budget,
                     |model| model.clear_kv_cache(),
                     |model, input, index_pos| model.forward(input, index_pos),
                 );
@@ -272,10 +353,10 @@ impl ModelManager {
                     tokenizer,
                     eos_token_ids,
                     tx,
-                    format_prompt(&history, &prompt, &app_context, PromptFormat::Llama3),
+                    formatted_prompt,
                     temperature,
                     max_tokens,
-                    num_ctx,
+                    input_budget,
                     |model| model.clear_kv_cache(),
                     |model, input, index_pos| model.forward(input, index_pos),
                 );
@@ -290,10 +371,10 @@ impl ModelManager {
                     tokenizer,
                     eos_token_ids,
                     tx,
-                    format_prompt(&history, &prompt, &app_context, PromptFormat::Phi3),
+                    formatted_prompt,
                     temperature,
                     max_tokens,
-                    num_ctx,
+                    input_budget,
                     |_| {},
                     |model, input, index_pos| model.forward(input, index_pos),
                 );
@@ -308,23 +389,27 @@ impl ModelManager {
                     tokenizer,
                     eos_token_ids,
                     tx,
-                    format_prompt(&history, &prompt, &app_context, PromptFormat::Phi3),
+                    formatted_prompt,
                     temperature,
                     max_tokens,
-                    num_ctx,
+                    input_budget,
                     |_| {},
                     |model, input, index_pos| model.forward(input, index_pos),
                 );
             }
             ModelRuntime::ValidationOnly { reason } => {
-                return Err(ModelError::InferenceFailed(reason.unwrap_or_else(|| {
-                    "Inference is not implemented for this loaded model.".to_string()
-                })));
+                return Err(validation_only_error(reason));
             }
         }
 
-        Ok(rx)
+        Ok(InferStream { sources, tokens: rx })
     }
+}
+
+fn validation_only_error(reason: Option<String>) -> ModelError {
+    ModelError::InferenceFailed(
+        reason.unwrap_or_else(|| "Inference is not implemented for this loaded model.".to_string()),
+    )
 }
 
 /// Tracks prefill/decode timing for a single inference run and logs a
@@ -421,7 +506,9 @@ fn spawn_quantized_inference<M, FReset, FForward>(
     formatted_prompt: String,
     temperature: f64,
     max_tokens: usize,
-    num_ctx: usize,
+    // Prompt token budget (num_ctx minus the reserved output room); the
+    // tail-trim below is a last resort after `fit_prompt`.
+    input_budget: usize,
     reset_cache: FReset,
     forward: FForward,
 ) where
@@ -444,7 +531,7 @@ fn spawn_quantized_inference<M, FReset, FForward>(
             }
         };
 
-        let mut token_ids = trim_context_window(encoding.get_ids(), num_ctx);
+        let mut token_ids = trim_context_window(encoding.get_ids(), input_budget);
         if token_ids.is_empty() {
             send_error("Tokenizer produced no input tokens.".to_string(), &tx);
             return;
@@ -593,6 +680,7 @@ fn user_facing_model_error(error: &ModelError) -> String {
     message
 }
 
+#[cfg(test)]
 fn format_chat_prompt(history: &[(String, String)], prompt: &str, app_context: &str) -> String {
     format_prompt(history, prompt, app_context, PromptFormat::ChatMl)
 }
@@ -920,6 +1008,88 @@ mod tests {
     fn repetition_not_detected_for_varied_tokens() {
         let tokens: Vec<u32> = (0..64).collect();
         assert!(!is_repeating(&tokens));
+    }
+
+    // --- prompt assembly with library sources ---
+
+    fn sample_sources() -> Vec<crate::ai::retrieval::Passage> {
+        vec![
+            crate::ai::retrieval::Passage {
+                title: "Gustav Vasa".into(),
+                file: "wikipedia_sv.zim".into(),
+                zim_path: Some("Gustav_Vasa".into()),
+                query: String::new(),
+                text: "Gustav Vasa var kung av Sverige 1523–1560.".into(),
+                score: 2.0,
+            },
+            crate::ai::retrieval::Passage {
+                title: "Survival Guide › Water".into(),
+                file: "survival.md".into(),
+                zim_path: None,
+                query: "boil water".into(),
+                text: "Boil water for one minute.".into(),
+                score: 1.0,
+            },
+        ]
+    }
+
+    #[test]
+    fn prompt_with_sources_numbers_them_in_every_template() {
+        let sources = sample_sources();
+        for format in [PromptFormat::ChatMl, PromptFormat::Llama3, PromptFormat::Phi3] {
+            let context = crate::ai::prompt::compose_system_context("Catalog", Some(&sources));
+            let prompt = format_prompt(&[], "Vem var Gustav Vasa?", &context, format);
+            let system_end = prompt.find("Vem var Gustav Vasa?").unwrap();
+            let system = &prompt[..system_end];
+            assert!(system.contains("[1] Gustav Vasa — wikipedia_sv.zim\nGustav Vasa var kung"));
+            assert!(system.contains("[2] Survival Guide › Water — survival.md"));
+            assert!(system.contains("square brackets"));
+            assert!(system.contains("Catalog"));
+        }
+    }
+
+    #[test]
+    fn fit_prompt_with_real_template_keeps_question_and_sources() {
+        let sources = sample_sources();
+        let count = |text: &str| text.split_whitespace().count();
+        let fitted = crate::ai::prompt::fit_prompt(
+            |hist, ctx| format_prompt(hist, "Who was Gustav Vasa?", ctx, PromptFormat::ChatMl),
+            count,
+            "",
+            &[("user".to_string(), "earlier question".to_string())],
+            Some(&sources),
+            4096,
+        );
+        assert_eq!(fitted.sources.as_ref().map(Vec::len), Some(2));
+        assert_eq!(fitted.history_used, 1);
+        assert!(fitted.text.ends_with("<|im_start|>assistant\n"));
+        assert!(fitted.text.contains("[2] Survival Guide"));
+        let refs: Vec<_> = fitted.sources.unwrap().iter().enumerate().map(|(i, p)| p.source_ref(i + 1)).collect();
+        assert_eq!(refs[0].link, "/books?file=wikipedia_sv.zim&path=Gustav_Vasa");
+        assert_eq!(refs[1].link, "/books?file=survival.md&q=boil%20water");
+    }
+
+    #[tokio::test]
+    async fn unloaded_model_reports_not_loaded_before_any_work() {
+        let dir = std::env::temp_dir().join(format!("fyr-manager-tests-{}", uuid::Uuid::new_v4()));
+        let manager = super::ModelManager::new(std::sync::Arc::new(types::Config::default_with_data_dir(&dir)));
+        assert!(matches!(
+            manager.ensure_inference_ready("missing.gguf").await,
+            Err(ModelError::NotLoaded(_))
+        ));
+        let request = super::InferRequest {
+            prompt: "hi".into(),
+            temperature: 0.2,
+            max_tokens: 16,
+            num_ctx: 512,
+            history: Vec::new(),
+            app_context: String::new(),
+            library: Some(sample_sources()),
+        };
+        assert!(matches!(
+            manager.infer_stream("missing.gguf", request).await,
+            Err(ModelError::NotLoaded(_))
+        ));
     }
 
     #[test]

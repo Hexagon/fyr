@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting</title>
+    <meta name="description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://fyr.guide/docs/user-manual/">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/site.css?v=06137f43e4">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://fyr.guide/docs/user-manual/">
+    <meta property="og:title" content="Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting">
+    <meta property="og:description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta property="og:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <meta property="og:site_name" content="Fyr">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fyr User Manual: Setup, Maps, ZIM, Local AI and Troubleshooting">
+    <meta name="twitter:description" content="The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.">
+    <meta name="twitter:image" content="https://fyr.guide/img/og-image.jpg">
+    <meta name="twitter:image:alt" content="Fyr web interface showing an offline map with layers and a map picker">
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "Fyr User Manual",
+      "description": "The Fyr User Manual: access control, the offline AI assistant and model tiers, adding maps, books, ZIM archives and POIs, data layout, platform notes and troubleshooting.",
+      "url": "https://fyr.guide/docs/user-manual/",
+      "mainEntityOfPage": "https://fyr.guide/docs/user-manual/",
+      "image": "https://fyr.guide/img/og-image.jpg",
+      "inLanguage": "en",
+      "datePublished": "2026-01-01",
+      "dateModified": "2026-10-28",
+      "author": {
+        "@type": "Organization",
+        "name": "Fyr Contributors",
+        "url": "https://github.com/Hexagon/fyr"
+      },
+      "publisher": {
+        "@id": "https://github.com/Hexagon#organization"
+      },
+      "about": {
+        "@id": "https://fyr.guide/#software"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://fyr.guide/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Documentation",
+          "item": "https://fyr.guide/docs/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "User Manual",
+          "item": "https://fyr.guide/docs/user-manual/"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+</head>
+<body class="bg-gray-200 text-gray-900 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full bg-gray-950/85 backdrop-blur-md border-b border-white/10 z-50" aria-label="Main">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="/" class="flex-shrink-0 flex items-center gap-2" aria-label="Fyr home">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-brand-500 to-brand-600 text-white flex items-center justify-center font-bold text-xl" aria-hidden="true">F</div>
+                    <span class="font-bold text-xl tracking-tight text-white">Fyr<span class="text-brand-300">.guide</span></span>
+                </a>
+                <div class="hidden md:flex space-x-8">
+                    <a href="/#features" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Features</a>
+                    <a href="/guides/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Guides</a>
+                    <a href="/compare/" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Compare</a>
+                    <a href="/#installation" class="text-gray-300 hover:text-brand-200 font-medium transition-colors">Installation</a>
+                    <a href="/docs/" aria-current="page" class="text-white hover:text-brand-200 font-medium transition-colors">Documentation</a>
+                </div>
+                <div>
+                    <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="text-gray-400 hover:text-white transition-colors" aria-label="Fyr on GitHub">
+                        <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-28 pb-12 lg:pt-32 bg-gray-900 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav aria-label="Breadcrumb" class="text-sm text-gray-400 mb-4"><ol class="flex flex-wrap items-center gap-x-2"><li><a href="/" class="hover:text-brand-200 transition-colors">Home</a></li><li aria-hidden="true">/</li><li><a href="/docs/" class="hover:text-brand-200 transition-colors">Documentation</a></li><li aria-hidden="true">/</li><li aria-current="page" class="text-gray-300">User Manual</li></ol></nav>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white">User Manual</h1>
+            <p class="mt-4 text-lg sm:text-xl text-gray-300 max-w-3xl [overflow-wrap:anywhere]">Operator and end-user workflows for Fyr — generated from the canonical <code class="text-brand-400">docs/user/USER_MANUAL.md</code>.</p>
+            <p class="mt-4 text-sm text-gray-400">Updated <time datetime="2026-10-28">2026-10-28</time> · Fyr v0.5.2</p>
+        </div>
+    </header>
+
+    <main class="py-12 bg-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <details class="lg:hidden mb-8 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                    <summary class="font-semibold text-gray-900 cursor-pointer">On this page</summary>
+                    <ol class="mt-3 space-y-1.5">
+                            <li class=""><a href="#1-what-fyr-is" class="text-gray-600 hover:text-brand-600">1. What Fyr Is</a></li>
+                            <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
+                            <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
+                            <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#2a-https-and-trusting-this-server" class="text-gray-600 hover:text-brand-600">2a. HTTPS and Trusting This Server</a></li>
+                            <li class="pl-4"><a href="#trust-this-server-self-signed-certificate" class="text-gray-600 hover:text-brand-600">Trust this server (self-signed certificate)</a></li>
+                            <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
+                            <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
+                            <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
+                            <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
+                            <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
+                            <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#language" class="text-gray-600 hover:text-brand-600">Language</a></li>
+                            <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
+                            <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
+                            <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
+                            <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
+                            <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
+                            <li class="pl-4"><a href="#place-search-on-maps" class="text-gray-600 hover:text-brand-600">Place search on maps</a></li>
+                            <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
+                            <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
+                            <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
+                            <li class="pl-4"><a href="#what-the-encryption-protects-threat-model" class="text-gray-600 hover:text-brand-600">What the encryption protects (threat model)</a></li>
+                            <li class="pl-4"><a href="#who-can-post" class="text-gray-600 hover:text-brand-600">Who can post</a></li>
+                            <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
+                            <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
+                            <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
+                            <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#navigating-with-maps-off-grid" class="text-gray-600 hover:text-brand-600">Navigating with maps off-grid</a></li>
+                            <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
+                            <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
+                            <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
+                            <li class="pl-4"><a href="#downloads" class="text-gray-600 hover:text-brand-600">Downloads</a></li>
+                            <li class=""><a href="#5-zim-reading" class="text-gray-600 hover:text-brand-600">5. ZIM Reading</a></li>
+                            <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
+                            <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
+                            <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#5d-reading-progress-bookmarks-and-links" class="text-gray-600 hover:text-brand-600">5d. Reading Progress, Bookmarks and Links</a></li>
+                            <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
+                            <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
+                            <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
+                            <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
+                            <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
+                            <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#page-does-not-load-after-enabling-https" class="text-gray-600 hover:text-brand-600">Page does not load after enabling HTTPS</a></li>
+                            <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
+                            <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
+                            <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
+                            <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
+                            <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#use-library-finds-no-sources" class="text-gray-600 hover:text-brand-600">&quot;Use library&quot; finds no sources</a></li>
+                            <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
+                            <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
+                            <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>
+                            <li class="pl-4"><a href="#encryption--ciphers" class="text-gray-600 hover:text-brand-600">Encryption &amp; Ciphers</a></li>
+                    </ol>
+                </details>
+            <div class="lg:grid lg:grid-cols-12 lg:gap-10">
+                <article class="lg:col-span-9 min-w-0 prose prose-gray max-w-none doc-content prose-headings:scroll-mt-20 prose-a:text-brand-600 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-th:text-left prose-img:rounded-xl">
+<p class="not-prose text-sm text-gray-600 bg-gray-200/70 border border-gray-300 rounded-lg px-4 py-3 mb-8">This page is generated from <a class="text-brand-600 underline" href="https://github.com/Hexagon/fyr/blob/main/docs/user/USER_MANUAL.md">docs/user/USER_MANUAL.md</a> on GitHub, the canonical source. Installation steps live on the <a class="text-brand-600 underline" href="/#installation">installation section</a>.</p><h2 id="1-what-fyr-is">1. What Fyr Is<a class="heading-anchor" href="#1-what-fyr-is" aria-label="Link to this section">#</a></h2>
+<p>Fyr is an offline-first content platform for maps, books, and knowledge archives.
+It requires no external database, cache server, or other services to run.
+It runs as a local server and is accessed from a browser.</p>
+<blockquote>
+<p><strong>Project status:</strong> Fyr is currently in <strong>preview</strong>. UI details may evolve as features are refined.</p>
+</blockquote>
+<h3 id="related-documentation">Related documentation<a class="heading-anchor" href="#related-documentation" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Installation and deployment paths: <a href="/#installation">fyr.guide/#installation</a></li>
+<li>Project overview: <a href="https://github.com/Hexagon/fyr/blob/main/README.md" rel="noopener">README.md</a></li>
+<li>Developer architecture details: <a href="/docs/developer-manual/">Developer Manual</a></li>
+</ul>
+<h3 id="1a-installer-scripts">1a. Installer Scripts<a class="heading-anchor" href="#1a-installer-scripts" aria-label="Link to this section">#</a></h3>
+<p>Official hosted scripts are available for a guided Docker setup:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>One-liner</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux / macOS</td>
+<td><code>curl -fsSL https://fyr.guide/install.sh | sh</code></td>
+</tr>
+<tr>
+<td>Windows PowerShell</td>
+<td><code>irm https://fyr.guide/install.ps1 | iex</code></td>
+</tr>
+</tbody></table>
+</div>
+<p>The scripts persist settings (port, data volume, admin password) in <code>~/.config/fyr/install.conf</code> (Linux/macOS) or <code>%APPDATA%\fyr\install.conf</code> (Windows). To upgrade to a newer image, add <code>update</code>:</p>
+<pre><code class="language-bash">curl -fsSL https://fyr.guide/install.sh | sh -s -- update
+</code></pre>
+<pre><code class="language-powershell">irm https://fyr.guide/install.ps1 | iex; Install-Fyr -Update
+</code></pre>
+<p>All arguments are documented inline via <code>--help</code> (Linux/macOS) or <code>-Help</code> (Windows), and the full reference table is available at <a href="/#installation">fyr.guide/#installation</a>.</p>
+<p>To serve HTTPS (needed for GPS on phones, see §2a), add <code>--https</code> (<code>-Https</code> on Windows) for a self-signed certificate, or <code>--tls-cert &lt;file&gt; --tls-key &lt;file&gt;</code> (<code>-TlsCert</code>/<code>-TlsKey</code>) for your own. The choice is remembered for <code>update</code>; <code>--no-https</code> (<code>-NoHttps</code>) turns it off again.</p>
+<h2 id="2-start-fyr">2. Start Fyr<a class="heading-anchor" href="#2-start-fyr" aria-label="Link to this section">#</a></h2>
+<p>For complete installation instructions—including building from source, running via Docker, or setting up a Raspberry Pi—use <a href="/#installation">fyr.guide/#installation</a>. (If viewing this file locally, open <code>docs/site/index.html</code> in a browser for the same installation guide.)</p>
+<p>Once Fyr is running, open <code>http://localhost:8080</code> on the same machine, or <code>http://&lt;host-or-device-ip&gt;:8080</code> if Fyr runs in Docker or on another device. With HTTPS enabled (§2a) use <code>https://</code> instead.</p>
+<h2 id="2a-https-and-trusting-this-server">2a. HTTPS and Trusting This Server<a class="heading-anchor" href="#2a-https-and-trusting-this-server" aria-label="Link to this section">#</a></h2>
+<p>Browsers only allow the location features (<strong>My Location</strong>, <strong>Record Track</strong>, <strong>Add location</strong> on the Board) on <code>https://</code> pages or on <code>localhost</code>. Fyr is usually opened over plain <code>http://</code> on a LAN or a Raspberry Pi hotspot, where these are blocked. HTTPS also stops a rogue hotspot from altering the Fyr page in transit, which is what keeps encrypted message channels safe against active attackers (§3d), and the admin login cookie is then only ever sent over the encrypted connection.</p>
+<p>Fyr can serve HTTPS itself; no separate proxy is needed.</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FYR_TLS=self-signed</code></td>
+<td>Fyr creates its own certificate on first start and keeps it in <code>DATA_DIR/tls/</code>. Every device shows a one-time warning that you accept (below).</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_CERT</code> + <code>FYR_TLS_KEY</code></td>
+<td>Use your own certificate (PEM chain and private key), for example from your own CA or Let&#39;s Encrypt. No warnings if devices trust the issuer. Restart Fyr after renewing it.</td>
+</tr>
+<tr>
+<td><code>FYR_TLS_SANS</code></td>
+<td>Extra names/IPs for the self-signed certificate, comma-separated (for example <code>fyr.lan,192.168.4.1</code>).</td>
+</tr>
+<tr>
+<td><code>FYR_HTTP_REDIRECT_PORT</code></td>
+<td>Optional: also listen on this port with plain HTTP and send visitors to HTTPS (for example <code>80</code>). Off by default.</td>
+</tr>
+</tbody></table>
+</div>
+<p>Examples:</p>
+<pre><code class="language-bash"># Docker: HTTPS on port 8080, certificate valid for the Pi&#39;s hotspot address
+docker run -d -p 8080:8080 -e FYR_TLS=self-signed -e FYR_TLS_SANS=192.168.4.1 \
+  -v fyr-data:/data --name fyr hexagon/fyr:latest
+
+# Installer (adds the host&#39;s name and LAN addresses automatically)
+curl -fsSL https://fyr.guide/install.sh | sh -s -- --https
+</code></pre>
+<p>Once enabled, the port speaks <strong>only</strong> HTTPS: open <code>https://&lt;host-or-ip&gt;:8080</code>. A plain <code>http://</code> address on that port no longer loads (use <code>FYR_HTTP_REDIRECT_PORT</code> if people have the old address bookmarked).</p>
+<p><strong>Which names the self-signed certificate covers:</strong> <code>localhost</code>, <code>127.0.0.1</code>, <code>::1</code>, the computer&#39;s host name and <code>&lt;hostname&gt;.local</code>, its LAN IPv4 addresses (and private <code>fd…</code> IPv6 addresses) found at startup, plus <code>FYR_TLS_SANS</code>. In Docker the container cannot see the host&#39;s addresses, so pass them in <code>FYR_TLS_SANS</code> (the installers do this for you). The certificate is valid for 825 days. Fyr creates a new one when a new name or address appears, or 30 days before it expires; devices then show the warning once more. The private key (<code>key.pem</code>) is readable only by the Fyr user.</p>
+<h3 id="trust-this-server-self-signed-certificate">Trust this server (self-signed certificate)<a class="heading-anchor" href="#trust-this-server-self-signed-certificate" aria-label="Link to this section">#</a></h3>
+<p>The first time a device opens Fyr over HTTPS it warns that the connection is &quot;not private&quot;: the certificate was made by your Fyr server, not by a public authority. Before accepting, <strong>compare its SHA-256 fingerprint</strong> with the real one. Admins find it on the <strong>Overview</strong> page (next to the data directory) and in the server log at startup (<code>docker logs fyr 2&gt;&amp;1 | grep fingerprint</code>). If the fingerprints differ, do not continue: someone may be imitating your server (unless the log shows Fyr just created a new certificate).</p>
+<ul>
+<li><strong>Chrome / Edge (Windows, macOS, Linux, Android):</strong> on the warning page choose <strong>Advanced</strong> → <strong>Proceed to … (unsafe)</strong>. To see the fingerprint, click <strong>Not secure</strong> in the address bar → certificate details (<em>SHA-256 Fingerprint</em>).</li>
+<li><strong>Firefox (desktop and Android):</strong> <strong>Advanced…</strong> → <strong>View Certificate</strong> (check <em>SHA-256</em>) → back → <strong>Accept the Risk and Continue</strong>. Firefox remembers the exception.</li>
+<li><strong>Safari (macOS):</strong> <strong>Show Details</strong> → <strong>View the certificate</strong> to check the fingerprint → <strong>visit this website</strong> → confirm (macOS may ask for your password to remember it).</li>
+<li><strong>iPhone / iPad (Safari):</strong> <strong>Show Details</strong> → <strong>visit this website</strong> → <strong>Visit Website</strong>. Tapping <strong>View Certificate</strong> on the details page shows the fingerprint on recent iOS versions.</li>
+</ul>
+<p>After accepting, the page counts as a secure connection, so the browser can ask for location permission and <strong>My Location</strong> / <strong>Record Track</strong> work. Some browsers ask again after a restart or when the certificate changes; some optional features (such as <strong>Install app</strong>) may still require a fully trusted certificate. For warning-free access on your own devices, use <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code> with a certificate they trust, or add <code>DATA_DIR/tls/cert.pem</code> to the device&#39;s trusted certificates.</p>
+<p>With your own certificate (<code>FYR_TLS_CERT</code>), Fyr also sends <code>Strict-Transport-Security</code>, so browsers that have visited once will insist on HTTPS for this address for 180 days. It is not sent for self-signed certificates.</p>
+<hr>
+<h2 id="3-main-pages">3. Main Pages<a class="heading-anchor" href="#3-main-pages" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Home:</strong> system status, location, sunrise/sunset, and storage overview.</li>
+<li><strong>Content Manager:</strong> add URL downloads, import local files, and inspect content inventory. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set.</li>
+<li><strong>Settings:</strong> choose the interface language (per browser), configure location and other application-wide preferences. Requires admin access when <code>FYR_ADMIN_PASSWORD</code> is set; hidden in read-only mode.</li>
+<li><strong>Maps:</strong> map selection, place search by name, coordinates (decimal/DMS), go-to-coordinate, shareable links, distance measuring, GPS track recording, POI editing and GPX import/export (see <em>Navigating with maps off-grid</em>).</li>
+<li><strong>Books:</strong> browse books, read EPUB/PDF/Markdown/ZIM in a unified reader shell, and use auto-collapse Library focus mode when opening a title.</li>
+<li><strong>Assistant:</strong> browse local <code>.gguf</code> models and chat offline.</li>
+<li><strong>Search:</strong> one search box for the whole offline library (see <a href="#3c-searching-everything">3c. Searching Everything</a>).</li>
+<li><strong>Messages:</strong> a public Board for everyone on the network plus end-to-end encrypted channels protected by a passphrase (see <a href="#3d-messages">3d. Messages</a>).</li>
+<li><strong>Tools:</strong> unit converters (length, mass, temperature, area, volume, speed, data, angle, pressure, energy, power, time) and encryption/ciphering utilities (AES-256-CBC, Base64, ROT13, SHA-256, MD5). All operations are local and offline-safe—no server communication or admin access required.</li>
+</ul>
+<h2 id="3a-access-control-and-admin-login">3a. Access Control and Admin Login<a class="heading-anchor" href="#3a-access-control-and-admin-login" aria-label="Link to this section">#</a></h2>
+<p>Fyr can run in three access modes:</p>
+<h3 id="open-mode-default">Open mode (default)<a class="heading-anchor" href="#open-mode-default" aria-label="Link to this section">#</a></h3>
+<p>All features are available to everyone. No authentication is needed.</p>
+<h3 id="password-protected-mode-fyr_admin_password">Password-protected mode (<code>FYR_ADMIN_PASSWORD</code>)<a class="heading-anchor" href="#password-protected-mode-fyr_admin_password" aria-label="Link to this section">#</a></h3>
+<p>The server operator sets an admin password via the <code>FYR_ADMIN_PASSWORD</code> environment variable.</p>
+<p><strong>What guests can do:</strong></p>
+<ul>
+<li>Browse maps, books, and POIs</li>
+<li>Chat with pre-loaded AI models</li>
+<li>Read content</li>
+</ul>
+<p><strong>What requires admin login:</strong></p>
+<ul>
+<li>Posting in Messages and creating encrypted channels — unless the operator also sets <code>FYR_GUEST_MESSAGING=true</code> (see §3d)</li>
+<li>Message moderation (pin/unpin, delete messages and channels)</li>
+<li>Content Manager (downloads, imports, file deletion)</li>
+<li>Settings (location and preferences)</li>
+<li>Model uploads and model management</li>
+<li>Storage details on the Overview page (the server also hides data-directory paths and disk capacity from guests; per-category usage stays visible)</li>
+</ul>
+<p><strong>How to log in:</strong></p>
+<ol>
+<li>Click <strong>Log in</strong> in the top-right navbar.</li>
+<li>Enter the admin password on the login page.</li>
+<li>On success, an <strong>Admin</strong> badge appears in the navbar alongside a <strong>Log out</strong> button.</li>
+<li>The Content Manager, Settings nav links and storage details become visible.</li>
+</ol>
+<p><strong>How to log out:</strong>
+Click <strong>Log out</strong> in the navbar. Your session is cleared immediately.</p>
+<p><strong>Security notes:</strong></p>
+<ul>
+<li>Session tokens are stored server-side in memory; the HttpOnly cookie contains only the token reference (not the session data itself). Cookies are not accessible to JavaScript.</li>
+<li>Failed login attempts are rate-limited per IP address (10 attempts per 5 minutes, using the real TCP peer address).</li>
+<li>If you forget the password, restart the server with the correct <code>FYR_ADMIN_PASSWORD</code> value.</li>
+</ul>
+<h3 id="strict-read-only-mode-fyr_readonly">Strict read-only mode (<code>FYR_READONLY</code>)<a class="heading-anchor" href="#strict-read-only-mode-fyr_readonly" aria-label="Link to this section">#</a></h3>
+<p>Setting <code>FYR_READONLY=true</code> disables all mutating operations permanently, including posting in Messages (reading still works). No login is possible. The Content Manager, Settings, and model management links are hidden. The server shows a <strong>Read-only</strong> badge in the navbar.</p>
+<p>Use this for kiosk or public library deployments where content is pre-loaded and no runtime management is needed. In this mode the server never reveals filesystem paths or disk capacity to any visitor.</p>
+<h3 id="install-as-an-app-phones-tablets-desktops">Install as an app (phones, tablets, desktops)<a class="heading-anchor" href="#install-as-an-app-phones-tablets-desktops" aria-label="Link to this section">#</a></h3>
+<p>Fyr ships a web app manifest, so browsers can add it to the home screen or app launcher: use <strong>Add to Home Screen</strong> (iOS Safari, Android Chrome) or <strong>Install app</strong> (desktop Chrome/Edge). It opens full-screen with the Fyr icon and still talks to your Fyr server; it does not work while the server is unreachable.</p>
+<h3 id="language">Language<a class="heading-anchor" href="#language" aria-label="Link to this section">#</a></h3>
+<p>Fyr&#39;s interface is available in <strong>English</strong> and <strong>Swedish (Svenska)</strong>. On first visit Fyr follows the browser&#39;s language (Swedish browsers get Swedish, everything else English). Switch any time with the <strong>EN/SV</strong> selector next to the header search box or under <strong>Settings → Language</strong> (Settings needs admin access in password mode; the header selector works for everyone). The choice is saved in that browser only, so every person and device on the network can pick their own language. Book titles, file names, map and POI names, messages and server error details are shown as they are. The manuals are in English.</p>
+<h3 id="header-behavior">Header behavior<a class="heading-anchor" href="#header-behavior" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>The top header shows the current page context together with the clock, weekday, and date (formatted for the selected language).</li>
+<li>Location details, sunrise/sunset, server status, and version are shown in the Overview status card instead of the header.</li>
+</ul>
+<h2 id="3b-using-the-ai-assistant">3b. Using the AI Assistant<a class="heading-anchor" href="#3b-using-the-ai-assistant" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Open the Assistant tab from the top navigation.</li>
+<li>Use <strong>Open Content Manager</strong> from the Assistant sidebar to jump to the Models section for <code>.gguf</code> uploads.</li>
+<li>For text generation, use GGUF files that include tokenizer metadata.</li>
+<li>Select a model; Fyr loads it automatically when possible.</li>
+<li>Enter a prompt and send it to start live token streaming.</li>
+</ul>
+<blockquote>
+<p><strong>Model choice notes:</strong></p>
+<ul>
+<li>Larger models and higher quantization levels use more memory.</li>
+<li>If responses are slow, try smaller quantized variants (for example Q4 instead of Q8).</li>
+<li>Fyr&#39;s inference runtime currently supports GGUF models with <strong>Qwen2</strong>, <strong>Llama</strong>, and <strong>Phi-3/Phi-3.5</strong> architectures.</li>
+<li>Inference runs entirely on CPU with SIMD acceleration: <strong>NEON</strong> on ARM (aarch64, including Raspberry Pi 4/5) and <strong>AVX2/FMA</strong> on x86_64. No GPU is needed.</li>
+<li>The assistant shows a <strong>Thinking</strong> block immediately after you send a prompt, then streams the visible reply as it arrives.</li>
+<li>Models with a built-in reasoning mode (such as Qwen3 or DeepSeek-R1) emit a <code>&lt;think&gt;…&lt;/think&gt;</code> block before their response. Fyr displays that reasoning in the same collapsible <strong>Thinking</strong> section and streams it live while the model reasons.</li>
+</ul>
+</blockquote>
+<h3 id="where-to-find-compatible-models">Where to find compatible models<a class="heading-anchor" href="#where-to-find-compatible-models" aria-label="Link to this section">#</a></h3>
+<p>Fyr ships a manually editable curated catalog at <code>public/data/curated-content.json</code> (served at <code>/data/curated-content.json</code>). It records tested model tiers together with recommended download sources for books and maps, and can also include optional direct <code>download_url</code> entries for one-click downloads in Content Manager.</p>
+<p>Recommended model tiers from that catalog:</p>
+<ul>
+<li><strong>Small</strong> — <code>Qwen2.5-1.5B-Instruct</code> in <code>Q8_0</code> (~1.7 GB) for Raspberry Pi 5 systems with 4 GB RAM or for faster/simple answers.</li>
+<li><strong>Standard / Recommended</strong> — <code>Qwen2.5-3B-Instruct</code> in <code>Q6_K</code> (~2.6 GB) for the best balance on Raspberry Pi 5.</li>
+<li><strong>Large</strong> — <code>Qwen2.5-7B-Instruct</code> in <code>Q4_K_M</code> (~4.5 GB) for Raspberry Pi 5 systems with 8 GB RAM.</li>
+<li><strong>Extra large / Desktop</strong> — <code>Qwen2.5-14B-Instruct</code> in <code>Q4_K_M</code> (<del>9.8 GB), or <code>Qwen2.5-7B-Instruct</code> in <code>Q8_0</code> (</del>8.5 GB), for 16 GB+ systems.</li>
+<li><strong>Llama alternative</strong> — <code>Llama-3.2-3B-Instruct</code> in <code>Q4_K_M</code> (~2.0 GB) when you want a broadly compatible multilingual instruct model.</li>
+<li><strong>Phi alternative</strong> — <code>Phi-3.5-mini-instruct</code> in <code>Q4_K_M</code> (~2.4 GB) when you want a compact reasoning-oriented model.</li>
+</ul>
+<p>GGUF files can be downloaded from <a href="https://huggingface.co/models?library=gguf&amp;sort=trending" rel="noopener">Hugging Face</a>. Recommended search:</p>
+<ul>
+<li>Search: <code>Qwen2.5 GGUF</code> — filter by library <code>GGUF</code></li>
+<li>Well-known publisher: <strong>Qwen</strong> org (<code>Qwen/Qwen2.5-1.5B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-3B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-7B-Instruct-GGUF</code>, <code>Qwen/Qwen2.5-14B-Instruct-GGUF</code>)</li>
+<li>Search: <code>Llama 3.2 3B Instruct GGUF</code> — a common mirror is <code>bartowski/Llama-3.2-3B-Instruct-GGUF</code></li>
+<li>Search: <code>Phi-3.5 mini instruct GGUF</code> — common sources are <code>bartowski/Phi-3.5-mini-instruct-GGUF</code> and Microsoft&#39;s official <code>Phi-3</code> GGUF repositories</li>
+<li>Fyr&#39;s <strong>Balanced</strong> mode uses <code>temperature=0.2</code> and <code>max_tokens=512</code>; the <strong>Precise</strong> mode uses <code>temperature=0.1</code>; the <strong>Creative</strong> mode uses <code>temperature=0.7</code> and <code>max_tokens=1024</code></li>
+<li>Fyr defaults to a <code>num_ctx</code> of <code>2048</code>; on systems with more than 16 GB of RAM it automatically expands to <code>8192</code></li>
+<li>Advanced users can force the larger context window by setting <code>settings.modules.assistant.high_ram_context</code> to <code>true</code></li>
+<li>Some Llama-family downloads are gated by Hugging Face license acceptance. In those cases, Content Manager may link you to the source page rather than providing a one-click direct download.</li>
+</ul>
+<p>Once downloaded, upload the <code>.gguf</code> file through Content Manager → Models.</p>
+<h3 id="conversation-context-and-modes">Conversation context and modes<a class="heading-anchor" href="#conversation-context-and-modes" aria-label="Link to this section">#</a></h3>
+<p>The Assistant keeps track of recent conversation turns and sends the last six messages as context when inferring, so the model can reference what was discussed earlier in the session.</p>
+<p>Three response modes are available:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Precise</strong></td>
+<td>temperature=0.1, max_tokens=512 — focused, factual answers</td>
+</tr>
+<tr>
+<td><strong>Balanced</strong></td>
+<td>temperature=0.2, max_tokens=512 — default, concise and reliable</td>
+</tr>
+<tr>
+<td><strong>Creative</strong></td>
+<td>temperature=0.7, max_tokens=1024 — more elaborate, varied responses</td>
+</tr>
+</tbody></table>
+</div>
+<h3 id="ask-your-library-answers-with-sources">Ask your library (answers with sources)<a class="heading-anchor" href="#ask-your-library-answers-with-sources" aria-label="Link to this section">#</a></h3>
+<p>Turn on <strong>Use library</strong> next to the mode buttons to have the assistant answer from your own offline books instead of only from what the model remembers.</p>
+<ul>
+<li>Fyr picks keywords from your question (English and Swedish filler words are ignored) and searches the books folder: <strong>ZIM</strong> archives by article text when the archive has a full-text index (see <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>), otherwise by article title (for example <em>Gustav Vasa</em> or <em>Water purification</em>), <strong>Markdown</strong> files by section, and <strong>EPUB</strong> books by chapter. PDFs are not searched yet.</li>
+<li>The best-matching passages (up to four) are given to the model as numbered sources. The model is asked to cite them as <code>[1]</code>, <code>[2]</code>, … and to say when your library does not cover the question.</li>
+<li>Sources appear as chips under the answer; clicking a chip or a <code>[n]</code> citation in the text opens that article or book in <strong>Books</strong> (ZIM articles open directly; other books open with the matching words searched).</li>
+<li>If nothing matches, the answer shows <em>No matching passages found in your library.</em></li>
+<li>Tips: name the topic explicitly (&quot;Who was Gustav Vasa?&quot; works better than &quot;who was he?&quot;), and prefer article-style titles for ZIM archives. The search is capped at a few seconds, so very large libraries return the best matches found within that time.</li>
+<li>Sources take room in the model&#39;s context window. On small windows (2048 tokens) Fyr shortens sources and drops older conversation turns first; your question is always kept.</li>
+</ul>
+<p>The <strong>Use library</strong> setting and your chosen mode are remembered per browser.</p>
+<h3 id="persisting-the-default-model">Persisting the default model<a class="heading-anchor" href="#persisting-the-default-model" aria-label="Link to this section">#</a></h3>
+<p>The last model you selected is remembered in browser storage. When you re-open the Assistant, Fyr will automatically re-select and attempt to load that model. If the load fails (e.g. the model file was removed), an error message is shown in the chat and you can select another model manually.</p>
+<p>The conversation (including answer sources) is also kept in browser storage until you press <strong>Restart Conversation</strong>. <strong>Regenerate</strong> replaces the last answer instead of appending a duplicate question. If generation fails, the error is shown in the answer bubble; if the model was unloaded meanwhile, select it again in the model library.</p>
+<h2 id="3c-searching-everything">3c. Searching Everything<a class="heading-anchor" href="#3c-searching-everything" aria-label="Link to this section">#</a></h2>
+<p>Use the <strong>Search…</strong> box in the header (or press <kbd>/</kbd> anywhere outside a text field) and press Enter to open the <strong>Search</strong> page (<code>/search?q=...</code>). One query covers:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Group</th>
+<th>What is matched</th>
+<th>Opening a result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Books</strong></td>
+<td>Book titles (EPUB/PDF/Markdown/ZIM metadata) and filenames</td>
+<td>Opens the book</td>
+</tr>
+<tr>
+<td><strong>Articles</strong></td>
+<td>Article titles in every <code>.zim</code> archive in <code>books/</code></td>
+<td>Opens that article in the ZIM reader</td>
+</tr>
+<tr>
+<td><strong>In article text</strong></td>
+<td>Words in ZIM article bodies, for archives with a full-text index (queries of 3+ characters); shows a highlighted excerpt</td>
+<td>Opens that article in the ZIM reader with the search term</td>
+</tr>
+<tr>
+<td><strong>In book text</strong></td>
+<td>Text inside Markdown and EPUB books (queries of 3+ characters)</td>
+<td>Opens the book with the search term</td>
+</tr>
+<tr>
+<td><strong>Maps</strong></td>
+<td>Map filenames in <code>maps/</code></td>
+<td>Opens that map</td>
+</tr>
+<tr>
+<td><strong>Places on maps</strong></td>
+<td>Names of towns, villages, lakes, peaks, parks and other labelled places inside indexed vector maps (see <a href="#place-search-on-maps">Place search on maps</a>)</td>
+<td>Opens that map centred on the place, with a labelled marker</td>
+</tr>
+<tr>
+<td><strong>Points of interest</strong></td>
+<td><code>name</code> / <code>title</code> / <code>description</code> of features in GeoJSON files in <code>poi/</code></td>
+<td>Opens Maps centred on the point</td>
+</tr>
+</tbody></table>
+</div>
+<ul>
+<li>Results are grouped by kind with the most relevant group first; exact and &quot;starts with&quot; matches rank above matches in the middle of a word. Matching ignores upper/lower case and accents (<code>zurich</code> finds <code>Zürich</code>, <code>malmo</code> finds <code>Malmö</code>).</li>
+<li>Use the filter chips (All, Books, Articles, Article text, Book text, Maps, Map places, POIs) to narrow the search.</li>
+<li>Keyboard: <kbd>↓</kbd>/<kbd>↑</kbd> select a result, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> clears the selection, then the query.</li>
+<li>Search is read-only and available in every access mode, including <code>FYR_READONLY</code>.</li>
+<li>Each search has a time limit so very large archives cannot freeze Fyr. Without a full-text index, very large ZIM archives (for example a full Wikipedia) are searched by <strong>title prefix</strong> (&quot;albert ein&quot; finds &quot;Albert Einstein&quot;); smaller archives also match words inside titles. If the limit is reached the page says so; a more specific query helps. The first search after adding a medium-sized archive may return fewer article matches while Fyr indexes it in the background.</li>
+<li><code>.fgb</code> (FlatGeobuf) POI files, Markdown files over 8 MB and EPUBs over 32 MB are not text-searched; GeoJSON files over 32 MB are skipped.</li>
+</ul>
+<h3 id="full-text-index-for-zim-archives">Full-text index for ZIM archives<a class="heading-anchor" href="#full-text-index-for-zim-archives" aria-label="Link to this section">#</a></h3>
+<p>Without an index, Fyr can only match ZIM article <strong>titles</strong>. To find words inside articles (and give the assistant better sources), Fyr builds a full-text index per archive in the background:</p>
+<ul>
+<li>Archives with up to 200 000 articles (<code>FYR_FULLTEXT_MAX_ARTICLES</code>) are indexed automatically, one at a time, at low priority. Larger archives (for example a full Wikipedia) are only indexed when an admin clicks <strong>Build index</strong>, because that takes hours on a Raspberry Pi and several GB of disk.</li>
+<li><strong>Content Manager → Books</strong> shows a <strong>Full-text</strong> column for each <code>.zim</code> file: <em>Waiting to index</em>, <em>Indexing 42%</em>, <em>Paused</em>, <em>Full-text ready</em>, <em>Index failed</em> or <em>Not indexed</em>. Admins (any visitor in open mode) see <strong>Build index</strong> and <strong>Delete index</strong> buttons; they are hidden for visitors in password-protected and read-only modes, where the server also refuses them.</li>
+<li>Search and the assistant already use a partly built index. Indexing resumes where it stopped after a restart, and starts over automatically when an archive file is replaced. Deleting an index stops automatic indexing of that archive until <strong>Build index</strong> is clicked again; deleting the archive deletes its index.</li>
+<li>Indexing pauses while free disk space is below 1 GB (<code>FYR_FULLTEXT_MIN_FREE_MB</code>) and resumes when space is available. The index stores the articles&#39; plain text plus a word index, so it can be larger than the compressed <code>.zim</code> file itself (plan for 1–3× the archive size for text-only archives; much less for archives with many pictures).</li>
+<li>Set <code>FYR_FULLTEXT=off</code> to disable indexing and full-text search entirely.</li>
+</ul>
+<h3 id="place-search-on-maps">Place search on maps<a class="heading-anchor" href="#place-search-on-maps" aria-label="Link to this section">#</a></h3>
+<p>Vector maps contain the names of the places they draw. Fyr reads those names into a small search index per map, so you can ask &quot;where is Åre / Vänern / Kebnekaise?&quot; without a network:</p>
+<ul>
+<li><strong>On the Maps page:</strong> open <strong>Tools</strong> (⚙️, bottom right) and type in <strong>Find a place</strong> (at least 2 characters). Results come from every indexed vector map and from your POI files; click one (or use <kbd>↓</kbd>/<kbd>↑</kbd> and <kbd>Enter</kbd>) and the map flies there and shows a red marker with the name. If the place is in another map, Fyr switches to that map. On phones the Tools panel closes so you can see the result. <kbd>Esc</kbd> clears the box.</li>
+<li><strong>In global search:</strong> places appear in the <strong>Places on maps</strong> group (see above).</li>
+<li>Matching ignores case and accents (<code>are</code> finds <em>Åre</em>, <code>vanern</code> finds <em>Vänern</em>), also finds English/Swedish name variants stored in the map (<code>gothenburg</code> finds <em>Göteborg</em>) and matches the last word as a prefix (<code>kebne</code> finds <em>Kebnekaise</em>). Exact names rank first; among equally good matches, bigger and more important places (capitals, cities, then towns and villages) come first.</li>
+<li>Which maps work: vector maps (<code>.pmtiles</code> or <code>.mbtiles</code> with vector tiles) in the common OpenMapTiles, Protomaps, Shortbread and Mapbox Streets layouts. <strong>Raster maps</strong> (PNG/JPEG/WebP tiles) contain only pictures and are listed as <em>Raster map</em> — use a POI file for named places there.</li>
+<li><strong>Content Manager → Maps</strong> shows a <strong>Place search</strong> column: <em>Waiting to index</em>, <em>Indexing 42%</em>, <em>Paused</em>, <em>Places ready</em> (hover for the number of places), <em>Index failed</em>, <em>Raster map</em> or <em>Not indexed</em>. Admins see <strong>Index places</strong> and <strong>Delete index</strong>; deleting stops automatic indexing for that map until you index it again.</li>
+<li>Vector maps up to 4096 MB (<code>FYR_PLACES_MAX_MAP_MB</code>) are indexed automatically in the background, one at a time and at low priority; larger maps (for example a whole continent) only when an admin clicks <strong>Index places</strong>. Indexing reads a few zoom levels (cities first, villages and peaks last), so big places become searchable early. It shares the full-text index&#39;s free-space guard (<code>FYR_FULLTEXT_MIN_FREE_MB</code>) and continues where it stopped after a restart. A replaced map is re-indexed automatically.</li>
+<li>The index is small (typically a few MB per country) and lives in <code>index/</code> in the data folder. Set <code>FYR_PLACES=off</code> to turn place indexing and place search off.</li>
+</ul>
+<h2 id="3d-messages">3d. Messages<a class="heading-anchor" href="#3d-messages" aria-label="Link to this section">#</a></h2>
+<p>Messages has no user accounts. Everyone picks a nickname once per device (stored in the browser, editable at any time). Each device also gets a random <strong>device tag</strong> — a short code shown as a coloured dot next to its messages so you can tell people with the same nickname apart. Nicknames and tags are <strong>not verified</strong>: anyone can type any nickname.</p>
+<h3 id="the-board-public">The Board (public)<a class="heading-anchor" href="#the-board-public" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Board</strong> is always listed first. It is a public chat that everyone who can reach the server can read; the server stores it in plain text.</p>
+<ul>
+<li>Posts can carry a <strong>category</strong> chip — <em>Info</em>, <em>Need</em>, <em>Offer</em> or <em>Alert</em> — and an optional <strong>location</strong> (📍). A location links to the Maps page centred on that spot. <strong>Add location</strong> uses the browser&#39;s location when the page is served over HTTPS (or localhost); on a plain-HTTP hotspot it falls back to the location saved in Settings.</li>
+<li>Board posts expire after 30 days by default; pick 1 day to 1 year in the composer.</li>
+<li>Admins can <strong>pin</strong> important posts (pinned posts stay at the top and never expire) and <strong>delete</strong> posts.</li>
+<li>Active <strong>Alert</strong> posts also appear as a banner on the Overview page. Each visitor can dismiss them.</li>
+<li>The <strong>Messages</strong> nav link shows how many new Board posts arrived since you last looked.</li>
+</ul>
+<h3 id="encrypted-channels">Encrypted channels<a class="heading-anchor" href="#encrypted-channels" aria-label="Link to this section">#</a></h3>
+<p>Open <strong>Join or create an encrypted channel</strong>, enter a channel name and a passphrase, and press <strong>Join</strong>. Your device derives the keys (this takes about a second). If nobody has created that channel yet you are offered <strong>Create this channel</strong>. Everyone who enters the same name and passphrase ends up in the same channel; a different passphrase gives a different, unrelated channel. There is no list of channels on the server.</p>
+<ul>
+<li>Use a strong passphrase — four or more random words. Anyone who captures the channel id on the network can try to guess a weak passphrase offline.</li>
+<li><strong>Remember on this device</strong> stores the channel keys (never the passphrase) in the browser so the channel stays in your list; <strong>Forget</strong> removes them. Without it the channel lasts until you close the tab.</li>
+<li><strong>Move channel keys to another device</strong> (below the join form) exports all remembered channel keys as a file encrypted with a passphrase you choose (at least 8 characters), and imports such a file on another device. Without that file passphrase the file is useless; a wrong passphrase or a modified file is rejected. The keys only work on the same Fyr server (or one restored from its backup, §6a), because channel ids depend on the server.</li>
+<li><strong>Share</strong> gives a link (<code>/messages#join=&lt;name&gt;</code>) and a QR code. The part after <code>#</code> never reaches the server. You can choose to include the passphrase in the link — anyone who sees that link or QR code can then read and post, so share it only in person. Opening such a link only fills in the form; the passphrase is removed from the address bar immediately.</li>
+<li>Messages are end-to-end encrypted on your device; the server only stores scrambled data. Channels keep the newest 1000 messages and messages younger than 90 days. Channels with no messages are removed after a week of inactivity — anyone with the name and passphrase can simply create them again (<strong>Create it again</strong>).</li>
+<li>Admins can delete a channel and its messages, but cannot read them.</li>
+</ul>
+<h3 id="what-the-encryption-protects-threat-model">What the encryption protects (threat model)<a class="heading-anchor" href="#what-the-encryption-protects-threat-model" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><strong>Protects against:</strong> people passively sniffing the Wi-Fi, and anyone who copies or reads the server&#39;s disk.</li>
+<li><strong>Does not protect against:</strong> an active attacker who can change the web page code while it travels over plain HTTP (for example a rogue hotspot imitating yours). Serve Fyr over <strong>HTTPS</strong> (built in, see §2a, or through a reverse proxy) if that matters to you.</li>
+<li>Anyone who knows the passphrase can read everything in the channel and post under any nickname.</li>
+<li>The Board is never encrypted.</li>
+</ul>
+<h3 id="who-can-post">Who can post<a class="heading-anchor" href="#who-can-post" aria-label="Link to this section">#</a></h3>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Read Board / channels</th>
+<th>Post and create channels</th>
+<th>Pin / delete</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Open (default)</td>
+<td>Everyone</td>
+<td>Everyone</td>
+<td>Everyone (there is no admin login)</td>
+</tr>
+<tr>
+<td><code>FYR_ADMIN_PASSWORD</code></td>
+<td>Everyone</td>
+<td>Admin only</td>
+<td>Admin only</td>
+</tr>
+<tr>
+<td><code>FYR_ADMIN_PASSWORD</code> + <code>FYR_GUEST_MESSAGING=true</code></td>
+<td>Everyone</td>
+<td>Everyone</td>
+<td>Admin only</td>
+</tr>
+<tr>
+<td><code>FYR_READONLY</code></td>
+<td>Everyone</td>
+<td>Nobody</td>
+<td>Nobody</td>
+</tr>
+</tbody></table>
+</div>
+<p>Posting is rate-limited per device address (a short burst, then about 15 messages per minute; channel creation about one per minute). Behind a reverse proxy all visitors share the proxy&#39;s address, so these limits are shared too — unless you list the proxy in <code>FYR_TRUSTED_PROXIES</code> (§6).</p>
+<p>Set <code>FYR_MESSAGING=false</code> to switch Messages off entirely.</p>
+<h2 id="4-add-content">4. Add Content<a class="heading-anchor" href="#4-add-content" aria-label="Link to this section">#</a></h2>
+<h3 id="data-directories-and-supported-file-types">Data directories and supported file types<a class="heading-anchor" href="#data-directories-and-supported-file-types" aria-label="Link to this section">#</a></h3>
+<p>All data is stored under <code>public/data/</code> (or <code>DATA_DIR</code> if you override it).</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>Supported file types</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>curated-content.json</code></td>
+<td>structured JSON catalog</td>
+<td>Manually editable list of recommended model, book, and map downloads</td>
+</tr>
+<tr>
+<td><code>books/</code></td>
+<td><code>.epub</code>, <code>.pdf</code>, <code>.mobi</code>, <code>.md</code>, <code>.zim</code></td>
+<td>Offline books, manuals, and archives (<code>.mobi</code> files are accepted for storage but have no in-browser reader)</td>
+</tr>
+<tr>
+<td><code>maps/</code></td>
+<td><code>.pmtiles</code>, <code>.mbtiles</code></td>
+<td>Offline map tiles</td>
+</tr>
+<tr>
+<td><code>poi/</code></td>
+<td><code>.geojson</code>, <code>.fgb</code>, <code>.json</code></td>
+<td>POI layers and geo datasets</td>
+</tr>
+<tr>
+<td><code>models/</code></td>
+<td><code>.gguf</code></td>
+<td>Local AI models for Assistant</td>
+</tr>
+<tr>
+<td><code>misc/</code></td>
+<td><code>.txt</code>, <code>.csv</code>, <code>.zip</code>, <code>.7z</code>, <code>.log</code>, <code>.exe</code>, <code>.msi</code>, <code>.deb</code>, <code>.rpm</code>, <code>.dmg</code>, <code>.pkg</code></td>
+<td>General offline resources and installers</td>
+</tr>
+<tr>
+<td><code>inbox/</code></td>
+<td>temporary files during upload/import</td>
+<td>Staging area used by import workflows before auto-routing</td>
+</tr>
+</tbody></table>
+</div>
+<h3 id="books">Books<a class="heading-anchor" href="#books" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Put local book files in <code>public/data/books/</code>.</li>
+<li>URL downloads with supported book extensions are routed to <code>books/</code> automatically.</li>
+<li>For ZIM archives, use trusted OpenZIM-compatible sources.</li>
+</ul>
+<h3 id="maps">Maps<a class="heading-anchor" href="#maps" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Fyr serves vector and raster map tiles from <code>.pmtiles</code> and <code>.mbtiles</code> archives in <code>public/data/maps/</code>.</li>
+<li>PMTiles archives are read directly by the browser without a tile server.</li>
+<li>MBTiles archives (SQLite-based) are served tile-by-tile through the built-in tile endpoint (<code>/api/maps/tiles/{filename}/{z}/{x}/{y}</code>).</li>
+</ul>
+<p><strong>Obtaining PMTiles maps:</strong></p>
+<p><strong>Pre-compiled Shortbread maps (BBBike):</strong>
+Download ready-to-use <code>.pmtiles</code> files from <a href="https://data.bbbike.org/osm/region/" rel="noopener">data.bbbike.org</a>.</p>
+<p><strong>Extract from Protomaps (CLI):</strong>
+Install the <code>pmtiles</code> CLI (<a href="https://docs.protomaps.com/pmtiles/cli" rel="noopener">docs.protomaps.com/pmtiles/cli</a>) and extract a region from a global PMTiles archive. Find the latest dated build at <a href="https://maps.protomaps.com/builds/" rel="noopener">maps.protomaps.com/builds</a> and substitute it into the URL below:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15
+pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8
+</code></pre>
+<h3 id="navigating-with-maps-off-grid">Navigating with maps off-grid<a class="heading-anchor" href="#navigating-with-maps-off-grid" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Maps</strong> page is built to be usable for navigation without network access.</p>
+<ul>
+<li><strong>Opening a map:</strong> pick a map in <em>Available Maps</em>. When nothing else positions the view, the map opens on its own coverage area (or on your saved location if that lies inside it). The selected map is written to the address bar (<code>/maps?map=&lt;file&gt;</code>), so the view can be bookmarked or shared.</li>
+<li><strong>Coordinates:</strong> the bottom status bar shows the coordinate under the mouse pointer (🖱) or, on touch screens, the map centre (⊕). Click it to copy it. The <strong>DEC/DMS</strong> button switches between decimal degrees (<code>59.32930, 18.06860</code>) and degrees-minutes-seconds (<code>59°19&#39;45.5&quot;N 18°04&#39;07.0&quot;E</code>); the choice is remembered in the browser. A scale bar is shown in the lower-right corner.</li>
+<li><strong>Click any point</strong> on the map (with no tool active) to see its coordinate in both formats with <strong>Copy</strong> and <strong>Copy link</strong> buttons. Clicking a POI or track shows its name (and length for tracks).</li>
+<li><strong>Find a place:</strong> in <em>Tools</em>, type a town, lake or peak name; see <a href="#place-search-on-maps">Place search on maps</a>.</li>
+<li><strong>Go to coordinate:</strong> in <em>Tools</em>, type a coordinate and press <strong>Go</strong>. Accepted forms include <code>59.33, 18.07</code>, <code>59.33 18.07</code>, <code>-33.86, 151.21</code>, <code>59,33 18,07</code>, <code>59.33N 18.07E</code>, <code>59°19&#39;48&quot;N 18°4&#39;12&quot;E</code>, <code>N 59° 19.8&#39; E 18° 4.2&#39;</code> and <code>59 19 48, 18 4 12</code>. A red marker is placed there; if the current map does not cover the point Fyr switches to an installed map that does. Remove the marker with ✕.</li>
+<li><strong>Links to a place:</strong> other pages (and people) can link to <code>/maps?lat=59.33&amp;lng=18.07&amp;zoom=14&amp;label=Camp</code>. All parameters are optional; <code>map=&lt;file&gt;</code> selects a specific map. Without <code>map</code>, Fyr picks the most detailed installed map whose coverage contains the point.</li>
+<li><strong>My Location / Record Track</strong> need the browser&#39;s location permission <strong>and a secure connection</strong>: open Fyr through <code>https://…</code> or <code>http://localhost</code>. Browsers block GPS on plain <code>http://</code> LAN addresses (for example <code>http://192.168.1.10:8080</code>); Fyr then shows an explanation instead of failing silently. To fix this on a LAN, enable HTTPS (§2a).</li>
+<li><strong>Record Track:</strong> press <strong>⏺ Record Track</strong> to log your GPS position (inaccurate fixes and jitter under a few metres are ignored). Distance, duration and point count update live and the track is drawn in red. Recording keeps running while you visit other Fyr pages, but keep the browser tab open and the screen on (Fyr requests a screen wake lock where supported). <strong>⏹ Stop Recording</strong> keeps the track: name it and <strong>Save</strong> it into a POI file (admins; default <code>tracks.geojson</code>, timestamps are kept), download it as <strong>GPX</strong>, or <strong>Discard</strong> it. An unsaved track survives a page reload and is offered again.</li>
+<li><strong>GPX import/export:</strong> open <strong>Edit POIs</strong> (<strong>View POIs</strong> for guests). <strong>⬆ Import GPX</strong> reads a <code>.gpx</code> file in the browser: waypoints become points, tracks and routes become lines (each track segment is its own line; elevation and timestamps are kept). With a POI file selected the data is appended to it; otherwise a new, not yet saved file named after the GPX is created. <strong>⬇ GPX</strong> and <strong>⬇ GeoJSON</strong> download the selected file. Polygons cannot be expressed in GPX and are skipped (the panel says how many).</li>
+<li><strong>Read-only/guest users</strong> can view POI files, tracks and imported GPX data, measure distances, record and download tracks, and export GPX/GeoJSON. Creating files, placing or removing POIs and saving require admin access (the server rejects saves in read-only mode regardless).</li>
+</ul>
+<h3 id="poi">POI<a class="heading-anchor" href="#poi" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Put <code>.geojson</code>, <code>.fgb</code>, or <code>.json</code> POI datasets in <code>public/data/poi/</code>.</li>
+<li>If using <code>.json</code>, make sure it follows a valid geo dataset structure used by your workflow.</li>
+<li>GeoJSON files may contain points, lines (tracks/routes) and polygons; all three are drawn on the map when the file is selected in the POI panel. Saved tracks carry <code>coordTimes</code> (one ISO timestamp per point), <code>time</code>, <code>endTime</code> and <code>distanceKm</code> properties.</li>
+</ul>
+<h3 id="models">Models<a class="heading-anchor" href="#models" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Open <strong>Content Manager</strong> and upload a <code>.gguf</code> file in the Models section.</li>
+<li>Fyr validates the GGUF header, stores the upload in <code>public/data/inbox/</code>, then imports it into <code>public/data/models/</code>.</li>
+<li>Current inference runtime is implemented for GGUF models with <code>qwen2</code>, <code>llama</code>, and <code>phi3</code> architectures.</li>
+<li>Prefer models that include tokenizer metadata in GGUF.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code> models, keep a tokenizer sidecar in the same folder (preferred: <code>public/data/models/Phi-3.5-mini-instruct-Q4_K_M.tokenizer.json</code>; fallback names: <code>tokenizer.json</code> or <code>&lt;model&gt;.json</code>).</li>
+<li>The bundled curated catalog (<code>public/data/curated-content.json</code>) lists recommended Qwen2.5, Llama 3.2, and Phi-3.5 GGUF tiers together with their default RAG settings.</li>
+</ul>
+<h3 id="misc">Misc<a class="heading-anchor" href="#misc" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <code>public/data/misc/</code> for generic files that are not map/book/poi/model types.</li>
+<li>Good examples: offline installers, utility archives, drivers, checksum lists, and operational notes.</li>
+</ul>
+<h3 id="downloads">Downloads<a class="heading-anchor" href="#downloads" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <strong>Content Manager</strong> to queue URL downloads.</li>
+<li>Large URL download timeout is centrally configurable from <strong>Settings → Downloads</strong> as <strong>Request timeout (seconds)</strong>.</li>
+<li>Advanced path: the same value is persisted in <code>settings.modules.downloads.request_timeout_seconds</code>.</li>
+<li>When a content folder is empty, Content Manager shows curated recommendations from <code>curated-content.json</code> instead of a blank listing.</li>
+<li>When a content folder already has files, Content Manager keeps those recommendations visible as suggested additional sources.</li>
+<li>Use the <strong>Local Imports</strong> panel in Content Manager (button or drag/drop) to upload local files and enqueue local import tasks.</li>
+<li>Use the <strong>Download</strong> button in each Content Manager file row to download a local copy from the browser. Files are streamed from disk with the original filename, so even multi-gigabyte ZIM archives and models download without loading into server memory, and browsers or download managers can resume an interrupted transfer.</li>
+<li>Downloads are auto-routed by recognized extension to the correct folder.</li>
+<li>If a URL points to an unrecognized extension, the file remains in <code>inbox/</code> until you move it manually.</li>
+<li>The task list persists across restarts.</li>
+<li><strong>Resumable URL downloads</strong> (for flaky off-grid links): when a URL download drops mid-transfer, Fyr keeps the bytes it already has and automatically continues from that point (HTTP <code>Range</code>) instead of starting over. If the link stays down, or Fyr is stopped or restarted mid-download, the task is marked <strong>failed</strong> but keeps its partial file; the task shows how much was kept (e.g. &quot;1.2 GB of 4 GB kept&quot;) and a <strong>Resume</strong> button. Click it to continue where it stopped. Servers that do not support resuming, or whose file changed in the meantime, are downloaded again from the start automatically.</li>
+<li>Stopping Fyr cleanly (Ctrl+C, <code>docker stop</code>, or a service stop) saves the progress of running downloads so they can be resumed after the next start.</li>
+<li>Failed or cancelled URL downloads without kept data show a <strong>Retry</strong> button that starts them again. Dismissing a failed task deletes any kept partial data; cancelling a running download deletes it as well. Local imports that were interrupted must be re-imported.</li>
+<li><strong>Checksum verification</strong>: enter an optional <strong>SHA-256 checksum</strong> next to the URL field. After the download finishes, Fyr verifies the file (status <strong>verifying</strong>) before moving it into place; on a mismatch the task fails with &quot;checksum mismatch&quot; and the file is removed. Curated catalog entries that include a <code>sha256</code> value are verified automatically when you click <strong>Download now</strong>.</li>
+<li>Resume, Retry and other download actions require admin access when Fyr runs with <code>FYR_ADMIN_PASSWORD</code>, and are unavailable in <code>FYR_READONLY</code> mode.</li>
+<li>Content listings and download tasks refresh automatically as task state changes.</li>
+<li>You can cancel queued or in-progress downloads from the download manager.</li>
+<li>Fyr does not overwrite your <code>curated-content.json</code> catalog when it already exists in <code>DATA_DIR</code>, so you can keep local recommendations there across updates.</li>
+</ul>
+<h2 id="5-zim-reading">5. ZIM Reading<a class="heading-anchor" href="#5-zim-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.zim</code> file in Books and Fyr opens it using the native reader module.</li>
+<li>Use the search input in the top reader toolbar to find entries by title or path, then open results directly in the same reader view.</li>
+<li>Links inside articles are handled by the embedded reader shell and load new native article views without leaving the Books page.</li>
+<li>ZIM pages use archive-provided styles and default browser styles only; Fyr does not inject fallback theme styles.</li>
+<li>Fyr fetches archive metadata and article content through local <code>/api/reader/zim/*</code> endpoints.</li>
+<li>Book archives remain available under <code>/docs/books/&lt;filename&gt;.zim</code> for local access.</li>
+</ul>
+<h2 id="5a-markdown-reading">5a. Markdown Reading<a class="heading-anchor" href="#5a-markdown-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.md</code> file in Books to open it in the built-in markdown reader.</li>
+<li>Markdown manuals are distributed as regular <code>.md</code> files in <code>public/data/books/</code>.</li>
+</ul>
+<h2 id="5b-pdf-reading">5b. PDF Reading<a class="heading-anchor" href="#5b-pdf-reading" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Select a <code>.pdf</code> file in Books to open it in the built-in PDF reader. Fyr renders PDFs itself (with pdf.js, bundled with Fyr), so it works offline and the same way in every browser.</li>
+<li>Pages scroll continuously. Only the pages near the screen are drawn, so long manuals (hundreds of pages) stay fast on phones.</li>
+<li>Pages fit the width of the reader by default. Use <strong>−</strong> / <strong>+</strong> (or <code>-</code> / <code>+</code>) to zoom; 100% means &quot;fit width&quot;. The zoom shares the saved text-size setting with EPUB and Markdown.</li>
+<li>The <strong>Light</strong>, <strong>Sepia</strong> and <strong>Dark</strong> themes recolor PDF pages too. Dark inverts the page colors, so photos and colored diagrams also appear inverted; switch back to Light for those.</li>
+<li>You can select and copy text on pages that contain real text. Scanned PDFs (images of pages) have no text, so selection and search find nothing in them.</li>
+<li>Password-protected (encrypted) and damaged PDFs show an error message with a link to download the file, so you can open it in another app.</li>
+</ul>
+<h2 id="5c-reader-shell">5c. Reader Shell<a class="heading-anchor" href="#5c-reader-shell" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Books uses a unified reader shell with a single top toolbar.</li>
+<li>The toolbar includes back-to-library, title + filename, format/status badges, and compact metadata chips.</li>
+<li>EPUB, Markdown, PDF, and ZIM open in the same reader area, while format-specific controls (like ZIM search) appear only when relevant.</li>
+<li>Opening any book auto-collapses and hides the Library panel so the reader gets maximum space; use the back button in the reader toolbar to return to the full Library list.</li>
+<li>Reader scrolling is owned by the active reader surface to avoid nested page/reader double-scroll behavior.</li>
+</ul>
+<h2 id="5d-reading-progress-bookmarks-and-links">5d. Reading Progress, Bookmarks and Links<a class="heading-anchor" href="#5d-reading-progress-bookmarks-and-links" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><strong>Resume where you left off:</strong> Fyr remembers your last position per book: the EPUB location, the ZIM article, the Markdown section and the PDF page (including how far down the page you were). Opening the book again takes you back there.</li>
+<li><strong>Bookmarks:</strong> use <strong>＋ Bookmark</strong> in the reader toolbar (or press <code>b</code>) to save the current position. <strong>Bookmarks (n)</strong> lists saved bookmarks. Click one to jump to it, or use ✕ to remove it. Bookmarks work for EPUB, Markdown, PDF and ZIM. A PDF has at most one bookmark per page (named &quot;Page N&quot;).</li>
+<li><strong>Continue reading:</strong> the Overview page lists your recently opened books that are still in the library. Click a card to resume reading.</li>
+<li><strong>Search inside a book:</strong> EPUB, Markdown, PDF and ZIM have a search box above the reader. Clicking an EPUB result opens its chapter, and clicking a Markdown result scrolls to the matching section and highlights it. PDF search runs in your browser over the PDF&#39;s text: it ignores case and accents, lists every match with its page and surrounding text (up to 200 matches), highlights the matches on the pages, and clicking a result scrolls to that match. Searching a long PDF the first time takes a few seconds; the progress is shown while it runs.</li>
+<li><strong>ZIM history:</strong> the ‹ / › buttons (or <code>[</code> / <code>]</code>) move back and forward between articles you opened in the current archive.</li>
+<li><strong>Text size and theme:</strong> for EPUB and Markdown, use A− / A+ (or <code>-</code> / <code>+</code>) to change the text size, and pick a Light, Sepia or Dark theme. For PDFs the same buttons zoom the page. These settings are saved in your browser.</li>
+<li><strong>Links to books:</strong> the address bar follows what you are reading, so you can bookmark or share the link, and reloading the page reopens the same book and article:<ul>
+<li><code>/books?file=&lt;filename&gt;</code> opens a book.</li>
+<li><code>/books?file=&lt;archive&gt;.zim&amp;path=&lt;article path&gt;</code> opens a specific ZIM article.</li>
+<li><code>/books?file=&lt;filename&gt;.pdf&amp;page=&lt;n&gt;</code> opens a PDF at page <em>n</em>. While you read a PDF, the address bar follows the current page.</li>
+<li><code>/books?file=&lt;filename&gt;&amp;q=&lt;words&gt;</code> opens a book and runs an in-book search.</li>
+<li>The <strong>←</strong> button (Back to library) closes the book and removes these parameters from the address.</li>
+</ul>
+</li>
+<li>Keyboard shortcuts do nothing while you are typing in a text field. They also do not work while focus is inside the book or article content. Click the toolbar area first to use them.</li>
+<li><strong>Privacy and storage:</strong> progress, bookmarks and display settings are stored only in this browser&#39;s local storage. They are not stored on the server, so they also work for read-only guests. They do not sync between browsers or devices, and clearing site data removes them. Fyr keeps the 200 most recently used books.</li>
+<li><strong>Move to another device:</strong> in the Library panel open <strong>Move reading progress</strong>. <strong>Export</strong> saves a JSON file with your positions and bookmarks; <strong>Import</strong> on the other device merges it: books you do not have yet are added, the newer position of each book wins, and bookmarks are combined without duplicates. Nothing is deleted by an import.</li>
+</ul>
+<h2 id="6-data-storage-layout">6. Data Storage Layout<a class="heading-anchor" href="#6-data-storage-layout" aria-label="Link to this section">#</a></h2>
+<p><code>public/data/</code> is created automatically and contains the following directories:</p>
+<ul>
+<li><code>public/data/maps/</code></li>
+<li><code>public/data/books/</code></li>
+<li><code>public/data/poi/</code></li>
+<li><code>public/data/inbox/</code></li>
+<li><code>public/data/models/</code></li>
+<li><code>public/data/misc/</code></li>
+</ul>
+<p>Messages are stored in <code>messages.sqlite</code> directly in the data directory (owner-readable only, never published).</p>
+<p>Two more folders may appear briefly: <code>.backup-tmp/</code> (temporary files while a backup or restore runs; removed automatically) and <code>restore-pending/</code> (files from a restore that are applied at the next start, see §6a).</p>
+<p>Full-text indexes of ZIM archives are stored in <code>index/</code> in the data directory (one <code>.fts.sqlite</code> file per archive, never published), next to the place indexes of vector maps (<code>places-*.sqlite</code>, see <a href="#place-search-on-maps">Place search on maps</a>). They can be deleted at any time; Fyr rebuilds them as described in <a href="#full-text-index-for-zim-archives">Full-text index for ZIM archives</a>.</p>
+<p>Only <code>maps/</code>, <code>books/</code>, <code>poi/</code> and <code>curated-content.json</code> are published by the web server under <code>/data/...</code> (used for map, reader and POI loading). <code>settings.json</code>, <code>download_tasks.json</code>, <code>inbox/</code>, <code>models/</code> and <code>misc/</code> are never served directly; models and misc files are downloaded through Content Manager&#39;s <strong>Download</strong> button instead.</p>
+<h3 id="system-managed-manuals-sync">System-Managed Manuals Sync<a class="heading-anchor" href="#system-managed-manuals-sync" aria-label="Link to this section">#</a></h3>
+<p>On startup, Fyr automatically refreshes the two system-managed manuals in <code>DATA_DIR/books/</code>:</p>
+<ul>
+<li><code>user-manual.md</code></li>
+<li><code>developer-manual.md</code></li>
+</ul>
+<p>Other files under <code>DATA_DIR</code> are preserved as user-managed content.</p>
+<h3 id="environment-overrides">Environment overrides<a class="heading-anchor" href="#environment-overrides" aria-label="Link to this section">#</a></h3>
+<ul>
+<li><code>DATA_DIR</code></li>
+<li><code>FYR_HOST</code></li>
+<li><code>FYR_PORT</code></li>
+<li><code>FYR_ADMIN_PASSWORD</code> — enables password-protected admin mode (see §3a)</li>
+<li><code>FYR_READONLY</code> — enables strict read-only mode; all mutating endpoints return 403 (see §3a)</li>
+<li><code>FYR_GUEST_MESSAGING</code> — with <code>FYR_ADMIN_PASSWORD</code> set, let guests post in Messages and create encrypted channels (see §3d)</li>
+<li><code>FYR_MESSAGING</code> — set to <code>false</code> to disable Messages (default on)</li>
+<li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000)</li>
+<li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages in days (default 90)</li>
+<li><code>FYR_TRUSTED_PROXIES</code> — comma-separated IPs or CIDR blocks of your reverse proxy (for example <code>127.0.0.1</code> or <code>172.16.0.0/12</code> for a Docker network). Only for connections from these addresses does Fyr read the visitor&#39;s address from <code>X-Forwarded-For</code>, so login and messaging rate limits apply per visitor instead of to everyone behind the proxy. Leave unset when Fyr is reached directly.</li>
+<li><code>FYR_TLS</code> — <code>self-signed</code> to serve HTTPS with a generated certificate (see §2a); <code>off</code> (default) for plain HTTP</li>
+<li><code>FYR_TLS_CERT</code>, <code>FYR_TLS_KEY</code> — paths to your own PEM certificate chain and private key; set both to serve HTTPS with them</li>
+<li><code>FYR_TLS_SANS</code> — extra comma-separated host names/IPs for the self-signed certificate</li>
+<li><code>FYR_HTTP_REDIRECT_PORT</code> — optional plain-HTTP port that redirects to HTTPS (requires HTTPS; must differ from <code>FYR_PORT</code>)</li>
+<li><code>FYR_FULLTEXT</code> — set to <code>off</code> to disable the ZIM full-text index and full-text search (default on)</li>
+<li><code>FYR_FULLTEXT_MAX_ARTICLES</code> — archives with at most this many articles are indexed automatically (default 200000; <code>0</code> = only when an admin clicks <strong>Build index</strong>)</li>
+<li><code>FYR_FULLTEXT_MIN_FREE_MB</code> — indexing pauses while free disk space is below this many MB (default 1024; also applies to the place index)</li>
+<li><code>FYR_PLACES</code> — set to <code>off</code> to disable the place index for vector maps and place search (default on)</li>
+<li><code>FYR_PLACES_MAX_MAP_MB</code> — vector maps up to this many MB are indexed for place search automatically (default 4096; <code>0</code> = only when an admin clicks <strong>Index places</strong>)</li>
+<li><code>FYR_AI_THREADS</code> — optional override for the AI inference thread pool size (default: number of available CPU cores, respecting container CPU quotas)</li>
+</ul>
+<p><code>FYR_HOST</code> changes where the server listens. Keep <code>127.0.0.1</code> for local-only access, or use <code>0.0.0.0</code> when Fyr runs in Docker or should accept LAN traffic. In the browser, use the host machine&#39;s name or IP address together with <code>FYR_PORT</code>.</p>
+<h2 id="6a-backup-and-restore">6a. Backup and Restore<a class="heading-anchor" href="#6a-backup-and-restore" aria-label="Link to this section">#</a></h2>
+<p>Admins can back up and restore the server&#39;s own data from <strong>Settings → Backup &amp; restore</strong> (the section is only shown to admins; in read-only mode it is not available at all).</p>
+<p><strong>What is in a backup:</strong> settings, POI files (<code>.geojson</code>/<code>.json</code>, and <code>.fgb</code> files up to 16 MB), the curated catalog, the download history and all Messages (the Board in plain text, encrypted channels still encrypted, plus the server salt that channel ids depend on). Maps, books, models, misc files and the inbox are <strong>not</strong> included: copy the data folder (or Docker volume) for those. The backup is a <code>.zip</code> with a <code>manifest.json</code> listing every file with its SHA-256 checksum.</p>
+<p>Keep backup files private: they contain every Board post with nicknames and locations, and anyone holding one can try to guess weak channel passphrases offline.</p>
+<p><strong>Download backup</strong> creates the file. Taking a backup is safe while people are posting; Fyr copies the messages database consistently.</p>
+<p><strong>Restore:</strong> choose a backup <code>.zip</code>, press <strong>Restore backup</strong> and confirm. Fyr checks the whole file first (checksums, file names, sizes, content) and refuses damaged, modified or foreign files without changing anything. Then:</p>
+<ul>
+<li>settings, the curated catalog and POI files from the backup are replaced <strong>immediately</strong> (other POI files that are not in the backup are kept);</li>
+<li>Messages and the download history are replaced at the <strong>next restart</strong> of Fyr. Until you restart, the old messages stay in use. Restart with <code>docker restart fyr</code>, <code>systemctl restart fyr</code> or by stopping and starting the program.</li>
+</ul>
+<p>Uploads are limited to 512 MB. Restoring a backup from a newer Fyr version into an older one is refused if the messages database format is newer.</p>
+<p>Via the API (for scripts): <code>GET /api/backup</code> and <code>POST /api/restore</code> (multipart field <code>file</code>) with an admin session cookie. Without <code>FYR_ADMIN_PASSWORD</code>, anyone who can reach the server can use them, like every other admin function.</p>
+<h2 id="6b-upgrading-from-05x-to-10">6b. Upgrading from 0.5.x to 1.0<a class="heading-anchor" href="#6b-upgrading-from-05x-to-10" aria-label="Link to this section">#</a></h2>
+<ol>
+<li><strong>Take a backup first.</strong> On 0.5.x there is no backup button: stop Fyr and copy the data folder (<code>public/data/</code> or your <code>DATA_DIR</code>), or for Docker copy the volume, for example:<pre><code class="language-sh">docker stop fyr
+docker run --rm -v fyr-data:/data -v &quot;$PWD&quot;:/backup alpine tar czf /backup/fyr-data-0.5.tar.gz -C /data .
+</code></pre>
+After the upgrade, use <strong>Settings → Backup &amp; restore</strong> for future backups.</li>
+<li><strong>Replace the program or image.</strong> Docker: <code>docker pull hexagon/fyr:latest</code>, then remove and re-create the container with the <strong>same</strong> volume (<code>-v fyr-data:/data -e DATA_DIR=/data</code>). The image is multi-arch: the same tag works on Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>, for example Raspberry Pi 4/5 with a 64-bit OS); Docker picks the right one. A Docker volume holds plain files and is not tied to a CPU architecture, so you can also move a volume (or a backup) between x86_64 and aarch64 machines. Binary installs: download the build for your architecture and start it with the same <code>DATA_DIR</code>.</li>
+<li><strong>Start it.</strong> Existing maps, books, POIs, models and settings are used as they are; no conversion is needed.</li>
+</ol>
+<p><strong>New in the data folder:</strong> <code>messages.sqlite</code> (Messages, created on first start, owner-readable only) and, only with <code>FYR_TLS=self-signed</code>, <code>tls/</code> (the generated certificate and its private key; not included in Settings backups, a new certificate is created if it is missing). <code>index/</code> holds the full-text indexes of ZIM archives and the place indexes of vector maps (§3c; rebuilt automatically if deleted, not included in backups). All of them live inside the data folder, so keep mounting the whole folder.</p>
+<p><strong>New environment variables</strong> (all optional; defaults keep 0.5.x behaviour except that Messages is on):</p>
+<ul>
+<li><code>FYR_MESSAGING</code> — <code>false</code> turns Messages off.</li>
+<li><code>FYR_GUEST_MESSAGING</code> — with <code>FYR_ADMIN_PASSWORD</code>, let guests post and create encrypted channels.</li>
+<li><code>FYR_MESSAGES_MAX_PER_CHANNEL</code> — newest messages kept per channel (default 1000).</li>
+<li><code>FYR_MESSAGES_MAX_AGE_DAYS</code> — maximum age of encrypted-channel messages (default 90).</li>
+<li><code>FYR_TRUSTED_PROXIES</code> — set this if Fyr runs behind a reverse proxy, so rate limits apply per visitor.</li>
+<li><code>FYR_TLS</code>, <code>FYR_TLS_CERT</code>/<code>FYR_TLS_KEY</code>, <code>FYR_TLS_SANS</code>, <code>FYR_HTTP_REDIRECT_PORT</code> — built-in HTTPS (§2a), off by default. Turning it on changes the address to <code>https://</code>.</li>
+<li><code>FYR_FULLTEXT</code>, <code>FYR_FULLTEXT_MAX_ARTICLES</code>, <code>FYR_FULLTEXT_MIN_FREE_MB</code> — ZIM full-text index (§3c). On by default: after the upgrade, ZIM archives with up to 200 000 articles are indexed once in the background, which uses some CPU and disk space for a while.</li>
+<li><code>FYR_PLACES</code>, <code>FYR_PLACES_MAX_MAP_MB</code> — place search on vector maps (§3c). On by default: after the upgrade, vector maps up to 4 GB are indexed once in the background.</li>
+</ul>
+<p>If you expose Fyr to people you do not fully trust, review <code>FYR_ADMIN_PASSWORD</code>/<code>FYR_READONLY</code> (§3a) and the Messages posting rules (§3d) after upgrading.</p>
+<p><strong>Going back to 0.5.x:</strong> stop Fyr and restore the copy of the data folder from step 1. 0.5.x ignores <code>messages.sqlite</code>.</p>
+<h2 id="7-platform-notes">7. Platform Notes<a class="heading-anchor" href="#7-platform-notes" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Intel/AMD (<code>x86_64</code>) and ARM64 (<code>aarch64</code>) are both supported.</li>
+<li>Raspberry Pi works best with a 64-bit OS and ARM64 build/image.</li>
+<li>For access from other devices on the LAN, run with <code>FYR_HOST=0.0.0.0</code>.</li>
+</ul>
+<h2 id="8-common-troubleshooting">8. Common Troubleshooting<a class="heading-anchor" href="#8-common-troubleshooting" aria-label="Link to this section">#</a></h2>
+<h3 id="server-does-not-start">Server does not start<a class="heading-anchor" href="#server-does-not-start" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Check if port <code>8080</code> is already in use. Change <code>FYR_PORT</code> and host port mapping (for Docker) if the port is in use.</li>
+<li>Stop old <code>fyr</code> processes and retry.</li>
+<li>If startup reports bind failure details, verify <code>FYR_HOST</code> and <code>FYR_PORT</code> values.</li>
+<li>If startup reports write permission issues, ensure <code>DATA_DIR</code> points to a writable folder.</li>
+<li><code>Invalid HTTPS configuration</code> or <code>Cannot read TLS certificate/private key</code>: check the <code>FYR_TLS*</code> settings (§2a). Fyr refuses to start rather than silently falling back to plain HTTP. In Docker, the container user (UID 1000) must be able to read mounted certificate and key files.</li>
+</ul>
+<h3 id="page-does-not-load-after-enabling-https">Page does not load after enabling HTTPS<a class="heading-anchor" href="#page-does-not-load-after-enabling-https" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Use <code>https://</code> in the address; with HTTPS on, the port no longer answers plain <code>http://</code>.</li>
+<li>A certificate warning on each device is expected with <code>FYR_TLS=self-signed</code> (§2a). If the warning says the name does not match, add the address you use to <code>FYR_TLS_SANS</code> and restart.</li>
+</ul>
+<h3 id="content-not-visible-in-ui">Content not visible in UI<a class="heading-anchor" href="#content-not-visible-in-ui" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Verify file extension is supported.</li>
+<li>Verify file is in the correct <code>data/</code> subfolder.</li>
+<li>Refresh browser after server restart.</li>
+<li>Missing content after a restart generally means you need to confirm the <code>/data</code> volume is mounted.</li>
+</ul>
+<h3 id="download-is-stuck-or-failed">Download is stuck or failed<a class="heading-anchor" href="#download-is-stuck-or-failed" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Open Content Manager and inspect the download status/error line.</li>
+<li>Cancel the task and retry the URL.</li>
+<li>A task that shows &quot;interrupted by server restart – retry to resume&quot; (or &quot;…server shutdown…&quot;) was running when Fyr stopped; click <strong>Resume</strong> to continue from the kept bytes.</li>
+<li>A task that failed after several attempts on an unreliable link keeps its data too; click <strong>Resume</strong> once the connection is back.</li>
+<li>&quot;checksum mismatch&quot; means the downloaded file differs from the expected SHA-256: check the checksum value and the source, then retry.</li>
+<li>For repeated failures, verify the source URL is reachable and supports direct file transfer.</li>
+</ul>
+<h3 id="zim-view-not-loading">ZIM view not loading<a class="heading-anchor" href="#zim-view-not-loading" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the selected <code>.zim</code> file exists under <code>public/data/books/</code> (or your configured <code>DATA_DIR/books/</code>).</li>
+<li>Check the server status and retry opening the archive.</li>
+</ul>
+<h3 id="assistant-model-import-fails">Assistant model import fails<a class="heading-anchor" href="#assistant-model-import-fails" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the model file extension is <code>.gguf</code>.</li>
+<li>Model filenames must be plain file names (no folders or <code>..</code>); otherwise the server rejects the request with &quot;invalid model filename&quot;.</li>
+<li>Ensure the source file starts with GGUF magic bytes.</li>
+<li>Retry the upload if the browser was interrupted before the file finished transferring.</li>
+</ul>
+<h3 id="assistant-inference-fails-after-load">Assistant inference fails after load<a class="heading-anchor" href="#assistant-inference-fails-after-load" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Confirm the model architecture is currently supported by Fyr inference.</li>
+<li>Confirm the <code>.gguf</code> model includes tokenizer metadata.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code>, confirm a sidecar tokenizer JSON exists next to the <code>.gguf</code> model.</li>
+<li>If the model still loads but will not generate text, check the assistant status line for tokenizer or runtime errors.</li>
+</ul>
+<h3 id="use-library-finds-no-sources">&quot;Use library&quot; finds no sources<a class="heading-anchor" href="#use-library-finds-no-sources" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Make sure the books are in the <code>books/</code> data folder (ZIM, EPUB or Markdown; global search matches PDFs by title only, so open the PDF and use its in-book search).</li>
+<li>For ZIM archives without a full-text index, ask about the topic by its article title; check the <strong>Full-text</strong> column in Content Manager → Books and build the index for large archives to search article text.</li>
+<li>Very large libraries are searched for a few seconds at most; ask a more specific question to narrow it down.</li>
+</ul>
+<h3 id="assistant-load-fails-or-runs-slowly">Assistant load fails or runs slowly<a class="heading-anchor" href="#assistant-load-fails-or-runs-slowly" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>Check model health in the assistant status line.</li>
+<li>If memory is limited, use a smaller quantized model.</li>
+<li>If tokenizer metadata is missing, re-export the model with tokenizer fields included.</li>
+<li>For <code>phi3</code>/<code>phi-3.5</code>, use the original <code>tokenizer.json</code> from the model repository and place it beside the model file.</li>
+<li>On constrained hardware (e.g. Raspberry Pi), check the server startup logs for CPU feature information. If the log shows <code>dotprod</code> is available at runtime but not compiled in, rebuild the Docker image with <code>--build-arg RUST_TARGET_FEATURES=+dotprod</code> for faster quantized inference. You can also adjust the inference thread pool by setting <code>FYR_AI_THREADS=&lt;n&gt;</code> (default: number of available CPU cores).</li>
+</ul>
+<h2 id="9-tools">9. Tools<a class="heading-anchor" href="#9-tools" aria-label="Link to this section">#</a></h2>
+<p>The <strong>Tools</strong> page (accessible from the top navigation bar) provides common offline utilities organized into two tabs. All operations stay local to your Fyr deployment (offline-safe): some run in-browser, and some are processed by Fyr&#39;s local API.</p>
+<h3 id="unit-converters">Unit Converters<a class="heading-anchor" href="#unit-converters" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Unit Converters</strong> tab supports twelve conversion categories, grouped into logical sections:</p>
+<div class="overflow-x-auto"><table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Category</th>
+<th>Units</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Length &amp; Speed</td>
+<td>Length</td>
+<td>mm, cm, m, km, in, ft, yd, mi</td>
+</tr>
+<tr>
+<td></td>
+<td>Speed</td>
+<td>m/s, km/h, mph, knot</td>
+</tr>
+<tr>
+<td>Weight &amp; Volume</td>
+<td>Mass</td>
+<td>mg, g, kg, oz, lb</td>
+</tr>
+<tr>
+<td></td>
+<td>Volume</td>
+<td>mL, L, m³, fl_oz, gal, cup</td>
+</tr>
+<tr>
+<td>Area &amp; Angle</td>
+<td>Area</td>
+<td>mm², cm², m², km², ha, in², ft², ac</td>
+</tr>
+<tr>
+<td></td>
+<td>Angle</td>
+<td>deg, rad, grad</td>
+</tr>
+<tr>
+<td>Temperature</td>
+<td>Temperature</td>
+<td>C, F, K</td>
+</tr>
+<tr>
+<td>Digital Storage</td>
+<td>Data</td>
+<td>B, KB, MB, GB, TB, KiB, MiB, GiB</td>
+</tr>
+<tr>
+<td>Energy &amp; Power</td>
+<td>Energy</td>
+<td>J, kJ, cal, kcal, Wh, kWh</td>
+</tr>
+<tr>
+<td></td>
+<td>Power</td>
+<td>W, kW, MW, HP, BTU/h</td>
+</tr>
+<tr>
+<td>Pressure &amp; Time</td>
+<td>Pressure</td>
+<td>Pa, kPa, MPa, bar, psi, atm, mmHg</td>
+</tr>
+<tr>
+<td></td>
+<td>Time</td>
+<td>ms, s, min, h, day</td>
+</tr>
+</tbody></table>
+</div>
+<p><strong>How to use a converter:</strong> Enter a numeric value, choose the source unit and target unit from the dropdowns. The converted result updates immediately as you type or change selections.</p>
+<h3 id="encryption--ciphers">Encryption &amp; Ciphers<a class="heading-anchor" href="#encryption--ciphers" aria-label="Link to this section">#</a></h3>
+<p>The <strong>Encryption &amp; Ciphers</strong> tab provides four tools:</p>
+<ul>
+<li><p><strong>AES-256-CBC:</strong> Encrypt or decrypt text with a password using AES-256 in CBC mode. Encryption produces a hex-encoded string containing the salt, IV, and ciphertext. Decryption requires the same password used during encryption. Uses PBKDF2 with 100,000 iterations for key derivation.</p>
+</li>
+<li><p><strong>Base64:</strong> Encode plain text to Base64 or decode Base64 back to plain text. Handles Unicode text correctly.</p>
+</li>
+<li><p><strong>ROT13:</strong> Apply the classic ROT13 letter substitution cipher (A↔N, B↔O, etc.). Non-letter characters pass through unchanged. Applying ROT13 twice recovers the original text.</p>
+</li>
+<li><p><strong>Hash / Checksum:</strong> Compute cryptographic hashes of arbitrary text input. Four algorithms are supported: <strong>SHA-256</strong>, <strong>SHA-512</strong>, <strong>SHA-1</strong>, and <strong>MD5</strong>. The output is displayed as a lowercase hex string. Use this for verifying file checksums or generating content digests.</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>Implementation notes:</strong></p>
+<ul>
+<li>Unit converters, Base64, and ROT13 run directly in the browser.</li>
+<li>AES and hash/checksum operations are handled by Fyr&#39;s local server API.</li>
+<li>Outputs use standard text encodings and hash formats shown in the UI.</li>
+</ul>
+<p><strong>Security note:</strong> The AES tool is designed for convenience and casual use. For high-security applications, use purpose-built encryption tools with audited key management. MD5 and SHA-1 are cryptographically broken and should not be used for security purposes; they are included for legacy checksum verification.</p>
+</blockquote>
+
+                </article>
+                <aside class="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+                    <div class="sticky top-24 bg-gray-200/70 border border-gray-300 rounded-xl p-4 text-sm">
+                        <p class="font-semibold text-gray-900">On this page</p>
+                        <ol class="mt-3 space-y-1.5 max-h-[70vh] overflow-y-auto">
+                            <li class=""><a href="#1-what-fyr-is" class="text-gray-600 hover:text-brand-600">1. What Fyr Is</a></li>
+                            <li class="pl-4"><a href="#related-documentation" class="text-gray-600 hover:text-brand-600">Related documentation</a></li>
+                            <li class="pl-4"><a href="#1a-installer-scripts" class="text-gray-600 hover:text-brand-600">1a. Installer Scripts</a></li>
+                            <li class=""><a href="#2-start-fyr" class="text-gray-600 hover:text-brand-600">2. Start Fyr</a></li>
+                            <li class=""><a href="#2a-https-and-trusting-this-server" class="text-gray-600 hover:text-brand-600">2a. HTTPS and Trusting This Server</a></li>
+                            <li class="pl-4"><a href="#trust-this-server-self-signed-certificate" class="text-gray-600 hover:text-brand-600">Trust this server (self-signed certificate)</a></li>
+                            <li class=""><a href="#3-main-pages" class="text-gray-600 hover:text-brand-600">3. Main Pages</a></li>
+                            <li class=""><a href="#3a-access-control-and-admin-login" class="text-gray-600 hover:text-brand-600">3a. Access Control and Admin Login</a></li>
+                            <li class="pl-4"><a href="#open-mode-default" class="text-gray-600 hover:text-brand-600">Open mode (default)</a></li>
+                            <li class="pl-4"><a href="#password-protected-mode-fyr_admin_password" class="text-gray-600 hover:text-brand-600">Password-protected mode (FYR_ADMIN_PASSWORD)</a></li>
+                            <li class="pl-4"><a href="#strict-read-only-mode-fyr_readonly" class="text-gray-600 hover:text-brand-600">Strict read-only mode (FYR_READONLY)</a></li>
+                            <li class="pl-4"><a href="#install-as-an-app-phones-tablets-desktops" class="text-gray-600 hover:text-brand-600">Install as an app (phones, tablets, desktops)</a></li>
+                            <li class="pl-4"><a href="#language" class="text-gray-600 hover:text-brand-600">Language</a></li>
+                            <li class="pl-4"><a href="#header-behavior" class="text-gray-600 hover:text-brand-600">Header behavior</a></li>
+                            <li class=""><a href="#3b-using-the-ai-assistant" class="text-gray-600 hover:text-brand-600">3b. Using the AI Assistant</a></li>
+                            <li class="pl-4"><a href="#where-to-find-compatible-models" class="text-gray-600 hover:text-brand-600">Where to find compatible models</a></li>
+                            <li class="pl-4"><a href="#conversation-context-and-modes" class="text-gray-600 hover:text-brand-600">Conversation context and modes</a></li>
+                            <li class="pl-4"><a href="#ask-your-library-answers-with-sources" class="text-gray-600 hover:text-brand-600">Ask your library (answers with sources)</a></li>
+                            <li class="pl-4"><a href="#persisting-the-default-model" class="text-gray-600 hover:text-brand-600">Persisting the default model</a></li>
+                            <li class=""><a href="#3c-searching-everything" class="text-gray-600 hover:text-brand-600">3c. Searching Everything</a></li>
+                            <li class="pl-4"><a href="#full-text-index-for-zim-archives" class="text-gray-600 hover:text-brand-600">Full-text index for ZIM archives</a></li>
+                            <li class="pl-4"><a href="#place-search-on-maps" class="text-gray-600 hover:text-brand-600">Place search on maps</a></li>
+                            <li class=""><a href="#3d-messages" class="text-gray-600 hover:text-brand-600">3d. Messages</a></li>
+                            <li class="pl-4"><a href="#the-board-public" class="text-gray-600 hover:text-brand-600">The Board (public)</a></li>
+                            <li class="pl-4"><a href="#encrypted-channels" class="text-gray-600 hover:text-brand-600">Encrypted channels</a></li>
+                            <li class="pl-4"><a href="#what-the-encryption-protects-threat-model" class="text-gray-600 hover:text-brand-600">What the encryption protects (threat model)</a></li>
+                            <li class="pl-4"><a href="#who-can-post" class="text-gray-600 hover:text-brand-600">Who can post</a></li>
+                            <li class=""><a href="#4-add-content" class="text-gray-600 hover:text-brand-600">4. Add Content</a></li>
+                            <li class="pl-4"><a href="#data-directories-and-supported-file-types" class="text-gray-600 hover:text-brand-600">Data directories and supported file types</a></li>
+                            <li class="pl-4"><a href="#books" class="text-gray-600 hover:text-brand-600">Books</a></li>
+                            <li class="pl-4"><a href="#maps" class="text-gray-600 hover:text-brand-600">Maps</a></li>
+                            <li class="pl-4"><a href="#navigating-with-maps-off-grid" class="text-gray-600 hover:text-brand-600">Navigating with maps off-grid</a></li>
+                            <li class="pl-4"><a href="#poi" class="text-gray-600 hover:text-brand-600">POI</a></li>
+                            <li class="pl-4"><a href="#models" class="text-gray-600 hover:text-brand-600">Models</a></li>
+                            <li class="pl-4"><a href="#misc" class="text-gray-600 hover:text-brand-600">Misc</a></li>
+                            <li class="pl-4"><a href="#downloads" class="text-gray-600 hover:text-brand-600">Downloads</a></li>
+                            <li class=""><a href="#5-zim-reading" class="text-gray-600 hover:text-brand-600">5. ZIM Reading</a></li>
+                            <li class=""><a href="#5a-markdown-reading" class="text-gray-600 hover:text-brand-600">5a. Markdown Reading</a></li>
+                            <li class=""><a href="#5b-pdf-reading" class="text-gray-600 hover:text-brand-600">5b. PDF Reading</a></li>
+                            <li class=""><a href="#5c-reader-shell" class="text-gray-600 hover:text-brand-600">5c. Reader Shell</a></li>
+                            <li class=""><a href="#5d-reading-progress-bookmarks-and-links" class="text-gray-600 hover:text-brand-600">5d. Reading Progress, Bookmarks and Links</a></li>
+                            <li class=""><a href="#6-data-storage-layout" class="text-gray-600 hover:text-brand-600">6. Data Storage Layout</a></li>
+                            <li class="pl-4"><a href="#system-managed-manuals-sync" class="text-gray-600 hover:text-brand-600">System-Managed Manuals Sync</a></li>
+                            <li class="pl-4"><a href="#environment-overrides" class="text-gray-600 hover:text-brand-600">Environment overrides</a></li>
+                            <li class=""><a href="#6a-backup-and-restore" class="text-gray-600 hover:text-brand-600">6a. Backup and Restore</a></li>
+                            <li class=""><a href="#6b-upgrading-from-05x-to-10" class="text-gray-600 hover:text-brand-600">6b. Upgrading from 0.5.x to 1.0</a></li>
+                            <li class=""><a href="#7-platform-notes" class="text-gray-600 hover:text-brand-600">7. Platform Notes</a></li>
+                            <li class=""><a href="#8-common-troubleshooting" class="text-gray-600 hover:text-brand-600">8. Common Troubleshooting</a></li>
+                            <li class="pl-4"><a href="#server-does-not-start" class="text-gray-600 hover:text-brand-600">Server does not start</a></li>
+                            <li class="pl-4"><a href="#page-does-not-load-after-enabling-https" class="text-gray-600 hover:text-brand-600">Page does not load after enabling HTTPS</a></li>
+                            <li class="pl-4"><a href="#content-not-visible-in-ui" class="text-gray-600 hover:text-brand-600">Content not visible in UI</a></li>
+                            <li class="pl-4"><a href="#download-is-stuck-or-failed" class="text-gray-600 hover:text-brand-600">Download is stuck or failed</a></li>
+                            <li class="pl-4"><a href="#zim-view-not-loading" class="text-gray-600 hover:text-brand-600">ZIM view not loading</a></li>
+                            <li class="pl-4"><a href="#assistant-model-import-fails" class="text-gray-600 hover:text-brand-600">Assistant model import fails</a></li>
+                            <li class="pl-4"><a href="#assistant-inference-fails-after-load" class="text-gray-600 hover:text-brand-600">Assistant inference fails after load</a></li>
+                            <li class="pl-4"><a href="#use-library-finds-no-sources" class="text-gray-600 hover:text-brand-600">&quot;Use library&quot; finds no sources</a></li>
+                            <li class="pl-4"><a href="#assistant-load-fails-or-runs-slowly" class="text-gray-600 hover:text-brand-600">Assistant load fails or runs slowly</a></li>
+                            <li class=""><a href="#9-tools" class="text-gray-600 hover:text-brand-600">9. Tools</a></li>
+                            <li class="pl-4"><a href="#unit-converters" class="text-gray-600 hover:text-brand-600">Unit Converters</a></li>
+                            <li class="pl-4"><a href="#encryption--ciphers" class="text-gray-600 hover:text-brand-600">Encryption &amp; Ciphers</a></li>
+                        </ol>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <section class="py-16 bg-gray-900 text-gray-300 border-t border-gray-800" aria-labelledby="cta-heading">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 id="cta-heading" class="text-3xl font-bold text-white mb-4">Run Fyr on your own hardware</h2>
+            <p class="text-lg text-gray-400 mb-8">Free and open source (MIT). One container or one binary, on a Raspberry Pi, homelab, or any Linux, macOS, or Windows machine with Docker.</p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="/#installation" class="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-white px-8 py-3 rounded-lg font-medium transition-all shadow-lg shadow-brand-900/50">Install Fyr</a>
+                <a href="https://github.com/Hexagon/fyr" target="_blank" rel="noopener" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 border border-white/30 hover:bg-white/20 text-white px-8 py-3 rounded-lg font-medium transition-all">
+                    <span aria-hidden="true">&#9733;</span> Star on GitHub <span data-gh-stars hidden class="text-xs bg-white/15 rounded px-2 py-0.5"></span>
+                </a>
+            </div>
+            <p class="mt-6 text-sm text-gray-500">Latest release: <a href="https://github.com/Hexagon/fyr/releases/latest" class="text-brand-400 hover:text-brand-200 underline" data-gh-release>v0.5.2</a></p>
+        </div>
+    </section>
+
+    <footer class="bg-gray-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center font-bold text-xs" aria-hidden="true">F</div>
+                <span class="font-semibold text-gray-900">Fyr Content Platform</span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Released under the MIT License.
+            </div>
+            <div class="flex space-x-6">
+                <a href="https://github.com/Hexagon/fyr" class="text-gray-400 hover:text-gray-900 transition-colors">
+                    <span class="sr-only">GitHub</span>
+                    <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
+                </a>
+            </div>
+        </div>
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-500" aria-label="Footer">
+            <a href="/guides/offline-wikipedia-raspberry-pi/" class="hover:text-gray-900 transition-colors">Offline Wikipedia</a>
+            <a href="/guides/offline-maps-server/" class="hover:text-gray-900 transition-colors">Offline maps</a>
+            <a href="/guides/local-ai-assistant-offline/" class="hover:text-gray-900 transition-colors">Local AI</a>
+            <a href="/guides/off-grid-emergency-knowledge-server/" class="hover:text-gray-900 transition-colors">Off-grid server</a>
+            <a href="/compare/" class="hover:text-gray-900 transition-colors">Compare</a>
+            <a href="/docs/user-manual/" class="hover:text-gray-900 transition-colors">User Manual</a>
+            <a href="/docs/developer-manual/" class="hover:text-gray-900 transition-colors">Developer Manual</a>
+            <a href="https://github.com/Hexagon/fyr/releases" class="hover:text-gray-900 transition-colors">Releases</a>
+        </nav>
+    </footer>
+
+    <script>
+    (function () {
+        var stars = document.querySelectorAll('[data-gh-stars]');
+        var rels = document.querySelectorAll('[data-gh-release]');
+        if ((!stars.length && !rels.length) || !window.fetch) return;
+        function apply(d) {
+            if (!d) return;
+            if (typeof d.stars === 'number') stars.forEach(function (el) { el.textContent = d.stars.toLocaleString('en-US'); el.hidden = false; });
+            if (d.tag) rels.forEach(function (el) { el.textContent = d.tag; });
+        }
+        var KEY = 'fyr-gh-meta';
+        try { var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c) { apply(c); return; } } catch (e) {}
+        function get(u) { return fetch(u, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+        Promise.all([get('https://api.github.com/repos/Hexagon/fyr'), get('https://api.github.com/repos/Hexagon/fyr/releases/latest')]).then(function (res) {
+            var d = { stars: res[0] && res[0].stargazers_count, tag: res[1] && res[1].tag_name };
+            apply(d);
+            try { if (d.stars != null || d.tag) sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {}
+        });
+    })();
+    </script>
+</body>
+</html>

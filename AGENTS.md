@@ -37,6 +37,12 @@ Config overrides:
 - `FYR_PORT`
 - `FYR_ADMIN_PASSWORD` — enables password-protected admin mode; mutating endpoints require a valid session
 - `FYR_READONLY` — enables strict read-only mode; all mutating endpoints return 403 regardless of session state
+- `FYR_GUEST_MESSAGING` — in password mode, lets guests post messages and create encrypted channels (see rule 8)
+- `FYR_TRUSTED_PROXIES` — reverse proxy IPs/CIDRs; only for these peers is `X-Forwarded-For` used to find the client IP. Always derive client IPs via `auth::client_ip`, never from headers directly.
+- `FYR_MESSAGING`, `FYR_MESSAGES_MAX_PER_CHANNEL`, `FYR_MESSAGES_MAX_AGE_DAYS` — Messages on/off and retention
+- `FYR_TLS` (`self-signed`), `FYR_TLS_CERT`/`FYR_TLS_KEY`, `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT` — built-in HTTPS (rustls, `crates/server/src/tls.rs`); invalid combinations fail startup. The session cookie gets `Secure` and `/api/status` shows the certificate fingerprint only via `auth::can_view_system_details`. See `docs/developer/DEVELOPER_MANUAL.md § 3.6`.
+- `FYR_FULLTEXT` (`off` disables), `FYR_FULLTEXT_MAX_ARTICLES`, `FYR_FULLTEXT_MIN_FREE_MB` — background SQLite FTS5 index per ZIM archive in `DATA_DIR/index/` (never served). Build/delete endpoints are in the `protected` router; the indexer is one throttled `std::thread`, never work on the async runtime. See `docs/developer/DEVELOPER_MANUAL.md § 13`.
+- `FYR_PLACES` (`off` disables), `FYR_PLACES_MAX_MAP_MB` — background place index per vector map (`DATA_DIR/index/places-*.sqlite`, never served) feeding the `place` search kind and the Maps page search. Build/delete endpoints are in the `protected` router; one throttled `fyr-places` `std::thread`. See `docs/developer/DEVELOPER_MANUAL.md § 15`.
 
 ## Core Security Function: Access Control
 
@@ -53,6 +59,8 @@ Rules to always respect:
 5. **Session tokens** are UUIDs stored in-memory (no persistence across restarts), set as HttpOnly cookies.
 6. Frontend components that reveal sensitive system information (storage paths, disk usage) must also check `isAdminLocked()` from `crates/ui/frontend/src/services/auth.js`.
 7. Public endpoints must not leak host details (filesystem paths, bind host, disk capacity) in restricted modes: gate them with `auth::can_view_system_details` as `/api/status`, `/api/config`, `/api/storage`, content listings and download task responses do.
+8. **Messaging is the one explicit exception to rule 1.** Exactly two write endpoints — `POST /api/channels` (register an encrypted channel) and `POST /api/channels/:id/messages` (post) — live in the separate `messaging_write` sub-router guarded by `auth::require_messaging_write`: `FYR_READONLY` → 403 always; open mode → allowed; password mode → admin session, or anyone when `FYR_GUEST_MESSAGING=true`, else 401. Handlers add per-IP token-bucket rate limits (in memory, IPv6 keyed by /64, never persisted). Encrypted channels additionally require the `X-Fyr-Channel-Key` header (constant-time check against the stored `sha256(auth_key)`). All messaging **moderation** (delete message, pin/unpin, delete channel) stays in the admin `protected` router. Do not add other mutating routes to the messaging sub-router, and never store or log message plaintext of encrypted channels, passphrases or channel keys server-side.
+9. **Cross-site requests are rejected.** `require_admin` and `require_messaging_write` return `403` for non-GET/HEAD/OPTIONS requests a browser sends from another site (`auth::is_cross_site_request`: `Sec-Fetch-Site` must be `same-origin`/`none`; otherwise an `Origin` header must match `Host`). This is what protects open mode, where there is no session cookie, from CSRF (e.g. a web page posting a forged backup to `/api/restore`). Keep mutating routes behind one of these two middlewares so they inherit it.
 
 See `docs/developer/DEVELOPER_MANUAL.md § 3.5` for the full architecture description.
 
@@ -75,7 +83,10 @@ Responsibilities:
 - Axum API handlers and routing
 - Static serving for `/static`, `/assets`, `/data`, `/docs/books`
 - Native ZIM reader API endpoints
-- Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` middleware
+- Auth middleware (`auth.rs`): session management, rate-limiting, `require_admin` and `require_messaging_write` middleware
+- Messages (`messaging/`): SQLite store (`DATA_DIR/messages.sqlite`), public board channel, encrypted-channel ciphertext storage, SSE streams, retention
+- Full-text index (`fulltext/`): per-archive FTS5 databases, background indexer, `/api/index/*`; consumed by `search.rs` (`article_text`) and `ai/retrieval.rs`
+- Place index (`places/`): MVT/PMTiles/MBTiles readers, per-map FTS5 place databases, background indexer, `/api/places/*`; consumed by `search.rs` (`place`)
 
 ### Downloader Module: downloader
 Path: [crates/downloader/src](crates/downloader/src)
@@ -94,6 +105,7 @@ Responsibilities:
 - Vue SPA pages and API integration
 - Maps rendering (MapLibre/PMTiles)
 - Books reading flows (EPUB + native ZIM)
+- Messages page and client-side channel crypto (`src/modules/messaging/`; all crypto in `crypto.js`)
 
 ## Development Workflow
 

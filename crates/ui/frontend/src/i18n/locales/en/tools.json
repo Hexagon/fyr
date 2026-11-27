@@ -1,0 +1,229 @@
+{
+  "tools": {
+    "expandNav": "Expand tools navigation panel",
+    "collapseNav": "Collapse tools navigation panel",
+    "groups": {
+      "length_speed": "Length & Speed",
+      "weight_volume": "Weight & Volume",
+      "area_angle": "Area & Angle",
+      "temperature": "Temperature",
+      "digital": "Digital Storage",
+      "energy_power": "Energy & Power",
+      "pressure_time": "Pressure & Time",
+      "nav_weather": "Navigation & Weather"
+    },
+    "textTools": "Text Tools",
+    "numberTools": "Number Tools",
+    "tabsLabel": "Tool category tabs",
+    "tabs": {
+      "converters": "Converters",
+      "text": "Text & Numbers",
+      "datetime": "Date & Time",
+      "ciphers": "Encryption & Ciphers"
+    },
+    "unitConverters": "Unit Converters",
+    "enterValue": "Enter value",
+    "fromUnit": "From unit",
+    "toUnit": "To unit",
+    "temperature": "Temperature",
+    "converters": {
+      "length": "Length",
+      "speed": "Speed",
+      "mass": "Mass",
+      "volume": "Volume",
+      "area": "Area",
+      "angle": "Angle",
+      "data": "Data",
+      "energy": "Energy",
+      "power": "Power",
+      "pressure": "Pressure",
+      "time": "Time",
+      "coordinates": "Coordinates (Decimal ↔ DMS)",
+      "windchill": "Wind Chill",
+      "heatindex": "Heat Index"
+    },
+    "units": {
+      "label": "Units",
+      "day": "day",
+      "week": "week",
+      "knot": "knot",
+      "cup": "cup",
+      "tbsp": "tbsp",
+      "tsp": "tsp",
+      "flOz": "fl oz",
+      "gal": "gal",
+      "deg": "deg"
+    },
+    "coord": {
+      "direction": "Direction",
+      "toDms": "Decimal → DMS",
+      "toDec": "DMS → Decimal",
+      "latDec": "Latitude (decimal)",
+      "lonDec": "Longitude (decimal)",
+      "range": "{min} to {max}",
+      "latD": "Lat Degrees",
+      "latM": "Lat Minutes",
+      "latS": "Lat Seconds",
+      "lonD": "Lon Degrees",
+      "lonM": "Lon Minutes",
+      "lonS": "Lon Seconds",
+      "result": "Lat: {lat}°   Lon: {lon}°"
+    },
+    "windchill": {
+      "info": "Apparent temperature when wind makes it feel colder. Valid for air temp ≤ 10°C (50°F) and wind speed ≥ 4.8 km/h (3 mph).",
+      "wind": "Wind Speed",
+      "tempLimit": "Wind chill applies to temperatures ≤ {limit}.",
+      "windLimit": "Wind chill applies to wind speeds ≥ {limit}."
+    },
+    "example": "e.g. {value}",
+    "feelsLike": "Feels like:",
+    "heatindex": {
+      "info": "Apparent temperature combining air temperature and relative humidity. Valid for temperatures ≥ 27°C (80°F) and humidity ≥ 40%.",
+      "humidity": "Humidity (%)",
+      "tempLimit": "Heat index applies to temperatures ≥ 27°C (80°F).",
+      "humidityLimit": "Heat index applies to relative humidity ≥ 40%."
+    },
+    "textNumberTools": "Text & Number Tools",
+    "text": {
+      "wordcount": "Word & Character Counter",
+      "caseconv": "Case Converter",
+      "urlencode": "URL Encode / Decode",
+      "ascii": "ASCII / Unicode Lookup",
+      "baseconv": "Number Base Converter"
+    },
+    "wordcount": {
+      "text": "Text",
+      "placeholder": "Paste or type your text here…",
+      "chars": "Characters",
+      "charsNoSpace": "Chars (no spaces)",
+      "words": "Words",
+      "lines": "Lines",
+      "sentences": "Sentences",
+      "paragraphs": "Paragraphs"
+    },
+    "input": "Input",
+    "caseconv": {
+      "placeholder": "Enter text to convert…",
+      "title": "Title Case",
+      "sentence": "Sentence case",
+      "upper": "UPPERCASE",
+      "lower": "lowercase"
+    },
+    "result": "Result:",
+    "mode": "Mode",
+    "encode": "Encode",
+    "decode": "Decode",
+    "urlencode": {
+      "plain": "Plain URL / text",
+      "encoded": "Encoded string",
+      "encodedPlaceholder": "Enter encoded string"
+    },
+    "baseconv": {
+      "input": "Input value",
+      "placeholder": "Enter number",
+      "from": "From base",
+      "binary": "Binary",
+      "octal": "Octal",
+      "decimal": "Decimal",
+      "hexadecimal": "Hexadecimal",
+      "hex": "Hex",
+      "invalid": "Invalid number for selected base."
+    },
+    "ascii": {
+      "input": "Character or decimal code",
+      "placeholder": "e.g. A or 65",
+      "character": "Character",
+      "invalid": "Enter a single character or a dec/hex/bin/oct code."
+    },
+    "datetimeTools": "Date & Time Tools",
+    "datetime": {
+      "unix": "Unix Timestamp",
+      "duration": "Duration Calculator",
+      "dayofyear": "Day of Year / Week"
+    },
+    "unix": {
+      "title": "Unix Timestamp Converter",
+      "now": "Now",
+      "seconds": "Unix timestamp (seconds)",
+      "local": "Local",
+      "datestr": "Date/time string (local)",
+      "result": "Unix timestamp:"
+    },
+    "duration": {
+      "start": "Start date/time",
+      "end": "End date/time",
+      "days": "Days",
+      "hours": "Hours",
+      "minutes": "Minutes",
+      "seconds": "Seconds",
+      "human": "Human",
+      "d": "{n}d",
+      "h": "{n}h",
+      "m": "{n}m",
+      "s": "{n}s"
+    },
+    "dayofyear": {
+      "title": "Day of Year / Week Number",
+      "date": "Date",
+      "doy": "Day of year",
+      "week": "Week number (ISO)",
+      "dow": "Day of week",
+      "daysLeft": "Days left in year",
+      "leap": "Leap year"
+    },
+    "cipher": "Cipher",
+    "ciphers": {
+      "aes": "AES Encryption",
+      "base64": "Base64",
+      "rot13": "ROT13",
+      "morse": "Morse Code",
+      "hash": "Hash / Checksum"
+    },
+    "aes": {
+      "encrypt": "Encrypt",
+      "decrypt": "Decrypt",
+      "keySource": "Key Source",
+      "password": "Password",
+      "rawKey": "Raw Key (hex)",
+      "bits": "Bits",
+      "cipherMode": "Cipher Mode",
+      "kdfInfo": "Key derivation: {kdf}. Salt is prepended to the output.",
+      "kdf": "PBKDF2-HMAC-SHA256, {n} iterations",
+      "ecbWarning": "ECB is not authenticated and reveals plaintext patterns. Use CBC or GCM for sensitive data.",
+      "gcmWarning": "GCM mode only supports 256-bit keys.",
+      "keyHex": "Key (hex)",
+      "passwordPlaceholder": "Enter password",
+      "keyPlaceholder": "Enter hex key",
+      "ciphertext": "Ciphertext (hex)",
+      "encryptPlaceholder": "Text to encrypt",
+      "decryptPlaceholder": "Hex string to decrypt",
+      "failed": "Operation failed. Check your password and input."
+    },
+    "plaintext": "Plaintext",
+    "base64": {
+      "string": "Base64 string",
+      "encodePlaceholder": "Text to encode",
+      "decodePlaceholder": "Base64 string to decode"
+    },
+    "rot13": {
+      "placeholder": "Text to apply ROT13"
+    },
+    "morse": {
+      "toMorse": "Text → Morse",
+      "toText": "Morse → Text",
+      "textLabel": "Text (letters, digits)",
+      "codeLabel": "Morse code (dots and dashes, space between chars, / between words)",
+      "unknown": "Unknown code: {code}",
+      "invalid": "Invalid Morse code input."
+    },
+    "hash": {
+      "algorithm": "Algorithm",
+      "placeholder": "Text to hash",
+      "result": "Hash:"
+    },
+    "errors": {
+      "invalidOperation": "Invalid input for this operation.",
+      "invalidInput": "Invalid input."
+    }
+  }
+}

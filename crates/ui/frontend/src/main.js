@@ -1,15 +1,23 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
+import { i18n, initLocale, withMessages } from './i18n/index.js'
 
 import Home from './pages/Home.vue'
-import ContentManager from './pages/ContentManager.vue'
-import Login from './pages/Login.vue'
-import Maps from './pages/Maps.vue'
-import Books from './pages/Books.vue'
-import Assistant from './pages/Assistant.vue'
-import Settings from './pages/Settings.vue'
-import Tools from './pages/Tools.vue'
+
+// Every page except the landing page is loaded on demand, so phones on a
+// weak hotspot link only download MapLibre, epub.js, the crypto libraries,
+// etc. when the page that needs them is opened.
+// Each page's strings are a separate chunk loaded together with the page.
+const ContentManager = () => withMessages(import('./pages/ContentManager.vue'), 'content')
+const Login = () => withMessages(import('./pages/Login.vue'), 'login')
+const Maps = () => withMessages(import('./pages/Maps.vue'), 'maps')
+const Books = () => withMessages(import('./pages/Books.vue'), 'books')
+const Assistant = () => withMessages(import('./pages/Assistant.vue'), 'assistant')
+const Settings = () => withMessages(import('./pages/Settings.vue'), 'settings')
+const Tools = () => withMessages(import('./pages/Tools.vue'), 'tools')
+const Search = () => withMessages(import('./pages/Search.vue'), 'search')
+const Messages = () => withMessages(import('./pages/Messages.vue'), 'messages')
 import { loadAuthStatus, useAuthState } from './services/auth'
 
 const routes = [
@@ -18,9 +26,9 @@ const routes = [
     name: 'Home',
     component: Home,
     meta: {
-      title: 'Overview',
-      subtitle: 'System status and offline storage overview',
-      headerLabel: 'System status'
+      titleKey: 'routes.home.title',
+      subtitleKey: 'routes.home.subtitle',
+      headerLabelKey: 'routes.home.header'
     }
   },
   {
@@ -28,9 +36,9 @@ const routes = [
     name: 'Maps',
     component: Maps,
     meta: {
-      title: 'Maps',
-      subtitle: 'Browse offline maps and interactive data layers',
-      headerLabel: 'Interactive layers'
+      titleKey: 'routes.maps.title',
+      subtitleKey: 'routes.maps.subtitle',
+      headerLabelKey: 'routes.maps.header'
     }
   },
   {
@@ -38,9 +46,9 @@ const routes = [
     name: 'Books',
     component: Books,
     meta: {
-      title: 'Library',
-      subtitle: 'Browse and read your offline books collection',
-      headerLabel: 'Offline reading'
+      titleKey: 'routes.books.title',
+      subtitleKey: 'routes.books.subtitle',
+      headerLabelKey: 'routes.books.header'
     }
   },
   {
@@ -48,9 +56,9 @@ const routes = [
     name: 'ContentManager',
     component: ContentManager,
     meta: {
-      title: 'Content Manager',
-      subtitle: 'Manage local files, imports, and downloads',
-      headerLabel: 'Files and imports',
+      titleKey: 'routes.content.title',
+      subtitleKey: 'routes.content.subtitle',
+      headerLabelKey: 'routes.content.header',
       requiresAdmin: true
     }
   },
@@ -59,9 +67,19 @@ const routes = [
     name: 'Assistant',
     component: Assistant,
     meta: {
-      title: 'Assistant',
-      subtitle: 'Offline AI assistant powered by local GGUF models',
-      headerLabel: 'Local GGUF chat'
+      titleKey: 'routes.assistant.title',
+      subtitleKey: 'routes.assistant.subtitle',
+      headerLabelKey: 'routes.assistant.header'
+    }
+  },
+  {
+    path: '/messages',
+    name: 'Messages',
+    component: Messages,
+    meta: {
+      titleKey: 'routes.messages.title',
+      subtitleKey: 'routes.messages.subtitle',
+      headerLabelKey: 'routes.messages.header'
     }
   },
   {
@@ -69,9 +87,19 @@ const routes = [
     name: 'Tools',
     component: Tools,
     meta: {
-      title: 'Tools',
-      subtitle: 'Unit converters, encryption, and ciphering utilities',
-      headerLabel: 'Offline utilities'
+      titleKey: 'routes.tools.title',
+      subtitleKey: 'routes.tools.subtitle',
+      headerLabelKey: 'routes.tools.header'
+    }
+  },
+  {
+    path: '/search',
+    name: 'Search',
+    component: Search,
+    meta: {
+      titleKey: 'routes.search.title',
+      subtitleKey: 'routes.search.subtitle',
+      headerLabelKey: 'routes.search.header'
     }
   },
   {
@@ -79,9 +107,9 @@ const routes = [
     name: 'Settings',
     component: Settings,
     meta: {
-      title: 'Settings',
-      subtitle: 'Configure location and other application-wide preferences',
-      headerLabel: 'Location and preferences',
+      titleKey: 'routes.settings.title',
+      subtitleKey: 'routes.settings.subtitle',
+      headerLabelKey: 'routes.settings.header',
       requiresAdmin: true
     }
   },
@@ -90,9 +118,9 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: {
-      title: 'Admin Login',
-      subtitle: 'Authenticate to access admin features',
-      headerLabel: 'Admin access'
+      titleKey: 'routes.login.title',
+      subtitleKey: 'routes.login.subtitle',
+      headerLabelKey: 'routes.login.header'
     }
   }
 ]
@@ -126,6 +154,13 @@ router.beforeEach(async (to) => {
 })
 
 const app = createApp(App)
-app.use(router)
-app.mount('#app')
+app.use(i18n)
+// Load the stored/detected language before the router starts its first
+// navigation (which loads the page's message namespace) and before the
+// first render, so a Swedish browser never flashes English. A failed chunk
+// load falls back to English.
+initLocale().finally(() => {
+  app.use(router)
+  app.mount('#app')
+})
 

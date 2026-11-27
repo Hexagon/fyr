@@ -1,0 +1,15 @@
+{
+  "login": {
+    "title": "Admininloggning",
+    "hint": "Den här servern kräver ett lösenord för Innehållshanteraren och andra adminfunktioner.",
+    "password": "Adminlösenord",
+    "placeholder": "Ange adminlösenord",
+    "checking": "Kontrollerar uppgifterna …",
+    "loggingIn": "Loggar in …",
+    "submit": "Logga in",
+    "back": "Tillbaka till Översikt",
+    "tooMany": "För många misslyckade försök. Vänta några minuter och försök igen.",
+    "incorrect": "Fel lösenord. Försök igen.",
+    "failed": "Inloggningen misslyckades. Försök igen."
+  }
+}

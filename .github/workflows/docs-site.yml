@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "docs/site/**"
+      - "docs/build/**"
+      - "docs/user/USER_MANUAL.md"
+      - "docs/developer/DEVELOPER_MANUAL.md"
+      - "Cargo.toml"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -29,6 +33,28 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: docs/build/package-lock.json
+
+      - name: Install Site Build Dependencies
+        working-directory: docs/build
+        run: npm ci
+
+      # Regenerate CSS, guide/manual pages, JSON-LD and sitemap so the deployed
+      # site always matches main (PR validation already enforces that the
+      # committed copy is fresh), then validate links/meta/JSON-LD.
+      - name: Build Site
+        working-directory: docs/build
+        run: npm run build:site
+
+      - name: Check Site
+        working-directory: docs/build
+        run: node check-site.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

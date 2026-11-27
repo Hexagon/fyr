@@ -1,0 +1,74 @@
+{
+  "settings": {
+    "language": {
+      "title": "Språk",
+      "hint": "Välj språk för Fyrs gränssnitt. Valet sparas bara i den här webbläsaren, så alla i nätverket kan välja sitt eget."
+    },
+    "location": {
+      "title": "Plats",
+      "saved": "Sparad",
+      "latitudeLabel": "Latitud:",
+      "longitudeLabel": "Longitud:",
+      "labelLabel": "Namn:",
+      "label": "Namn",
+      "labelPlaceholder": "Hemma, stugan, lägret …",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "save": "Spara plats",
+      "useBrowser": "Använd webbläsarens platstjänst",
+      "clear": "Rensa plats",
+      "invalid": "Latitud och longitud måste vara giltiga tal.",
+      "savedMessage": "Platsen har sparats.",
+      "cleared": "Platsen har rensats.",
+      "browserLabel": "Webbläsarens plats",
+      "captured": "Platsen hämtades från webbläsarens platstjänst."
+    },
+    "geo": {
+      "unsupported": "Webbläsarens platstjänst stöds inte här.",
+      "insecure": "Webbläsarens platstjänst kräver en säker anslutning (HTTPS eller localhost).",
+      "unavailable": "Webbläsarens platstjänst är inte tillgänglig här.",
+      "readFailed": "Det gick inte att läsa webbläsarens plats."
+    },
+    "bus": {
+      "title": "Delad modulbuss",
+      "body": "Inställningssidan skriver till den delade platsmodulen och serverns inställningslager. Andra moduler kan sedan skicka platsändringar via samma buss."
+    },
+    "modules": {
+      "title": "Modultillstånd",
+      "count": "{count} modul | {count} moduler",
+      "empty": "Inget modultillstånd är sparat än. Framtida moduler kan spara sitt tillstånd här.",
+      "addTitle": "Lägg till eller uppdatera modultillstånd",
+      "name": "Modulnamn",
+      "payload": "Moduldata",
+      "save": "Spara modultillstånd",
+      "removed": "Modultillståndet för {name} har tagits bort.",
+      "updated": "Modultillståndet för {name} har uppdaterats.",
+      "invalidJson": "Moduldata måste vara giltig JSON."
+    },
+    "downloads": {
+      "title": "Nedladdningar",
+      "body": "Ange tidsgränsen för HTTP-förfrågningar vid stora URL-nedladdningar i Innehållshanteraren.",
+      "timeout": "Tidsgräns för förfrågan (sekunder)",
+      "save": "Spara tidsgräns för nedladdning",
+      "invalid": "Tidsgränsen måste vara ett heltal sekunder.",
+      "saved": "Tidsgränsen för nedladdning har sparats: {seconds} s."
+    },
+    "backup": {
+      "title": "Säkerhetskopiering och återställning",
+      "body": "En säkerhetskopia innehåller inställningar, POI-filer, den kurerade katalogen, nedladdningshistorik och alla meddelanden (anslagstavlan och krypterade kanaler, som förblir krypterade). Kartor, böcker, modeller och annat stort innehåll ingår inte; kopiera datamappen för dem. Håll säkerhetskopior privata.",
+      "preparing": "Förbereder säkerhetskopia …",
+      "download": "Ladda ned säkerhetskopia",
+      "restoreTitle": "Återställ från en säkerhetskopia",
+      "restoreBody": "Återställning ersätter direkt inställningar, den kurerade katalogen och POI-filer med samma namn (andra POI-filer behålls). Meddelanden och nedladdningshistorik ersätts när Fyr startas om.",
+      "file": "Säkerhetskopia (.zip)",
+      "restoring": "Återställer … {pct} %",
+      "restore": "Återställ säkerhetskopia",
+      "from": "Säkerhetskopia från {date} (Fyr {version}).",
+      "unknownDate": "okänt datum",
+      "restoredNow": "Återställt nu: {items}",
+      "restart": "Starta om Fyr (för Docker: {command}) för att slutföra återställningen av {items}. Fram till dess används de gamla meddelandena.",
+      "and": " och ",
+      "confirm": "Återställa ”{name}”?\n\nDetta ersätter nu de aktuella inställningarna, den kurerade katalogen och matchande POI-filer, och alla meddelanden och all nedladdningshistorik efter nästa omstart. Gör en säkerhetskopia först om du kan vilja ha tillbaka dem."
+    }
+  }
+}

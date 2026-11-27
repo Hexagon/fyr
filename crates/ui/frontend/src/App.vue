@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <a href="#page-content" class="skip-link">Skip to main content</a>
+    <a href="#page-content" class="skip-link">{{ t('app.skipToContent') }}</a>
     <nav class="navbar">
       <div class="navbar-left">
         <div class="navbar-brand">
@@ -16,23 +16,26 @@
         class="mobile-menu-toggle"
         :aria-expanded="String(mobileMenuOpen)"
         aria-controls="primary-navigation"
-        aria-label="Toggle navigation menu"
+        :aria-label="t('app.toggleMenu')"
         @click="mobileMenuOpen = !mobileMenuOpen"
       >
         ☰
       </button>
       <div class="navbar-center">
         <ul id="primary-navigation" class="navbar-menu" :class="{ 'mobile-open': mobileMenuOpen }">
-          <li><router-link to="/" :class="{ active: $route.name === 'Home' }" :aria-current="$route.name === 'Home' ? 'page' : undefined">Overview</router-link></li>
-          <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }" :aria-current="$route.name === 'Maps' ? 'page' : undefined">Maps</router-link></li>
-          <li><router-link to="/books" :class="{ active: $route.name === 'Books' }" :aria-current="$route.name === 'Books' ? 'page' : undefined">Library</router-link></li>
-          <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }" :aria-current="$route.name === 'ContentManager' ? 'page' : undefined">Content Manager</router-link></li>
-          <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }" :aria-current="$route.name === 'Assistant' ? 'page' : undefined">Assistant</router-link></li>
-          <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }" :aria-current="$route.name === 'Tools' ? 'page' : undefined">Tools</router-link></li>
-          <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }" :aria-current="$route.name === 'Settings' ? 'page' : undefined">Settings</router-link></li>
+          <li><router-link to="/" :class="{ active: $route.name === 'Home' }" :aria-current="$route.name === 'Home' ? 'page' : undefined">{{ t('nav.home') }}</router-link></li>
+          <li><router-link to="/maps" :class="{ active: $route.name === 'Maps' }" :aria-current="$route.name === 'Maps' ? 'page' : undefined">{{ t('nav.maps') }}</router-link></li>
+          <li><router-link to="/books" :class="{ active: $route.name === 'Books' }" :aria-current="$route.name === 'Books' ? 'page' : undefined">{{ t('nav.books') }}</router-link></li>
+          <li v-if="showAdminNav"><router-link to="/content" :class="{ active: $route.name === 'ContentManager' }" :aria-current="$route.name === 'ContentManager' ? 'page' : undefined">{{ t('nav.content') }}</router-link></li>
+          <li><router-link to="/messages" :class="{ active: $route.name === 'Messages' }" :aria-current="$route.name === 'Messages' ? 'page' : undefined">{{ t('nav.messages') }}<span v-if="boardFeed.unread" class="nav-badge" :aria-label="t('app.unread', { count: boardFeed.unread }, boardFeed.unread)">{{ boardFeed.unread > 99 ? '99+' : boardFeed.unread }}</span></router-link></li>
+          <li><router-link to="/assistant" :class="{ active: $route.name === 'Assistant' }" :aria-current="$route.name === 'Assistant' ? 'page' : undefined">{{ t('nav.assistant') }}</router-link></li>
+          <li><router-link to="/tools" :class="{ active: $route.name === 'Tools' }" :aria-current="$route.name === 'Tools' ? 'page' : undefined">{{ t('nav.tools') }}</router-link></li>
+          <li v-if="showAdminNav"><router-link to="/settings" :class="{ active: $route.name === 'Settings' }" :aria-current="$route.name === 'Settings' ? 'page' : undefined">{{ t('nav.settings') }}</router-link></li>
         </ul>
       </div>
       <div class="navbar-right">
+        <HeaderSearch />
+        <LanguageSwitcher compact class="header-language" />
         <div class="clock-panel">
           <span class="clock-time">{{ currentTime }}</span>
           <span class="clock-day">{{ currentWeekday }}</span>
@@ -40,16 +43,16 @@
         </div>
         <div v-if="authState.requiresAuth && !authState.readonly" class="auth-badge">
           <template v-if="authState.authenticated">
-            <span class="auth-label auth-on">Admin</span>
-            <button class="auth-btn" @click="handleLogout" title="Log out">Log out</button>
+            <span class="auth-label auth-on">{{ t('app.admin') }}</span>
+            <button class="auth-btn" @click="handleLogout" :title="t('app.logout')">{{ t('app.logout') }}</button>
           </template>
           <template v-else>
-            <span class="auth-label auth-off">Read-only</span>
-            <router-link class="auth-btn" to="/login">Log in</router-link>
+            <span class="auth-label auth-off">{{ t('app.readonly') }}</span>
+            <router-link class="auth-btn" to="/login">{{ t('app.login') }}</router-link>
           </template>
         </div>
         <div v-else-if="authState.readonly" class="auth-badge">
-          <span class="auth-label auth-off" title="FYR_READONLY is set">Read-only</span>
+          <span class="auth-label auth-off" :title="t('app.readonlyEnv', { env: 'FYR_READONLY' })">{{ t('app.readonly') }}</span>
         </div>
       </div>
     </nav>
@@ -67,22 +70,28 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { loadAppSettings } from './services/settings'
 import { useLocationState } from './services/location'
 import { getLocationClock } from './services/locationClock'
 import { loadAuthStatus, logout, useAuthState, isAdminLocked } from './services/auth'
+import HeaderSearch from './components/HeaderSearch.vue'
+import LanguageSwitcher from './components/LanguageSwitcher.vue'
+import { startBoardFeed, useBoardFeed } from './modules/messaging/boardFeed.js'
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const locationState = useLocationState()
 const authState = useAuthState()
+const boardFeed = useBoardFeed()
 const now = ref(new Date())
 let timer = null
 const mobileMenuOpen = ref(false)
 
-const pageTitle = computed(() => route.meta?.title || 'Fyr')
-const pageSubtitle = computed(() => route.meta?.subtitle || 'Offline-first content platform')
-const pageHeaderLabel = computed(() => route.meta?.headerLabel || pageSubtitle.value)
-const clock = computed(() => getLocationClock(now.value, locationState.location))
+const pageTitle = computed(() => (route.meta?.titleKey ? t(route.meta.titleKey) : 'Fyr'))
+const pageSubtitle = computed(() => (route.meta?.subtitleKey ? t(route.meta.subtitleKey) : t('app.tagline')))
+const pageHeaderLabel = computed(() => (route.meta?.headerLabelKey ? t(route.meta.headerLabelKey) : pageSubtitle.value))
+const clock = computed(() => getLocationClock(now.value, locationState.location, locale.value))
 const currentTime = computed(() => clock.value.timeText)
 const currentWeekday = computed(() => formatClockDatePart('weekday', clock.value.dateText))
 const currentDate = computed(() => formatClockDatePart('date', clock.value.dateText))
@@ -116,6 +125,7 @@ onMounted(async () => {
     loadAppSettings().catch(() => {}),
     loadAuthStatus().catch(() => {})
   ])
+  startBoardFeed()
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
@@ -337,6 +347,20 @@ watch(() => route.fullPath, () => {
   border-radius: 4px;
   transition: background 0.3s;
   white-space: nowrap;
+}
+
+.nav-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #e05d5d;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
 }
 
 .navbar-menu a:hover {

@@ -1,0 +1,60 @@
+<!--meta
+{
+  "path": "/compare/",
+  "title": "Fyr vs Kiwix-serve, Internet-in-a-Box, Organic Maps, OsmAnd and Ollama",
+  "description": "An honest comparison of Fyr with Kiwix-serve, Internet-in-a-Box, Organic Maps / OsmAnd and Ollama / Open WebUI for offline Wikipedia, offline maps and local AI — including where each alternative is the better choice.",
+  "h1": "Fyr compared with the alternatives",
+  "crumb": "Compare",
+  "schemaType": "Article",
+  "lead": "Fyr overlaps with several excellent open-source projects. Here is how they differ, and when you should pick something else.",
+  "published": "2026-10-26"
+}
+-->
+<p>Fyr's angle is <strong>one server for the whole offline kit</strong>: ZIM archives (such as Wikipedia), EPUB, PDF and Markdown books, PMTiles/MBTiles maps, and a CPU-only AI assistant, in a single binary with one web interface that any browser on the network can use. The projects below are each excellent at their own focus — often better than Fyr in that area — and several of them combine well with Fyr.</p>
+<p class="text-sm">This comparison is based on each project's public documentation as of October 2026. Projects move quickly; if something here is out of date, please <a href="https://github.com/Hexagon/fyr/issues" rel="noopener">open an issue</a>.</p>
+
+<h2>At a glance</h2>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th></th><th>Fyr</th><th>Kiwix-serve</th><th>Internet-in-a-Box</th><th>Organic Maps / OsmAnd</th><th>Ollama + Open WebUI</th></tr></thead>
+<tbody>
+<tr><th scope="row">Main purpose</th><td>All-in-one offline knowledge server</td><td>Serve ZIM archives</td><td>Bundle of offline education apps</td><td>Offline maps and navigation on a device</td><td>Run local language models</td></tr>
+<tr><th scope="row">Runs as</th><td>One binary or one Docker container</td><td>One binary (part of kiwix-tools)</td><td>Installer that sets up many services</td><td>Mobile / desktop app</td><td>Model server plus web UI</td></tr>
+<tr><th scope="row">Offline Wikipedia (ZIM)</th><td>Yes, native reader with title/path search</td><td>Yes, the reference implementation, with full-text search</td><td>Yes (via Kiwix)</td><td>No</td><td>No</td></tr>
+<tr><th scope="row">Ebooks / PDFs</th><td>EPUB, PDF, Markdown</td><td>No (ZIM only)</td><td>Yes, via bundled apps</td><td>No</td><td>Documents for chat context (Open WebUI)</td></tr>
+<tr><th scope="row">Offline maps</th><td>PMTiles and MBTiles in the browser, shared on the LAN</td><td>No</td><td>Yes (OpenStreetMap module)</td><td>Yes, with search and turn-by-turn navigation</td><td>No</td></tr>
+<tr><th scope="row">Local AI chat</th><td>Yes, CPU only, GGUF (Qwen2, Llama, Phi-3)</td><td>No</td><td>Depends on installed apps</td><td>No</td><td>Yes, many model families, GPU acceleration</td></tr>
+<tr><th scope="row">Clients</th><td>Any browser; installable as a home-screen web app</td><td>Any browser; native Kiwix apps for phones and desktops</td><td>Any browser</td><td>Native apps</td><td>Any browser; API for other tools</td></tr>
+<tr><th scope="row">Maturity</th><td>Preview</td><td>Mature</td><td>Mature, large deployments</td><td>Mature</td><td>Mature</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Fyr vs Kiwix-serve</h2>
+<p><a href="https://kiwix.org/" rel="noopener">Kiwix</a> created the ZIM ecosystem that makes offline Wikipedia possible, and <code>kiwix-serve</code> is the reference way to serve ZIM files over HTTP. Fyr reads the very same ZIM archives with its own native reader.</p>
+<p><strong>Choose Kiwix-serve</strong> if ZIM archives are all you need: it is mature, very lightweight, supports full-text search inside archives that include a search index, and pairs with native Kiwix apps for Android, iOS, and desktops that work without any server at all.</p>
+<p><strong>Choose Fyr</strong> if you also want maps, ebooks and PDFs, a local AI assistant, and a content manager that downloads and organizes everything from the browser — all behind one address and one access-control model (admin password or strict read-only mode).</p>
+
+<h2>Fyr vs Internet-in-a-Box</h2>
+<p><a href="https://internet-in-a-box.org/" rel="noopener">Internet-in-a-Box</a> (IIAB) is a community project that turns a Raspberry Pi or Linux machine into an offline learning hub by installing a curated set of established apps — Kiwix for Wikipedia, OpenStreetMap maps, learning platforms, media libraries and more.</p>
+<p><strong>Choose Internet-in-a-Box</strong> for schools, clinics and community deployments that need full education platforms (courses, video lessons, learning management), or when you want the breadth of many specialized apps and a large community with years of field experience.</p>
+<p><strong>Choose Fyr</strong> when you prefer a single self-contained service — no database server, cache, or collection of separately updated apps — that installs with one command and upgrades in place, and when a built-in CPU-only AI assistant matters to you.</p>
+
+<h2>Fyr vs Organic Maps and OsmAnd</h2>
+<p><a href="https://organicmaps.app/" rel="noopener">Organic Maps</a> and <a href="https://osmand.net/" rel="noopener">OsmAnd</a> are offline map apps built on OpenStreetMap data that run directly on your phone.</p>
+<p><strong>Choose them</strong> for navigation: on-device search, routing, and turn-by-turn directions for driving, cycling and walking, with GPS tracking — none of which Fyr provides. They also work with no server nearby.</p>
+<p><strong>Choose Fyr</strong> to host maps once for many people: a single PMTiles or MBTiles archive on a server is instantly available to every device on the network through a browser, alongside reference material and points-of-interest layers. Many setups use both — Fyr for the shared library and map wall, a navigation app on each phone.</p>
+
+<h2>Fyr vs Ollama and Open WebUI</h2>
+<p><a href="https://ollama.com/" rel="noopener">Ollama</a> runs local language models with a simple CLI and API, and <a href="https://openwebui.com/" rel="noopener">Open WebUI</a> adds a feature-rich chat interface on top.</p>
+<p><strong>Choose Ollama and Open WebUI</strong> if AI is the main goal: they support far more model families, use GPUs when available, expose an API for other tools, and offer advanced chat features such as document retrieval, multiple users, and plugins.</p>
+<p><strong>Choose Fyr</strong> if you want a modest assistant as one part of an offline kit: it runs quantized Qwen2, Llama and Phi-3 GGUF models on CPU (NEON on ARM, AVX2 on x86_64) inside the same binary that serves your maps and library, with tested model tiers for Raspberry Pi 5. See the <a href="/guides/local-ai-assistant-offline/">local AI guide</a>.</p>
+
+<h2>Summary</h2>
+<ul>
+<li><strong>Only need offline Wikipedia?</strong> Kiwix (apps or kiwix-serve) is the most mature choice.</li>
+<li><strong>Running an offline school or community learning center?</strong> Internet-in-a-Box offers the broadest set of education apps.</li>
+<li><strong>Need to navigate?</strong> Use Organic Maps or OsmAnd on each phone.</li>
+<li><strong>AI-first, with a GPU?</strong> Ollama with Open WebUI.</li>
+<li><strong>Want maps, a library, and a local AI assistant from one small server — for example a Raspberry Pi hotspot?</strong> That is what Fyr is built for. Start with the <a href="/#installation">installation guide</a> or the <a href="/guides/off-grid-emergency-knowledge-server/">off-grid knowledge server guide</a>.</li>
+</ul>

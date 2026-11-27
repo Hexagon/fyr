@@ -44,3 +44,8 @@ docs/build/node_modules/
 !/public/data/books/developer-manual.epub
 
 server-run.log
+
+# Local agent worktrees and their temporary cargo target dirs
+.claude/worktrees/
+/target-*/
+

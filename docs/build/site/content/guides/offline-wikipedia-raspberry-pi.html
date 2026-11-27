@@ -1,0 +1,73 @@
+<!--meta
+{
+  "order": 1,
+  "path": "/guides/offline-wikipedia-raspberry-pi/",
+  "title": "Offline Wikipedia on a Raspberry Pi (Kiwix ZIM) with Fyr",
+  "description": "How to run a full offline copy of Wikipedia on a Raspberry Pi: pick the right Kiwix ZIM file, install Fyr, load the archive, and read and search it from any browser on your network.",
+  "h1": "Offline Wikipedia on a Raspberry Pi",
+  "crumb": "Offline Wikipedia on a Raspberry Pi",
+  "lead": "Put all of Wikipedia — and other Kiwix ZIM archives like Wiktionary or Stack Exchange — on a Raspberry Pi and read it from any phone, tablet, or laptop, with no internet connection.",
+  "published": "2026-10-26",
+  "totalTime": "PT1H"
+}
+-->
+<p>Wikipedia is published as <strong>ZIM</strong> files by the <a href="https://www.kiwix.org/" rel="noopener">Kiwix</a> / openZIM project: a single compressed archive per wiki, with a built-in full article index. Fyr has a <strong>native ZIM reader</strong> built into its server, so a Raspberry Pi running Fyr can serve those archives to every browser on your network — alongside offline maps, ebooks, and a local AI assistant.</p>
+
+<h2>What you need</h2>
+<ul>
+<li><strong>A Raspberry Pi with a 64-bit OS.</strong> Fyr's images natively support <code>linux/arm64</code>, which matches Raspberry Pi OS 64-bit. A Raspberry Pi 4 or 5 is a good fit; a Pi 3B+ also runs 64-bit Raspberry Pi OS.</li>
+<li><strong>Storage sized for the archive.</strong> ZIM files range from a few hundred megabytes (a topic-focused wiki) to well over 100 GB (the complete English Wikipedia with images). For the large archives use a USB SSD or a large, fast microSD card.</li>
+<li><strong>Internet access once</strong>, to install Fyr and download the archive. After that, everything works offline.</li>
+</ul>
+
+<h2>Choose the right Wikipedia ZIM</h2>
+<p>Kiwix publishes several variants of each Wikipedia language edition. Browse them at <a href="https://library.kiwix.org/" rel="noopener">library.kiwix.org</a> (the same source listed in Fyr's curated catalog). File names encode the variant:</p>
+<div class="overflow-x-auto">
+<table>
+<thead><tr><th>Variant</th><th>What it contains</th><th>Good for</th></tr></thead>
+<tbody>
+<tr><td><code>maxi</code></td><td>Full articles with images</td><td>The closest thing to the real site, if you have the disk space</td></tr>
+<tr><td><code>nopic</code></td><td>Full articles, no images</td><td>Most of the text at a fraction of the size</td></tr>
+<tr><td><code>mini</code></td><td>Only the introduction of each article</td><td>Small cards and quick lookups</td></tr>
+<tr><td>Topic selections</td><td>Curated subsets (for example medicine)</td><td>Focused libraries on small storage</td></tr>
+</tbody>
+</table>
+</div>
+<p>Kiwix also publishes ZIM archives of Wiktionary, Wikivoyage, Stack Exchange sites, and technical documentation such as DevDocs — Fyr reads them all the same way. If storage is tight, start with a <code>nopic</code> or <code>mini</code> edition and add more later.</p>
+
+<h2 id="install" data-step>Step 1: Install Fyr on the Raspberry Pi</h2>
+<p>Install Fyr with the hosted installer script. It runs Fyr as a Docker container and remembers your options (port, data directory or volume, admin password) for later upgrades.</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>The full set of options — manual <code>docker run</code>, bind-mounting a USB drive as the data directory, and building from source — is in the <a href="/#installation">installation guide</a>. If the container exits with an <em>illegal instruction</em> error on an older board, reinstall with the compatibility image; the installer's <code>--legacy</code> shortcut picks the right one for your architecture:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh -s -- --legacy</code></pre>
+<p>When it finishes, open <code>http://&lt;pi-ip-address&gt;:8080</code> from another device on the same network.</p>
+
+<h2 id="download" data-step>Step 2: Download the ZIM archive into Fyr</h2>
+<p>Open <strong>Content Manager</strong> in Fyr and either paste the ZIM file's download URL to queue a server-side download, or upload a file you already have through the <strong>Local Imports</strong> panel (button or drag and drop). Files ending in <code>.zim</code> are routed to the <code>books/</code> folder automatically.</p>
+<ul>
+<li>Large archives take a while. If a multi-gigabyte download times out, raise <strong>Settings → Downloads → Request timeout (seconds)</strong> and queue it again.</li>
+<li>If you mounted a host directory as Fyr's data directory, you can also copy the <code>.zim</code> file straight into <code>&lt;data-dir&gt;/books/</code> — for example from a USB drive — without downloading it through the browser.</li>
+<li>When Fyr is password-protected (<code>FYR_ADMIN_PASSWORD</code>), log in as admin first; guests cannot use Content Manager.</li>
+</ul>
+
+<h2 id="read" data-step>Step 3: Open and search Wikipedia in the Library</h2>
+<p>Go to <strong>Library</strong> (the Books page) and select the <code>.zim</code> file. Fyr opens it in its unified reader shell: use the search box in the reader toolbar to find articles by title or path, and follow links inside articles without leaving the page. Archive styles are used as published, so articles look like the original wiki.</p>
+
+<h2 id="share" data-step>Step 4: Share it with every device</h2>
+<p>Any device on the same network can now open Fyr in a browser — no app installs. For somewhere without a router (a cabin, a classroom, a vehicle), turn the Pi into its own Wi-Fi hotspot as described in the <a href="/guides/off-grid-emergency-knowledge-server/">off-grid knowledge server guide</a>. Phones and tablets can also add Fyr to the home screen as an app.</p>
+
+<h2>Lock it down for guests or a kiosk</h2>
+<p>For a shared or public deployment, choose one of Fyr's access modes:</p>
+<ul>
+<li><code>FYR_ADMIN_PASSWORD</code> — everyone can read; only the admin can download, import, delete, or change settings.</li>
+<li><code>FYR_READONLY=true</code> — strict read-only mode for kiosks and public libraries: every change is refused by the server and no filesystem paths or disk capacity are revealed.</li>
+</ul>
+<p>Both can be set with the installer's <code>--admin-password</code> and <code>--readonly</code> arguments; see the <a href="/docs/user-manual/#3a-access-control-and-admin-login">access control section of the User Manual</a>.</p>
+
+<h2>Troubleshooting</h2>
+<ul>
+<li><strong>The archive is not listed:</strong> confirm the file ends in <code>.zim</code> and sits in <code>books/</code> under your data directory, then refresh the browser.</li>
+<li><strong>The ZIM view does not load:</strong> check the server status on the Overview page and retry opening the archive.</li>
+<li><strong>Content disappeared after a restart:</strong> make sure the <code>/data</code> volume or bind mount is still attached to the container.</li>
+</ul>
+<p>More fixes are in <a href="/docs/user-manual/#8-common-troubleshooting">the User Manual's troubleshooting section</a>.</p>

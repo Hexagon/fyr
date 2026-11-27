@@ -1,0 +1,231 @@
+{
+  "language": {
+    "label": "Language"
+  },
+  "app": {
+    "skipToContent": "Skip to main content",
+    "toggleMenu": "Toggle navigation menu",
+    "unread": "{count} unread",
+    "admin": "Admin",
+    "logout": "Log out",
+    "login": "Log in",
+    "readonly": "Read-only",
+    "readonlyEnv": "{env} is set",
+    "tagline": "Offline-first content platform",
+    "documentTitle": "Fyr - Off-Grid Content Platform"
+  },
+  "nav": {
+    "home": "Overview",
+    "maps": "Maps",
+    "books": "Library",
+    "content": "Content Manager",
+    "messages": "Messages",
+    "assistant": "Assistant",
+    "tools": "Tools",
+    "settings": "Settings"
+  },
+  "routes": {
+    "home": {
+      "title": "Overview",
+      "subtitle": "System status and offline storage overview",
+      "header": "System status"
+    },
+    "maps": {
+      "title": "Maps",
+      "subtitle": "Browse offline maps and interactive data layers",
+      "header": "Interactive layers"
+    },
+    "books": {
+      "title": "Library",
+      "subtitle": "Browse and read your offline books collection",
+      "header": "Offline reading"
+    },
+    "content": {
+      "title": "Content Manager",
+      "subtitle": "Manage local files, imports, and downloads",
+      "header": "Files and imports"
+    },
+    "assistant": {
+      "title": "Assistant",
+      "subtitle": "Offline AI assistant powered by local GGUF models",
+      "header": "Local GGUF chat"
+    },
+    "messages": {
+      "title": "Messages",
+      "subtitle": "Public board and end-to-end encrypted channels",
+      "header": "Local messaging"
+    },
+    "tools": {
+      "title": "Tools",
+      "subtitle": "Unit converters, encryption, and ciphering utilities",
+      "header": "Offline utilities"
+    },
+    "search": {
+      "title": "Search",
+      "subtitle": "Search books, articles, maps and places across the offline library",
+      "header": "Search everything"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Configure location and other application-wide preferences",
+      "header": "Location and preferences"
+    },
+    "login": {
+      "title": "Admin Login",
+      "subtitle": "Authenticate to access admin features",
+      "header": "Admin access"
+    }
+  },
+  "headerSearch": {
+    "label": "Search everything offline",
+    "placeholder": "Search…",
+    "title": "Search books, articles, maps and places (press /)"
+  },
+  "common": {
+    "unavailable": "Unavailable",
+    "fileCount": "{count} file | {count} files",
+    "copy": "Copy",
+    "copied": "Copied",
+    "delete": "Delete",
+    "saving": "Saving...",
+    "remove": "Remove",
+    "tryAgain": "Try again",
+    "cancel": "Cancel",
+    "na": "n/a",
+    "yes": "Yes",
+    "no": "No",
+    "expandPanel": "Expand panel",
+    "collapsePanel": "Collapse panel",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "search": "Search",
+    "searching": "Searching…"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{count} min ago",
+    "hoursAgo": "{count} hour ago | {count} hours ago",
+    "daysAgo": "{count} day ago | {count} days ago",
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "category": {
+    "info": "Info",
+    "need": "Need",
+    "offer": "Offer",
+    "alert": "Alert"
+  },
+  "alerts": {
+    "region": "Active alerts",
+    "map": "Map",
+    "openBoard": "Open Board",
+    "dismiss": "Dismiss alert"
+  },
+  "api": {
+    "uploadNetwork": "Network error during upload.",
+    "uploadTimeout": "Upload timed out after {seconds}s.",
+    "uploadAborted": "Upload was aborted.",
+    "backupFailed": "Backup failed ({status}).",
+    "noStream": "Streaming response body is unavailable.",
+    "timeout": "Request timed out after {seconds}s. Check server responsiveness.",
+    "network": "Network error. Server may be offline or unreachable.",
+    "serverError": "Server error ({status}). Please try again.",
+    "notFound": "Requested resource was not found.",
+    "badRequest": "Invalid request.",
+    "requestFailed": "Request failed ({status}).",
+    "unknown": "Unknown error"
+  },
+  "files": {
+    "noFile": "No file selected",
+    "tooLarge": "File is too large (max {kb} KB)",
+    "readFailed": "Could not read file"
+  },
+  "home": {
+    "continueReading": "Continue reading",
+    "resumeBook": "Resume {title}",
+    "bookmarkCount": "{count} bookmark | {count} bookmarks",
+    "systemStatus": "System Status",
+    "version": "Version: {version}",
+    "timeSource": "Time source",
+    "clock": "Clock",
+    "date": "Date",
+    "location": "Location",
+    "coordinates": "Coordinates",
+    "sun": "Sun",
+    "maps": "Maps",
+    "mapsHint": "PMTiles files available",
+    "books": "Books",
+    "booksHint": "EPUB, PDF, MOBI, Markdown, and ZIM",
+    "poi": "POIs",
+    "poiHint": "GeoJSON, JSON, and FlatGeoBuf",
+    "models": "Models",
+    "modelsHint": "GGUF files available",
+    "misc": "Misc",
+    "miscHint": "General files and installers (TXT, CSV, ZIP, 7Z, EXE, MSI)",
+    "storageUsage": "Storage Usage",
+    "dataDirectory": "Data Directory:",
+    "tlsCertificate": "HTTPS certificate ({mode}) SHA-256:",
+    "used": "Used",
+    "free": "Free",
+    "capacity": "Capacity",
+    "bytes": "{n} bytes",
+    "manageContent": "Manage content",
+    "loading": "Loading server status...",
+    "errorHint": "Try refreshing this page or checking server connectivity.",
+    "savedLocation": "Saved location",
+    "systemTime": "System time",
+    "noSavedLocation": "No saved location",
+    "storagePending": "Storage pending"
+  },
+  "placeKind": {
+    "continent": "Continent",
+    "country": "Country",
+    "state": "State",
+    "province": "Province",
+    "region": "Region",
+    "county": "County",
+    "municipality": "Municipality",
+    "city": "City",
+    "town": "Town",
+    "village": "Village",
+    "hamlet": "Hamlet",
+    "suburb": "Suburb",
+    "borough": "Borough",
+    "quarter": "Quarter",
+    "neighbourhood": "Neighbourhood",
+    "locality": "Locality",
+    "isolatedDwelling": "Isolated dwelling",
+    "farm": "Farm",
+    "island": "Island",
+    "islet": "Islet",
+    "archipelago": "Archipelago",
+    "ocean": "Ocean",
+    "sea": "Sea",
+    "bay": "Bay",
+    "strait": "Strait",
+    "fjord": "Fjord",
+    "lake": "Lake",
+    "lagoon": "Lagoon",
+    "reservoir": "Reservoir",
+    "pond": "Pond",
+    "river": "River",
+    "stream": "Stream",
+    "canal": "Canal",
+    "water": "Water",
+    "peak": "Peak",
+    "volcano": "Volcano",
+    "hill": "Hill",
+    "saddle": "Mountain pass",
+    "ridge": "Ridge",
+    "mountainRange": "Mountain range",
+    "glacier": "Glacier",
+    "cape": "Cape",
+    "park": "Park",
+    "nationalPark": "National park",
+    "natureReserve": "Nature reserve",
+    "protectedArea": "Protected area",
+    "airport": "Airport",
+    "place": "Place",
+    "poi": "Point of interest"
+  }
+}

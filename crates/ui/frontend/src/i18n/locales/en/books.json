@@ -1,0 +1,122 @@
+{
+  "books": {
+    "expandLibrary": "Expand library panel",
+    "collapseLibrary": "Collapse library panel",
+    "items": "{count} item | {count} items",
+    "filterPlaceholder": "Search by title or filename",
+    "filterLabel": "Filter library by title or filename",
+    "supported": "Supported formats: {formats}",
+    "progress": {
+      "summary": "Move reading progress",
+      "intro": "Positions and bookmarks are stored in this browser. Export them to a file and import it on another device; imports merge (newest position wins, bookmarks are combined).",
+      "export": "Export",
+      "import": "Import",
+      "exported": "Exported {count} book. | Exported {count} books.",
+      "imported": "Imported: {added} new book(s), {updated} updated, {bookmarks} bookmark(s) added.",
+      "invalidJson": "Import failed: the file is not valid JSON.",
+      "importFailed": "Import failed: {error}",
+      "unknownError": "unknown error",
+      "notAProgressFile": "Not a Fyr reading progress file"
+    },
+    "loading": "Loading books...",
+    "noBooks": "No books found.",
+    "addBooks": "Add books",
+    "backToLibrary": "Back to library",
+    "badges": {
+      "adapter": "Adapter: {mode}",
+      "archive": "Archive: {size}",
+      "article": "Article: {title}"
+    },
+    "focus": {
+      "exitHint": "Exit focused reader mode (Esc)",
+      "enterHint": "Enter focused reader mode",
+      "exit": "Exit focus",
+      "enter": "Focus mode"
+    },
+    "toolbar": {
+      "tools": "Reader tools",
+      "history": "Article history",
+      "previous": "Previous article",
+      "next": "Next article",
+      "display": "Display settings",
+      "smaller": "Smaller text",
+      "larger": "Larger text",
+      "zoomLevel": "Zoom (100% fits the page width)",
+      "textSize": "Text size",
+      "theme": "Reader theme"
+    },
+    "theme": {
+      "light": "Light",
+      "sepia": "Sepia",
+      "dark": "Dark"
+    },
+    "bookmark": "Bookmark",
+    "bookmarks": {
+      "title": "Bookmarks",
+      "addHere": "Add bookmark at the current position",
+      "addHint": "Add bookmark (b)",
+      "unsupported": "Bookmarks are not available for this format",
+      "add": "Bookmark",
+      "show": "Show bookmarks ({count})",
+      "count": "Bookmarks ({count})",
+      "empty": "No bookmarks yet. Use “{button}” (or press b) to save the current position.",
+      "goTo": "Go to bookmark: {title}",
+      "removeNamed": "Remove bookmark: {title}",
+      "remove": "Remove bookmark",
+      "saveFailed": "Could not save bookmark.",
+      "already": "Already bookmarked: {title}",
+      "added": "Bookmark added: {title}",
+      "removed": "Bookmark removed: {title}"
+    },
+    "search": {
+      "inBook": "Search in this book",
+      "zimPlaceholder": "Search article title or path",
+      "zimUnavailable": "Native ZIM mode is required for search",
+      "current": "current",
+      "noMatches": "No matches found.",
+      "truncated": "Showing the first {count} matches. Refine the search to see the rest.",
+      "progress": "Searching page {page} of {total}...",
+      "htmlResponse": "Search endpoint returned HTML. Restart the server to load the latest backend routes."
+    },
+    "pdf": {
+      "fallback": "You can still {link} and open it in another app.",
+      "downloadLink": "download the file",
+      "loading": "Loading PDF…",
+      "document": "PDF document",
+      "ariaLabel": "{label}, page {page} of {total}",
+      "pageFailed": "Page {page} could not be displayed.",
+      "errors": {
+        "password": "This PDF is password-protected (encrypted) and cannot be opened in the reader. Download the file and open it in an app that can unlock it.",
+        "invalid": "This file is not a valid PDF or it is damaged, so it cannot be shown.",
+        "notFound": "The PDF file was not found on the server. It may have been removed.",
+        "downloadStatus": "The PDF could not be downloaded (HTTP {status}).",
+        "download": "The PDF could not be downloaded.",
+        "openWithReason": "Could not open this PDF: {error}",
+        "open": "Could not open this PDF."
+      }
+    },
+    "zim": {
+      "frameTitle": "ZIM article",
+      "noContent": "No native article content was returned for this archive.",
+      "unavailable": "Native ZIM parsing is unavailable for this archive with the current parser implementation."
+    },
+    "selectFormat": "Select an EPUB, Markdown file, PDF, or ZIM in the library.",
+    "pickBook": "Pick a book from the library to open the reader.",
+    "status": {
+      "loading": "loading",
+      "unsupported": "unsupported format",
+      "failed": "failed"
+    },
+    "notices": {
+      "notInLibrary": "“{file}” is not in the library. It may have been removed or renamed.",
+      "articleMissing": "Article “{path}” was not found in this archive; showing the main page instead.",
+      "lastArticleMissing": "The last read article is no longer available; showing the main page instead."
+    },
+    "position": {
+      "line": "Line {line}",
+      "page": "Page {page}",
+      "epub": "EPUB location"
+    },
+    "markdownFetchFailed": "Failed to fetch markdown file ({status})"
+  }
+}

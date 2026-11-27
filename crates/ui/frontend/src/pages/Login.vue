@@ -1,31 +1,31 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h2>Admin Login</h2>
-      <p class="hint">This server requires a password to access the Content Manager and other admin features.</p>
+      <h2>{{ t('login.title') }}</h2>
+      <p class="hint">{{ t('login.hint') }}</p>
 
       <form @submit.prevent="handleLogin" class="login-form">
-        <label class="field-label" for="password">Admin Password</label>
+        <label class="field-label" for="password">{{ t('login.password') }}</label>
         <input
           id="password"
           v-model="password"
           type="password"
           class="password-input"
-          placeholder="Enter admin password"
+          :placeholder="t('login.placeholder')"
           autocomplete="current-password"
           :disabled="loading"
         />
 
         <p v-if="error" class="error-text" role="alert" aria-live="assertive">{{ error }}</p>
-        <p v-if="loading" class="status-text" role="status" aria-live="polite">Checking credentials...</p>
+        <p v-if="loading" class="status-text" role="status" aria-live="polite">{{ t('login.checking') }}</p>
 
         <button type="submit" class="btn btn-primary" :disabled="loading || !password">
-          {{ loading ? 'Logging in…' : 'Log In' }}
+          {{ loading ? t('login.loggingIn') : t('login.submit') }}
         </button>
       </form>
 
       <p class="back-hint">
-        <router-link to="/">← Back to Overview</router-link>
+        <router-link to="/">← {{ t('login.back') }}</router-link>
       </p>
     </div>
   </div>
@@ -34,8 +34,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { login } from '../services/auth'
 
+const { t } = useI18n()
 const router = useRouter()
 const password = ref('')
 const loading = ref(false)
@@ -62,11 +64,11 @@ const handleLogin = async () => {
   } catch (err) {
     const status = err?.response?.status
     if (status === 429) {
-      error.value = 'Too many failed attempts. Please wait a few minutes and try again.'
+      error.value = t('login.tooMany')
     } else if (status === 401) {
-      error.value = 'Incorrect password. Please try again.'
+      error.value = t('login.incorrect')
     } else {
-      error.value = err?.response?.data?.error || 'Login failed. Please try again.'
+      error.value = err?.response?.data?.error || t('login.failed')
     }
   } finally {
     loading.value = false

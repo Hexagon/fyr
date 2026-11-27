@@ -73,7 +73,7 @@ RUN mkdir -p /data && chown -R fyr:fyr /app /data
 # Switch to non-root user
 USER fyr
 
-# Expose port
+# Expose port (HTTP, or HTTPS when FYR_TLS / FYR_TLS_CERT is set)
 EXPOSE 8080
 
 # Set environment variables
@@ -82,9 +82,13 @@ ENV RUST_LOG=info
 ENV FYR_HOST=0.0.0.0
 ENV FYR_PORT=8080
 
-# Health check
+# Health check. Works in plain HTTP and in HTTPS mode (FYR_TLS=self-signed or
+# FYR_TLS_CERT/FYR_TLS_KEY): -k only skips verification of Fyr's own
+# certificate for this local probe.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -fsS http://localhost:8080/api/status || exit 1
+  CMD curl -fsS -o /dev/null "http://localhost:${FYR_PORT:-8080}/api/status" \
+   || curl -fsSk -o /dev/null "https://localhost:${FYR_PORT:-8080}/api/status" \
+   || exit 1
 
 # Run application
 CMD ["fyr"]

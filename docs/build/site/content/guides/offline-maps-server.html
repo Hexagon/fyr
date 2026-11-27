@@ -1,0 +1,60 @@
+<!--meta
+{
+  "order": 2,
+  "path": "/guides/offline-maps-server/",
+  "title": "Self-Hosted Offline Maps Server with PMTiles and MBTiles | Fyr",
+  "description": "Run your own offline OpenStreetMap server: where to download PMTiles maps, how to extract a region with the pmtiles CLI, and how to serve PMTiles and MBTiles to any browser with Fyr — no tile server or API key.",
+  "h1": "Build a self-hosted offline maps server",
+  "crumb": "Offline maps server",
+  "lead": "Serve OpenStreetMap vector and raster maps from PMTiles or MBTiles files on your own hardware, and browse them from any device — without a tile server, map API key, or internet connection.",
+  "published": "2026-10-26",
+  "totalTime": "PT45M"
+}
+-->
+<p>Online map apps fetch tiles from someone else's server. An offline maps server keeps the tiles on your own disk instead. Fyr reads the two common single-file tile formats directly:</p>
+<ul>
+<li><strong>PMTiles</strong> — a single-file archive designed to be read with HTTP range requests. Fyr's browser map reads <code>.pmtiles</code> files directly, without a tile server process.</li>
+<li><strong>MBTiles</strong> — a SQLite database of tiles. Fyr serves <code>.mbtiles</code> tile by tile through its built-in tile endpoint.</li>
+</ul>
+<p>Both vector and raster archives work, and the map renders in the browser with MapLibre, so every phone, tablet, and laptop on the network gets a full interactive map with nothing to install.</p>
+
+<h2 id="install" data-step>Step 1: Install Fyr</h2>
+<p>Any Linux, macOS, or Windows machine with Docker works, including a 64-bit Raspberry Pi. The quickest route is the hosted installer:</p>
+<pre data-sync="index"><code>curl -fsSL https://fyr.guide/install.sh | sh</code></pre>
+<p>On Windows, use <code>irm https://fyr.guide/install.ps1 | iex</code> in PowerShell. Manual Docker commands and data-directory options are in the <a href="/#installation">installation guide</a>. Make sure other devices can reach Fyr: the installer and the documented <code>docker run</code> command bind to all interfaces (<code>FYR_HOST=0.0.0.0</code>).</p>
+
+<h2 id="get-maps" data-step>Step 2: Get map data for your region</h2>
+<p>You have two well-trodden options, both listed in Fyr's curated content catalog.</p>
+<h3>Option A: download a ready-made PMTiles extract</h3>
+<p><a href="https://data.bbbike.org/osm/region/" rel="noopener">BBBike</a> publishes pre-generated OpenStreetMap extracts for many cities and regions, including PMTiles files in the Shortbread vector schema. Download the <code>.pmtiles</code> file for your area — it is ready to use as-is.</p>
+<h3>Option B: cut your own region with the pmtiles CLI</h3>
+<p>Install the <a href="https://docs.protomaps.com/pmtiles/cli" rel="noopener"><code>pmtiles</code> command-line tool</a>, find the latest dated planet build at <a href="https://maps.protomaps.com/builds/" rel="noopener">maps.protomaps.com/builds</a>, and extract a bounding box. The tool only downloads the tiles inside your box:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles sweden.pmtiles --bbox=4.7,55.0,24.2,69.1 --maxzoom=15</code></pre>
+<p>A low-zoom world basemap is a good companion for the overview levels:</p>
+<pre><code>pmtiles extract https://build.protomaps.com/&lt;YYYYMMDD&gt;.pmtiles world.pmtiles --bbox=-180,-85.0511,180,85.0511 --maxzoom=8</code></pre>
+<p>The <code>--bbox</code> order is <em>west,south,east,north</em> in degrees. Each extra zoom level roughly quadruples the tile count, so lower <code>--maxzoom</code> if the file gets too large for your storage; street-level detail generally needs zoom 14–15.</p>
+<h3>Already have MBTiles?</h3>
+<p>Existing <code>.mbtiles</code> archives — vector or raster — can be used as they are.</p>
+
+<h2 id="load" data-step>Step 3: Load the maps into Fyr</h2>
+<p>In <strong>Content Manager</strong>, paste a download URL or use <strong>Local Imports</strong> to upload the file. <code>.pmtiles</code> and <code>.mbtiles</code> files are routed to the <code>maps/</code> folder automatically. With a bind-mounted data directory you can also copy files straight into <code>&lt;data-dir&gt;/maps/</code>.</p>
+
+<h2 id="view" data-step>Step 4: Open the map</h2>
+<p>Go to <strong>Maps</strong>, choose an archive in the map picker, and pan and zoom as usual. Nothing leaves your network: the browser reads tiles from Fyr only.</p>
+
+<h2>Add points of interest</h2>
+<p>Fyr also stores POI layers. Put GeoJSON (<code>.geojson</code>), FlatGeobuf (<code>.fgb</code>), or geo <code>.json</code> datasets in the <code>poi/</code> folder — useful for shelters, water points, trailheads, or anything you export from your own GIS tools.</p>
+
+<h2>Storage and hardware tips</h2>
+<ul>
+<li>Map archives are read in place, so a Raspberry Pi with a USB SSD is plenty for a country-sized extract.</li>
+<li>Keep the ARM board's memory and storage limits in mind when loading very large map or ZIM archives together.</li>
+<li>Pair maps with a <a href="/guides/off-grid-emergency-knowledge-server/">Wi-Fi hotspot</a> to have a navigable map available to every phone in a cabin, boat, or field camp.</li>
+</ul>
+
+<h2>Troubleshooting</h2>
+<ul>
+<li><strong>The map is not listed:</strong> check that the file ends in <code>.pmtiles</code> or <code>.mbtiles</code> and is in <code>maps/</code>, then refresh.</li>
+<li><strong>A URL download stops partway:</strong> increase <strong>Settings → Downloads → Request timeout (seconds)</strong> and queue it again, or download the file elsewhere and import it.</li>
+</ul>
+<p>See the <a href="/docs/user-manual/#maps">Maps section of the User Manual</a> for details.</p>

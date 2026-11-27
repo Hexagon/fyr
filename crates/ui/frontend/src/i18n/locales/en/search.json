@@ -1,0 +1,51 @@
+{
+  "search": {
+    "kind": {
+      "book": "Books",
+      "article": "Articles",
+      "articleText": "In article text",
+      "content": "In book text",
+      "map": "Maps",
+      "poi": "Points of interest",
+      "other": "Other",
+      "place": "Places on maps"
+    },
+    "filter": {
+      "all": "All",
+      "book": "Books",
+      "article": "Articles",
+      "articleText": "Article text",
+      "content": "Book text",
+      "map": "Maps",
+      "poi": "POIs",
+      "place": "Map places"
+    },
+    "untitled": "Untitled",
+    "errors": {
+      "busy": "Search is busy right now. Try again in a moment.",
+      "server": "Search failed on the server. Try again.",
+      "rejected": "The search request was rejected.",
+      "timeout": "Search timed out. Try a more specific query.",
+      "unreachable": "Could not reach the Fyr server."
+    },
+    "placeholder": "Search books, articles, maps and places…",
+    "filterLabel": "Filter results by kind",
+    "idle": {
+      "title": "Find anything in your offline library",
+      "body": "One search covers book titles, article titles in every ZIM archive (and article text once an archive has a full-text index), the text of Markdown and EPUB books, map files, place names in indexed vector maps and named points in your POI files.",
+      "tip": "Tip: press {slash} anywhere to jump to search, {arrows} to pick a result and {enter} to open it."
+    },
+    "empty": {
+      "title": "No matches for “{query}”",
+      "body": "Try fewer or different words, check the spelling, or switch the filter back to {all}.",
+      "partial": "The search time limit was reached before every archive was checked."
+    },
+    "resultsLabel": "Search results",
+    "partial": "The search time limit was reached; some archives may not have been fully searched. A more specific query is faster.",
+    "status": {
+      "results": "{count} result | {count} results",
+      "best": "(best {shown} of {total})",
+      "time": "in {ms} ms"
+    }
+  }
+}

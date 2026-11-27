@@ -14,6 +14,57 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub auth: AuthConfig,
     pub ai: AiConfig,
+    pub messaging: MessagingConfig,
+    #[serde(default)]
+    pub fulltext: FulltextConfig,
+    #[serde(default)]
+    pub places: PlacesConfig,
+}
+
+/// Place index for vector maps (`DATA_DIR/index/places-*.sqlite`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlacesConfig {
+    /// Master switch (`FYR_PLACES`, default on). When off, no place index is
+    /// built or queried and the build endpoint answers `409`.
+    pub enabled: bool,
+    /// Vector maps up to this many MiB are indexed automatically
+    /// (`FYR_PLACES_MAX_MAP_MB`, default 4096; `0` = manual only). Larger
+    /// maps are indexed only when an admin starts a build.
+    pub max_map_mb: u64,
+}
+
+impl Default for PlacesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_map_mb: 4096,
+        }
+    }
+}
+
+/// On-disk full-text index for ZIM archives (`DATA_DIR/index`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FulltextConfig {
+    /// Master switch (`FYR_FULLTEXT`, default on). When off, no index is
+    /// built or queried and the build endpoints answer `409`.
+    pub enabled: bool,
+    /// Archives with at most this many articles are indexed automatically
+    /// (`FYR_FULLTEXT_MAX_ARTICLES`, default 200 000; `0` = manual only).
+    /// Larger archives are indexed only when an admin starts a build.
+    pub max_articles: u64,
+    /// Indexing pauses while free space on the index volume is below this
+    /// many MiB (`FYR_FULLTEXT_MIN_FREE_MB`, default 1024).
+    pub min_free_mb: u64,
+}
+
+impl Default for FulltextConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_articles: 200_000,
+            min_free_mb: 1024,
+        }
+    }
 }
 
 /// Authentication and access-control configuration
@@ -25,6 +76,12 @@ pub struct AuthConfig {
     /// When true, all mutating endpoints are permanently disabled regardless
     /// of any session state. Takes precedence over `admin_password`.
     pub readonly: bool,
+    /// When true (`FYR_GUEST_MESSAGING`), visitors without an admin session
+    /// may post messages and create channels even when `admin_password` is
+    /// set. Has no effect in read-only mode or in open mode (where everyone
+    /// may already post).
+    #[serde(default)]
+    pub guest_messaging: bool,
 }
 
 impl AuthConfig {
@@ -35,10 +92,48 @@ impl AuthConfig {
     }
 }
 
+/// Messages (public board channel + encrypted channels) configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessagingConfig {
+    /// Master switch (`FYR_MESSAGING`, default on).
+    pub enabled: bool,
+    /// Newest messages kept per channel (`FYR_MESSAGES_MAX_PER_CHANNEL`).
+    pub max_messages_per_channel: u32,
+    /// Maximum age of encrypted-channel messages in days
+    /// (`FYR_MESSAGES_MAX_AGE_DAYS`).
+    pub max_age_days: u32,
+}
+
+impl Default for MessagingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_messages_per_channel: 1000,
+            max_age_days: 90,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// Reverse proxies whose `X-Forwarded-For` is honoured for client IPs
+    /// (`FYR_TRUSTED_PROXIES`). Empty by default: trust nobody.
+    #[serde(default)]
+    pub trusted_proxies: crate::proxy::TrustedProxies,
+    /// `FYR_TRUSTED_PROXIES` entries that could not be parsed; logged as a
+    /// warning at startup.
+    #[serde(skip)]
+    pub trusted_proxies_rejected: Vec<String>,
+    /// Built-in HTTPS (`FYR_TLS`, `FYR_TLS_CERT`/`FYR_TLS_KEY`,
+    /// `FYR_TLS_SANS`, `FYR_HTTP_REDIRECT_PORT`). Off by default.
+    #[serde(default)]
+    pub tls: crate::tls::TlsConfig,
+    /// Invalid TLS environment combination; the server refuses to start
+    /// with this message (see [`Config::validate`]).
+    #[serde(skip)]
+    pub tls_error: Option<String>,
 }
 
 /// Local AI inference runtime configuration.
@@ -58,13 +153,21 @@ impl Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
+                trusted_proxies: crate::proxy::TrustedProxies::default(),
+                trusted_proxies_rejected: Vec::new(),
+                tls: crate::tls::TlsConfig::default(),
+                tls_error: None,
             },
-                        data_dir,
+            data_dir,
             auth: AuthConfig {
                 admin_password: None,
                 readonly: false,
+                guest_messaging: false,
             },
             ai: AiConfig { threads: None },
+            messaging: MessagingConfig::default(),
+            fulltext: FulltextConfig::default(),
+            places: PlacesConfig::default(),
         }
     }
 
@@ -96,6 +199,34 @@ impl Config {
     /// Get path to generic misc directory
     pub fn misc_dir(&self) -> PathBuf {
         self.data_dir.join("misc")
+    }
+
+    /// Get path to the messages database. Lives directly in the data
+    /// directory, which is never served as a whole (only the public content
+    /// folders under `/data/*` are).
+    pub fn messages_db_path(&self) -> PathBuf {
+        self.data_dir.join("messages.sqlite")
+    }
+
+    /// Directory holding the generated self-signed certificate
+    /// (`FYR_TLS=self-signed`). Never served over HTTP.
+    pub fn tls_dir(&self) -> PathBuf {
+        self.data_dir.join("tls")
+    }
+
+    /// Reject configuration errors detected while reading the environment
+    /// (currently: invalid TLS combinations). Call before serving.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(error) = &self.server.tls_error {
+            anyhow::bail!("Invalid HTTPS configuration: {error}");
+        }
+        Ok(())
+    }
+
+    /// Get path to the full-text index directory. Never served over HTTP
+    /// (only maps/, books/ and poi/ are exposed under `/data`).
+    pub fn index_dir(&self) -> PathBuf {
+        self.data_dir.join("index")
     }
 
     /// Get path to the curated content catalog
@@ -168,6 +299,15 @@ impl Default for Config {
         let mut config = Self::default_with_data_dir(data_dir);
         config.server.host = host;
         config.server.port = port;
+        if let Ok(raw) = std::env::var("FYR_TRUSTED_PROXIES") {
+            let (trusted, rejected) = crate::proxy::TrustedProxies::parse(&raw);
+            config.server.trusted_proxies = trusted;
+            config.server.trusted_proxies_rejected = rejected;
+        }
+        match crate::tls::TlsConfig::from_lookup(|name| std::env::var(name).ok(), port) {
+            Ok(tls) => config.server.tls = tls,
+            Err(error) => config.server.tls_error = Some(error),
+        }
 
         let admin_password = std::env::var("FYR_ADMIN_PASSWORD")
             .ok()
@@ -176,9 +316,23 @@ impl Default for Config {
             .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
             .unwrap_or(false);
 
-                config.auth = AuthConfig {
+        let guest_messaging = env_flag("FYR_GUEST_MESSAGING").unwrap_or(false);
+
+        config.auth = AuthConfig {
             admin_password,
             readonly,
+            guest_messaging,
+        };
+
+        let defaults = MessagingConfig::default();
+        config.messaging = MessagingConfig {
+            enabled: env_flag("FYR_MESSAGING").unwrap_or(defaults.enabled),
+            max_messages_per_channel: env_u32("FYR_MESSAGES_MAX_PER_CHANNEL")
+                .map(|v| v.clamp(10, 100_000))
+                .unwrap_or(defaults.max_messages_per_channel),
+            max_age_days: env_u32("FYR_MESSAGES_MAX_AGE_DAYS")
+                .map(|v| v.clamp(1, 3650))
+                .unwrap_or(defaults.max_age_days),
         };
 
         let ai_threads = std::env::var("FYR_AI_THREADS")
@@ -187,13 +341,91 @@ impl Default for Config {
             .filter(|threads| *threads > 0);
         config.ai = AiConfig { threads: ai_threads };
 
+        let fulltext_defaults = FulltextConfig::default();
+        config.fulltext = FulltextConfig {
+            enabled: env_flag("FYR_FULLTEXT").unwrap_or(fulltext_defaults.enabled),
+            max_articles: env_u64("FYR_FULLTEXT_MAX_ARTICLES").unwrap_or(fulltext_defaults.max_articles),
+            min_free_mb: env_u64("FYR_FULLTEXT_MIN_FREE_MB").unwrap_or(fulltext_defaults.min_free_mb),
+        };
+
+        let places_defaults = PlacesConfig::default();
+        config.places = PlacesConfig {
+            enabled: env_flag("FYR_PLACES").unwrap_or(places_defaults.enabled),
+            max_map_mb: env_u64("FYR_PLACES_MAX_MAP_MB").unwrap_or(places_defaults.max_map_mb),
+        };
+
         config
     }
 }
 
+/// Parse a boolean environment flag (`1|true|yes|on` / `0|false|no|off`).
+fn env_flag(name: &str) -> Option<bool> {
+    parse_flag(&std::env::var(name).ok()?)
+}
+
+fn parse_flag(raw: &str) -> Option<bool> {
+    match raw.trim().to_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+fn env_u32(name: &str) -> Option<u32> {
+    std::env::var(name).ok()?.trim().parse::<u32>().ok()
+}
+
+fn env_u64(name: &str) -> Option<u64> {
+    std::env::var(name).ok()?.trim().parse::<u64>().ok()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{parse_flag, Config};
+
+    #[test]
+    fn parse_flag_accepts_common_spellings() {
+        for raw in ["1", "true", "YES", " on "] {
+            assert_eq!(parse_flag(raw), Some(true), "{raw}");
+        }
+        for raw in ["0", "false", "No", "off"] {
+            assert_eq!(parse_flag(raw), Some(false), "{raw}");
+        }
+        assert_eq!(parse_flag("maybe"), None);
+    }
+
+    #[test]
+    fn tls_is_off_by_default_and_validate_reports_errors() {
+        let mut config = Config::default_with_data_dir("/tmp/x");
+        assert!(!config.server.tls.is_enabled());
+        assert!(config.validate().is_ok());
+        assert!(config.tls_dir().ends_with("tls"));
+        config.server.tls_error = Some("boom".into());
+        let error = config.validate().unwrap_err().to_string();
+        assert!(error.contains("HTTPS") && error.contains("boom"), "{error}");
+    }
+
+    #[test]
+    fn messaging_defaults_are_safe() {
+        let config = Config::default_with_data_dir("/tmp/x");
+        assert!(config.messaging.enabled);
+        assert!(!config.auth.guest_messaging);
+        assert_eq!(config.messaging.max_messages_per_channel, 1000);
+        assert_eq!(config.messaging.max_age_days, 90);
+        assert!(config.messages_db_path().ends_with("messages.sqlite"));
+    }
+
+    #[test]
+    fn fulltext_defaults_index_moderate_archives_into_a_private_dir() {
+        let config = Config::default_with_data_dir("/tmp/x");
+        assert!(config.fulltext.enabled);
+        assert_eq!(config.fulltext.max_articles, 200_000);
+        assert_eq!(config.fulltext.min_free_mb, 1024);
+        assert!(config.index_dir().ends_with("index"));
+        assert!(config.places.enabled);
+        assert_eq!(config.places.max_map_mb, 4096);
+        assert_ne!(config.index_dir(), config.books_dir());
+    }
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};

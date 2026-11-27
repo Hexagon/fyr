@@ -103,6 +103,9 @@ pub enum DownloadStatus {
     Queued,
     Downloading,
     Validating,
+    /// Streaming the finished file through SHA-256 to compare it with the
+    /// checksum supplied when the task was created.
+    Verifying,
     Routing,
     Completed,
     Failed,
@@ -122,6 +125,25 @@ pub struct DownloadTask {
     pub content_type: Option<ContentType>,
     pub created_at: String,
     pub updated_at: String,
+    /// Expected SHA-256 (lowercase hex) of the finished file, if supplied.
+    #[serde(default)]
+    pub sha256: Option<String>,
+    /// Strong `ETag` of the remote file from the response that started the
+    /// partial file; sent as `If-Range` when resuming.
+    #[serde(default)]
+    pub etag: Option<String>,
+    /// `Last-Modified` of the remote file, used as the `If-Range` validator
+    /// when no strong ETag is available.
+    #[serde(default)]
+    pub last_modified: Option<String>,
+    /// True when a failed URL task kept its partial file and can be resumed
+    /// with `POST /api/download/:task_id/retry`.
+    #[serde(default)]
+    pub resumable: bool,
+    /// Byte offset the current (or last) transfer resumed from via an HTTP
+    /// `Range` request; `None` when the transfer started from byte zero.
+    #[serde(default)]
+    pub resumed_from: Option<u64>,
 }
 
 /// Source of content being downloaded

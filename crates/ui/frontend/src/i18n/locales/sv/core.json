@@ -1,0 +1,231 @@
+{
+  "language": {
+    "label": "Språk"
+  },
+  "app": {
+    "skipToContent": "Hoppa till huvudinnehållet",
+    "toggleMenu": "Visa eller dölj navigeringsmenyn",
+    "unread": "{count} oläst | {count} olästa",
+    "admin": "Admin",
+    "logout": "Logga ut",
+    "login": "Logga in",
+    "readonly": "Skrivskyddat",
+    "readonlyEnv": "{env} är satt",
+    "tagline": "Innehållsplattform för offlinebruk",
+    "documentTitle": "Fyr – innehållsplattform för offlinebruk"
+  },
+  "nav": {
+    "home": "Översikt",
+    "maps": "Kartor",
+    "books": "Bibliotek",
+    "content": "Innehållshanterare",
+    "messages": "Meddelanden",
+    "assistant": "Assistent",
+    "tools": "Verktyg",
+    "settings": "Inställningar"
+  },
+  "routes": {
+    "home": {
+      "title": "Översikt",
+      "subtitle": "Systemstatus och översikt över offlinelagring",
+      "header": "Systemstatus"
+    },
+    "maps": {
+      "title": "Kartor",
+      "subtitle": "Bläddra bland offlinekartor och interaktiva datalager",
+      "header": "Interaktiva lager"
+    },
+    "books": {
+      "title": "Bibliotek",
+      "subtitle": "Bläddra i och läs din boksamling offline",
+      "header": "Läsning offline"
+    },
+    "content": {
+      "title": "Innehållshanterare",
+      "subtitle": "Hantera lokala filer, importer och nedladdningar",
+      "header": "Filer och importer"
+    },
+    "assistant": {
+      "title": "Assistent",
+      "subtitle": "AI-assistent offline med lokala GGUF-modeller",
+      "header": "Lokal GGUF-chatt"
+    },
+    "messages": {
+      "title": "Meddelanden",
+      "subtitle": "Öppen anslagstavla och totalkrypterade kanaler",
+      "header": "Lokala meddelanden"
+    },
+    "tools": {
+      "title": "Verktyg",
+      "subtitle": "Enhetsomvandlare, kryptering och chifferverktyg",
+      "header": "Verktyg offline"
+    },
+    "search": {
+      "title": "Sök",
+      "subtitle": "Sök efter böcker, artiklar, kartor och platser i hela offlinebiblioteket",
+      "header": "Sök överallt"
+    },
+    "settings": {
+      "title": "Inställningar",
+      "subtitle": "Ställ in plats och andra inställningar för hela appen",
+      "header": "Plats och inställningar"
+    },
+    "login": {
+      "title": "Admininloggning",
+      "subtitle": "Logga in för att komma åt adminfunktioner",
+      "header": "Adminåtkomst"
+    }
+  },
+  "headerSearch": {
+    "label": "Sök i allt offlineinnehåll",
+    "placeholder": "Sök…",
+    "title": "Sök efter böcker, artiklar, kartor och platser (tryck /)"
+  },
+  "common": {
+    "unavailable": "Inte tillgängligt",
+    "fileCount": "{count} fil | {count} filer",
+    "copy": "Kopiera",
+    "copied": "Kopierat",
+    "delete": "Ta bort",
+    "saving": "Sparar …",
+    "remove": "Ta bort",
+    "tryAgain": "Försök igen",
+    "cancel": "Avbryt",
+    "na": "saknas",
+    "yes": "Ja",
+    "no": "Nej",
+    "expandPanel": "Visa panelen",
+    "collapsePanel": "Dölj panelen",
+    "zoomIn": "Zooma in",
+    "zoomOut": "Zooma ut",
+    "search": "Sök",
+    "searching": "Söker …"
+  },
+  "time": {
+    "justNow": "nyss",
+    "minutesAgo": "för {count} min sedan",
+    "hoursAgo": "för {count} timme sedan | för {count} timmar sedan",
+    "daysAgo": "för {count} dag sedan | för {count} dagar sedan",
+    "today": "I dag",
+    "yesterday": "I går"
+  },
+  "category": {
+    "info": "Info",
+    "need": "Behov",
+    "offer": "Erbjudande",
+    "alert": "Larm"
+  },
+  "alerts": {
+    "region": "Aktiva larm",
+    "map": "Karta",
+    "openBoard": "Öppna anslagstavlan",
+    "dismiss": "Stäng larmet"
+  },
+  "api": {
+    "uploadNetwork": "Nätverksfel under uppladdningen.",
+    "uploadTimeout": "Uppladdningen avbröts efter {seconds} s.",
+    "uploadAborted": "Uppladdningen avbröts.",
+    "backupFailed": "Säkerhetskopieringen misslyckades ({status}).",
+    "noStream": "Svaret kan inte strömmas.",
+    "timeout": "Förfrågan avbröts efter {seconds} s. Kontrollera att servern svarar.",
+    "network": "Nätverksfel. Servern kan vara avstängd eller onåbar.",
+    "serverError": "Serverfel ({status}). Försök igen.",
+    "notFound": "Det begärda hittades inte.",
+    "badRequest": "Ogiltig förfrågan.",
+    "requestFailed": "Förfrågan misslyckades ({status}).",
+    "unknown": "Okänt fel"
+  },
+  "files": {
+    "noFile": "Ingen fil vald",
+    "tooLarge": "Filen är för stor (högst {kb} KB)",
+    "readFailed": "Det gick inte att läsa filen"
+  },
+  "home": {
+    "continueReading": "Fortsätt läsa",
+    "resumeBook": "Fortsätt läsa {title}",
+    "bookmarkCount": "{count} bokmärke | {count} bokmärken",
+    "systemStatus": "Systemstatus",
+    "version": "Version: {version}",
+    "timeSource": "Tidskälla",
+    "clock": "Klocka",
+    "date": "Datum",
+    "location": "Plats",
+    "coordinates": "Koordinater",
+    "sun": "Sol",
+    "maps": "Kartor",
+    "mapsHint": "Tillgängliga PMTiles-filer",
+    "books": "Böcker",
+    "booksHint": "EPUB, PDF, MOBI, Markdown och ZIM",
+    "poi": "Intressepunkter",
+    "poiHint": "GeoJSON, JSON och FlatGeoBuf",
+    "models": "Modeller",
+    "modelsHint": "Tillgängliga GGUF-filer",
+    "misc": "Övrigt",
+    "miscHint": "Allmänna filer och installationsprogram (TXT, CSV, ZIP, 7Z, EXE, MSI)",
+    "storageUsage": "Lagringsanvändning",
+    "dataDirectory": "Datakatalog:",
+    "tlsCertificate": "HTTPS-certifikat ({mode}) SHA-256:",
+    "used": "Använt",
+    "free": "Ledigt",
+    "capacity": "Kapacitet",
+    "bytes": "{n} byte",
+    "manageContent": "Hantera innehåll",
+    "loading": "Läser in serverstatus …",
+    "errorHint": "Prova att ladda om sidan eller kontrollera anslutningen till servern.",
+    "savedLocation": "Sparad plats",
+    "systemTime": "Systemtid",
+    "noSavedLocation": "Ingen sparad plats",
+    "storagePending": "Lagring beräknas"
+  },
+  "placeKind": {
+    "continent": "Kontinent",
+    "country": "Land",
+    "state": "Delstat",
+    "province": "Provins",
+    "region": "Region",
+    "county": "Län",
+    "municipality": "Kommun",
+    "city": "Stad",
+    "town": "Tätort",
+    "village": "By",
+    "hamlet": "Småort",
+    "suburb": "Stadsdel",
+    "borough": "Stadsdel",
+    "quarter": "Kvarter",
+    "neighbourhood": "Bostadsområde",
+    "locality": "Ort",
+    "isolatedDwelling": "Enstaka gård",
+    "farm": "Gård",
+    "island": "Ö",
+    "islet": "Holme",
+    "archipelago": "Skärgård",
+    "ocean": "Ocean",
+    "sea": "Hav",
+    "bay": "Vik",
+    "strait": "Sund",
+    "fjord": "Fjord",
+    "lake": "Sjö",
+    "lagoon": "Lagun",
+    "reservoir": "Reservoar",
+    "pond": "Damm",
+    "river": "Älv",
+    "stream": "Bäck",
+    "canal": "Kanal",
+    "water": "Vatten",
+    "peak": "Topp",
+    "volcano": "Vulkan",
+    "hill": "Kulle",
+    "saddle": "Pass",
+    "ridge": "Ås",
+    "mountainRange": "Bergskedja",
+    "glacier": "Glaciär",
+    "cape": "Udde",
+    "park": "Park",
+    "nationalPark": "Nationalpark",
+    "natureReserve": "Naturreservat",
+    "protectedArea": "Skyddat område",
+    "airport": "Flygplats",
+    "place": "Plats",
+    "poi": "Intressepunkt"
+  }
+}
